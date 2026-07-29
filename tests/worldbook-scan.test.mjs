@@ -12,6 +12,11 @@ assert.equal(getWorldbookScanText(chat, 2), '当前对话出现月光\n上一层
 assert.equal(isWorldbookEntryActivated({ activationMode: 'blue', key: ['不存在'] }, { scanText: '' }), true);
 assert.equal(isWorldbookEntryActivated({ activationMode: 'green', key: ['月光'] }, { scanText: getWorldbookScanText(chat, 2) }), true);
 assert.equal(isWorldbookEntryActivated({ activationMode: 'green', key: ['机密词'] }, { scanText: getWorldbookScanText(chat, 2) }), false);
+assert.equal(isWorldbookEntryActivated({
+  activationMode: 'green',
+  key: '世界书::内部条目标识',
+  worldbookKeys: ['星光', '月光'],
+}, { scanText: getWorldbookScanText(chat, 2) }), true, 'imported entries should match any worldbook activation keyword');
 
 const items = filterWorldbookPromptItems([
   { scope: '世界书', activationMode: 'blue', key: ['蓝灯'] },

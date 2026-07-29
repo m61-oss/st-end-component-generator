@@ -6,6 +6,13 @@ const styleSource = readFileSync(new URL('../style.css', import.meta.url), 'utf8
 
 assert.match(
   indexSource,
+  /const apiFields = dialog\.querySelector\('#st-esg-api-url'\)\?\.closest\('\.st-esg-grid'\);[\s\S]*?apiFields\?\.classList\.add\('st-esg-api-fields'\);[\s\S]*?apiFields\?\.insertBefore\(apiKeyLabel, apiModelLabel\);/,
+  'rendered API settings should move Key below URL and above model in one ordered group',
+);
+assert.match(styleSource, /\.st-esg-api-fields\s*\{[^}]*grid-template-columns:\s*1fr/, 'primary API fields should remain vertically ordered at every width');
+
+assert.match(
+  indexSource,
   /<label class="st-esg-switch st-esg-switch-sm"><input class="st-esg-component-enabled" type="checkbox"/,
   'component items should render their enabled control as the compact switch variant',
 );
@@ -186,6 +193,7 @@ assert.match(indexSource, /const keepEmptyGroup = !filterActive;/, 'empty user g
 assert.match(indexSource, /function applyThemeClass\(element, theme\)/, 'theme classes should be reusable for extension controls mounted outside the dialog');
 assert.match(indexSource, /applyThemeClass\(ball, theme\);/, 'new floating balls should receive the active theme class');
 assert.match(indexSource, /function getFloatingBallPosition\(\)/, 'floating ball positions should be normalized before rendering');
+assert.match(indexSource, /resolveFloatingBallPosition\(\{[\s\S]*?savedLeft:\s*settings\.ballX,[\s\S]*?savedTop:\s*settings\.ballY,/, 'floating ball rendering should delegate saved-coordinate validation to the tested resolver');
 assert.match(indexSource, /targetWindow\.innerWidth - FLOATING_BALL_SIZE/, 'floating ball positions should be constrained to the current viewport width');
 assert.match(styleSource, /#st-esg-ball \{[^}]*var\(--esg-bg-card, #/s, 'floating ball colors should have visible fallbacks outside the dialog theme scope');
 assert.match(indexSource, /const ball = targetDoc\.createElement\('div'\);/, 'floating balls should use a neutral target-document element like the working GGD floating control');

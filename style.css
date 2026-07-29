@@ -348,6 +348,8 @@ select.st-esg-scheme-select {
 
 .st-esg-workflow,
 .st-esg-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.st-esg-api-fields { grid-template-columns: 1fr; }
+.st-esg-api-fields > .st-esg-secret-label { margin-top: 0; }
 .st-esg-workflow { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 8px; }
 .st-esg-step { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 6px 8px; border: 1px solid var(--esg-border); border-radius: 6px; background: var(--esg-bg-secondary); }
 .st-esg-step b { display: grid; place-items: center; width: 22px; height: 22px; flex: 0 0 auto; border-radius: 999px; color: var(--esg-bg-card); background: var(--esg-text-main); font-size: 12px; }

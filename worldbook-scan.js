@@ -37,7 +37,8 @@ export function isWorldbookEntryActivated(entry, { scanText = '', depth = 2, act
   const mode = normalizeWorldbookActivationMode(activationMode ?? entry?.activationMode, entry?.constant ? 'blue' : 'green');
   if (entry?.disable === true || entry?.enabled === false) return false;
   if (mode === 'blue') return true;
-  const keys = normalizeKeys(entry?.key ?? entry?.worldbookKeys);
+  const worldbookKeys = normalizeKeys(entry?.worldbookKeys);
+  const keys = worldbookKeys.length ? worldbookKeys : normalizeKeys(entry?.key);
   const caseSensitive = entry?.caseSensitive === true;
   return keys.some((key) => matches(scanText, key, caseSensitive));
 }

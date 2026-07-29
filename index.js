@@ -41,6 +41,8 @@ import { filterWorldbookPromptItems, normalizeWorldbookActivationMode } from './
 import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.0';
 import { createGenerationErrorRecord, isGenerationResponseError, markGenerationResponseError } from './generation-error.js?ver=0.1.0';
 import { getNotificationMethod } from './notification-utils.js?ver=0.1.0';
+import { getGenerationConflictAction } from './generation-entry.js?ver=0.1.0';
+import { resolveFloatingBallPosition } from './floating-ball-position.js?ver=0.1.0';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.1.0';
@@ -182,7 +184,7 @@ function getQuickReplyShortcutEntries() {
 
 function updateQuickReplyShortcutActions() {
   targetWindow[QR_SHORTCUT_ACTIONS_KEY] = {
-    generate: () => generateStatusbar(),
+    generate: () => generateStatusbar('quickReply'),
     inject: () => injectGeneratedStatusbar(),
   };
 }
@@ -576,8 +578,14 @@ function injectStatusbar(message, text) {
   });
 }
 
-async function generateStatusbar() {
-  if (generationAbortController) {
+async function generateStatusbar(entryType = 'manual') {
+  const conflictAction = getGenerationConflictAction(Boolean(generationAbortController), entryType);
+  if (conflictAction === 'ignore') return '';
+  if (conflictAction === 'notify') {
+    notifyStatus('已在生成中', 'warning');
+    return '';
+  }
+  if (conflictAction === 'abort') {
     generationAbortController.abort();
     return '';
   }
@@ -661,7 +669,7 @@ async function injectGeneratedStatusbar() {
 
 async function handleGenerationEnded() {
   if (!settings.autoGenerate) return;
-  await generateStatusbar();
+  await generateStatusbar('automatic');
 }
 
 function setStatus(text, { silent = false } = {}) {
@@ -1357,16 +1365,13 @@ function renderComponentListToolbar() {
 }
 
 function getFloatingBallPosition() {
-  const maxLeft = Math.max(0, targetWindow.innerWidth - FLOATING_BALL_SIZE);
-  const maxTop = Math.max(0, targetWindow.innerHeight - FLOATING_BALL_SIZE);
-  const savedLeft = Number(settings.ballX);
-  const savedTop = Number(settings.ballY);
-  const defaultLeft = 16;
-  const defaultTop = Math.max(0, targetWindow.innerHeight - FLOATING_BALL_SIZE - 16);
-  return {
-    left: clamp(Number.isFinite(savedLeft) ? savedLeft : defaultLeft, 0, maxLeft),
-    top: clamp(Number.isFinite(savedTop) ? savedTop : defaultTop, 0, maxTop),
-  };
+  return resolveFloatingBallPosition({
+    savedLeft: settings.ballX,
+    savedTop: settings.ballY,
+    viewportWidth: targetWindow.innerWidth,
+    viewportHeight: targetWindow.innerHeight,
+    ballSize: FLOATING_BALL_SIZE,
+  });
 }
 
 function applyFloatingBallPosition(ball) {
@@ -2549,6 +2554,11 @@ function renderPluginPanel() {
   injectionCard?.remove();
   workspace?.querySelector('#st-esg-preview')?.closest('.st-esg-card')?.classList.add('st-esg-generation-content');
   dialog.querySelector('#st-esg-max-tokens')?.closest('label')?.remove();
+  const apiFields = dialog.querySelector('#st-esg-api-url')?.closest('.st-esg-grid');
+  const apiKeyLabel = dialog.querySelector('#st-esg-api-key')?.closest('label');
+  const apiModelLabel = dialog.querySelector('#st-esg-api-model')?.closest('label');
+  apiFields?.classList.add('st-esg-api-fields');
+  if (apiKeyLabel && apiModelLabel) apiFields?.insertBefore(apiKeyLabel, apiModelLabel);
   const apiModel = dialog.querySelector('#st-esg-api-model');
   apiModel?.insertAdjacentHTML('afterend', '<select id="st-esg-api-model-picker" class="text_pole st-esg-api-model-picker" style="display:none;"></select><div id="st-esg-api-model-feedback" class="st-esg-api-model-feedback"></div>');
   const preview = dialog.querySelector('#st-esg-preview');
