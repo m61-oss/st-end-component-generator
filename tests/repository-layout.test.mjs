@@ -16,6 +16,7 @@ const classifiedModules = [
   'api/stream-utils.js',
   'generation/generation-entry.js',
   'generation/generation-error.js',
+  'generation/auto-generation-trigger.js',
   'generation/prompt-builder.js',
   'generation/prompt-log.js',
   'generation/template-compat.js',

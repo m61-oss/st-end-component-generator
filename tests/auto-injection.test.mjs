@@ -3,16 +3,16 @@ import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 const generateStart = source.indexOf('async function generateStatusbar(');
-const injectStart = source.indexOf('async function injectGeneratedStatusbar()');
-const handlerStart = source.indexOf('async function handleGenerationEnded()');
+const injectStart = source.indexOf('async function injectGeneratedStatusbar(');
+const handlerStart = source.indexOf('function handleGenerationStarted(');
 const statusStart = source.indexOf('function setStatus(', handlerStart);
 const generateFunction = source.slice(generateStart, injectStart);
 const generationEndedFunction = source.slice(handlerStart, statusStart);
 const injectFunction = source.slice(injectStart, handlerStart);
 
-assert.match(generateFunction, /if \(settings\.autoInject && result\) await injectGeneratedStatusbar\(\);/, 'every successful plugin generation should auto-inject when enabled');
+assert.match(generateFunction, /if \(settings\.autoInject && result\) await injectGeneratedStatusbar\(latest\.index\);/, 'every successful plugin generation should auto-inject into the same assistant message when enabled');
 assert.doesNotMatch(generationEndedFunction, /injectGeneratedStatusbar\(/, 'the Tavern completion handler must not inject a second time');
-assert.match(generationEndedFunction, /await generateStatusbar\('automatic'\);/, 'automatic generation should identify itself so an active request is ignored');
+assert.match(generationEndedFunction, /await generateStatusbar\('automatic', targetMessageIndex\);/, 'automatic generation should identify itself and pass the confirmed assistant message so an active request is ignored');
 assert.match(generateFunction, /conflictAction === 'ignore'[\s\S]*?return '';/, 'an automatic trigger should be ignored while generation is active');
 assert.match(injectFunction, /context\.updateMessageBlock\(latest\.index, latest\.message\);\s*const messageUpdatedEvent = context\.eventTypes\?\.MESSAGE_UPDATED;\s*if \(messageUpdatedEvent && context\.eventSource\?\.emit\) \{\s*await context\.eventSource\.emit\(messageUpdatedEvent, latest\.index\);\s*\}\s*try \{\s*const saveResult = await context\.saveChat\(\);/s, 'injection should mirror the Tavern edit lifecycle by notifying message-update listeners before saving');
 assert.match(source, /mvuReprocessOnInject: true,/, 'MVU reprocessing should default to enabled for generated variable updates');

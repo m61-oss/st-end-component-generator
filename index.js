@@ -43,6 +43,7 @@ import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.0';
 import { createGenerationErrorRecord, isGenerationResponseError, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.0';
 import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.0';
 import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.1.0';
+import { createAutoGenerationTracker } from './generation/auto-generation-trigger.js?ver=0.1.0';
 import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.1.0';
 import {
   buildApiRequestParts,
@@ -156,6 +157,7 @@ let settings = { ...DEFAULT_SETTINGS };
 let importCandidates = [];
 let importGroups = [];
 const promptSourceCache = createPromptSourceCacheState();
+const autoGenerationTracker = createAutoGenerationTracker();
 let activeWorldbookGroupIndex = null;
 let generationAbortController = null;
 let lastRuntimeDiagnostics = {};
@@ -350,6 +352,14 @@ function getLatestAssistantMessage(chat) {
     if (!item?.is_user && item?.mes) return { index: i, message: item };
   }
   return null;
+}
+
+function getAssistantMessageAtIndex(chat, messageIndex) {
+  const index = Number(messageIndex);
+  if (!Number.isInteger(index) || index < 0) return null;
+  const item = chat?.[index];
+  if (!item || item.is_user === true || item.is_system === true || !String(item.mes || '').trim()) return null;
+  return { index, message: item };
 }
 
 function getEnabledComponents() {
@@ -612,7 +622,7 @@ function injectStatusbar(message, text) {
   });
 }
 
-async function generateStatusbar(entryType = 'manual') {
+async function generateStatusbar(entryType = 'manual', targetMessageIndex = null) {
   const conflictAction = getGenerationConflictAction(Boolean(generationAbortController), entryType);
   if (conflictAction === 'ignore') return '';
   if (conflictAction === 'notify') {
@@ -624,7 +634,9 @@ async function generateStatusbar(entryType = 'manual') {
     return '';
   }
   const context = getContext();
-  const latest = getLatestAssistantMessage(context.chat);
+  const latest = targetMessageIndex === null
+    ? getLatestAssistantMessage(context.chat)
+    : getAssistantMessageAtIndex(context.chat, targetMessageIndex);
   if (!latest) {
     const error = new Error('没有找到可用于生成的助手回复。');
     notifyStatus(error.message, 'warning');
@@ -658,21 +670,23 @@ async function generateStatusbar(entryType = 'manual') {
   applyGeneratedResult(result);
   saveSettings();
   switchTab('workspace');
-  if (settings.autoInject && result) await injectGeneratedStatusbar();
+  if (settings.autoInject && result) await injectGeneratedStatusbar(latest.index);
   else notifyStatus('已生成文尾组件内容，等待检查或注入。');
   return settings.lastGenerated;
 }
 
-async function injectGeneratedStatusbar() {
+async function injectGeneratedStatusbar(targetMessageIndex = null) {
   const context = getContext();
-  const latest = getLatestAssistantMessage(context.chat);
+  const latest = targetMessageIndex === null
+    ? getLatestAssistantMessage(context.chat)
+    : getAssistantMessageAtIndex(context.chat, targetMessageIndex);
   if (!latest) {
     const error = new Error('没有找到可注入的助手回复。');
     notifyStatus(error.message, 'warning');
     return;
   }
   try {
-    const text = settings.lastGenerated || $t('#st-esg-preview').val() || await generateStatusbar();
+    const text = settings.lastGenerated || $t('#st-esg-preview').val() || await generateStatusbar('manual', targetMessageIndex);
     if (!text) return;
     const injectedText = cleanGeneratedText(text);
     injectStatusbar(latest.message, injectedText);
@@ -701,9 +715,24 @@ async function injectGeneratedStatusbar() {
   }
 }
 
+function handleGenerationStarted(type, _options, dryRun) {
+  autoGenerationTracker.start(type, dryRun);
+}
+
+function handleCharacterMessageRendered(messageId) {
+  const context = getContext();
+  autoGenerationTracker.recordAssistantMessage(messageId, context.chat?.[Number(messageId)]);
+}
+
+function handleGenerationStopped() {
+  autoGenerationTracker.stop();
+}
+
 async function handleGenerationEnded() {
-  if (!settings.autoGenerate) return;
-  await generateStatusbar('automatic');
+  await new Promise((resolve) => targetWindow.setTimeout(resolve, 0));
+  const targetMessageIndex = autoGenerationTracker.finish();
+  if (!settings.autoGenerate || targetMessageIndex === null) return;
+  await generateStatusbar('automatic', targetMessageIndex);
 }
 
 function setStatus(text, { silent = false } = {}) {
@@ -3122,7 +3151,10 @@ function init() {
   startTavernDefaultSync();
   const context = getContext();
   registerPromptSourceCacheInvalidation(context);
-  context.eventSource.on(context.eventTypes.GENERATION_ENDED, handleGenerationEnded);
+  if (context.eventTypes.GENERATION_STARTED) context.eventSource.on(context.eventTypes.GENERATION_STARTED, handleGenerationStarted);
+  if (context.eventTypes.CHARACTER_MESSAGE_RENDERED) context.eventSource.on(context.eventTypes.CHARACTER_MESSAGE_RENDERED, handleCharacterMessageRendered);
+  if (context.eventTypes.GENERATION_STOPPED) context.eventSource.on(context.eventTypes.GENERATION_STOPPED, handleGenerationStopped);
+  if (context.eventTypes.GENERATION_ENDED) context.eventSource.on(context.eventTypes.GENERATION_ENDED, handleGenerationEnded);
   console.log(`[${EXTENSION_ID}] 已加载，dialog top layer，UI 挂载文档：${targetWindow === window ? 'current' : 'parent'}`);
 }
 
