@@ -9,7 +9,7 @@ const modelEnd = source.indexOf('const SCHEME_CONFIG', modelStart);
 const callFunction = source.slice(callStart, callEnd);
 const modelFunction = source.slice(modelStart, modelEnd);
 
-assert.match(source, /import \{ yaml \} from '\.\.\/\.\.\/\.\.\/lib\.js';/, 'the extension should reuse SillyTavern\'s YAML parser');
+assert.match(source, /import \{ yaml \} from '\.\.\/\.\.\/\.\.\/\.\.\/lib\.js';/, 'the extension should import SillyTavern\'s YAML parser from the public root');
 assert.match(source, /import \{[\s\S]*?buildApiRequestParts,[\s\S]*?parseApiAdditionalParameters,[\s\S]*?parseApiNumericSettings,[\s\S]*?\} from '\.\/api-request-parameters\.js\?ver=0\.1\.0';/, 'request parameter helpers should be imported');
 
 assert.match(callFunction, /const numeric = parseApiNumericSettings\(settings\);/, 'generation should validate user-entered numeric settings');

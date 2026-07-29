@@ -1,5 +1,5 @@
 import { getContext } from '../../../st-context.js';
-import { yaml } from '../../../lib.js';
+import { yaml } from '../../../../lib.js';
 import {
   COMPONENT_SCOPE_CHARACTER,
   COMPONENT_SCOPE_GLOBAL,
