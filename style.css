@@ -708,6 +708,8 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 [data-tab-panel="task"] { min-height: 0; }
 [data-tab-panel="task"] > .st-esg-card { display: block; }
 [data-tab-panel="task"] #st-esg-task { height: auto; min-height: 160px; overflow-y: hidden; }
+.st-esg-task-components-help { margin-top: 6px; color: var(--esg-text-muted); font-size: 11px; line-height: 1.35; }
+.st-esg-task-components-help code { color: var(--esg-text-main); font-family: var(--mainFontFamily, monospace); }
 [data-tab-panel="workspace"] .st-esg-generation-content { display: block; }
 [data-tab-panel="workspace"] .st-esg-generation-content { height: auto !important; min-height: 0; max-height: none; overflow: visible; }
 [data-tab-panel="workspace"] .st-esg-generation-content #st-esg-preview { --st-esg-preview-min-height: 180px; }
@@ -738,6 +740,9 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   margin: 0;
 }
 .st-esg-collapsible-body > .st-esg-grid { gap: 8px; }
+.st-esg-prompt-settings-section { display: grid; gap: 6px; }
+.st-esg-prompt-settings-section + .st-esg-prompt-settings-section { padding-top: 8px; border-top: 1px solid var(--esg-border); }
+.st-esg-prompt-settings-section-title { color: var(--esg-text-muted); font-size: 11px; font-weight: 700; }
 
 /* Focused task navigation: each page owns one workflow instead of a mixed settings drawer. */
 .st-esg-tabs {

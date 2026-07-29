@@ -1051,16 +1051,12 @@ async function applyPresetScheme(snapshot) {
   renderSourcePresetSelect();
   if (settings.activeSourcePreset) $t('#st-esg-source-preset').val(settings.activeSourcePreset);
   await scanImportCandidates();
-  const presetKeys = new Set(importGroups.filter((group) => !isWorldbookGroup(group)).flatMap((group) => (group.items || []).map((item) => item?.key).filter(Boolean)));
-  for (const key of presetKeys) {
-    delete settings.promptSelections[key];
-    delete settings.importSelections[key];
-    delete settings.sourceContentOverrides[key];
-    if (Object.prototype.hasOwnProperty.call(snapshot.promptSelections || {}, key)) settings.promptSelections[key] = snapshot.promptSelections[key];
-    else if (Object.prototype.hasOwnProperty.call(snapshot.importSelections || {}, key)) settings.promptSelections[key] = snapshot.importSelections[key];
-    if (Object.prototype.hasOwnProperty.call(snapshot.importSelections || {}, key)) settings.importSelections[key] = snapshot.importSelections[key];
-    if (Object.prototype.hasOwnProperty.call(snapshot.sourceContentOverrides || {}, key)) settings.sourceContentOverrides[key] = snapshot.sourceContentOverrides[key];
-  }
+  settings.promptSelections = clearImportSelectionsForScope(settings.promptSelections, COMPONENT_SCOPE_PRESET);
+  settings.importSelections = clearImportSelectionsForScope(settings.importSelections, COMPONENT_SCOPE_PRESET);
+  settings.sourceContentOverrides = clearImportSelectionsForScope(settings.sourceContentOverrides, COMPONENT_SCOPE_PRESET);
+  Object.assign(settings.promptSelections, snapshot.promptSelections || {});
+  Object.assign(settings.importSelections, snapshot.importSelections || {});
+  Object.assign(settings.sourceContentOverrides, snapshot.sourceContentOverrides || {});
   $t('#st-esg-replace-last-user-message').prop('checked', settings.replaceLastUserMessageWithTask);
   $t('#st-esg-omit-original-user-messages').prop('checked', settings.omitOriginalUserMessages);
   renderImportCandidates();
@@ -2549,6 +2545,8 @@ function renderPluginPanel() {
   const preview = dialog.querySelector('#st-esg-preview');
   preview?.closest('.st-esg-card')?.querySelector('.st-esg-card-title')?.classList.add('st-esg-generation-result-title');
   preview?.closest('.st-esg-card')?.querySelector('.st-esg-card-desc')?.classList.add('st-esg-generation-result-desc');
+  const taskInput = dialog.querySelector('#st-esg-task');
+  taskInput?.insertAdjacentHTML('afterend', '<div class="st-esg-task-components-help"><code>{{external_components}}</code> 会在生成时替换为当前启用的文尾组件；不写则不会发送组件。</div>');
   preview?.insertAdjacentHTML('beforebegin', '<div id="st-esg-thinking-panel" class="st-esg-hidden"></div><div id="st-esg-generation-error" class="st-esg-generation-error st-esg-hidden"></div>');
   const tagTextarea = dialog.querySelector('#st-esg-history-cleanup-tags');
   const tagCard = tagTextarea?.closest('.st-esg-card');
@@ -2579,11 +2577,19 @@ function renderPluginPanel() {
     promptSettings.innerHTML = '<summary class="st-esg-collapsible-summary">提示词设置</summary><div class="st-esg-collapsible-body"></div>';
     const promptBody = promptSettings.querySelector('.st-esg-collapsible-body');
     const baiBaiBody = baiBaiDetails?.querySelector('.st-esg-collapsible-body');
-    while (baiBaiBody?.firstElementChild) promptBody.appendChild(baiBaiBody.firstElementChild);
+    const baiBaiSection = targetDoc.createElement('div');
+    baiBaiSection.className = 'st-esg-prompt-settings-section';
+    baiBaiSection.innerHTML = '<div class="st-esg-prompt-settings-section-title">柏宝书记忆插件兼容</div>';
+    while (baiBaiBody?.firstElementChild) baiBaiSection.appendChild(baiBaiBody.firstElementChild);
+    promptBody.appendChild(baiBaiSection);
     const templateLabel = targetDoc.createElement('label');
     templateLabel.className = 'st-esg-checkbox st-esg-log-option';
     templateLabel.innerHTML = '<input id="st-esg-prompt-template-compat" type="checkbox" /><span>启用 ST-Prompt-Template 兼容</span><em>生成时支持 EJS 和变量读取；需要 ST-Prompt-Template 已加载。关闭时保持现有生成行为。</em>';
-    promptBody.appendChild(templateLabel);
+    const templateSection = targetDoc.createElement('div');
+    templateSection.className = 'st-esg-prompt-settings-section';
+    templateSection.innerHTML = '<div class="st-esg-prompt-settings-section-title">提示词模板语法兼容</div>';
+    templateSection.appendChild(templateLabel);
+    promptBody.appendChild(templateSection);
     if (baiBaiDetails) baiBaiDetails.replaceWith(promptSettings);
     else runtimePanel.appendChild(promptSettings);
   }
@@ -2742,7 +2748,7 @@ function bindPanelEvents() {
     if (!$(this).prop('checked')) return;
     void changeSourceMode('worldbook', String($(this).val()));
   });
-  $t('#st-esg-source-preset').on('change', function () { const presetName = String($(this).val() || ''); settings.activeSourcePreset = presetName; markSchemeDirty('preset'); scanImportCandidates({ explicitPresetName: presetName }); });
+  $t('#st-esg-source-preset').on('change', function () { const presetName = String($(this).val() || ''); settings.activeSourcePreset = presetName; if (getSourceMode('preset') === SOURCE_MODE_PROMPT) markSchemeDirty('preset'); else saveSettings(); scanImportCandidates({ explicitPresetName: presetName }); });
   $t('.st-esg-panel-body').off('click.stEsgSourceImport').on('click.stEsgSourceImport', '#st-esg-import-preset-components', () => importCheckedCandidates('preset')).on('click.stEsgSourceImport', '#st-esg-import-worldbook-components', () => importCheckedCandidates('worldbook'));
   $t('#st-esg-copy-prompt-log').on('click', async () => {
     const copied = await copyTextToClipboard(lastPromptLogText);

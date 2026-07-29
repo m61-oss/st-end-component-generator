@@ -217,3 +217,34 @@ assert.match(generationSettingsFunction, /settingsBody\.insertBefore\(injectionM
 assert.match(generationSettingsFunction, /statusPlaceholderSetting\.insertAdjacentHTML\('afterend', '[\s\S]*?id="st-esg-mvu-reprocess-on-inject"/, 'the MVU reprocessing switch should appear immediately after the status-placeholder setting');
 assert.doesNotMatch(generationSettingsFunction, /settingsBody\.insertAdjacentHTML\('beforeend', '[\s\S]*?id="st-esg-mvu-reprocess-on-inject"/, 'the MVU reprocessing switch must not be appended after the replacement-mode description');
 assert.match(styleSource, /@media \(max-width: 640px\) \{[\s\S]*?\.st-esg-dialog \{\s*align-items:\s*center !important;/, 'mobile dialogs should be vertically centered instead of bottom-aligned');
+assert.match(indexSource, /className = 'st-esg-prompt-settings-section';[\s\S]*?柏宝书记忆插件兼容/, 'prompt settings should group the BaiBai Book controls under a dedicated compatibility heading');
+assert.match(indexSource, /className = 'st-esg-prompt-settings-section';[\s\S]*?提示词模板语法兼容/, 'prompt settings should group the template-compatibility control under its own heading');
+assert.match(indexSource, /baiBaiSection\.appendChild\(baiBaiBody\.firstElementChild\);/, 'both BaiBai Book controls should stay together inside their compatibility group');
+assert.match(indexSource, /templateSection\.appendChild\(templateLabel\);/, 'the template switch should stay inside the template compatibility group');
+assert.match(styleSource, /\.st-esg-prompt-settings-section-title\s*\{/, 'compatibility groups should have a dedicated section-title style');
+
+const presetSchemeFunction = indexSource.slice(
+  indexSource.indexOf('async function applyPresetScheme(snapshot)'),
+  indexSource.indexOf('async function applyWorldbookScheme(snapshot)'),
+);
+assert.match(
+  presetSchemeFunction,
+  /settings\.promptSelections = clearImportSelectionsForScope\(settings\.promptSelections, COMPONENT_SCOPE_PRESET\);[\s\S]*?settings\.importSelections = clearImportSelectionsForScope\(settings\.importSelections, COMPONENT_SCOPE_PRESET\);[\s\S]*?Object\.assign\(settings\.promptSelections, snapshot\.promptSelections \|\| \{\}\);[\s\S]*?Object\.assign\(settings\.importSelections, snapshot\.importSelections \|\| \{\}\);/,
+  'preset schemes should restore prompt and import selections into independent stores, just like worldbook schemes',
+);
+assert.doesNotMatch(
+  presetSchemeFunction,
+  /else if \(Object\.prototype\.hasOwnProperty\.call\(snapshot\.importSelections \|\| \{\}, key\)\)/,
+  'preset import selections must never be copied into prompt selections',
+);
+assert.match(
+  indexSource,
+  /\$t\('#st-esg-source-preset'\)\.on\('change', function \(\) \{[\s\S]*?if \(getSourceMode\('preset'\) === SOURCE_MODE_PROMPT\) markSchemeDirty\('preset'\);[\s\S]*?scanImportCandidates\(\{ explicitPresetName: presetName \}\); \}\);/,
+  'changing the preset source should only dirty a saved scheme in prompt mode, not import mode',
+);
+assert.match(
+  indexSource,
+  /st-esg-task-components-help[\s\S]*?\{\{external_components\}\}/,
+  'the task page should keep a visible explanation of the external-components placeholder near the task input',
+);
+assert.match(styleSource, /\.st-esg-task-components-help\s*\{/, 'the task placeholder explanation should have dedicated small-text styling');
