@@ -716,7 +716,7 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
 }
 
 function handleGenerationStarted(type, _options, dryRun) {
-  autoGenerationTracker.start(type, dryRun);
+  autoGenerationTracker.start(type, dryRun, getContext().chat);
 }
 
 function handleCharacterMessageRendered(messageId) {
@@ -729,8 +729,10 @@ function handleGenerationStopped() {
 }
 
 async function handleGenerationEnded() {
+  const completion = autoGenerationTracker.end();
+  if (!completion) return;
   await new Promise((resolve) => targetWindow.setTimeout(resolve, 0));
-  const targetMessageIndex = autoGenerationTracker.finish();
+  const targetMessageIndex = autoGenerationTracker.finalize(completion, getContext().chat);
   if (!settings.autoGenerate || targetMessageIndex === null) return;
   await generateStatusbar('automatic', targetMessageIndex);
 }
@@ -3153,7 +3155,13 @@ function init() {
   registerPromptSourceCacheInvalidation(context);
   if (context.eventTypes.GENERATION_STARTED) context.eventSource.on(context.eventTypes.GENERATION_STARTED, handleGenerationStarted);
   if (context.eventTypes.CHARACTER_MESSAGE_RENDERED) context.eventSource.on(context.eventTypes.CHARACTER_MESSAGE_RENDERED, handleCharacterMessageRendered);
-  if (context.eventTypes.GENERATION_STOPPED) context.eventSource.on(context.eventTypes.GENERATION_STOPPED, handleGenerationStopped);
+  if (context.eventTypes.GENERATION_STOPPED) {
+    if (typeof context.eventSource.makeFirst === 'function') {
+      context.eventSource.makeFirst(context.eventTypes.GENERATION_STOPPED, handleGenerationStopped);
+    } else {
+      context.eventSource.on(context.eventTypes.GENERATION_STOPPED, handleGenerationStopped);
+    }
+  }
   if (context.eventTypes.GENERATION_ENDED) context.eventSource.on(context.eventTypes.GENERATION_ENDED, handleGenerationEnded);
   console.log(`[${EXTENSION_ID}] 已加载，dialog top layer，UI 挂载文档：${targetWindow === window ? 'current' : 'parent'}`);
 }

@@ -24,8 +24,8 @@ assert.match(
 
 assert.match(
   triggerHandlers,
-  /function handleGenerationStarted\(type, _options, dryRun\) \{[\s\S]*?autoGenerationTracker\.start\(type, dryRun\);[\s\S]*?\}/,
-  'generation start should reset and classify the cycle',
+  /function handleGenerationStarted\(type, _options, dryRun\) \{[\s\S]*?autoGenerationTracker\.start\(type, dryRun, getContext\(\)\.chat\);[\s\S]*?\}/,
+  'generation start should capture the current chat tail',
 );
 assert.match(
   triggerHandlers,
@@ -35,13 +35,17 @@ assert.match(
 assert.match(triggerHandlers, /function handleGenerationStopped\(\) \{[\s\S]*?autoGenerationTracker\.stop\(\);[\s\S]*?\}/, 'stopped cycles should be marked');
 assert.match(
   triggerHandlers,
-  /async function handleGenerationEnded\(\) \{[\s\S]*?targetWindow\.setTimeout\(resolve, 0\)[\s\S]*?const targetMessageIndex = autoGenerationTracker\.finish\(\);[\s\S]*?if \(!settings\.autoGenerate \|\| targetMessageIndex === null\) return;[\s\S]*?await generateStatusbar\('automatic', targetMessageIndex\);[\s\S]*?\}/,
-  'generation end should wait for a stop event and use only the tracked assistant message',
+  /async function handleGenerationEnded\(\) \{[\s\S]*?const completion = autoGenerationTracker\.end\(\);[\s\S]*?if \(!completion\) return;[\s\S]*?targetWindow\.setTimeout\(resolve, 0\)[\s\S]*?const targetMessageIndex = autoGenerationTracker\.finalize\(completion, getContext\(\)\.chat\);[\s\S]*?if \(!settings\.autoGenerate \|\| targetMessageIndex === null\) return;[\s\S]*?await generateStatusbar\('automatic', targetMessageIndex\);[\s\S]*?\}/,
+  'generation end should defer and finally validate the exact assistant message',
 );
 
 assert.match(source, /context\.eventSource\.on\(context\.eventTypes\.GENERATION_STARTED, handleGenerationStarted\);/);
 assert.match(source, /context\.eventSource\.on\(context\.eventTypes\.CHARACTER_MESSAGE_RENDERED, handleCharacterMessageRendered\);/);
-assert.match(source, /context\.eventSource\.on\(context\.eventTypes\.GENERATION_STOPPED, handleGenerationStopped\);/);
+assert.match(
+  source,
+  /if \(context\.eventTypes\.GENERATION_STOPPED\) \{[\s\S]*?typeof context\.eventSource\.makeFirst === 'function'[\s\S]*?context\.eventSource\.makeFirst\(context\.eventTypes\.GENERATION_STOPPED, handleGenerationStopped\);[\s\S]*?context\.eventSource\.on\(context\.eventTypes\.GENERATION_STOPPED, handleGenerationStopped\);[\s\S]*?\}/,
+  'manual stop should be registered at highest priority with a compatibility fallback',
+);
 assert.match(source, /context\.eventSource\.on\(context\.eventTypes\.GENERATION_ENDED, handleGenerationEnded\);/);
 
 assert.match(
