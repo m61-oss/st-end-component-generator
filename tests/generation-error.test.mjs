@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createGenerationErrorRecord, isGenerationResponseError, markGenerationResponseError } from '../generation-error.js';
+import { createGenerationErrorRecord, isGenerationResponseError, markGenerationResponseError } from '../generation/generation-error.js';
 
 const record = createGenerationErrorRecord('生成', new Error('API 请求失败：401 Unauthorized'), '2026-07-28T12:00:00.000Z');
 

@@ -6,7 +6,7 @@ import {
   getWorldbookSchemeSourceNames,
   normalizeSchemeList,
   saveScheme,
-} from '../scheme-utils.js';
+} from '../settings/scheme-utils.js';
 
 const settings = {
   apiUrl: 'https://api.example.com/v1',

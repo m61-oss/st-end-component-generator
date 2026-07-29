@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { extractConfiguredBlocks, stripConfiguredBlocks } from '../tag-rules.js';
+import { extractConfiguredBlocks, stripConfiguredBlocks } from '../injection/tag-rules.js';
 
 const source = '<thinking>private chain</thinking><content>visible body</content><details>aside</details>';
 

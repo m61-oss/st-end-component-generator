@@ -1,5 +1,5 @@
 ﻿import assert from 'node:assert/strict';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from '../prompt-builder.js';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from '../generation/prompt-builder.js';
 
 const targetWindow = {
   TavernHelper: {

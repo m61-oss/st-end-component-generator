@@ -4,7 +4,7 @@ import {
   collectSelectedPromptSourceItems,
   normalizePromptSourceType,
   syncPromptSelectionsFromGroups,
-} from '../source-selection.js';
+} from '../sources/source-selection.js';
 
 assert.equal(normalizePromptSourceType('preset'), 'preset');
 assert.equal(normalizePromptSourceType('worldbook'), 'worldbook');

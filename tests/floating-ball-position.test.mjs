@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { resolveFloatingBallPosition } from '../floating-ball-position.js';
+import { resolveFloatingBallPosition } from '../ui/floating-ball-position.js';
 
 const viewport = { viewportWidth: 1000, viewportHeight: 800, ballSize: 38, margin: 16 };
 

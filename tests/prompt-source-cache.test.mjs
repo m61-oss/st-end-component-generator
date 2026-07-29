@@ -5,7 +5,7 @@ import {
   markPromptSourceStructureDirty,
   markWorldbookSourceDirty,
   takeDirtyWorldbookSources,
-} from '../prompt-source-cache.js';
+} from '../sources/prompt-source-cache.js';
 
 const state = createPromptSourceCacheState();
 assert.equal(state.structureDirty, true);

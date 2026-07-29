@@ -18,7 +18,7 @@ import {
   normalizeComponentIds,
   migrateLegacyComponentGroups,
   getCurrentCharacterNameSafe,
-} from '../component-sources.js';
+} from '../sources/component-sources.js';
 
 const generatedIds = ['uuid-for-duplicate', 'uuid-for-missing'];
 const normalizedComponentIds = normalizeComponentIds([

@@ -22,40 +22,40 @@ import {
   normalizeComponent,
   normalizeComponentIds,
   normalizeComponentScope,
-} from './component-sources.js?ver=0.1.0';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.1.0';
-import { containsStatusPlaceholder, injectStatusbarText, STATUS_PLACEHOLDER_TAG } from './inject-utils.js?ver=0.1.0';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.1.0';
-import { renderPromptTemplate } from './template-compat.js?ver=0.1.0';
-import { getBaiBaiBookApi } from './baibai-book.js?ver=0.1.0';
-import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.1.0';
+} from './sources/component-sources.js?ver=0.1.0';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.1.0';
+import { containsStatusPlaceholder, injectStatusbarText, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.1.0';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.0';
+import { renderPromptTemplate } from './generation/template-compat.js?ver=0.1.0';
+import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.1.0';
+import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './generation/prompt-log.js?ver=0.1.0';
 import {
   clearImportSelectionsForScope,
   collectSelectedPromptSourceItems,
   normalizePromptSourceType,
   syncPromptSelectionsFromGroups,
-} from './source-selection.js?ver=0.1.0';
-import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, normalizeSchemeList, saveScheme } from './scheme-utils.js?ver=0.1.0';
-import { readOpenAiStream } from './stream-utils.js?ver=0.1.0';
-import { extractConfiguredBlocks, stripConfiguredBlocks } from './tag-rules.js?ver=0.1.0';
-import { filterWorldbookPromptItems, normalizeWorldbookActivationMode } from './worldbook-scan.js?ver=0.1.0';
+} from './sources/source-selection.js?ver=0.1.0';
+import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.0';
+import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.0';
+import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.0';
+import { filterWorldbookPromptItems, normalizeWorldbookActivationMode } from './sources/worldbook-scan.js?ver=0.1.0';
 import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.0';
-import { createGenerationErrorRecord, isGenerationResponseError, markGenerationResponseError } from './generation-error.js?ver=0.1.0';
-import { getNotificationMethod } from './notification-utils.js?ver=0.1.0';
-import { getGenerationConflictAction } from './generation-entry.js?ver=0.1.0';
-import { resolveFloatingBallPosition } from './floating-ball-position.js?ver=0.1.0';
+import { createGenerationErrorRecord, isGenerationResponseError, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.0';
+import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.0';
+import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.1.0';
+import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.1.0';
 import {
   buildApiRequestParts,
   parseApiAdditionalParameters,
   parseApiNumericSettings,
-} from './api-request-parameters.js?ver=0.1.0';
+} from './api/api-request-parameters.js?ver=0.1.0';
 import {
   createPromptSourceCacheState,
   loadWorldbookSourceGroups,
   markPromptSourceStructureDirty,
   markWorldbookSourceDirty,
   takeDirtyWorldbookSources,
-} from './prompt-source-cache.js?ver=0.1.0';
+} from './sources/prompt-source-cache.js?ver=0.1.0';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.1.0';

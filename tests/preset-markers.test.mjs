@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { collectPresetImportGroups } from '../component-sources.js';
+import { collectPresetImportGroups } from '../sources/component-sources.js';
 
 const markerTargetWindow = {
   TavernHelper: {

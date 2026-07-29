@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { injectStatusbarText } from '../inject-utils.js';
+import { injectStatusbarText } from '../injection/inject-utils.js';
 
 const statusbar = '<roleplay_options>\n...\n</roleplay_options>';
 

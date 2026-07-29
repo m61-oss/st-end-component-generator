@@ -3,7 +3,7 @@ import {
   extractModelIds,
   normalizeChatCompletionsUrl,
   normalizeModelsUrl,
-} from '../api-utils.js';
+} from '../api/api-utils.js';
 
 assert.equal(normalizeChatCompletionsUrl('https://api.example.com/v1'), 'https://api.example.com/v1/chat/completions');
 assert.equal(normalizeChatCompletionsUrl('https://api.example.com/v1/'), 'https://api.example.com/v1/chat/completions');

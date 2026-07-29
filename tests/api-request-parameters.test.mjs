@@ -4,7 +4,7 @@ import {
   buildApiRequestParts,
   parseApiAdditionalParameters,
   parseApiNumericSettings,
-} from '../api-request-parameters.js';
+} from '../api/api-request-parameters.js';
 
 const yamlParser = {
   parse(source) {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from '../prompt-log.js';
+import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from '../generation/prompt-log.js';
 
 const log = createPromptLog({
   apiUrl: 'https://example.com/v1/chat/completions',

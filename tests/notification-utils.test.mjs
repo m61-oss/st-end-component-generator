@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { getNotificationMethod } from '../notification-utils.js';
+import { getNotificationMethod } from '../ui/notification-utils.js';
 
 assert.equal(getNotificationMethod('success'), 'success');
 assert.equal(getNotificationMethod('warning'), 'warning');

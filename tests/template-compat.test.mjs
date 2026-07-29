@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { renderPromptTemplate, isPromptTemplateApiAvailable, MISSING_TEMPLATE_API_MESSAGE } from '../template-compat.js';
+import { renderPromptTemplate, isPromptTemplateApiAvailable, MISSING_TEMPLATE_API_MESSAGE } from '../generation/template-compat.js';
 
 const extensionSource = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 const bindPanelEvents = extensionSource.slice(

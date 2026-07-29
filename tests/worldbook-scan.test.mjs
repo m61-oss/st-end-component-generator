@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { filterWorldbookPromptItems, getWorldbookScanText, isWorldbookEntryActivated } from '../worldbook-scan.js';
+import { filterWorldbookPromptItems, getWorldbookScanText, isWorldbookEntryActivated } from '../sources/worldbook-scan.js';
 
 const chat = [
   { is_user: true, mes: '很久以前的地点' },

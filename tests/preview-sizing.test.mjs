@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { clampPreviewHeight } from '../preview-sizing.js';
+import { clampPreviewHeight } from '../ui/preview-sizing.js';
 
 assert.equal(clampPreviewHeight(72, 180, 420), 180, 'short content keeps the minimum height');
 assert.equal(clampPreviewHeight(260, 180, 420), 260, 'medium content uses its natural height');

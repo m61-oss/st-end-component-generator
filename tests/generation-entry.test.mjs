@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { getGenerationConflictAction } from '../generation-entry.js';
+import { getGenerationConflictAction } from '../generation/generation-entry.js';
 
 assert.equal(getGenerationConflictAction(false, 'manual'), 'start');
 assert.equal(getGenerationConflictAction(false, 'quickReply'), 'start');

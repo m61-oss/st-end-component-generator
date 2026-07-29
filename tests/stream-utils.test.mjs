@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { extractStreamDelta, readOpenAiStream } from '../stream-utils.js';
+import { extractStreamDelta, readOpenAiStream } from '../api/stream-utils.js';
 
 assert.equal(extractStreamDelta({ choices: [{ delta: { content: 'Hello' } }] }), 'Hello');
 assert.equal(extractStreamDelta({ choices: [{ text: ' legacy' }] }), ' legacy');

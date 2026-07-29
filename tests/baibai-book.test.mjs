@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {
   buildBaiBaiBookInjections,
   selectBaiBaiBookSnapshot,
-} from '../baibai-book.js';
+} from '../sources/baibai-book.js';
 
 const api = {
   getInjectedHistory() {

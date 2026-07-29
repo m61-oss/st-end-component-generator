@@ -1,5 +1,5 @@
-import { buildBaiBaiBookInjections } from './baibai-book.js';
-import { stripConfiguredBlocks } from './tag-rules.js';
+import { buildBaiBaiBookInjections } from '../sources/baibai-book.js';
+import { stripConfiguredBlocks } from '../injection/tag-rules.js';
 
 const textOf = (value) => String(value ?? '').trim();
 const IGNORE_SYMBOL = Symbol.for('ignore');
