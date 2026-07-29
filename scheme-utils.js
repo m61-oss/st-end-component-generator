@@ -63,6 +63,9 @@ export function captureSchemeSnapshot(type, settings, groups = [], options = {})
       apiModelOptions: Array.isArray(settings.apiModelOptions) ? [...settings.apiModelOptions] : [],
       maxTokens: settings.maxTokens || '',
       temperature: settings.temperature || '',
+      additionalBodyYaml: settings.additionalBodyYaml || '',
+      excludedBodyYaml: settings.excludedBodyYaml || '',
+      additionalHeadersYaml: settings.additionalHeadersYaml || '',
       streamingEnabled: Boolean(settings.streamingEnabled),
     };
   }

@@ -15,6 +15,9 @@ const settings = {
   apiModelOptions: ['model-a', 'model-b'],
   maxTokens: '1200',
   temperature: '0.4',
+  additionalBodyYaml: 'top_k: 20',
+  excludedBodyYaml: '- frequency_penalty',
+  additionalHeadersYaml: 'X-Test: yes',
   streamingEnabled: true,
   taskPrompt: 'Task text',
   activeSourcePreset: 'Ako Preset',
@@ -53,6 +56,9 @@ assert.deepEqual(apiSnapshot, {
   apiModelOptions: ['model-a', 'model-b'],
   maxTokens: '1200',
   temperature: '0.4',
+  additionalBodyYaml: 'top_k: 20',
+  excludedBodyYaml: '- frequency_penalty',
+  additionalHeadersYaml: 'X-Test: yes',
   streamingEnabled: true,
 });
 

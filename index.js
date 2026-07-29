@@ -1,4 +1,5 @@
 import { getContext } from '../../../st-context.js';
+import { yaml } from '../../../lib.js';
 import {
   COMPONENT_SCOPE_CHARACTER,
   COMPONENT_SCOPE_GLOBAL,
@@ -43,6 +44,11 @@ import { createGenerationErrorRecord, isGenerationResponseError, markGenerationR
 import { getNotificationMethod } from './notification-utils.js?ver=0.1.0';
 import { getGenerationConflictAction } from './generation-entry.js?ver=0.1.0';
 import { resolveFloatingBallPosition } from './floating-ball-position.js?ver=0.1.0';
+import {
+  buildApiRequestParts,
+  parseApiAdditionalParameters,
+  parseApiNumericSettings,
+} from './api-request-parameters.js?ver=0.1.0';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.1.0';
@@ -51,7 +57,7 @@ const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLD_BOOK_FOLLOW_TAVERN = '__follow_tavern__';
 const DEFAULT_COMPONENT_GROUP_VALUE = '__default_group__';
-const MAX_OUTPUT_TOKENS = 200000;
+const MAX_OUTPUT_TOKENS = 65535;
 const FLOATING_BALL_SIZE = 38;
 const QR_SHORTCUT_SET_NAME = '外置文尾组件生成器快捷键';
 const QR_SHORTCUT_ACTIONS_KEY = '__stEsgQuickReplyActions';
@@ -80,7 +86,10 @@ const DEFAULT_SETTINGS = {
   apiModel: '',
   apiModelOptions: [],
   maxTokens: String(MAX_OUTPUT_TOKENS),
-  temperature: '0.7',
+  temperature: '1',
+  additionalBodyYaml: '',
+  excludedBodyYaml: '',
+  additionalHeadersYaml: '',
   streamingEnabled: false,
   promptTemplateCompatEnabled: false,
   injectMode: 'replace',
@@ -539,9 +548,26 @@ async function callExternalApi(latestMessage, signal) {
   const apiUrl = normalizeChatCompletionsUrl(settings.apiUrl);
   const model = textOf(settings.apiModel);
   if (!apiUrl || !model) throw new Error('请先在“API 设置”里填写 API 地址和模型名称。');
+  const numeric = parseApiNumericSettings(settings);
+  const additional = parseApiAdditionalParameters(settings, yaml);
   const builtMessages = await buildMessages(latestMessage);
   const messages = settings.compressSystemMessages ? mergeConsecutiveSystemMessages(builtMessages) : builtMessages;
-  lastPromptLogText = createPromptLog({ apiUrl, apiKey: settings.apiKey, model, maxTokens: String(MAX_OUTPUT_TOKENS), temperature: settings.temperature, messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics: lastRuntimeDiagnostics, compressSystemMessages: settings.compressSystemMessages });
+  const { body, headers } = buildApiRequestParts(
+    {
+      model,
+      messages,
+      max_tokens: numeric.maxTokens,
+      temperature: numeric.temperature,
+      stream: Boolean(settings.streamingEnabled),
+    },
+    {
+      'Content-Type': 'application/json',
+      ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
+    },
+    additional,
+  );
+  const streamingEnabled = Boolean(body.stream);
+  lastPromptLogText = createPromptLog({ apiUrl, apiKey: settings.apiKey, model, maxTokens: String(numeric.maxTokens), temperature: String(numeric.temperature), messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics: lastRuntimeDiagnostics, compressSystemMessages: settings.compressSystemMessages });
   settings.lastPromptLog = '';
   saveSettings();
   renderPromptLog();
@@ -549,11 +575,11 @@ async function callExternalApi(latestMessage, signal) {
   const response = await fetch(apiUrl, {
     method: 'POST',
     signal,
-    headers: { 'Content-Type': 'application/json', ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}) },
-    body: JSON.stringify({ model, messages, max_tokens: MAX_OUTPUT_TOKENS, temperature: Number(settings.temperature) || 0.7, stream: Boolean(settings.streamingEnabled) }),
+    headers,
+    body: JSON.stringify(body),
   });
   if (!response.ok) throw markGenerationResponseError(new Error(`API 请求失败：${response.status} ${(await response.text().catch(() => '')).slice(0, 160)}`));
-  if (settings.streamingEnabled) {
+  if (streamingEnabled) {
     const streamed = await readOpenAiStream(response, (_, fullText) => {
       applyGeneratedResult(fullText);
       switchTab('workspace');
@@ -862,9 +888,14 @@ async function fetchApiModels() {
   $t('#st-esg-api-model-feedback').text('正在拉取模型列表...');
   setStatus('正在拉取模型列表……');
   try {
+    const additional = parseApiAdditionalParameters(settings, yaml);
     const response = await fetch(modelsUrl, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json', ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}) },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
+        ...additional.additionalHeaders,
+      },
     });
     if (!response.ok) throw new Error(`拉取模型失败：${response.status} ${(await response.text().catch(() => '')).slice(0, 160)}`);
     const models = extractModelIds(await response.json());
@@ -987,6 +1018,97 @@ function requestTextInputDialog({ title, label, placeholder = '', value = '', op
   });
 }
 
+function renderApiAdditionalParameterError(dialog, error) {
+  dialog.querySelectorAll('[data-api-parameter-error]').forEach((element) => {
+    element.textContent = '';
+  });
+  const field = textOf(error?.field);
+  const errorElement = dialog.querySelector(`[data-api-parameter-error="${field}"]`)
+    || dialog.querySelector('[data-api-parameter-error="general"]');
+  if (errorElement) errorElement.textContent = error?.message || '附加参数格式不正确，请检查后重试。';
+}
+
+function showApiAdditionalParametersDialog() {
+  targetDoc.getElementById('st-esg-api-additional-dialog')?.remove();
+  const dialog = targetDoc.createElement('dialog');
+  dialog.id = 'st-esg-api-additional-dialog';
+  dialog.className = `st-esg-api-additional-dialog st-esg-theme-${settings.theme === 'light' ? 'light' : 'dark'}`;
+  dialog.innerHTML = `
+    <form>
+      <header class="st-esg-api-additional-header">
+        <div>
+          <div class="st-esg-card-title">附加参数</div>
+          <div class="st-esg-card-desc">使用 YAML 添加或排除请求参数，也可以加入自定义请求头。</div>
+        </div>
+        <button class="st-esg-icon-btn" type="button" data-api-additional-close aria-label="关闭附加参数"><i class="fa-solid fa-xmark"></i></button>
+      </header>
+      <div class="st-esg-api-additional-body">
+        <section>
+          <label for="st-esg-api-include-body">追加请求体参数</label>
+          <p>合并到 API 请求体中；同名字段会覆盖温度、最大 Token 等基础值。</p>
+          <textarea id="st-esg-api-include-body" class="text_pole" spellcheck="false" placeholder="top_p: 0.9&#10;frequency_penalty: 0"></textarea>
+          <div class="st-esg-api-parameter-error" data-api-parameter-error="追加请求体参数" role="alert"></div>
+        </section>
+        <section>
+          <label for="st-esg-api-exclude-body">排除请求体参数</label>
+          <p>填写字段名列表；这些字段会在请求发送前从请求体中移除。</p>
+          <textarea id="st-esg-api-exclude-body" class="text_pole" spellcheck="false" placeholder="- frequency_penalty&#10;- presence_penalty"></textarea>
+          <div class="st-esg-api-parameter-error" data-api-parameter-error="排除请求体参数" role="alert"></div>
+        </section>
+        <section>
+          <label for="st-esg-api-include-headers">追加请求头</label>
+          <p>会用于生成请求和拉取模型请求。敏感值不会写入提示词日志。</p>
+          <textarea id="st-esg-api-include-headers" class="text_pole" spellcheck="false" placeholder="X-Custom-Header: value"></textarea>
+          <div class="st-esg-api-parameter-error" data-api-parameter-error="追加请求头" role="alert"></div>
+        </section>
+        <div class="st-esg-api-parameter-error" data-api-parameter-error="general" role="alert"></div>
+      </div>
+      <footer class="st-esg-actions-row">
+        <button id="st-esg-api-additional-cancel" class="menu_button st-esg-secondary-action" type="button">取消</button>
+        <button id="st-esg-api-additional-save" class="menu_button st-esg-primary-action" type="submit">保存</button>
+      </footer>
+    </form>`;
+
+  const includeBody = dialog.querySelector('#st-esg-api-include-body');
+  const excludeBody = dialog.querySelector('#st-esg-api-exclude-body');
+  const includeHeaders = dialog.querySelector('#st-esg-api-include-headers');
+  includeBody.value = textOf(settings.additionalBodyYaml);
+  excludeBody.value = textOf(settings.excludedBodyYaml);
+  includeHeaders.value = textOf(settings.additionalHeadersYaml);
+
+  const closeDialog = (returnValue) => {
+    if (dialog.open && typeof dialog.close === 'function') dialog.close(returnValue);
+    dialog.remove();
+  };
+  dialog.querySelector('form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const draft = {
+      additionalBodyYaml: includeBody.value,
+      excludedBodyYaml: excludeBody.value,
+      additionalHeadersYaml: includeHeaders.value,
+    };
+    try {
+      parseApiAdditionalParameters(draft, yaml);
+      Object.assign(settings, draft);
+      markSchemeDirty('api');
+      closeDialog('save');
+      notifyStatus('附加参数已保存。');
+    } catch (error) {
+      renderApiAdditionalParameterError(dialog, error);
+    }
+  });
+  dialog.querySelector('#st-esg-api-additional-cancel').addEventListener('click', () => closeDialog('cancel'));
+  dialog.querySelector('[data-api-additional-close]').addEventListener('click', () => closeDialog('cancel'));
+  dialog.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    closeDialog('cancel');
+  });
+  targetDoc.body.appendChild(dialog);
+  if (typeof dialog.showModal === 'function') dialog.showModal();
+  else dialog.setAttribute('open', '');
+  includeBody.focus();
+}
+
 function requestSchemeName(type) {
   const label = SCHEME_CONFIG[type]?.label || '方案';
   return requestTextInputDialog({ title: `另存${label}方案`, label: '方案名', placeholder: '输入方案名' });
@@ -1028,13 +1150,17 @@ function applyApiScheme(snapshot) {
     apiKey: snapshot.apiKey || '',
     apiModel: snapshot.apiModel || '',
     apiModelOptions: Array.isArray(snapshot.apiModelOptions) ? [...snapshot.apiModelOptions] : [],
-    maxTokens: String(MAX_OUTPUT_TOKENS),
-    temperature: snapshot.temperature || '0.7',
+    maxTokens: snapshot.maxTokens || String(MAX_OUTPUT_TOKENS),
+    temperature: snapshot.temperature || '1',
+    additionalBodyYaml: snapshot.additionalBodyYaml || '',
+    excludedBodyYaml: snapshot.excludedBodyYaml || '',
+    additionalHeadersYaml: snapshot.additionalHeadersYaml || '',
     streamingEnabled: Boolean(snapshot.streamingEnabled),
   });
   $t('#st-esg-api-url').val(settings.apiUrl);
   $t('#st-esg-api-key').val(settings.apiKey);
   $t('#st-esg-api-model').val(settings.apiModel);
+  $t('#st-esg-max-tokens').val(settings.maxTokens);
   $t('#st-esg-temperature').val(settings.temperature);
   $t('#st-esg-streaming-enabled').prop('checked', settings.streamingEnabled);
   $t('#st-esg-prompt-template-compat').prop('checked', settings.promptTemplateCompatEnabled);
@@ -2553,12 +2679,19 @@ function renderPluginPanel() {
   modeCard?.replaceWith(...$(buildGenerationSettingsMarkup()).toArray());
   injectionCard?.remove();
   workspace?.querySelector('#st-esg-preview')?.closest('.st-esg-card')?.classList.add('st-esg-generation-content');
-  dialog.querySelector('#st-esg-max-tokens')?.closest('label')?.remove();
   const apiFields = dialog.querySelector('#st-esg-api-url')?.closest('.st-esg-grid');
   const apiKeyLabel = dialog.querySelector('#st-esg-api-key')?.closest('label');
   const apiModelLabel = dialog.querySelector('#st-esg-api-model')?.closest('label');
+  const apiTemperatureLabel = dialog.querySelector('#st-esg-temperature')?.closest('label');
+  const apiMaxTokensLabel = dialog.querySelector('#st-esg-max-tokens')?.closest('label');
   apiFields?.classList.add('st-esg-api-fields');
   if (apiKeyLabel && apiModelLabel) apiFields?.insertBefore(apiKeyLabel, apiModelLabel);
+  if (apiTemperatureLabel && apiMaxTokensLabel) apiFields?.insertBefore(apiTemperatureLabel, apiMaxTokensLabel);
+  const temperatureInput = dialog.querySelector('#st-esg-temperature');
+  temperatureInput?.removeAttribute('max');
+  temperatureInput?.setAttribute('step', 'any');
+  const fetchModelsButton = dialog.querySelector('#st-esg-fetch-models');
+  fetchModelsButton?.insertAdjacentHTML('afterend', '<div id="st-esg-additional-parameters" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-sliders"></i><span>附加参数</span></div>');
   const apiModel = dialog.querySelector('#st-esg-api-model');
   apiModel?.insertAdjacentHTML('afterend', '<select id="st-esg-api-model-picker" class="text_pole st-esg-api-model-picker" style="display:none;"></select><div id="st-esg-api-model-feedback" class="st-esg-api-model-feedback"></div>');
   const preview = dialog.querySelector('#st-esg-preview');
@@ -2744,6 +2877,7 @@ function bindPanelEvents() {
   $t('#st-esg-api-key').val(settings.apiKey);
   $t('#st-esg-api-model').val(settings.apiModel);
   renderModelOptions();
+  $t('#st-esg-max-tokens').val(settings.maxTokens);
   $t('#st-esg-temperature').val(settings.temperature);
   $t('#st-esg-streaming-enabled').prop('checked', settings.streamingEnabled);
   renderTagRuleManager('history');
@@ -2781,6 +2915,7 @@ function bindPanelEvents() {
     setStatus('已清空提示词查看记录。');
   });
   $t('#st-esg-fetch-models').on('click', fetchApiModels);
+  $t('#st-esg-additional-parameters').on('click', showApiAdditionalParametersDialog);
   $t('.st-esg-scheme-select').on('change', function () {
     const type = String($(this).data('scheme-type') || '');
     const selectedId = String($(this).val() || '');
@@ -2878,6 +3013,7 @@ function bindPanelEvents() {
     markSchemeDirty('api');
     saveSettings();
   });
+  $t('#st-esg-max-tokens').on('input', function () { settings.maxTokens = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
   $t('#st-esg-temperature').on('input', function () { settings.temperature = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
   $t('#st-esg-streaming-enabled').on('change', function () { settings.streamingEnabled = Boolean($(this).prop('checked')); markSchemeDirty('api'); saveSettings(); });
   $t('#st-esg-prompt-template-compat').on('change', function () { settings.promptTemplateCompatEnabled = Boolean($(this).prop('checked')); saveSettings(); });

@@ -4,6 +4,13 @@ import { readFileSync } from 'node:fs';
 const indexSource = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 const styleSource = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 
+assert.match(indexSource, /const MAX_OUTPUT_TOKENS = 65535;/, 'maximum tokens should default to 65535');
+assert.match(indexSource, /maxTokens:\s*String\(MAX_OUTPUT_TOKENS\),\s*temperature:\s*'1',\s*additionalBodyYaml:\s*'',\s*excludedBodyYaml:\s*'',\s*additionalHeadersYaml:\s*'',/, 'API defaults should include editable limits and three additional-parameter drafts');
+assert.doesNotMatch(indexSource, /querySelector\('#st-esg-max-tokens'\)\?\.closest\('label'\)\?\.remove\(\)/, 'the maximum-token input must remain visible');
+assert.match(indexSource, /apiFields\?\.insertBefore\(apiTemperatureLabel, apiMaxTokensLabel\);/, 'temperature should render before maximum tokens');
+assert.match(indexSource, /\$t\('#st-esg-max-tokens'\)\.val\(settings\.maxTokens\);/, 'the maximum-token input should render its saved value');
+assert.match(indexSource, /\$t\('#st-esg-max-tokens'\)\.on\('input', function \(\) \{ settings\.maxTokens = String\(\$\(this\)\.val\(\)\); markSchemeDirty\('api'\); saveSettings\(\); \}\);/, 'maximum-token edits should persist and dirty the API scheme');
+
 assert.match(
   indexSource,
   /const apiFields = dialog\.querySelector\('#st-esg-api-url'\)\?\.closest\('\.st-esg-grid'\);[\s\S]*?apiFields\?\.classList\.add\('st-esg-api-fields'\);[\s\S]*?apiFields\?\.insertBefore\(apiKeyLabel, apiModelLabel\);/,
