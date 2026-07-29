@@ -1125,9 +1125,19 @@ async function applyScheme(type, snapshot) {
   saveSettings();
 }
 
+function isSchemeMutationLocked(type, action) {
+  return ['preset', 'worldbook'].includes(type)
+    && ['new', 'overwrite', 'delete'].includes(action)
+    && getSourceMode(type) === SOURCE_MODE_IMPORT;
+}
+
 async function handleSchemeAction(type, action) {
   const config = SCHEME_CONFIG[type];
   if (!config) return;
+  if (isSchemeMutationLocked(type, action)) {
+    notifyStatus('导入模式下不能修改方案。', 'warning');
+    return;
+  }
   const list = getSchemeList(type);
   const selectedId = textOf($t(`#st-esg-${type}-scheme`).val());
   if (action === 'new') {
@@ -2019,7 +2029,7 @@ function renderSourceModeUi() {
   $t('#st-esg-preset-placement-slot').toggle(presetMode === SOURCE_MODE_PROMPT);
   ['preset', 'worldbook'].forEach((type) => {
     const editable = getSourceMode(type) === SOURCE_MODE_PROMPT;
-    $t(`.st-esg-scheme-group[data-scheme-type="${type}"] .st-esg-save-scheme-new, .st-esg-scheme-group[data-scheme-type="${type}"] .st-esg-overwrite-scheme, .st-esg-scheme-group[data-scheme-type="${type}"] .st-esg-delete-scheme`).toggle(editable);
+    $t(`.st-esg-scheme-group[data-scheme-type="${type}"] .st-esg-save-scheme-new, .st-esg-scheme-group[data-scheme-type="${type}"] .st-esg-overwrite-scheme, .st-esg-scheme-group[data-scheme-type="${type}"] .st-esg-delete-scheme`).toggleClass('st-esg-hidden', !editable).prop('disabled', !editable);
   });
   renderPresetBindingControls();
 }

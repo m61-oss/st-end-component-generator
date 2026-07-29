@@ -249,6 +249,25 @@ assert.match(
 );
 assert.match(styleSource, /\.st-esg-task-components-help\s*\{/, 'the task placeholder explanation should have dedicated small-text styling');
 
+const sourceModeUiFunction = indexSource.slice(
+  indexSource.indexOf('function renderSourceModeUi()'),
+  indexSource.indexOf('function renderSourceModeControl(type)'),
+);
+assert.match(
+  sourceModeUiFunction,
+  /\.toggleClass\('st-esg-hidden', !editable\)\.prop\('disabled', !editable\)/,
+  'import mode should hard-hide and disable scheme mutation buttons instead of relying on inline display toggles',
+);
+const schemeActionFunction = indexSource.slice(
+  indexSource.indexOf('async function handleSchemeAction(type, action)'),
+  indexSource.indexOf('function renderComponentPreview(item)'),
+);
+assert.match(
+  schemeActionFunction,
+  /if \(isSchemeMutationLocked\(type, action\)\) \{[\s\S]*?return;/,
+  'scheme mutation handlers should reject save, overwrite, and delete actions while a source is in import mode',
+);
+
 const defaultTaskPrompt = indexSource.slice(
   indexSource.indexOf('taskPrompt: ['),
   indexSource.indexOf("  apiUrl: '',"),
