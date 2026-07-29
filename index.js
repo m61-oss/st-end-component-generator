@@ -49,6 +49,13 @@ import {
   parseApiAdditionalParameters,
   parseApiNumericSettings,
 } from './api-request-parameters.js?ver=0.1.0';
+import {
+  createPromptSourceCacheState,
+  loadWorldbookSourceGroups,
+  markPromptSourceStructureDirty,
+  markWorldbookSourceDirty,
+  takeDirtyWorldbookSources,
+} from './prompt-source-cache.js?ver=0.1.0';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.1.0';
@@ -148,6 +155,7 @@ let initialized = false;
 let settings = { ...DEFAULT_SETTINGS };
 let importCandidates = [];
 let importGroups = [];
+const promptSourceCache = createPromptSourceCacheState();
 let activeWorldbookGroupIndex = null;
 let generationAbortController = null;
 let lastRuntimeDiagnostics = {};
@@ -1235,14 +1243,43 @@ function getTavernSourceSignature() {
   return JSON.stringify({ preset, worldbooks });
 }
 
+function invalidateWorldbookSourceCache(worldbookName) {
+  markWorldbookSourceDirty(promptSourceCache, worldbookName);
+  const name = textOf(worldbookName);
+  if (!name) return;
+  importGroups
+    .filter((group) => group?.scope === SOURCE_WORLDBOOK && group.source === name)
+    .forEach((group) => {
+      group.loaded = false;
+      group.loading = false;
+      group.items = [];
+      group.error = '';
+    });
+}
+
+function registerPromptSourceCacheInvalidation(context) {
+  const bind = (eventName, handler) => {
+    const eventType = context.eventTypes?.[eventName];
+    if (eventType && context.eventSource?.on) context.eventSource.on(eventType, handler);
+  };
+  const invalidateStructure = () => markPromptSourceStructureDirty(promptSourceCache);
+  bind('WORLDINFO_UPDATED', (worldbookName) => invalidateWorldbookSourceCache(worldbookName));
+  bind('WORLDINFO_SETTINGS_UPDATED', invalidateStructure);
+  bind('PRESET_CHANGED', invalidateStructure);
+  bind('PRESET_DELETED', invalidateStructure);
+  bind('PRESET_RENAMED', invalidateStructure);
+  bind('OAI_PRESET_CHANGED_AFTER', invalidateStructure);
+  bind('CHAT_CHANGED', invalidateStructure);
+  bind('GROUP_UPDATED', invalidateStructure);
+  bind('CHARACTER_EDITED', invalidateStructure);
+}
+
 async function syncTavernDefaultSources() {
   if (!getDialog()?.open || (!isFollowingTavernPreset() && !isFollowingTavernWorldbook())) return;
   const signature = getTavernSourceSignature();
   if (signature === lastTavernSourceSignature) return;
   lastTavernSourceSignature = signature;
-  await scanImportCandidates();
-  renderSourcePresetSelect();
-  renderImportCandidates();
+  markPromptSourceStructureDirty(promptSourceCache);
 }
 
 function startTavernDefaultSync() {
@@ -1359,7 +1396,7 @@ function switchTab(tabName) {
   $t(`.st-esg-tab-panel[data-tab-panel="${nextTab}"]`).addClass('active');
   settings.activeTab = nextTab;
   saveSettings();
-  if ((nextTab === 'preset' || nextTab === 'worldbook') && !importGroups.length) scanImportCandidates();
+  if ((nextTab === 'preset' || nextTab === 'worldbook') && (!importGroups.length || promptSourceCache.structureDirty)) scanImportCandidates();
   if (nextTab === 'workspace') scheduleGeneratedPreviewResize();
   if (shouldRefreshComponentLibrary) renderComponentList();
 }
@@ -2103,21 +2140,26 @@ function syncPromptSelectionsFromLoadedGroups(groups = importGroups) {
   return promptGroups.reduce((sum, group) => sum + (group?.loaded && Array.isArray(group.items) ? group.items.length : 0), 0);
 }
 
-async function ensurePromptSourceItemsForGeneration({ refreshSources = true } = {}) {
-  if (!importGroups.length || (refreshSources && (isFollowingTavernPreset() || isFollowingTavernWorldbook()))) await scanImportCandidates();
-  const activeWorldbookGroups = importGroups.filter((group) => getSourceMode(group) === SOURCE_MODE_PROMPT && group?.scope === SOURCE_WORLDBOOK && group.category !== 'inactive' && !group.loaded && !group.loading);
-  for (const group of activeWorldbookGroups) {
-    group.loading = true;
-    try {
-      group.items = await collectWorldbookImportCandidates(targetWindow, group.source);
-      group.loaded = true;
-      syncPromptSelectionsFromLoadedGroups([group]);
-    } catch (error) {
-      group.error = error?.message || '加载失败';
-    } finally {
-      group.loading = false;
-    }
+async function ensurePromptSourceItemsForGeneration() {
+  const currentSignature = getTavernSourceSignature();
+  if (promptSourceCache.signature && currentSignature !== promptSourceCache.signature) {
+    markPromptSourceStructureDirty(promptSourceCache);
   }
+  if (!importGroups.length || promptSourceCache.structureDirty) await scanImportCandidates({ loadWorldbookCounts: false });
+  const dirtyWorldbooks = new Set(takeDirtyWorldbookSources(promptSourceCache));
+  importGroups
+    .filter((group) => group?.scope === SOURCE_WORLDBOOK && dirtyWorldbooks.has(group.source))
+    .forEach((group) => {
+      group.loaded = false;
+      group.loading = false;
+      group.items = [];
+    });
+  const activeWorldbookGroups = importGroups.filter((group) => getSourceMode(group) === SOURCE_MODE_PROMPT && group?.scope === SOURCE_WORLDBOOK && group.category !== 'inactive' && !group.loaded && !group.loading);
+  await loadWorldbookSourceGroups(
+    activeWorldbookGroups,
+    (worldbookName) => collectWorldbookImportCandidates(targetWindow, worldbookName),
+  );
+  syncPromptSelectionsFromLoadedGroups(activeWorldbookGroups);
   importCandidates = importGroups.flatMap((group) => group.items || []);
   renderImportCandidates({ renderPreset: false });
   const promptGroups = importGroups.filter((group) => getSourceMode(group) === SOURCE_MODE_PROMPT);
@@ -2368,8 +2410,11 @@ function getActiveSavedWorldbookSources() {
   return scheme ? getWorldbookSchemeSourceNames(scheme.snapshot || {}) : [];
 }
 
-async function scanImportCandidates({ explicitPresetName = '', explicitWorldbookSources = null, worldbookPromptSelections = null } = {}) {
+async function scanImportCandidates({ explicitPresetName = '', explicitWorldbookSources = null, worldbookPromptSelections = null, loadWorldbookCounts = true } = {}) {
   const context = getContext();
+  const cachedWorldbookGroups = new Map(importGroups
+    .filter((group) => group?.scope === SOURCE_WORLDBOOK && group.loaded && !promptSourceCache.dirtyWorldbooks.has(group.source))
+    .map((group) => [group.source, group]));
   // An explicit list is supplied while applying a saved scheme. It must win even if the
   // previously active scheme was Tavern default until the load operation finishes.
   const followingTavernWorldbook = isFollowingTavernWorldbook() && !Array.isArray(explicitWorldbookSources);
@@ -2389,23 +2434,35 @@ async function scanImportCandidates({ explicitPresetName = '', explicitWorldbook
     selectedWorldNames,
     explicitWorldbookNames: followingTavernWorldbook ? null : savedWorldbookSources,
   });
-  const worldbookCounts = await collectWorldbookImportCounts({
-    targetWindow,
-    context,
-    selectedWorldNames,
-    explicitWorldbookNames: followingTavernWorldbook ? null : savedWorldbookSources,
-    promptSelections: worldbookPromptSelections || (getSourceMode('worldbook') === SOURCE_MODE_PROMPT && !followingTavernWorldbook ? settings.promptSelections : {}),
-  });
+  const worldbookCounts = loadWorldbookCounts
+    ? await collectWorldbookImportCounts({
+      targetWindow,
+      context,
+      selectedWorldNames,
+      explicitWorldbookNames: followingTavernWorldbook ? null : savedWorldbookSources,
+      promptSelections: worldbookPromptSelections || (getSourceMode('worldbook') === SOURCE_MODE_PROMPT && !followingTavernWorldbook ? settings.promptSelections : {}),
+    })
+    : [];
   const worldbookCountMap = new Map(worldbookCounts.map((item) => [item.name, item]));
   importGroups = [
     ...collectPresetImportGroups({ targetWindow, context, presetName: settings.activeSourcePreset }),
-    ...worldbookGroups.map((group) => ({ ...group, ...(worldbookCountMap.get(group.source) || {}) })),
+    ...worldbookGroups.map((group) => {
+      const cached = cachedWorldbookGroups.get(group.source);
+      return {
+        ...group,
+        ...(worldbookCountMap.get(group.source) || {}),
+        ...(cached ? { loaded: true, items: cached.items, error: cached.error } : {}),
+      };
+    }),
   ];
   const syncedCount = syncPromptSelectionsFromLoadedGroups(importGroups);
   activeWorldbookGroupIndex = null;
   importCandidates = importGroups.flatMap((group) => group.items || []);
   renderImportCandidates();
   renderTaskPlacementOptions();
+  promptSourceCache.structureDirty = false;
+  promptSourceCache.signature = getTavernSourceSignature();
+  lastTavernSourceSignature = promptSourceCache.signature;
   setStatus(getSourceMode('preset') === SOURCE_MODE_PROMPT || getSourceMode('worldbook') === SOURCE_MODE_PROMPT
     ? `已同步 ${syncedCount} 个已加载条目的酒馆勾选状态。世界书会在进入详情页时同步。`
     : `已列出 ${importGroups.length} 个来源。世界书会在进入详情页时加载。`);
@@ -3063,6 +3120,7 @@ function init() {
   void syncQuickReplyShortcuts();
   startTavernDefaultSync();
   const context = getContext();
+  registerPromptSourceCacheInvalidation(context);
   context.eventSource.on(context.eventTypes.GENERATION_ENDED, handleGenerationEnded);
   console.log(`[${EXTENSION_ID}] 已加载，dialog top layer，UI 挂载文档：${targetWindow === window ? 'current' : 'parent'}`);
 }
