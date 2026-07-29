@@ -27,18 +27,26 @@ export function createAutoGenerationTracker() {
 
   return {
     start(type, dryRun = false, chat = []) {
+      pendingCompletions.forEach((completion) => {
+        if (!completion.issued) pendingCompletions.delete(completion);
+      });
       sessions.push({
         eligible: !dryRun && !EXCLUDED_GENERATION_TYPES.has(String(type || 'normal')),
         startTail: snapshotTail(chat),
         messageIndex: null,
         stopped: false,
+        issued: false,
       });
     },
 
     recordAssistantMessage(messageId, message) {
       if (messageId === null || messageId === undefined || String(messageId).trim() === '') return false;
       const messageIndex = Number(messageId);
-      const session = sessions[sessions.length - 1];
+      const activeSession = sessions[sessions.length - 1];
+      const waitingCompletion = [...pendingCompletions]
+        .reverse()
+        .find((completion) => !completion.issued && !completion.stopped);
+      const session = activeSession || waitingCompletion;
       if (
         !session?.eligible
         || session.stopped
@@ -61,7 +69,18 @@ export function createAutoGenerationTracker() {
       const session = sessions.pop();
       if (!session?.eligible) return null;
       pendingCompletions.add(session);
+      if (!Number.isInteger(session.messageIndex)) return null;
+      session.issued = true;
       return session;
+    },
+
+    takeReadyCompletion() {
+      const completion = [...pendingCompletions]
+        .reverse()
+        .find((item) => !item.issued && !item.stopped && Number.isInteger(item.messageIndex));
+      if (!completion) return null;
+      completion.issued = true;
+      return completion;
     },
 
     finalize(completion, chat = []) {

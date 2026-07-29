@@ -23,3 +23,13 @@ assert.ok(
   injectFunction.indexOf('await reprocessMvuVariables(context, latest.index);') < injectFunction.indexOf('context.updateMessageBlock(latest.index, latest.message);'),
   'MVU variables should be reprocessed before the injected message is rendered',
 );
+assert.match(
+  source,
+  /\$t\('#st-esg-generate'\)\.on\('click', \(\) => generateStatusbar\(\)\);/,
+  'the manual generate button should not pass its click event as an entry type',
+);
+assert.match(
+  source,
+  /\$t\('#st-esg-inject'\)\.on\('click', \(\) => injectGeneratedStatusbar\(\)\);/,
+  'the manual inject button should not pass its click event as a message index',
+);

@@ -77,6 +77,25 @@ for (const messageId of [-1, 'bad', null]) {
 {
   const tracker = createAutoGenerationTracker();
   tracker.start('normal', false, [userMessage]);
+  assert.equal(tracker.end(), null, 'generation end should wait when the assistant render has not arrived yet');
+  assert.equal(tracker.recordAssistantMessage(1, assistantMessage), true, 'a completed session should accept its late assistant render');
+  const completion = tracker.takeReadyCompletion();
+  assert.ok(completion, 'the late assistant render should make the ended session ready');
+  assert.equal(tracker.finalize(completion, [userMessage, assistantMessage]), 1, 'normal text should trigger when render arrives after generation end');
+}
+
+{
+  const tracker = createAutoGenerationTracker();
+  tracker.start('normal', false, [userMessage]);
+  assert.equal(tracker.end(), null);
+  tracker.stop();
+  assert.equal(tracker.recordAssistantMessage(1, assistantMessage), false, 'a stopped ended session should reject a late partial render');
+  assert.equal(tracker.takeReadyCompletion(), null, 'a stopped ended session should never become ready');
+}
+
+{
+  const tracker = createAutoGenerationTracker();
+  tracker.start('normal', false, [userMessage]);
   tracker.start('quiet', false, [userMessage]);
   assert.equal(tracker.end(), null, 'nested quiet generation should consume only its own end event');
   tracker.recordAssistantMessage(1, assistantMessage);

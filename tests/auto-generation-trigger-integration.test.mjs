@@ -29,14 +29,14 @@ assert.match(
 );
 assert.match(
   triggerHandlers,
-  /function handleCharacterMessageRendered\(messageId\) \{[\s\S]*?const context = getContext\(\);[\s\S]*?autoGenerationTracker\.recordAssistantMessage\(messageId, context\.chat\?\.\[Number\(messageId\)\]\);[\s\S]*?\}/,
-  'rendered messages should be validated against the actual chat message',
+  /async function handleCharacterMessageRendered\(messageId\) \{[\s\S]*?const context = getContext\(\);[\s\S]*?if \(!autoGenerationTracker\.recordAssistantMessage\(messageId, context\.chat\?\.\[Number\(messageId\)\]\)\) return;[\s\S]*?const completion = autoGenerationTracker\.takeReadyCompletion\(\);[\s\S]*?if \(completion\) await completeAutomaticGeneration\(completion\);[\s\S]*?\}/,
+  'a late rendered assistant message should complete an already ended generation',
 );
 assert.match(triggerHandlers, /function handleGenerationStopped\(\) \{[\s\S]*?autoGenerationTracker\.stop\(\);[\s\S]*?\}/, 'stopped cycles should be marked');
 assert.match(
   triggerHandlers,
-  /async function handleGenerationEnded\(\) \{[\s\S]*?const completion = autoGenerationTracker\.end\(\);[\s\S]*?if \(!completion\) return;[\s\S]*?targetWindow\.setTimeout\(resolve, 0\)[\s\S]*?const targetMessageIndex = autoGenerationTracker\.finalize\(completion, getContext\(\)\.chat\);[\s\S]*?if \(!settings\.autoGenerate \|\| targetMessageIndex === null\) return;[\s\S]*?await generateStatusbar\('automatic', targetMessageIndex\);[\s\S]*?\}/,
-  'generation end should defer and finally validate the exact assistant message',
+  /async function completeAutomaticGeneration\(completion\) \{[\s\S]*?targetWindow\.setTimeout\(resolve, 0\)[\s\S]*?const targetMessageIndex = autoGenerationTracker\.finalize\(completion, getContext\(\)\.chat\);[\s\S]*?if \(!settings\.autoGenerate \|\| targetMessageIndex === null\) return;[\s\S]*?await generateStatusbar\('automatic', targetMessageIndex\);[\s\S]*?\}[\s\S]*?async function handleGenerationEnded\(\) \{[\s\S]*?const completion = autoGenerationTracker\.end\(\);[\s\S]*?if \(completion\) await completeAutomaticGeneration\(completion\);[\s\S]*?\}/,
+  'generation should complete only after both end and assistant-render signals arrive',
 );
 
 assert.match(source, /context\.eventSource\.on\(context\.eventTypes\.GENERATION_STARTED, handleGenerationStarted\);/);

@@ -719,22 +719,27 @@ function handleGenerationStarted(type, _options, dryRun) {
   autoGenerationTracker.start(type, dryRun, getContext().chat);
 }
 
-function handleCharacterMessageRendered(messageId) {
+async function handleCharacterMessageRendered(messageId) {
   const context = getContext();
-  autoGenerationTracker.recordAssistantMessage(messageId, context.chat?.[Number(messageId)]);
+  if (!autoGenerationTracker.recordAssistantMessage(messageId, context.chat?.[Number(messageId)])) return;
+  const completion = autoGenerationTracker.takeReadyCompletion();
+  if (completion) await completeAutomaticGeneration(completion);
 }
 
 function handleGenerationStopped() {
   autoGenerationTracker.stop();
 }
 
-async function handleGenerationEnded() {
-  const completion = autoGenerationTracker.end();
-  if (!completion) return;
+async function completeAutomaticGeneration(completion) {
   await new Promise((resolve) => targetWindow.setTimeout(resolve, 0));
   const targetMessageIndex = autoGenerationTracker.finalize(completion, getContext().chat);
   if (!settings.autoGenerate || targetMessageIndex === null) return;
   await generateStatusbar('automatic', targetMessageIndex);
+}
+
+async function handleGenerationEnded() {
+  const completion = autoGenerationTracker.end();
+  if (completion) await completeAutomaticGeneration(completion);
 }
 
 function setStatus(text, { silent = false } = {}) {
@@ -3121,8 +3126,8 @@ function bindPanelEvents() {
       renderTagRuleManager(type);
     });
   });
-  $t('#st-esg-generate').on('click', generateStatusbar);
-  $t('#st-esg-inject').on('click', injectGeneratedStatusbar);
+  $t('#st-esg-generate').on('click', () => generateStatusbar());
+  $t('#st-esg-inject').on('click', () => injectGeneratedStatusbar());
   $t('#st-esg-generation-error').on('click', '#st-esg-show-generated-content', () => {
     settings.lastGenerationError = null;
     saveSettings();
