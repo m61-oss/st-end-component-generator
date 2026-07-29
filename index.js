@@ -68,11 +68,9 @@ const DEFAULT_SETTINGS = {
   activeTab: 'workspace',
   taskPrompt: [
     '请不要续写正文。',
-    '请基于上方预设、角色、世界观与已有正文，生成需要追加在正文末尾的内容。',
+    '请根据当前对话与下方要求，为本次回复补充所需的文尾组件。',
     '',
     '{{external_components}}',
-    '',
-    '现在只输出需要追加的内容，不解释，不输出分析过程。',
   ].join('\n'),
   apiUrl: '',
   apiKey: '',

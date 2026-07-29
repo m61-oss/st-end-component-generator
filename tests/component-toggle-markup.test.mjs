@@ -248,3 +248,11 @@ assert.match(
   'the task page should keep a visible explanation of the external-components placeholder near the task input',
 );
 assert.match(styleSource, /\.st-esg-task-components-help\s*\{/, 'the task placeholder explanation should have dedicated small-text styling');
+
+const defaultTaskPrompt = indexSource.slice(
+  indexSource.indexOf('taskPrompt: ['),
+  indexSource.indexOf("  apiUrl: '',"),
+);
+assert.match(defaultTaskPrompt, /taskPrompt:\s*\[[\s\S]*?\{\{external_components\}\}[\s\S]*?\]\.join/, 'the default task prompt should retain the component insertion point');
+assert.doesNotMatch(defaultTaskPrompt, /\u5206\u6790/, 'the default task prompt must not suppress model reasoning output');
+assert.doesNotMatch(indexSource, /现在只输出需要追加的内容，不解释，不输出分析过程。/, 'the default task prompt must not suppress model reasoning output');
