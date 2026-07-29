@@ -29,8 +29,8 @@ assert.match(
 );
 assert.match(
   triggerHandlers,
-  /async function handleCharacterMessageRendered\(messageId\) \{[\s\S]*?const context = getContext\(\);[\s\S]*?if \(!autoGenerationTracker\.recordAssistantMessage\(messageId, context\.chat\?\.\[Number\(messageId\)\]\)\) return;[\s\S]*?const completion = autoGenerationTracker\.takeReadyCompletion\(\);[\s\S]*?if \(completion\) await completeAutomaticGeneration\(completion\);[\s\S]*?\}/,
-  'a late rendered assistant message should complete an already ended generation',
+  /async function handleAssistantMessageReceived\(messageId\) \{[\s\S]*?const context = getContext\(\);[\s\S]*?if \(!autoGenerationTracker\.recordAssistantMessage\(messageId, context\.chat\?\.\[Number\(messageId\)\]\)\) return;[\s\S]*?const completion = autoGenerationTracker\.takeReadyCompletion\(\);[\s\S]*?if \(completion\) await completeAutomaticGeneration\(completion\);[\s\S]*?\}/,
+  'a received assistant message should complete an already ended generation',
 );
 assert.match(triggerHandlers, /function handleGenerationStopped\(\) \{[\s\S]*?autoGenerationTracker\.stop\(\);[\s\S]*?\}/, 'stopped cycles should be marked');
 assert.match(
@@ -40,7 +40,16 @@ assert.match(
 );
 
 assert.match(source, /context\.eventSource\.on\(context\.eventTypes\.GENERATION_STARTED, handleGenerationStarted\);/);
-assert.match(source, /context\.eventSource\.on\(context\.eventTypes\.CHARACTER_MESSAGE_RENDERED, handleCharacterMessageRendered\);/);
+assert.match(
+  source,
+  /const assistantMessageEvent = context\.eventTypes\.MESSAGE_RECEIVED \|\| context\.eventTypes\.CHARACTER_MESSAGE_RENDERED;[\s\S]*?if \(assistantMessageEvent\) context\.eventSource\.on\(assistantMessageEvent, handleAssistantMessageReceived\);/,
+  'the semantic assistant-received event should be preferred with a compatibility fallback',
+);
+assert.doesNotMatch(
+  source,
+  /context\.eventSource\.on\(context\.eventTypes\.CHARACTER_MESSAGE_RENDERED, handleCharacterMessageRendered\);/,
+  'the renderer event should not be registered in addition to MESSAGE_RECEIVED',
+);
 assert.match(
   source,
   /if \(context\.eventTypes\.GENERATION_STOPPED\) \{[\s\S]*?typeof context\.eventSource\.makeFirst === 'function'[\s\S]*?context\.eventSource\.makeFirst\(context\.eventTypes\.GENERATION_STOPPED, handleGenerationStopped\);[\s\S]*?context\.eventSource\.on\(context\.eventTypes\.GENERATION_STOPPED, handleGenerationStopped\);[\s\S]*?\}/,

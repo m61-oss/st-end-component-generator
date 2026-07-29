@@ -719,7 +719,7 @@ function handleGenerationStarted(type, _options, dryRun) {
   autoGenerationTracker.start(type, dryRun, getContext().chat);
 }
 
-async function handleCharacterMessageRendered(messageId) {
+async function handleAssistantMessageReceived(messageId) {
   const context = getContext();
   if (!autoGenerationTracker.recordAssistantMessage(messageId, context.chat?.[Number(messageId)])) return;
   const completion = autoGenerationTracker.takeReadyCompletion();
@@ -3159,7 +3159,8 @@ function init() {
   const context = getContext();
   registerPromptSourceCacheInvalidation(context);
   if (context.eventTypes.GENERATION_STARTED) context.eventSource.on(context.eventTypes.GENERATION_STARTED, handleGenerationStarted);
-  if (context.eventTypes.CHARACTER_MESSAGE_RENDERED) context.eventSource.on(context.eventTypes.CHARACTER_MESSAGE_RENDERED, handleCharacterMessageRendered);
+  const assistantMessageEvent = context.eventTypes.MESSAGE_RECEIVED || context.eventTypes.CHARACTER_MESSAGE_RENDERED;
+  if (assistantMessageEvent) context.eventSource.on(assistantMessageEvent, handleAssistantMessageReceived);
   if (context.eventTypes.GENERATION_STOPPED) {
     if (typeof context.eventSource.makeFirst === 'function') {
       context.eventSource.makeFirst(context.eventTypes.GENERATION_STOPPED, handleGenerationStopped);
