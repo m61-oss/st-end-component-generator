@@ -194,6 +194,7 @@ assert.match(indexSource, /event\.pointerType === 'mouse' && event\.button !== 0
 assert.match(styleSource, /#st-esg-ball \{[^}]*z-index:\s*2147483646 !important/s, 'floating balls should use the working mobile control\'s top page layer');
 assert.match(styleSource, /#st-esg-ball \{[^}]*touch-action:\s*none/s, 'floating balls should preserve touch dragging on mobile');
 assert.match(styleSource, /#st-esg-ball \{[^}]*border:\s*1px solid var\(--esg-text-main, #E0E0E0\)[^}]*cursor:\s*grab[^}]*box-shadow:\s*var\(--esg-shadow/s, 'floating balls should retain this extension\'s visual style');
+assert.match(styleSource, /#st-esg-ball \{[^}]*opacity:\s*0\.82/s, 'floating balls should be slightly transparent without becoming hard to find');
 assert.match(indexSource, /st-esg-ball-under-panel/, 'opening the plugin panel should explicitly hide the floating ball');
 assert.match(styleSource, /#st-esg-ball\.st-esg-ball-under-panel\s*\{\s*display:\s*none/, 'the floating ball should not intercept the plugin panel');
 assert.match(indexSource, /qrGenerateEnabled: false,\s*qrInjectEnabled: false/, 'QR shortcuts should have independent saved visibility settings');

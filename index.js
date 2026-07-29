@@ -609,6 +609,10 @@ async function injectGeneratedStatusbar() {
     injectStatusbar(latest.message, cleanGeneratedText(text));
     if (Array.isArray(latest.message.swipes) && Number.isInteger(latest.message.swipe_id)) latest.message.swipes[latest.message.swipe_id] = latest.message.mes;
     context.updateMessageBlock(latest.index, latest.message);
+    const messageUpdatedEvent = context.eventTypes?.MESSAGE_UPDATED;
+    if (messageUpdatedEvent && context.eventSource?.emit) {
+      await context.eventSource.emit(messageUpdatedEvent, latest.index);
+    }
     try {
       const saveResult = await context.saveChat();
       if (saveResult === false) throw new Error('聊天保存接口返回失败');
