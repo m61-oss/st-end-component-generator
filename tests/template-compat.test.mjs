@@ -1,5 +1,17 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { renderPromptTemplate, isPromptTemplateApiAvailable, MISSING_TEMPLATE_API_MESSAGE } from '../template-compat.js';
+
+const extensionSource = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+const bindPanelEvents = extensionSource.slice(
+  extensionSource.indexOf('function bindPanelEvents()'),
+  extensionSource.indexOf('function mountUi()'),
+);
+assert.match(
+  bindPanelEvents,
+  /\$t\('#st-esg-prompt-template-compat'\)\.prop\('checked', settings\.promptTemplateCompatEnabled\)/,
+  'the first panel render should reflect the saved prompt-template compatibility setting',
+);
 
 const calls = [];
 const targetWindow = {

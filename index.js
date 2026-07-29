@@ -2937,6 +2937,7 @@ function bindPanelEvents() {
   $t('#st-esg-max-tokens').val(settings.maxTokens);
   $t('#st-esg-temperature').val(settings.temperature);
   $t('#st-esg-streaming-enabled').prop('checked', settings.streamingEnabled);
+  $t('#st-esg-prompt-template-compat').prop('checked', settings.promptTemplateCompatEnabled);
   renderTagRuleManager('history');
   renderTagRuleManager('output');
   renderSourceModeUi();
