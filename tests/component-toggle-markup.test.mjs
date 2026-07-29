@@ -254,6 +254,11 @@ const sourceModeUiFunction = indexSource.slice(
   indexSource.indexOf('function renderSourceModeControl(type)'),
 );
 assert.match(
+  indexSource,
+  /COMPONENT_SCOPE_PRESET,\s*SOURCE_PRESET,\s*SOURCE_WORLDBOOK,/,
+  'preset import mode must import the same source scope constant used by clearImportSelections',
+);
+assert.match(
   sourceModeUiFunction,
   /\.toggleClass\('st-esg-hidden', !editable\)\.prop\('disabled', !editable\)/,
   'import mode should hard-hide and disable scheme mutation buttons instead of relying on inline display toggles',

@@ -3,6 +3,7 @@ import {
   COMPONENT_SCOPE_CHARACTER,
   COMPONENT_SCOPE_GLOBAL,
   COMPONENT_SCOPE_PRESET,
+  SOURCE_PRESET,
   SOURCE_WORLDBOOK,
   collectPresetImportGroups,
   collectWorldbookImportCandidates,
