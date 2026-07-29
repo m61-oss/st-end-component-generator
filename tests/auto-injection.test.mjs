@@ -13,3 +13,11 @@ const injectFunction = source.slice(injectStart, handlerStart);
 assert.match(generateFunction, /if \(settings\.autoInject && result\) await injectGeneratedStatusbar\(\);/, 'every successful plugin generation should auto-inject when enabled');
 assert.doesNotMatch(generationEndedFunction, /injectGeneratedStatusbar\(/, 'the Tavern completion handler must not inject a second time');
 assert.match(injectFunction, /context\.updateMessageBlock\(latest\.index, latest\.message\);\s*const messageUpdatedEvent = context\.eventTypes\?\.MESSAGE_UPDATED;\s*if \(messageUpdatedEvent && context\.eventSource\?\.emit\) \{\s*await context\.eventSource\.emit\(messageUpdatedEvent, latest\.index\);\s*\}\s*try \{\s*const saveResult = await context\.saveChat\(\);/s, 'injection should mirror the Tavern edit lifecycle by notifying message-update listeners before saving');
+assert.match(source, /mvuReprocessOnInject: true,/, 'MVU reprocessing should default to enabled for generated variable updates');
+assert.match(injectFunction, /const injectedText = cleanGeneratedText\(text\);\s*injectStatusbar\(latest\.message, injectedText\);/, 'injection should retain the exact generated text for post-injection decisions');
+assert.match(injectFunction, /if \(settings\.mvuReprocessOnInject && containsMvuUpdateVariable\(injectedText\)\) \{[\s\S]*?await reprocessMvuVariables\(context, latest\.index\);[\s\S]*?\}/, 'MVU reprocessing should run only when this injected content contains an UpdateVariable tag');
+assert.doesNotMatch(injectFunction, /containsMvuUpdateVariable\(latest\.message\.mes\)/, 'the decision to reprocess MVU variables must not inspect pre-existing reply content');
+assert.ok(
+  injectFunction.indexOf('await reprocessMvuVariables(context, latest.index);') < injectFunction.indexOf('context.updateMessageBlock(latest.index, latest.message);'),
+  'MVU variables should be reprocessed before the injected message is rendered',
+);

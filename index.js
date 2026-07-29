@@ -84,6 +84,7 @@ const DEFAULT_SETTINGS = {
   promptTemplateCompatEnabled: false,
   injectMode: 'replace',
   statusPlaceholderEnabled: false,
+  mvuReprocessOnInject: true,
   historyCleanupTags: '',
   outputCleanupTags: '',
   lastGenerated: '',
@@ -250,6 +251,7 @@ function loadSettings() {
   if (typeof settings.autoGenerate !== 'boolean') settings.autoGenerate = settings.mode !== 'manual';
   if (typeof settings.promptTemplateCompatEnabled !== 'boolean') settings.promptTemplateCompatEnabled = false;
   if (typeof settings.autoInject !== 'boolean') settings.autoInject = settings.mode === 'autoInject';
+  if (typeof settings.mvuReprocessOnInject !== 'boolean') settings.mvuReprocessOnInject = true;
   lastPromptLogText = textOf(settings.lastPromptLog);
   lastGeneratedThinking = Array.isArray(settings.lastGeneratedThinking) ? settings.lastGeneratedThinking.map((item) => String(item || '')).filter(Boolean) : [];
   settings.lastPromptLog = '';
@@ -396,6 +398,31 @@ function renderPresetBindingControls() {
 
 function cleanGeneratedText(text) {
   return stripConfiguredBlocks(text, settings.outputCleanupTags).trim();
+}
+
+function containsMvuUpdateVariable(text) {
+  return /<UpdateVariable\b/i.test(String(text || ''));
+}
+
+async function reprocessMvuVariables(context, messageIndex) {
+  const mvu = targetWindow.Mvu ?? globalThis.Mvu;
+  if (!mvu?.getMvuData || !mvu?.parseMessage || !mvu?.replaceMvuData) return false;
+
+  let baseline = null;
+  for (let index = messageIndex - 1; index >= 0; index -= 1) {
+    const candidate = await mvu.getMvuData({ type: 'message', message_id: index });
+    if (candidate?.stat_data && typeof candidate.stat_data === 'object') {
+      baseline = candidate;
+      break;
+    }
+  }
+  if (!baseline) return false;
+
+  const message = context.chat?.[messageIndex]?.mes;
+  if (typeof message !== 'string') return false;
+  const nextData = await mvu.parseMessage(message, baseline);
+  await mvu.replaceMvuData(nextData, { type: 'message', message_id: messageIndex });
+  return true;
 }
 
 function resizeTextareaToContent(textarea, fallbackMinHeight = 0) {
@@ -606,8 +633,16 @@ async function injectGeneratedStatusbar() {
   try {
     const text = settings.lastGenerated || $t('#st-esg-preview').val() || await generateStatusbar();
     if (!text) return;
-    injectStatusbar(latest.message, cleanGeneratedText(text));
+    const injectedText = cleanGeneratedText(text);
+    injectStatusbar(latest.message, injectedText);
     if (Array.isArray(latest.message.swipes) && Number.isInteger(latest.message.swipe_id)) latest.message.swipes[latest.message.swipe_id] = latest.message.mes;
+    if (settings.mvuReprocessOnInject && containsMvuUpdateVariable(injectedText)) {
+      try {
+        await reprocessMvuVariables(context, latest.index);
+      } catch (error) {
+        console.warn(`[${EXTENSION_ID}] failed to reprocess MVU variables after injection`, error);
+      }
+    }
     context.updateMessageBlock(latest.index, latest.message);
     const messageUpdatedEvent = context.eventTypes?.MESSAGE_UPDATED;
     if (messageUpdatedEvent && context.eventSource?.emit) {
@@ -2467,10 +2502,15 @@ function buildGenerationSettingsMarkup() {
 }
 
 function renderGenerationSettings() {
+  const settingsBody = targetDoc.querySelector('.st-esg-generation-settings .st-esg-collapsible-body');
+  if (settingsBody && !targetDoc.getElementById('st-esg-mvu-reprocess-on-inject')) {
+    settingsBody.insertAdjacentHTML('beforeend', '<label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-mvu-reprocess-on-inject" type="checkbox" /><span>注入变量更新后重处理 MVU 变量</span><em>仅本次注入内容含有 &lt;UpdateVariable&gt; 时执行；未安装 MVU 会自动跳过。</em></label>');
+  }
   $t('#st-esg-auto-generate').prop('checked', settings.autoGenerate);
   $t('#st-esg-auto-inject').prop('checked', settings.autoInject);
   $t('#st-esg-inject-mode').val(settings.injectMode);
   $t('#st-esg-status-placeholder-enabled').prop('checked', settings.statusPlaceholderEnabled);
+  $t('#st-esg-mvu-reprocess-on-inject').prop('checked', settings.mvuReprocessOnInject);
 }
 
 function renderPluginPanel() {
@@ -2749,6 +2789,10 @@ function bindPanelEvents() {
   });
   $t('#st-esg-status-placeholder-enabled').on('change', function () {
     settings.statusPlaceholderEnabled = Boolean($(this).prop('checked'));
+    saveSettings();
+  });
+  $t('#st-esg-mvu-reprocess-on-inject').on('change', function () {
+    settings.mvuReprocessOnInject = Boolean($(this).prop('checked'));
     saveSettings();
   });
   $t('#st-esg-task').on('input', function () { settings.taskPrompt = String($(this).val()); resizeTaskPrompt(); markSchemeDirty('task'); saveSettings(); });
