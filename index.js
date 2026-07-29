@@ -2503,8 +2503,13 @@ function buildGenerationSettingsMarkup() {
 
 function renderGenerationSettings() {
   const settingsBody = targetDoc.querySelector('.st-esg-generation-settings .st-esg-collapsible-body');
-  if (settingsBody && !targetDoc.getElementById('st-esg-mvu-reprocess-on-inject')) {
-    settingsBody.insertAdjacentHTML('beforeend', '<label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-mvu-reprocess-on-inject" type="checkbox" /><span>注入变量更新后重处理 MVU 变量</span><em>仅本次注入内容含有 &lt;UpdateVariable&gt; 时执行；未安装 MVU 会自动跳过。</em></label>');
+  const statusPlaceholderSetting = settingsBody?.querySelector('#st-esg-status-placeholder-enabled')?.closest('label');
+  const injectionModeDescription = settingsBody?.querySelector('.st-esg-card-desc');
+  if (injectionModeDescription && statusPlaceholderSetting) {
+    settingsBody.insertBefore(injectionModeDescription, statusPlaceholderSetting);
+  }
+  if (statusPlaceholderSetting && !targetDoc.getElementById('st-esg-mvu-reprocess-on-inject')) {
+    statusPlaceholderSetting.insertAdjacentHTML('afterend', '<label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-mvu-reprocess-on-inject" type="checkbox" /><span>注入变量更新后重处理 MVU 变量</span><em>仅本次注入内容含有 &lt;UpdateVariable&gt; 时执行；未安装 MVU 会自动跳过。</em></label>');
   }
   $t('#st-esg-auto-generate').prop('checked', settings.autoGenerate);
   $t('#st-esg-auto-inject').prop('checked', settings.autoInject);

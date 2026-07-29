@@ -207,3 +207,13 @@ assert.match(indexSource, /id="st-esg-qr-generate-enabled"[\s\S]*?id="st-esg-qr-
 assert.match(indexSource, /id="st-esg-mvu-reprocess-on-inject"/, 'generation settings should expose the MVU variable reprocessing switch');
 assert.match(indexSource, /\$t\('#st-esg-mvu-reprocess-on-inject'\)\.prop\('checked', settings\.mvuReprocessOnInject\);/, 'generation settings should render the saved MVU reprocessing preference');
 assert.match(indexSource, /\$t\('#st-esg-mvu-reprocess-on-inject'\)\.on\('change', function \(\) \{\s*settings\.mvuReprocessOnInject = Boolean\(\$\(this\)\.prop\('checked'\)\);\s*saveSettings\(\);\s*\}\);/s, 'changing the MVU reprocessing switch should persist immediately');
+
+const generationSettingsFunction = indexSource.slice(
+  indexSource.indexOf('function renderGenerationSettings()'),
+  indexSource.indexOf('function renderPluginPanel()'),
+);
+assert.match(generationSettingsFunction, /const statusPlaceholderSetting = settingsBody\?\.querySelector\('#st-esg-status-placeholder-enabled'\)\?\.closest\('label'\);/, 'generation settings should identify the existing status-placeholder setting as the placement anchor');
+assert.match(generationSettingsFunction, /settingsBody\.insertBefore\(injectionModeDescription, statusPlaceholderSetting\);/, 'the replacement-mode description should appear directly below the injection mode');
+assert.match(generationSettingsFunction, /statusPlaceholderSetting\.insertAdjacentHTML\('afterend', '[\s\S]*?id="st-esg-mvu-reprocess-on-inject"/, 'the MVU reprocessing switch should appear immediately after the status-placeholder setting');
+assert.doesNotMatch(generationSettingsFunction, /settingsBody\.insertAdjacentHTML\('beforeend', '[\s\S]*?id="st-esg-mvu-reprocess-on-inject"/, 'the MVU reprocessing switch must not be appended after the replacement-mode description');
+assert.match(styleSource, /@media \(max-width: 640px\) \{[\s\S]*?\.st-esg-dialog \{\s*align-items:\s*center !important;/, 'mobile dialogs should be vertically centered instead of bottom-aligned');

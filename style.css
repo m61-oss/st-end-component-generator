@@ -603,7 +603,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   }
 
   .st-esg-dialog {
-    align-items: flex-end !important;
+    align-items: center !important;
     justify-content: center !important;
     padding: max(10px, env(safe-area-inset-top)) 8px max(10px, env(safe-area-inset-bottom));
   }
