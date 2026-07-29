@@ -43,7 +43,7 @@ import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.0';
 import { createGenerationErrorRecord, isGenerationResponseError, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.0';
 import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.0';
 import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.1.0';
-import { createAutoGenerationTracker } from './generation/auto-generation-trigger.js?ver=0.1.0';
+import { resolveAutomaticAssistantMessageIndex } from './generation/auto-generation-trigger.js?ver=0.1.0';
 import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.1.0';
 import {
   buildApiRequestParts,
@@ -157,7 +157,6 @@ let settings = { ...DEFAULT_SETTINGS };
 let importCandidates = [];
 let importGroups = [];
 const promptSourceCache = createPromptSourceCacheState();
-const autoGenerationTracker = createAutoGenerationTracker();
 let activeWorldbookGroupIndex = null;
 let generationAbortController = null;
 let lastRuntimeDiagnostics = {};
@@ -715,31 +714,11 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
   }
 }
 
-function handleGenerationStarted(type, _options, dryRun) {
-  autoGenerationTracker.start(type, dryRun, getContext().chat);
-}
-
 async function handleAssistantMessageReceived(messageId) {
   const context = getContext();
-  if (!autoGenerationTracker.recordAssistantMessage(messageId, context.chat?.[Number(messageId)])) return;
-  const completion = autoGenerationTracker.takeReadyCompletion();
-  if (completion) await completeAutomaticGeneration(completion);
-}
-
-function handleGenerationStopped() {
-  autoGenerationTracker.stop();
-}
-
-async function completeAutomaticGeneration(completion) {
-  await new Promise((resolve) => targetWindow.setTimeout(resolve, 0));
-  const targetMessageIndex = autoGenerationTracker.finalize(completion, getContext().chat);
+  const targetMessageIndex = resolveAutomaticAssistantMessageIndex(messageId, context.chat);
   if (!settings.autoGenerate || targetMessageIndex === null) return;
   await generateStatusbar('automatic', targetMessageIndex);
-}
-
-async function handleGenerationEnded() {
-  const completion = autoGenerationTracker.end();
-  if (completion) await completeAutomaticGeneration(completion);
 }
 
 function setStatus(text, { silent = false } = {}) {
@@ -3158,17 +3137,7 @@ function init() {
   startTavernDefaultSync();
   const context = getContext();
   registerPromptSourceCacheInvalidation(context);
-  if (context.eventTypes.GENERATION_STARTED) context.eventSource.on(context.eventTypes.GENERATION_STARTED, handleGenerationStarted);
-  const assistantMessageEvent = context.eventTypes.MESSAGE_RECEIVED || context.eventTypes.CHARACTER_MESSAGE_RENDERED;
-  if (assistantMessageEvent) context.eventSource.on(assistantMessageEvent, handleAssistantMessageReceived);
-  if (context.eventTypes.GENERATION_STOPPED) {
-    if (typeof context.eventSource.makeFirst === 'function') {
-      context.eventSource.makeFirst(context.eventTypes.GENERATION_STOPPED, handleGenerationStopped);
-    } else {
-      context.eventSource.on(context.eventTypes.GENERATION_STOPPED, handleGenerationStopped);
-    }
-  }
-  if (context.eventTypes.GENERATION_ENDED) context.eventSource.on(context.eventTypes.GENERATION_ENDED, handleGenerationEnded);
+  if (context.eventTypes.MESSAGE_RECEIVED) context.eventSource.on(context.eventTypes.MESSAGE_RECEIVED, handleAssistantMessageReceived);
   console.log(`[${EXTENSION_ID}] 已加载，dialog top layer，UI 挂载文档：${targetWindow === window ? 'current' : 'parent'}`);
 }
 
