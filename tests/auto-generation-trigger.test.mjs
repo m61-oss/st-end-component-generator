@@ -19,8 +19,8 @@ assert.equal(resolveAutomaticAssistantMessageIndex('1', chat), 1, 'numeric messa
 const pendingTarget = captureAutomaticAssistantTarget(1, chat);
 assert.deepEqual(
   pendingTarget,
-  { messageIndex: 1, messageText: 'Assistant reply' },
-  'the received event should capture the exact assistant text without requiring unfinished swipe metadata',
+  { messageIndex: 1 },
+  'the received event should capture only the floor because other listeners may still normalize its text',
 );
 assert.equal(
   resolveReadyAutomaticAssistantTarget(pendingTarget, chat),
@@ -30,19 +30,19 @@ assert.equal(
 
 const readyChat = [
   chat[0],
-  { ...assistant, swipe_id: 0, swipes: ['Assistant reply'] },
+  { ...assistant, mes: 'Assistant reply normalized', swipe_id: 0, swipes: ['Assistant reply normalized'] },
 ];
 const readyTarget = resolveReadyAutomaticAssistantTarget(pendingTarget, readyChat);
 assert.deepEqual(
   readyTarget,
-  { messageIndex: 1, messageText: 'Assistant reply', swipeId: 0 },
-  'a rendered latest assistant swipe should become a stable automatic-generation target',
+  { messageIndex: 1, messageText: 'Assistant reply normalized', swipeId: 0 },
+  'the stable target should use the finalized text instead of the temporary MESSAGE_RECEIVED text',
 );
 assert.equal(isAutomaticAssistantTargetCurrent(readyTarget, readyChat), true);
 assert.equal(
   isAutomaticAssistantTargetCurrent(readyTarget, [
     chat[0],
-    { ...assistant, mes: 'Another swipe', swipe_id: 1, swipes: ['Assistant reply', 'Another swipe'] },
+    { ...assistant, mes: 'Another swipe', swipe_id: 1, swipes: ['Assistant reply normalized', 'Another swipe'] },
   ]),
   false,
   'switching to another swipe must invalidate an in-flight result',

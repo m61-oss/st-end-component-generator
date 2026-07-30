@@ -35,7 +35,12 @@ assert.doesNotMatch(receivedHandler, /await generateStatusbar\('automatic'/, 'th
 assert.match(
   triggerHandlers,
   /resolveReadyAutomaticAssistantTarget\(pendingTarget, context\.chat\)[\s\S]*?generateStatusbar\('automatic', readyTarget\.messageIndex, readyTarget\)/,
-  'deferred generation should start only after the exact assistant swipe is stable',
+  'deferred generation should lock the finalized assistant text only after its swipe is stable',
+);
+assert.doesNotMatch(
+  triggerHandlers,
+  /currentTarget\.messageText !== pendingTarget\.messageText/,
+  'post-receive normalization by other extensions must not silently discard normal assistant replies',
 );
 
 assert.match(

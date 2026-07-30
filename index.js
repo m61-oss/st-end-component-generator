@@ -850,7 +850,6 @@ async function runDeferredAutomaticGeneration(pendingTarget, revision, attempt =
   if (
     !currentTarget
     || currentTarget.messageIndex !== context.chat.length - 1
-    || currentTarget.messageText !== pendingTarget.messageText
   ) return;
 
   const readyTarget = resolveReadyAutomaticAssistantTarget(pendingTarget, context.chat);

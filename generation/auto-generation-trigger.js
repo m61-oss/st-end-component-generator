@@ -20,7 +20,6 @@ export function captureAutomaticAssistantTarget(messageId, chat = []) {
   if (messageIndex === null) return null;
   return {
     messageIndex,
-    messageText: String(chat[messageIndex].mes),
   };
 }
 
@@ -31,15 +30,16 @@ export function resolveReadyAutomaticAssistantTarget(target, chat = []) {
     !message
     || message.is_user === true
     || message.is_system === true
-    || String(message.mes || '') !== target.messageText
+    || !String(message.mes || '').trim()
     || !Number.isInteger(message.swipe_id)
     || !Array.isArray(message.swipes)
-    || String(message.swipes[message.swipe_id] ?? '') !== target.messageText
+    || String(message.swipes[message.swipe_id] ?? '') !== String(message.mes)
   ) {
     return null;
   }
   return {
     ...target,
+    messageText: String(message.mes),
     swipeId: message.swipe_id,
   };
 }
