@@ -1,11 +1,23 @@
 const textOf = (value) => String(value ?? '').trim();
 
+function createConfiguredRegex(value) {
+  const source = String(value || '');
+  if (source.startsWith('/')) {
+    const closingSlash = source.lastIndexOf('/');
+    const flags = source.slice(closingSlash + 1);
+    if (closingSlash > 0 && /^[a-z]*$/i.test(flags)) {
+      return new RegExp(source.slice(1, closingSlash), flags);
+    }
+  }
+  return new RegExp(source, 'gi');
+}
+
 function getRules(value) {
   const lines = Array.isArray(value) ? value : String(value || '').split('\n');
   return lines.map((line) => textOf(line)).filter(Boolean).flatMap((line) => {
     if (line.startsWith('re:')) {
       try {
-        return [{ regex: new RegExp(line.slice(3), 'gi'), capture: true }];
+        return [{ regex: createConfiguredRegex(line.slice(3)), capture: true }];
       } catch {
         return [];
       }

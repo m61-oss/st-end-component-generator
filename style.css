@@ -632,7 +632,13 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-api-additional-dialog footer { justify-content: flex-end; margin: 0; padding: 12px 18px 16px; border-top: 1px solid var(--esg-border); }
 .st-esg-api-additional-dialog footer .menu_button { display: inline-flex !important; width: auto !important; min-width: 72px; min-height: 36px; justify-content: center; }
 
-#st-esg-ball { position: fixed; width: 38px; height: 38px; border: 1px solid var(--esg-text-main, #E0E0E0); border-radius: 50%; background: var(--esg-bg-card, #1E1E1E); color: var(--esg-text-main, #E0E0E0); display: flex; align-items: center; justify-content: center; z-index: 2147483646 !important; cursor: grab; box-shadow: var(--esg-shadow, 0 8px 24px rgba(0, 0, 0, 0.28)); touch-action: none; user-select: none; -webkit-tap-highlight-color: transparent; opacity: 0.82; }
+.st-esg-ball-controls { display: grid; gap: 8px; padding: 2px 0 6px 24px; }
+.st-esg-range-control { display: grid; gap: 4px; color: var(--esg-text-main); font-size: 11px; }
+.st-esg-range-control > span { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.st-esg-range-control output { min-width: 42px; color: var(--esg-text-muted); font-size: 10px; text-align: right; }
+.st-esg-range-control input[type="range"] { width: 100%; margin: 0; accent-color: var(--esg-text-main); cursor: pointer; }
+
+#st-esg-ball { --st-esg-ball-size: 38px; --st-esg-ball-opacity: 0.82; position: fixed; width: var(--st-esg-ball-size); height: var(--st-esg-ball-size); border: 1px solid var(--esg-text-main, #E0E0E0); border-radius: 50%; background: var(--esg-bg-card, #1E1E1E); color: var(--esg-text-main, #E0E0E0); display: flex; align-items: center; justify-content: center; z-index: 2147483646 !important; cursor: grab; box-shadow: var(--esg-shadow, 0 8px 24px rgba(0, 0, 0, 0.28)); touch-action: none; user-select: none; -webkit-tap-highlight-color: transparent; opacity: var(--st-esg-ball-opacity); }
 #st-esg-ball.st-esg-ball-under-panel { display: none; }
 #st-esg-ball.selected { outline: 2px solid var(--esg-text-main); }
 #st-esg-ball:active { cursor: grabbing; }

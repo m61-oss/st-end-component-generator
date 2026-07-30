@@ -201,7 +201,7 @@ assert.match(indexSource, /function applyThemeClass\(element, theme\)/, 'theme c
 assert.match(indexSource, /applyThemeClass\(ball, theme\);/, 'new floating balls should receive the active theme class');
 assert.match(indexSource, /function getFloatingBallPosition\(\)/, 'floating ball positions should be normalized before rendering');
 assert.match(indexSource, /resolveFloatingBallPosition\(\{[\s\S]*?savedLeft:\s*settings\.ballX,[\s\S]*?savedTop:\s*settings\.ballY,/, 'floating ball rendering should delegate saved-coordinate validation to the tested resolver');
-assert.match(indexSource, /targetWindow\.innerWidth - FLOATING_BALL_SIZE/, 'floating ball positions should be constrained to the current viewport width');
+assert.match(indexSource, /targetWindow\.innerWidth - getFloatingBallSize\(\)/, 'floating ball positions should be constrained with the configured width');
 assert.match(styleSource, /#st-esg-ball \{[^}]*var\(--esg-bg-card, #/s, 'floating ball colors should have visible fallbacks outside the dialog theme scope');
 assert.match(indexSource, /const ball = targetDoc\.createElement\('div'\);/, 'floating balls should use a neutral target-document element like the working GGD floating control');
 assert.match(indexSource, /targetDoc\.getElementById\('st-esg-ball-visible'\)\?\.addEventListener\('change'/, 'the floating-ball setting should bind directly in the target document');
@@ -209,7 +209,17 @@ assert.match(indexSource, /event\.pointerType === 'mouse' && event\.button !== 0
 assert.match(styleSource, /#st-esg-ball \{[^}]*z-index:\s*2147483646 !important/s, 'floating balls should use the working mobile control\'s top page layer');
 assert.match(styleSource, /#st-esg-ball \{[^}]*touch-action:\s*none/s, 'floating balls should preserve touch dragging on mobile');
 assert.match(styleSource, /#st-esg-ball \{[^}]*border:\s*1px solid var\(--esg-text-main, #E0E0E0\)[^}]*cursor:\s*grab[^}]*box-shadow:\s*var\(--esg-shadow/s, 'floating balls should retain this extension\'s visual style');
-assert.match(styleSource, /#st-esg-ball \{[^}]*opacity:\s*0\.82/s, 'floating balls should be slightly transparent without becoming hard to find');
+assert.match(indexSource, /id="st-esg-ball-visible"[^>]*\/><span>悬浮球<\/span>/, 'the floating ball toggle should be labelled 悬浮球');
+assert.match(indexSource, /id="st-esg-ball-size"[^>]*type="range"[^>]*min="28"[^>]*max="72"/, 'floating ball size should use a persisted range control');
+assert.match(indexSource, /id="st-esg-ball-opacity"[^>]*type="range"[^>]*min="20"[^>]*max="100"/, 'floating ball opacity should use a persisted range control');
+assert.match(indexSource, /ballSize:\s*38/, 'existing floating ball size should remain the default');
+assert.match(indexSource, /ballOpacity:\s*0\.82/, 'existing floating ball opacity should remain the default');
+assert.match(indexSource, /ball\.style\.setProperty\('--st-esg-ball-size'/, 'floating ball size should be applied through a live CSS property');
+assert.match(indexSource, /ball\.style\.setProperty\('--st-esg-ball-opacity'/, 'floating ball opacity should be applied through a live CSS property');
+assert.match(styleSource, /#st-esg-ball \{[^}]*width:\s*var\(--st-esg-ball-size\)[^}]*height:\s*var\(--st-esg-ball-size\)[^}]*opacity:\s*var\(--st-esg-ball-opacity\)/s, 'floating ball size and opacity should no longer be fixed in CSS');
+assert.match(indexSource, /getFloatingBallSize\(\)/, 'floating ball bounds should use the configured size');
+assert.match(indexSource, /#st-esg-ball-size'\)\.on\('input'/, 'the size range should preview while dragging');
+assert.match(indexSource, /#st-esg-ball-opacity'\)\.on\('input'/, 'the opacity range should preview while dragging');
 assert.match(indexSource, /st-esg-ball-under-panel/, 'opening the plugin panel should explicitly hide the floating ball');
 assert.match(styleSource, /#st-esg-ball\.st-esg-ball-under-panel\s*\{\s*display:\s*none/, 'the floating ball should not intercept the plugin panel');
 assert.match(indexSource, /qrGenerateEnabled: false,\s*qrInjectEnabled: false/, 'QR shortcuts should have independent saved visibility settings');

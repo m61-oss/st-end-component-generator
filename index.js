@@ -66,7 +66,10 @@ const SOURCE_MODE_IMPORT = 'import';
 const WORLD_BOOK_FOLLOW_TAVERN = '__follow_tavern__';
 const DEFAULT_COMPONENT_GROUP_VALUE = '__default_group__';
 const MAX_OUTPUT_TOKENS = 65535;
-const FLOATING_BALL_SIZE = 38;
+const FLOATING_BALL_MIN_SIZE = 28;
+const FLOATING_BALL_MAX_SIZE = 72;
+const FLOATING_BALL_MIN_OPACITY = 0.2;
+const FLOATING_BALL_MAX_OPACITY = 1;
 const QR_SHORTCUT_SET_NAME = '外置文尾组件生成器快捷键';
 const QR_SHORTCUT_ACTIONS_KEY = '__stEsgQuickReplyActions';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -121,6 +124,8 @@ const DEFAULT_SETTINGS = {
   ballY: null,
   ballPositionVersion: 2,
   ballVisible: false,
+  ballSize: 38,
+  ballOpacity: 0.82,
   qrGenerateEnabled: false,
   qrInjectEnabled: false,
   theme: 'dark',
@@ -161,6 +166,7 @@ let activeWorldbookGroupIndex = null;
 let generationAbortController = null;
 let lastRuntimeDiagnostics = {};
 let lastPromptLogText = '';
+let promptLogBuilding = false;
 let lastGeneratedThinking = [];
 let tavernSyncTimer = null;
 let lastTavernSourceSignature = '';
@@ -263,6 +269,8 @@ function loadSettings() {
   const storedSettings = getSettingsStore();
   const hadActiveSchemeIds = Object.prototype.hasOwnProperty.call(storedSettings, 'activeSchemeIds');
   settings = Object.assign({ ...DEFAULT_SETTINGS }, storedSettings);
+  settings.ballSize = normalizeFloatingBallSize(settings.ballSize);
+  settings.ballOpacity = normalizeFloatingBallOpacity(settings.ballOpacity);
   try {
     const localValue = targetWindow.localStorage?.getItem(PROMPT_TEMPLATE_COMPAT_STORAGE_KEY);
     if (localValue === 'true' || localValue === 'false') settings.promptTemplateCompatEnabled = localValue === 'true';
@@ -585,6 +593,7 @@ async function callExternalApi(latestMessage, signal) {
   );
   const streamingEnabled = Boolean(body.stream);
   lastPromptLogText = createPromptLog({ apiUrl, apiKey: settings.apiKey, model, maxTokens: String(numeric.maxTokens), temperature: String(numeric.temperature), messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics: lastRuntimeDiagnostics, compressSystemMessages: settings.compressSystemMessages });
+  promptLogBuilding = false;
   settings.lastPromptLog = '';
   saveSettings();
   renderPromptLog();
@@ -650,6 +659,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
       notifyStatus('请先在“API 配置”里填写 API 地址和模型名称。', 'warning');
       return '';
     }
+    beginPromptLogBuild();
     result = await callExternalApi(latest.message, generationAbortController.signal);
   }
   catch (error) {
@@ -663,6 +673,10 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     }
     return '';
   } finally {
+    if (promptLogBuilding) {
+      promptLogBuilding = false;
+      renderPromptLog();
+    }
     generationAbortController = null;
     setGeneratingState(false);
   }
@@ -790,6 +804,11 @@ function renderPromptLog() {
   const viewBox = $t('#st-esg-prompt-log-view');
   if (!summaryBox.length || !viewBox.length) return;
   hiddenField.val('');
+  if (promptLogBuilding) {
+    summaryBox.html('<span>正在组装本次提示词…</span>');
+    viewBox.html('<div class="st-esg-empty st-esg-empty-small">正在读取本次生成所需的聊天记录、预设和世界书，组装完成后会立即显示最终提示词。</div>');
+    return;
+  }
   if (!lastPromptLogText) {
     summaryBox.html('<span>暂无提示词查看记录</span>');
     viewBox.html('<div class="st-esg-empty st-esg-empty-small">生成一次文尾组件后，这里会按消息分栏显示最终发送给 API 的提示词。</div>');
@@ -828,6 +847,13 @@ function renderPromptLog() {
     const copied = await copyTextToClipboard(message?.content || '');
     setStatus(copied ? '已复制本条提示词。' : '已选中本条提示词，可以手动复制。');
   });
+}
+
+function beginPromptLogBuild() {
+  lastPromptLogText = '';
+  settings.lastPromptLog = '';
+  promptLogBuilding = true;
+  renderPromptLog();
 }
 
 function renderModelOptions() {
@@ -1490,6 +1516,7 @@ function renderFloatingBall() {
   if (!settings.ballVisible) { $t('#st-esg-ball').remove(); return; }
   const existingBall = targetDoc.getElementById('st-esg-ball');
   if (existingBall) {
+    applyFloatingBallAppearance(existingBall);
     applyFloatingBallPosition(existingBall);
     existingBall.classList.toggle('st-esg-ball-under-panel', Boolean(getDialog()?.open));
     return;
@@ -1500,6 +1527,7 @@ function renderFloatingBall() {
   ball.innerHTML = '<i class="fa-solid fa-layer-group"></i>';
   const theme = settings.theme === 'light' ? 'light' : 'dark';
   applyThemeClass(ball, theme);
+  applyFloatingBallAppearance(ball);
   applyFloatingBallPosition(ball);
   ball.classList.toggle('st-esg-ball-under-panel', Boolean(getDialog()?.open));
   targetDoc.body.appendChild(ball);
@@ -1508,8 +1536,8 @@ function renderFloatingBall() {
     if (!dragging) return;
     const dx = event.clientX - startX, dy = event.clientY - startY;
     if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
-    ball.style.left = `${clamp(originLeft + dx, 0, targetWindow.innerWidth - FLOATING_BALL_SIZE)}px`;
-    ball.style.top = `${clamp(originTop + dy, 0, targetWindow.innerHeight - FLOATING_BALL_SIZE)}px`;
+    ball.style.left = `${clamp(originLeft + dx, 0, targetWindow.innerWidth - getFloatingBallSize())}px`;
+    ball.style.top = `${clamp(originTop + dy, 0, targetWindow.innerHeight - getFloatingBallSize())}px`;
   };
   const onUp = () => {
     if (!dragging) return;
@@ -1538,6 +1566,33 @@ function renderFloatingBall() {
   });
 }
 
+function normalizeFloatingBallSize(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric)
+    ? Math.round(clamp(numeric, FLOATING_BALL_MIN_SIZE, FLOATING_BALL_MAX_SIZE))
+    : DEFAULT_SETTINGS.ballSize;
+}
+
+function normalizeFloatingBallOpacity(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric)
+    ? clamp(numeric, FLOATING_BALL_MIN_OPACITY, FLOATING_BALL_MAX_OPACITY)
+    : DEFAULT_SETTINGS.ballOpacity;
+}
+
+function getFloatingBallSize() {
+  return normalizeFloatingBallSize(settings.ballSize);
+}
+
+function getFloatingBallOpacity() {
+  return normalizeFloatingBallOpacity(settings.ballOpacity);
+}
+
+function applyFloatingBallAppearance(ball) {
+  ball.style.setProperty('--st-esg-ball-size', `${getFloatingBallSize()}px`);
+  ball.style.setProperty('--st-esg-ball-opacity', String(getFloatingBallOpacity()));
+}
+
 function renderComponentListToolbar() {
   return `<div class="st-esg-list-toolbar st-esg-component-list-toolbar"><input type="text" class="st-esg-search-input st-esg-component-search-input text_pole" placeholder="搜索组件..." value="${escapeHtml(componentSearchQuery)}"><select class="st-esg-filter-select st-esg-component-filter-select text_pole"><option value="all" ${componentFilterMode === 'all' ? 'selected' : ''}>全部</option><option value="enabled" ${componentFilterMode === 'enabled' ? 'selected' : ''}>仅启用</option><option value="disabled" ${componentFilterMode === 'disabled' ? 'selected' : ''}>仅禁用</option></select><span class="st-esg-list-count"></span></div>`;
 }
@@ -1548,7 +1603,7 @@ function getFloatingBallPosition() {
     savedTop: settings.ballY,
     viewportWidth: targetWindow.innerWidth,
     viewportHeight: targetWindow.innerHeight,
-    ballSize: FLOATING_BALL_SIZE,
+    ballSize: getFloatingBallSize(),
   });
 }
 
@@ -2790,7 +2845,7 @@ function renderPluginPanel() {
   if (ballCard && runtimePanel) {
     const shortcutDetails = targetDoc.createElement('details');
     shortcutDetails.className = 'st-esg-card st-esg-collapsible st-esg-shortcut-settings';
-    shortcutDetails.innerHTML = '<summary class="st-esg-collapsible-summary">界面与快捷入口</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox"><input id="st-esg-ball-visible" type="checkbox" /><span>显示可选悬浮快捷按钮</span></label><label class="st-esg-checkbox"><input id="st-esg-qr-generate-enabled" type="checkbox" /><span>QR 栏显示“点击生成”</span></label><label class="st-esg-checkbox"><input id="st-esg-qr-inject-enabled" type="checkbox" /><span>QR 栏显示“点击注入”</span></label></div>';
+    shortcutDetails.innerHTML = '<summary class="st-esg-collapsible-summary">界面与快捷入口</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox"><input id="st-esg-ball-visible" type="checkbox" /><span>悬浮球</span></label><div class="st-esg-ball-controls"><label class="st-esg-range-control"><span>大小 <output id="st-esg-ball-size-value">38px</output></span><input id="st-esg-ball-size" type="range" min="28" max="72" step="1" /></label><label class="st-esg-range-control"><span>透明度 <output id="st-esg-ball-opacity-value">82%</output></span><input id="st-esg-ball-opacity" type="range" min="20" max="100" step="1" /></label></div><label class="st-esg-checkbox"><input id="st-esg-qr-generate-enabled" type="checkbox" /><span>QR 栏显示“点击生成”</span></label><label class="st-esg-checkbox"><input id="st-esg-qr-inject-enabled" type="checkbox" /><span>QR 栏显示“点击注入”</span></label></div>';
     ballCard.replaceWith(shortcutDetails);
     runtimePanel.appendChild(shortcutDetails);
   }
@@ -2931,6 +2986,10 @@ function bindPanelEvents() {
   });
   settings.enabled = true;
   $t('#st-esg-ball-visible').prop('checked', settings.ballVisible);
+  $t('#st-esg-ball-size').val(getFloatingBallSize());
+  $t('#st-esg-ball-size-value').text(`${getFloatingBallSize()}px`);
+  $t('#st-esg-ball-opacity').val(Math.round(getFloatingBallOpacity() * 100));
+  $t('#st-esg-ball-opacity-value').text(`${Math.round(getFloatingBallOpacity() * 100)}%`);
   $t('#st-esg-qr-generate-enabled').prop('checked', settings.qrGenerateEnabled);
   $t('#st-esg-qr-inject-enabled').prop('checked', settings.qrInjectEnabled);
   renderGenerationSettings();
@@ -3002,6 +3061,18 @@ function bindPanelEvents() {
   $t('#st-esg-compress-system').on('change', function () { settings.compressSystemMessages = Boolean($(this).prop('checked')); saveSettings(); });
   targetDoc.getElementById('st-esg-ball-visible')?.addEventListener('change', function () {
     settings.ballVisible = Boolean(this.checked);
+    saveSettings();
+    renderFloatingBall();
+  });
+  $t('#st-esg-ball-size').on('input', function () {
+    settings.ballSize = normalizeFloatingBallSize($(this).val());
+    $t('#st-esg-ball-size-value').text(`${settings.ballSize}px`);
+    saveSettings();
+    renderFloatingBall();
+  });
+  $t('#st-esg-ball-opacity').on('input', function () {
+    settings.ballOpacity = normalizeFloatingBallOpacity(Number($(this).val()) / 100);
+    $t('#st-esg-ball-opacity-value').text(`${Math.round(settings.ballOpacity * 100)}%`);
     saveSettings();
     renderFloatingBall();
   });
