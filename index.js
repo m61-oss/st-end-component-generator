@@ -489,10 +489,6 @@ function resizeGeneratedPreview() {
   resizeTextareaToContent(preview, 160);
 }
 
-function resizeTaskPrompt() {
-  resizeTextareaToContent($t('#st-esg-task').get(0), 160);
-}
-
 function scheduleGeneratedPreviewResize() {
   if (typeof targetWindow.requestAnimationFrame === 'function') {
     targetWindow.requestAnimationFrame(() => resizeGeneratedPreview());
@@ -1369,7 +1365,6 @@ function applyApiScheme(snapshot) {
 function applyTaskScheme(snapshot) {
   settings.taskPrompt = String(snapshot.taskPrompt || '');
   $t('#st-esg-task').val(settings.taskPrompt);
-  resizeTaskPrompt();
 }
 
 async function applyPresetScheme(snapshot) {
@@ -3255,7 +3250,11 @@ function bindPanelEvents() {
     settings.mvuReprocessOnInject = Boolean($(this).prop('checked'));
     saveSettings();
   });
-  $t('#st-esg-task').on('input', function () { settings.taskPrompt = String($(this).val()); resizeTaskPrompt(); markSchemeDirty('task'); saveSettings(); });
+  $t('#st-esg-task').on('input', function () {
+    settings.taskPrompt = String($(this).val());
+    if (!settings.dirtySchemeTypes.task) markSchemeDirty('task');
+    else saveSettings();
+  });
   $t('#st-esg-task-placement-enabled').on('change', function () {
     settings.taskPlacementEnabled = Boolean($(this).prop('checked'));
     markSchemeDirty('preset');
@@ -3282,7 +3281,6 @@ function bindPanelEvents() {
   $t('#st-esg-reset-task').on('click', function () {
     settings.taskPrompt = DEFAULT_SETTINGS.taskPrompt;
     $t('#st-esg-task').val(settings.taskPrompt);
-    resizeTaskPrompt();
     markSchemeDirty('task');
     saveSettings();
     setStatus('已恢复默认提示词。');
