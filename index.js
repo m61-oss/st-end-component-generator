@@ -25,6 +25,7 @@ import {
 } from './sources/component-sources.js?ver=0.1.0';
 import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.1.0';
 import { containsStatusPlaceholder, injectStatusbarText, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.1.0';
+import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.0';
 import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.0';
 import { renderPromptTemplate } from './generation/template-compat.js?ver=0.1.0';
 import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.1.0';
@@ -168,6 +169,7 @@ let lastRuntimeDiagnostics = {};
 let lastPromptLogText = '';
 let promptLogBuilding = false;
 let lastGeneratedThinking = [];
+let latestInjectionUndoSnapshot = null;
 let tavernSyncTimer = null;
 let lastTavernSourceSignature = '';
 let listSearchQuery = '';
@@ -702,15 +704,34 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
     const text = settings.lastGenerated || $t('#st-esg-preview').val() || await generateStatusbar('manual', targetMessageIndex);
     if (!text) return;
     const injectedText = cleanGeneratedText(text);
+    const originalText = String(latest.message.mes ?? '');
+    const swipeId = Number.isInteger(latest.message.swipe_id) ? latest.message.swipe_id : null;
+    const hadSwipe = swipeId !== null && Array.isArray(latest.message.swipes);
+    const originalSwipeText = hadSwipe ? String(latest.message.swipes[swipeId] ?? originalText) : '';
     injectStatusbar(latest.message, injectedText);
     if (Array.isArray(latest.message.swipes) && Number.isInteger(latest.message.swipe_id)) latest.message.swipes[latest.message.swipe_id] = latest.message.mes;
+    let mvuReprocessed = false;
     if (settings.mvuReprocessOnInject && containsMvuUpdateVariable(injectedText)) {
       try {
-        await reprocessMvuVariables(context, latest.index);
+        mvuReprocessed = await reprocessMvuVariables(context, latest.index);
       } catch (error) {
         console.warn(`[${EXTENSION_ID}] failed to reprocess MVU variables after injection`, error);
       }
     }
+    latestInjectionUndoSnapshot = latest.index === context.chat.length - 1
+      ? createInjectionUndoSnapshot({
+        targetIndex: latest.index,
+        chatLength: context.chat.length,
+        originalText,
+        injectedText: latest.message.mes,
+        swipeId,
+        hadSwipe,
+        originalSwipeText,
+        injectedSwipeText: hadSwipe ? String(latest.message.swipes[swipeId] ?? latest.message.mes) : '',
+        mvuReprocessed,
+      })
+      : null;
+    refreshInjectionUndoState();
     context.updateMessageBlock(latest.index, latest.message);
     const messageUpdatedEvent = context.eventTypes?.MESSAGE_UPDATED;
     if (messageUpdatedEvent && context.eventSource?.emit) {
@@ -726,6 +747,81 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
   } catch (error) {
     notifyStatus(error?.message || '注入失败。', 'error');
   }
+}
+
+function refreshInjectionUndoState() {
+  const context = getContext();
+  const validation = validateInjectionUndoSnapshot(latestInjectionUndoSnapshot, context.chat);
+  if (!validation.valid) latestInjectionUndoSnapshot = null;
+  $t('#st-esg-undo-injection').toggleClass('st-esg-hidden', !validation.valid);
+  return validation;
+}
+
+function clearInjectionUndoSnapshot() {
+  latestInjectionUndoSnapshot = null;
+  refreshInjectionUndoState();
+}
+
+async function undoLatestInjection() {
+  let context = getContext();
+  let validation = refreshInjectionUndoState();
+  if (!validation.valid) {
+    notifyStatus('本次注入已不在最新楼层，或消息内容已经变化，无法安全撤回。', 'warning');
+    return;
+  }
+  if (!targetWindow.confirm('撤回本次注入？\n\n将把最新一条助手回复恢复到注入前的完整内容，本次注入结果会被移除。')) return;
+
+  context = getContext();
+  validation = validateInjectionUndoSnapshot(latestInjectionUndoSnapshot, context.chat);
+  if (!validation.valid) {
+    clearInjectionUndoSnapshot();
+    notifyStatus('确认期间消息发生了变化，已取消撤回。', 'warning');
+    return;
+  }
+
+  const snapshot = latestInjectionUndoSnapshot;
+  const message = validation.message;
+  message.mes = snapshot.originalText;
+  if (snapshot.hadSwipe && snapshot.swipeId !== null && Array.isArray(message.swipes)) {
+    message.swipes[snapshot.swipeId] = snapshot.originalSwipeText;
+  }
+  latestInjectionUndoSnapshot = null;
+  refreshInjectionUndoState();
+
+  if (snapshot.mvuReprocessed) {
+    try {
+      await reprocessMvuVariables(context, snapshot.targetIndex);
+    } catch (error) {
+      console.warn(`[${EXTENSION_ID}] failed to reprocess MVU variables after undo`, error);
+    }
+  }
+
+  context.updateMessageBlock(snapshot.targetIndex, message);
+  const messageUpdatedEvent = context.eventTypes?.MESSAGE_UPDATED;
+  if (messageUpdatedEvent && context.eventSource?.emit) {
+    await context.eventSource.emit(messageUpdatedEvent, snapshot.targetIndex);
+  }
+  try {
+    const saveResult = await context.saveChat();
+    if (saveResult === false) throw new Error('聊天保存接口返回失败');
+    notifyStatus('已撤回本次注入，最新回复已恢复。');
+  } catch (saveError) {
+    notifyStatus('已恢复注入前内容，但聊天保存失败，刷新后可能丢失。', 'warning');
+  }
+}
+
+function registerInjectionUndoInvalidation(context) {
+  const bind = (eventName, handler) => {
+    const eventType = context.eventTypes?.[eventName];
+    if (eventType && context.eventSource?.on) context.eventSource.on(eventType, handler);
+  };
+  ['MESSAGE_SENT', 'MESSAGE_RECEIVED', 'MESSAGE_EDITED', 'MESSAGE_UPDATED', 'MESSAGE_DELETED', 'MESSAGE_SWIPED', 'MESSAGE_SWIPE_DELETED'].forEach((eventName) => {
+    bind(eventName, () => {
+      if (eventName === 'MESSAGE_SENT' || eventName === 'MESSAGE_RECEIVED') clearInjectionUndoSnapshot();
+      else refreshInjectionUndoState();
+    });
+  });
+  bind('CHAT_CHANGED', clearInjectionUndoSnapshot);
 }
 
 async function handleAssistantMessageReceived(messageId) {
@@ -2787,6 +2883,7 @@ function renderPluginPanel() {
   dialog.id = 'st-esg-dialog';
   dialog.className = 'st-esg-dialog';
   dialog.innerHTML = buildPluginPanelMarkup();
+  dialog.querySelector('#st-esg-inject')?.insertAdjacentHTML('afterend', '<div id="st-esg-undo-injection" class="menu_button menu_button_icon st-esg-secondary-action st-esg-hidden" title="撤回本次注入"><i class="fa-solid fa-rotate-left"></i><span>撤回注入</span></div>');
   dialog.querySelector('#st-esg-status')?.remove();
   dialog.querySelector('[data-tab="debug"] span')?.replaceChildren('提示词查看器');
   dialog.querySelector('[data-tab-panel="debug"] .st-esg-card-title')?.replaceChildren('提示词查看器');
@@ -3178,11 +3275,13 @@ function bindPanelEvents() {
   });
   $t('#st-esg-generate').on('click', () => generateStatusbar());
   $t('#st-esg-inject').on('click', () => injectGeneratedStatusbar());
+  $t('#st-esg-undo-injection').on('click', () => undoLatestInjection());
   $t('#st-esg-generation-error').on('click', '#st-esg-show-generated-content', () => {
     settings.lastGenerationError = null;
     saveSettings();
     renderGenerationResultPanel();
   });
+  refreshInjectionUndoState();
 }
 
 function mountUi() {
@@ -3208,6 +3307,7 @@ function init() {
   startTavernDefaultSync();
   const context = getContext();
   registerPromptSourceCacheInvalidation(context);
+  registerInjectionUndoInvalidation(context);
   if (context.eventTypes.MESSAGE_RECEIVED) context.eventSource.on(context.eventTypes.MESSAGE_RECEIVED, handleAssistantMessageReceived);
   console.log(`[${EXTENSION_ID}] 已加载，dialog top layer，UI 挂载文档：${targetWindow === window ? 'current' : 'parent'}`);
 }

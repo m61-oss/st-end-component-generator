@@ -16,7 +16,7 @@ assert.match(generationEndedFunction, /await generateStatusbar\('automatic', tar
 assert.match(generateFunction, /conflictAction === 'ignore'[\s\S]*?return '';/, 'an automatic trigger should be ignored while generation is active');
 assert.match(injectFunction, /context\.updateMessageBlock\(latest\.index, latest\.message\);\s*const messageUpdatedEvent = context\.eventTypes\?\.MESSAGE_UPDATED;\s*if \(messageUpdatedEvent && context\.eventSource\?\.emit\) \{\s*await context\.eventSource\.emit\(messageUpdatedEvent, latest\.index\);\s*\}\s*try \{\s*const saveResult = await context\.saveChat\(\);/s, 'injection should mirror the Tavern edit lifecycle by notifying message-update listeners before saving');
 assert.match(source, /mvuReprocessOnInject: true,/, 'MVU reprocessing should default to enabled for generated variable updates');
-assert.match(injectFunction, /const injectedText = cleanGeneratedText\(text\);\s*injectStatusbar\(latest\.message, injectedText\);/, 'injection should retain the exact generated text for post-injection decisions');
+assert.match(injectFunction, /const injectedText = cleanGeneratedText\(text\);[\s\S]*?injectStatusbar\(latest\.message, injectedText\);/, 'injection should retain the exact generated text for post-injection decisions');
 assert.match(injectFunction, /if \(settings\.mvuReprocessOnInject && containsMvuUpdateVariable\(injectedText\)\) \{[\s\S]*?await reprocessMvuVariables\(context, latest\.index\);[\s\S]*?\}/, 'MVU reprocessing should run only when this injected content contains an UpdateVariable tag');
 assert.doesNotMatch(injectFunction, /containsMvuUpdateVariable\(latest\.message\.mes\)/, 'the decision to reprocess MVU variables must not inspect pre-existing reply content');
 assert.ok(
@@ -32,4 +32,30 @@ assert.match(
   source,
   /\$t\('#st-esg-inject'\)\.on\('click', \(\) => injectGeneratedStatusbar\(\)\);/,
   'the manual inject button should not pass its click event as a message index',
+);
+assert.match(
+  source,
+  /import \{ createInjectionUndoSnapshot, validateInjectionUndoSnapshot \} from '\.\/injection\/injection-undo\.js\?ver=0\.1\.0';/,
+  'injection undo should use the tested strict snapshot validator',
+);
+assert.match(source, /let latestInjectionUndoSnapshot = null;/, 'only one latest injection snapshot should be retained');
+assert.match(
+  injectFunction,
+  /const originalText = String\(latest\.message\.mes \?\? ''\);[\s\S]*?injectStatusbar\(latest\.message, injectedText\);[\s\S]*?createInjectionUndoSnapshot\(\{[\s\S]*?targetIndex: latest\.index,[\s\S]*?chatLength: context\.chat\.length,[\s\S]*?originalText,[\s\S]*?injectedText: latest\.message\.mes,/,
+  'injection should retain the full before and after message text for exact restoration',
+);
+assert.match(
+  source,
+  /async function undoLatestInjection\(\)[\s\S]*?targetWindow\.confirm\('撤回本次注入？\\n\\n将把最新一条助手回复恢复到注入前的完整内容，本次注入结果会被移除。'\)[\s\S]*?message\.mes = snapshot\.originalText;[\s\S]*?message\.swipes\[snapshot\.swipeId\] = snapshot\.originalSwipeText;[\s\S]*?context\.updateMessageBlock\(snapshot\.targetIndex, message\);[\s\S]*?await context\.saveChat\(\);/,
+  'undo should confirm and restore the exact message and active swipe through Tavern lifecycle APIs',
+);
+assert.match(
+  source,
+  /if \(snapshot\.mvuReprocessed\) \{[\s\S]*?await reprocessMvuVariables\(context, snapshot\.targetIndex\);/,
+  'undo should rebuild MVU state only when the injection previously changed it',
+);
+assert.match(
+  source,
+  /function registerInjectionUndoInvalidation\(context\)[\s\S]*?\['MESSAGE_SENT', 'MESSAGE_RECEIVED', 'MESSAGE_EDITED', 'MESSAGE_UPDATED', 'MESSAGE_DELETED', 'MESSAGE_SWIPED', 'MESSAGE_SWIPE_DELETED'\]/,
+  'new floors, edits, deletions, and swipe changes should refresh or permanently invalidate undo',
 );

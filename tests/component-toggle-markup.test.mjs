@@ -230,6 +230,9 @@ assert.match(indexSource, /label: '点击注入',[\s\S]*?action: 'inject'/, 'the
 assert.match(indexSource, /quickReply\.onExecute = async \(\) => await targetWindow\[QR_SHORTCUT_ACTIONS_KEY\]\?\.\[shortcut\.action\]\?\.\(\);/, 'QR clicks should call plugin actions directly instead of sending slash command text');
 assert.match(indexSource, /id="st-esg-qr-generate-enabled"[\s\S]*?id="st-esg-qr-inject-enabled"/, 'shortcut settings should expose independent generate and inject switches');
 assert.match(indexSource, /id="st-esg-mvu-reprocess-on-inject"/, 'generation settings should expose the MVU variable reprocessing switch');
+assert.match(indexSource, /id="st-esg-undo-injection"[\s\S]*?fa-rotate-left[\s\S]*?<span>撤回注入<\/span>/, 'a hidden undo action should be mounted beside the inject action');
+assert.match(indexSource, /\$t\('#st-esg-undo-injection'\)\.on\('click', \(\) => undoLatestInjection\(\)\);/, 'the undo action should call the guarded restoration flow');
+assert.match(styleSource, /@media \(max-width: 640px\)[\s\S]*?#st-esg-undo-injection span\s*\{\s*display:\s*none/s, 'the undo action should become icon-only on narrow screens');
 assert.match(indexSource, /\$t\('#st-esg-mvu-reprocess-on-inject'\)\.prop\('checked', settings\.mvuReprocessOnInject\);/, 'generation settings should render the saved MVU reprocessing preference');
 assert.match(indexSource, /\$t\('#st-esg-mvu-reprocess-on-inject'\)\.on\('change', function \(\) \{\s*settings\.mvuReprocessOnInject = Boolean\(\$\(this\)\.prop\('checked'\)\);\s*saveSettings\(\);\s*\}\);/s, 'changing the MVU reprocessing switch should persist immediately');
 

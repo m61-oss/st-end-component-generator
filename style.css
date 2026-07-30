@@ -679,6 +679,8 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   .st-esg-panel-footer { position: static; flex-direction: row; align-items: center; padding: 10px 12px; }
   .st-esg-footer-actions { flex: 1; flex-direction: row; gap: 6px; }
   .st-esg-footer-actions .menu_button { flex: 1; justify-content: center; min-height: 32px; padding-inline: 6px !important; font-size: 12px; }
+  .st-esg-footer-actions #st-esg-undo-injection { flex: 0 0 32px; width: 32px; min-width: 32px; padding: 0 !important; }
+  #st-esg-undo-injection span { display: none; }
   .st-esg-card-head { flex-direction: column; align-items: stretch; }
   .st-esg-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .st-esg-workflow,

@@ -29,6 +29,7 @@ const classifiedModules = [
   'ui/notification-utils.js',
   'ui/preview-sizing.js',
   'settings/scheme-utils.js',
+  'injection/injection-undo.js',
   'injection/inject-utils.js',
   'injection/tag-rules.js',
 ];
