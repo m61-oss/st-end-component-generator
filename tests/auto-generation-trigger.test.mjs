@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
-import { resolveAutomaticAssistantMessageIndex } from '../generation/auto-generation-trigger.js';
+import {
+  captureAutomaticAssistantTarget,
+  isAutomaticAssistantTargetCurrent,
+  resolveAutomaticAssistantMessageIndex,
+  resolveReadyAutomaticAssistantTarget,
+} from '../generation/auto-generation-trigger.js';
 
 const assistant = { is_user: false, is_system: false, mes: 'Assistant reply' };
 const chat = [
@@ -10,6 +15,43 @@ const chat = [
 
 assert.equal(resolveAutomaticAssistantMessageIndex(1, chat), 1, 'assistant messages should trigger');
 assert.equal(resolveAutomaticAssistantMessageIndex('1', chat), 1, 'numeric message IDs should be accepted');
+
+const pendingTarget = captureAutomaticAssistantTarget(1, chat);
+assert.deepEqual(
+  pendingTarget,
+  { messageIndex: 1, messageText: 'Assistant reply' },
+  'the received event should capture the exact assistant text without requiring unfinished swipe metadata',
+);
+assert.equal(
+  resolveReadyAutomaticAssistantTarget(pendingTarget, chat),
+  null,
+  'automatic work must wait until SillyTavern has initialized the active swipe',
+);
+
+const readyChat = [
+  chat[0],
+  { ...assistant, swipe_id: 0, swipes: ['Assistant reply'] },
+];
+const readyTarget = resolveReadyAutomaticAssistantTarget(pendingTarget, readyChat);
+assert.deepEqual(
+  readyTarget,
+  { messageIndex: 1, messageText: 'Assistant reply', swipeId: 0 },
+  'a rendered latest assistant swipe should become a stable automatic-generation target',
+);
+assert.equal(isAutomaticAssistantTargetCurrent(readyTarget, readyChat), true);
+assert.equal(
+  isAutomaticAssistantTargetCurrent(readyTarget, [
+    chat[0],
+    { ...assistant, mes: 'Another swipe', swipe_id: 1, swipes: ['Assistant reply', 'Another swipe'] },
+  ]),
+  false,
+  'switching to another swipe must invalidate an in-flight result',
+);
+assert.equal(
+  isAutomaticAssistantTargetCurrent(readyTarget, [...readyChat, { ...assistant, mes: 'New floor', swipe_id: 0, swipes: ['New floor'] }]),
+  false,
+  'a later floor must invalidate an in-flight result',
+);
 
 for (const [messageId, messages] of [
   [0, chat],

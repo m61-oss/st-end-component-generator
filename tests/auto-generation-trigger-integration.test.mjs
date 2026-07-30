@@ -4,14 +4,18 @@ import { readFileSync } from 'node:fs';
 const source = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 const generateStart = source.indexOf('async function generateStatusbar(');
 const injectStart = source.indexOf('async function injectGeneratedStatusbar(');
-const handlerStart = source.indexOf('async function handleAssistantMessageReceived(');
+const handlerStart = source.indexOf('function invalidatePendingAutomaticGeneration(');
 const statusStart = source.indexOf('function setStatus(', handlerStart);
 const generateFunction = source.slice(generateStart, injectStart);
 const triggerHandlers = source.slice(handlerStart, statusStart);
+const receivedHandler = source.slice(
+  source.indexOf('function handleAssistantMessageReceived('),
+  source.indexOf('function handleAssistantMessageRendered('),
+);
 
 assert.match(
   source,
-  /import \{ resolveAutomaticAssistantMessageIndex \} from '\.\/generation\/auto-generation-trigger\.js\?ver=0\.1\.0';/,
+  /captureAutomaticAssistantTarget,[\s\S]*?isAutomaticAssistantTargetCurrent,[\s\S]*?resolveReadyAutomaticAssistantTarget/,
   'the assistant-message resolver should be imported',
 );
 assert.doesNotMatch(source, /createAutoGenerationTracker|autoGenerationTracker/, 'generation session state should be removed');
@@ -24,8 +28,14 @@ assert.match(
 
 assert.match(
   triggerHandlers,
-  /async function handleAssistantMessageReceived\(messageId\) \{[\s\S]*?const context = getContext\(\);[\s\S]*?const targetMessageIndex = resolveAutomaticAssistantMessageIndex\(messageId, context\.chat\);[\s\S]*?if \(!settings\.autoGenerate \|\| targetMessageIndex === null\) return;[\s\S]*?await generateStatusbar\('automatic', targetMessageIndex\);[\s\S]*?\}/,
-  'a received assistant message should directly trigger automatic generation',
+  /function handleAssistantMessageReceived\(messageId\) \{[\s\S]*?captureAutomaticAssistantTarget\(messageId, context\.chat\)[\s\S]*?pendingAutomaticTargets\.set[\s\S]*?\}[\s\S]*?function handleAssistantMessageRendered\(messageId\)[\s\S]*?targetWindow\.setTimeout[\s\S]*?runDeferredAutomaticGeneration/,
+  'a received assistant message should be queued and released after rendering without blocking SillyTavern',
+);
+assert.doesNotMatch(receivedHandler, /await generateStatusbar\('automatic'/, 'the MESSAGE_RECEIVED listener must not await external generation');
+assert.match(
+  triggerHandlers,
+  /resolveReadyAutomaticAssistantTarget\(pendingTarget, context\.chat\)[\s\S]*?generateStatusbar\('automatic', readyTarget\.messageIndex, readyTarget\)/,
+  'deferred generation should start only after the exact assistant swipe is stable',
 );
 
 assert.match(
@@ -33,16 +43,21 @@ assert.match(
   /if \(context\.eventTypes\.MESSAGE_RECEIVED\) context\.eventSource\.on\(context\.eventTypes\.MESSAGE_RECEIVED, handleAssistantMessageReceived\);/,
   'only the semantic assistant-received event should drive automatic generation',
 );
-assert.doesNotMatch(
-  source.slice(source.indexOf('function init()')),
-  /GENERATION_STARTED|GENERATION_STOPPED|GENERATION_ENDED|CHARACTER_MESSAGE_RENDERED/,
-  'automatic generation should not depend on generation lifecycle or render events',
+assert.match(
+  source,
+  /MESSAGE_SWIPED[\s\S]*?invalidatePendingAutomaticGeneration/,
+  'switching swipes should invalidate pending automatic work without starting generation',
 );
 
 assert.match(
   generateFunction,
-  /async function generateStatusbar\(entryType = 'manual', targetMessageIndex = null\)/,
+  /async function generateStatusbar\(entryType = 'manual', targetMessageIndex = null, automaticTarget = null\)/,
   'generation should accept an exact target message index',
+);
+assert.match(
+  generateFunction,
+  /if \(automaticTarget && !isAutomaticAssistantTargetCurrent\(automaticTarget, getContext\(\)\.chat\)\)[\s\S]*?return '';/,
+  'an automatic result should be discarded when its floor or swipe changed while the API was running',
 );
 assert.match(
   generateFunction,

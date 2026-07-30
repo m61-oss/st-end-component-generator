@@ -44,7 +44,11 @@ import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.0';
 import { createGenerationErrorRecord, isGenerationResponseError, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.0';
 import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.0';
 import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.1.0';
-import { resolveAutomaticAssistantMessageIndex } from './generation/auto-generation-trigger.js?ver=0.1.0';
+import {
+  captureAutomaticAssistantTarget,
+  isAutomaticAssistantTargetCurrent,
+  resolveReadyAutomaticAssistantTarget,
+} from './generation/auto-generation-trigger.js?ver=0.1.0';
 import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.1.0';
 import {
   buildApiRequestParts,
@@ -165,6 +169,9 @@ let importGroups = [];
 const promptSourceCache = createPromptSourceCacheState();
 let activeWorldbookGroupIndex = null;
 let generationAbortController = null;
+let activeAutomaticTarget = null;
+let automaticGenerationRevision = 0;
+const pendingAutomaticTargets = new Map();
 let lastRuntimeDiagnostics = {};
 let lastPromptLogText = '';
 let promptLogBuilding = false;
@@ -632,7 +639,7 @@ function injectStatusbar(message, text) {
   });
 }
 
-async function generateStatusbar(entryType = 'manual', targetMessageIndex = null) {
+async function generateStatusbar(entryType = 'manual', targetMessageIndex = null, automaticTarget = null) {
   const conflictAction = getGenerationConflictAction(Boolean(generationAbortController), entryType);
   if (conflictAction === 'ignore') return '';
   if (conflictAction === 'notify') {
@@ -654,6 +661,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   }
   notifyStatus('正在生成文尾组件……', 'info');
   generationAbortController = new AbortController();
+  if (entryType === 'automatic') activeAutomaticTarget = automaticTarget;
   setGeneratingState(true);
   let result = '';
   try {
@@ -680,7 +688,12 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
       renderPromptLog();
     }
     generationAbortController = null;
+    if (entryType === 'automatic') activeAutomaticTarget = null;
     setGeneratingState(false);
+  }
+  if (automaticTarget && !isAutomaticAssistantTargetCurrent(automaticTarget, getContext().chat)) {
+    notifyStatus('正文楼层或翻页状态已经变化，旧组件结果已丢弃。', 'warning');
+    return '';
   }
   applyGeneratedResult(result);
   saveSettings();
@@ -824,11 +837,53 @@ function registerInjectionUndoInvalidation(context) {
   bind('CHAT_CHANGED', clearInjectionUndoSnapshot);
 }
 
-async function handleAssistantMessageReceived(messageId) {
+function invalidatePendingAutomaticGeneration({ abortActive = false } = {}) {
+  automaticGenerationRevision += 1;
+  pendingAutomaticTargets.clear();
+  if (abortActive && activeAutomaticTarget && generationAbortController) generationAbortController.abort();
+}
+
+async function runDeferredAutomaticGeneration(pendingTarget, revision, attempt = 0) {
   const context = getContext();
-  const targetMessageIndex = resolveAutomaticAssistantMessageIndex(messageId, context.chat);
-  if (!settings.autoGenerate || targetMessageIndex === null) return;
-  await generateStatusbar('automatic', targetMessageIndex);
+  if (!settings.autoGenerate || revision !== automaticGenerationRevision) return;
+  const currentTarget = captureAutomaticAssistantTarget(pendingTarget.messageIndex, context.chat);
+  if (
+    !currentTarget
+    || currentTarget.messageIndex !== context.chat.length - 1
+    || currentTarget.messageText !== pendingTarget.messageText
+  ) return;
+
+  const readyTarget = resolveReadyAutomaticAssistantTarget(pendingTarget, context.chat);
+  const messageElementReady = Boolean(targetDoc.querySelector(`#chat .mes[mesid="${pendingTarget.messageIndex}"]`));
+  if (!readyTarget || !messageElementReady || generationAbortController) {
+    if (attempt < 400) {
+      targetWindow.setTimeout(() => {
+        void runDeferredAutomaticGeneration(pendingTarget, revision, attempt + 1);
+      }, 25);
+    }
+    return;
+  }
+  await generateStatusbar('automatic', readyTarget.messageIndex, readyTarget);
+}
+
+function handleAssistantMessageReceived(messageId) {
+  const context = getContext();
+  if (!settings.autoGenerate) return;
+  const pendingTarget = captureAutomaticAssistantTarget(messageId, context.chat);
+  if (!pendingTarget) return;
+  invalidatePendingAutomaticGeneration({ abortActive: true });
+  const revision = automaticGenerationRevision;
+  pendingAutomaticTargets.set(pendingTarget.messageIndex, { pendingTarget, revision });
+}
+
+function handleAssistantMessageRendered(messageId) {
+  const messageIndex = Number(messageId);
+  const pending = pendingAutomaticTargets.get(messageIndex);
+  if (!pending) return;
+  pendingAutomaticTargets.delete(messageIndex);
+  targetWindow.setTimeout(() => {
+    void runDeferredAutomaticGeneration(pending.pendingTarget, pending.revision);
+  }, 0);
 }
 
 function setStatus(text, { silent = false } = {}) {
@@ -3309,6 +3364,9 @@ function init() {
   registerPromptSourceCacheInvalidation(context);
   registerInjectionUndoInvalidation(context);
   if (context.eventTypes.MESSAGE_RECEIVED) context.eventSource.on(context.eventTypes.MESSAGE_RECEIVED, handleAssistantMessageReceived);
+  if (context.eventTypes.CHARACTER_MESSAGE_RENDERED) context.eventSource.on(context.eventTypes.CHARACTER_MESSAGE_RENDERED, handleAssistantMessageRendered);
+  if (context.eventTypes.MESSAGE_SWIPED) context.eventSource.on(context.eventTypes.MESSAGE_SWIPED, () => invalidatePendingAutomaticGeneration({ abortActive: true }));
+  if (context.eventTypes.CHAT_CHANGED) context.eventSource.on(context.eventTypes.CHAT_CHANGED, () => invalidatePendingAutomaticGeneration({ abortActive: true }));
   console.log(`[${EXTENSION_ID}] 已加载，dialog top layer，UI 挂载文档：${targetWindow === window ? 'current' : 'parent'}`);
 }
 
