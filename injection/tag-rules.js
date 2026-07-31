@@ -47,6 +47,25 @@ export function stripConfiguredBlocks(value, rules = '') {
   return applyRules(value, getRules(rules), false).body;
 }
 
+export function stripHistoryBlocksByRules(chat, configuredRules = []) {
+  const rules = Array.isArray(configuredRules)
+    ? configuredRules.map((item) => ({ rule: textOf(item?.rule), keep: Math.max(0, Math.floor(Number(item?.keep) || 0)) })).filter((item) => item.rule)
+    : String(configuredRules || '').split('\n').map((rule) => ({ rule: textOf(rule), keep: 0 })).filter((item) => item.rule);
+  const source = Array.isArray(chat) ? chat : [];
+  let newerAssistantReplies = 0;
+  const result = new Array(source.length);
+  for (let index = source.length - 1; index >= 0; index -= 1) {
+    const item = source[index] || {};
+    let mes = String(item.mes || '');
+    for (const rule of rules) {
+      if (newerAssistantReplies >= rule.keep) mes = stripConfiguredBlocks(mes, rule.rule);
+    }
+    result[index] = { ...item, mes };
+    if (!item.is_user) newerAssistantReplies += 1;
+  }
+  return result;
+}
+
 export function extractConfiguredBlocks(value, rules = '') {
   return applyRules(value, getRules(rules), true);
 }

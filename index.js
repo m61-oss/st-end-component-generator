@@ -111,6 +111,7 @@ const DEFAULT_SETTINGS = {
   statusPlaceholderEnabled: false,
   mvuReprocessOnInject: true,
   historyCleanupTags: '',
+  historyCleanupRules: [],
   outputCleanupTags: '',
   lastGenerated: '',
   lastGeneratedStatusPlaceholderPresent: false,
@@ -329,6 +330,15 @@ function loadSettings() {
   settings.streamingEnabled = Boolean(settings.streamingEnabled);
   if (!['dark', 'light'].includes(settings.theme)) settings.theme = 'dark';
   if (settings.historyCleanupTags === undefined) settings.historyCleanupTags = String(settings.cleanupTags || '');
+  if (!Array.isArray(storedSettings.historyCleanupRules)) {
+    settings.historyCleanupRules = String(settings.historyCleanupTags || '').split('\n')
+      .map((rule) => textOf(rule))
+      .filter(Boolean)
+      .map((rule) => ({ rule, keep: 0 }));
+  }
+  settings.historyCleanupRules = settings.historyCleanupRules
+    .map((item) => ({ rule: textOf(item?.rule), keep: Math.max(0, Math.floor(Number(item?.keep) || 0)) }))
+    .filter((item) => item.rule);
   if (settings.outputCleanupTags === undefined) settings.outputCleanupTags = '';
   if (!hadActiveSchemeIds || !settings.activeSchemeIds || typeof settings.activeSchemeIds !== 'object') {
     settings.activeSchemeIds = {
@@ -552,7 +562,7 @@ async function buildMessages(latestMessage) {
     components,
     promptSourceItems,
     worldbookSourceControlled: getSourceMode('worldbook') === SOURCE_MODE_PROMPT || getPromptSourceSnapshotItems('worldbook').length > 0,
-    historyCleanupTags: settings.historyCleanupTags,
+    historyCleanupTags: settings.historyCleanupRules,
     substituteParams: context.substituteParams,
     taskPlacement: { enabled: settings.taskPlacementEnabled, afterSourceId: settings.taskPlacementAfterSourceId },
     replaceLastUserMessageWithTask: settings.replaceLastUserMessageWithTask,
@@ -1046,11 +1056,20 @@ const TAG_RULE_CONFIG = {
 };
 
 function getTagRuleEntries(type) {
+  if (type === 'history') return settings.historyCleanupRules;
   const key = TAG_RULE_CONFIG[type]?.setting;
   return String(settings[key] || '').split('\n').map((item) => item.trim()).filter(Boolean);
 }
 
 function saveTagRuleEntries(type, entries) {
+  if (type === 'history') {
+    settings.historyCleanupRules = entries
+      .map((item) => typeof item === 'string' ? { rule: item, keep: 0 } : item)
+      .map((item) => ({ rule: textOf(item?.rule), keep: Math.max(0, Math.floor(Number(item?.keep) || 0)) }))
+      .filter((item) => item.rule);
+    saveSettings();
+    return;
+  }
   const key = TAG_RULE_CONFIG[type]?.setting;
   settings[key] = entries.join('\n');
   saveSettings();
@@ -1058,17 +1077,22 @@ function saveTagRuleEntries(type, entries) {
 
 function buildTagRuleManager(type) {
   const config = TAG_RULE_CONFIG[type];
-  return `<div class="st-esg-tag-rule-manager" data-tag-rule-type="${type}"><div class="st-esg-tag-rule-head"><span>${config.title}</span><i class="fa-solid fa-circle-question" title="${config.description} 普通标签匹配成对标签；正则匹配完整内容。"></i></div><div class="st-esg-tag-rule-add"><select id="st-esg-${type}-rule-mode" class="text_pole"><option value="tag">标签</option><option value="regex">正则</option></select><input id="st-esg-${type}-rule-input" class="text_pole" type="text" placeholder="thinking" /><button id="st-esg-${type}-rule-add" class="menu_button st-esg-secondary-action st-esg-tag-rule-add-button" type="button" title="添加规则"><i class="fa-solid fa-plus"></i></button></div><div id="st-esg-${type}-rule-list" class="st-esg-tag-rule-list"></div></div>`;
+  const help = type === 'history'
+    ? '“保留”只作用于当前规则，表示最近保留多少条角色回复不执行清理；填 0 表示不保留。\n仅计数角色回复（assistant），用户和 system 消息不计数。'
+    : `${config.description} 普通标签匹配成对标签；正则匹配完整内容。`;
+  return `<div class="st-esg-tag-rule-manager" data-tag-rule-type="${type}"><div class="st-esg-tag-rule-head"><span>${config.title}</span><i class="fa-solid fa-circle-question" title="${help}"></i></div><div class="st-esg-tag-rule-add"><select id="st-esg-${type}-rule-mode" class="text_pole"><option value="tag">标签</option><option value="regex">正则</option></select><input id="st-esg-${type}-rule-input" class="text_pole" type="text" placeholder="thinking" /><button id="st-esg-${type}-rule-add" class="menu_button st-esg-secondary-action st-esg-tag-rule-add-button" type="button" title="添加规则"><i class="fa-solid fa-plus"></i></button></div><div id="st-esg-${type}-rule-list" class="st-esg-tag-rule-list"></div></div>`;
 }
 
 function renderTagRuleManager(type) {
   const list = $t(`#st-esg-${type}-rule-list`);
   if (!list.length) return;
   const entries = getTagRuleEntries(type);
-  list.html(entries.map((entry, index) => {
+  list.html(entries.map((rawEntry, index) => {
+    const entry = type === 'history' ? rawEntry.rule : rawEntry;
     const isRegex = entry.startsWith('re:');
     const display = isRegex ? entry.slice(3) : `<${entry}>...</${entry}>`;
-    return `<div class="st-esg-tag-rule-item"><span class="st-esg-tag-rule-kind">${isRegex ? '正则' : '标签'}</span><code>${escapeHtml(display)}</code><button class="menu_button st-esg-tag-rule-delete" type="button" data-rule-index="${index}" title="删除规则"><i class="fa-solid fa-trash"></i></button></div>`;
+    const keep = type === 'history' ? `<label class="st-esg-history-rule-keep">保留 <input class="text_pole" type="number" min="0" step="1" value="${rawEntry.keep}" data-rule-index="${index}" /></label>` : '';
+    return `<div class="st-esg-tag-rule-item"><span class="st-esg-tag-rule-kind">${isRegex ? '正则' : '标签'}</span><code>${escapeHtml(display)}</code>${keep}<button class="menu_button st-esg-tag-rule-delete" type="button" data-rule-index="${index}" title="删除规则"><i class="fa-solid fa-trash"></i></button></div>`;
   }).join('') || '<div class="st-esg-tag-rule-empty">尚未添加规则</div>');
 }
 
@@ -1085,7 +1109,9 @@ function addTagRule(type) {
     value = `re:${value}`;
   }
   const entries = getTagRuleEntries(type);
-  if (!entries.includes(value)) entries.push(value);
+  if (type === 'history') {
+    if (!entries.some((item) => item.rule === value)) entries.push({ rule: value, keep: 0 });
+  } else if (!entries.includes(value)) entries.push(value);
   saveTagRuleEntries(type, entries);
   input.val('');
   renderTagRuleManager(type);
@@ -3399,6 +3425,16 @@ function bindPanelEvents() {
       saveTagRuleEntries(type, entries);
       renderTagRuleManager(type);
     });
+    if (type === 'history') {
+      $t('#st-esg-history-rule-list').on('change', '.st-esg-history-rule-keep input', function () {
+        const entries = getTagRuleEntries('history');
+        const entry = entries[Number($(this).data('rule-index'))];
+        if (!entry) return;
+        entry.keep = Math.max(0, Math.floor(Number($(this).val()) || 0));
+        saveTagRuleEntries('history', entries);
+        $(this).val(entry.keep);
+      });
+    }
   });
   $t('#st-esg-generate').on('click', () => generateStatusbar());
   $t('#st-esg-inject').on('click', () => injectGeneratedStatusbar());
