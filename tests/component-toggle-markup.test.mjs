@@ -333,6 +333,21 @@ assert.doesNotMatch(
 );
 assert.match(
   indexSource,
+  /function startBackgroundWorldbookCounts\(\)/,
+  'worldbook counts should be filled asynchronously after the directory has rendered',
+);
+assert.match(
+  indexSource,
+  /group\.category !== 'inactive' \|\| !isFollowingTavernWorldbook\(\)/,
+  'opening an inactive Tavern worldbook must not synchronize its native enabled flags into plugin selections',
+);
+assert.match(
+  indexSource,
+  /item\.worldbookCategory === 'inactive'\) return false;/,
+  'entries from inactive Tavern worldbooks must render unchecked until the user explicitly selects them',
+);
+assert.match(
+  indexSource,
   /worldbookInitialized: false,[\s\S]*?worldbookDraftSources: \[\],/,
   'new installs should track first-run worldbook initialization and a persistent working-source draft separately',
 );

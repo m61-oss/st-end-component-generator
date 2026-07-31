@@ -187,6 +187,7 @@ let componentFilterMode = 'all';
 let componentEditMode = false;
 let selectedComponentIds = new Set();
 let quickReplySyncTimer = null;
+let worldbookCountRevision = 0;
 
 const $t = (selectorOrHtml) => $(selectorOrHtml, targetDoc);
 const textOf = (value) => String(value ?? '').trim();
@@ -2368,6 +2369,7 @@ function captureWorldbookDraftSources() {
 
 function getSourceSelection(item) {
   if (item?.locked) return item.enabled !== false;
+  if (item?.scope === SOURCE_WORLDBOOK && isFollowingTavernWorldbook() && item.worldbookCategory === 'inactive') return false;
   if (item?.scope === SOURCE_WORLDBOOK && !isFollowingTavernWorldbook() && !hasWorldbookDraftSource(item.source)) return false;
   const store = getSourceSelectionStore(item);
   if (Object.prototype.hasOwnProperty.call(store, item.key)) return store[item.key] !== false;
@@ -2396,7 +2398,8 @@ function syncSelectionForChecks(checks) {
 }
 
 function syncPromptSelectionsFromLoadedGroups(groups = importGroups) {
-  const promptGroups = groups.filter((group) => getSourceMode(group) === SOURCE_MODE_PROMPT);
+  const promptGroups = groups.filter((group) => getSourceMode(group) === SOURCE_MODE_PROMPT
+    && (group.category !== 'inactive' || !isFollowingTavernWorldbook()));
   const before = JSON.stringify(settings.promptSelections || {});
   settings.promptSelections = syncPromptSelectionsFromGroups(promptGroups, settings.promptSelections, (group) => isWorldbookGroup(group) ? isFollowingTavernWorldbook() : isFollowingTavernPreset());
   if (JSON.stringify(settings.promptSelections || {}) !== before) saveSettings();
@@ -2677,6 +2680,40 @@ function getSelectedGlobalWorldbookNamesFromDom() {
   return (Array.isArray(value) ? value : [value]).map(textOf).filter(Boolean);
 }
 
+function getWorldbookCountText(group) {
+  const total = Number(group?.entryCount);
+  if (!Number.isFinite(total)) return '统计中';
+  return `${Number(group?.pluginEnabledCount || 0)}/${total}`;
+}
+
+function updateWorldbookCountLabel(group) {
+  const groupIndex = importGroups.indexOf(group);
+  if (groupIndex < 0) return;
+  $t(`.st-esg-worldbook-row[data-group-index="${groupIndex}"] em`).text(getWorldbookCountText(group));
+}
+
+async function startBackgroundWorldbookCounts() {
+  const revision = ++worldbookCountRevision;
+  const groups = importGroups.filter((group) => group?.scope === SOURCE_WORLDBOOK && !group.loaded);
+  for (const group of groups) {
+    await new Promise((resolve) => targetWindow.setTimeout(resolve, 0));
+    if (revision !== worldbookCountRevision || group.loaded) continue;
+    try {
+      const items = await collectWorldbookImportCandidates(targetWindow, group.source);
+      if (revision !== worldbookCountRevision || group.loaded) continue;
+      group.entryCount = items.length;
+      group.pluginEnabledCount = items.filter((item) => getSourceSelection({ ...item, worldbookCategory: group.category })).length;
+      updateWorldbookCountLabel(group);
+    } catch (_) {
+      if (revision === worldbookCountRevision) {
+        group.entryCount = 0;
+        group.pluginEnabledCount = 0;
+        updateWorldbookCountLabel(group);
+      }
+    }
+  }
+}
+
 async function scanImportCandidates({ explicitPresetName = '' } = {}) {
   const context = getContext();
   const cachedWorldbookGroups = new Map(importGroups
@@ -2710,6 +2747,7 @@ async function scanImportCandidates({ explicitPresetName = '' } = {}) {
   activeWorldbookGroupIndex = null;
   importCandidates = importGroups.flatMap((group) => group.items || []);
   renderImportCandidates();
+  void startBackgroundWorldbookCounts();
   renderTaskPlacementOptions();
   promptSourceCache.structureDirty = false;
   promptSourceCache.signature = getTavernSourceSignature();
@@ -2727,7 +2765,8 @@ async function loadImportGroup(groupIndex) {
   renderImportCandidates({ renderPreset: false });
   scrollWorldbookCardIntoView();
   try {
-    group.items = await collectWorldbookImportCandidates(targetWindow, group.source);
+    group.items = (await collectWorldbookImportCandidates(targetWindow, group.source))
+      .map((item) => ({ ...item, worldbookCategory: group.category }));
     group.loaded = true;
     syncPromptSelectionsFromLoadedGroups([group]);
     setStatus(`已加载 ${group.source}：${group.items.length} 个条目。`);
@@ -2806,7 +2845,7 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
   const renderWorldbookRow = (group) => {
     const count = group.loaded
       ? `${group.items.filter((item) => getSourceSelection(item)).length}/${group.items.length}`
-      : '点击查看';
+      : getWorldbookCountText(group);
     return `<button class="st-esg-worldbook-row" type="button" data-group-index="${group.groupIndex}"><span>${escapeHtml(group.group)}</span><em>${count}</em><i class="fa-solid fa-chevron-right"></i></button>`;
   };
   const renderWorldbookDetail = (group) => `<div class="st-esg-worldbook-detail" data-group-index="${group.groupIndex}"><div class="st-esg-detail-head"><button class="menu_button st-esg-back-worldbooks" type="button" title="返回世界书列表" aria-label="返回世界书列表"><i class="fa-solid fa-arrow-left"></i></button><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loading ? '正在加载条目...' : group.loaded ? `${group.items.length} 个可导入条目` : '准备加载这本世界书'}</div></div>${group.loaded ? '<button class="menu_button st-esg-import-detail-toggle" type="button">全选条目</button>' : ''}</div><div class="st-esg-import-group-list">${renderListToolbar()}${groupBody(group)}</div></div>`;
