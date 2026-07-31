@@ -291,6 +291,71 @@ assert.match(
   /\.toggleClass\('st-esg-hidden', !editable\)\.prop\('disabled', !editable\)/,
   'import mode should hard-hide and disable scheme mutation buttons instead of relying on inline display toggles',
 );
+
+const worldbookSchemeState = indexSource.slice(
+  indexSource.indexOf('function isFollowingTavernWorldbook()'),
+  indexSource.indexOf('function requestTextInputDialog()'),
+);
+assert.match(
+  worldbookSchemeState,
+  /function isFollowingTavernWorldbook\(\) \{\s*return getActiveSchemeId\('worldbook'\) === WORLD_BOOK_FOLLOW_TAVERN && !settings\.dirtySchemeTypes\?\.worldbook;/,
+  'a modified Tavern-default worldbook draft must stop following Tavern while retaining its selected scheme',
+);
+assert.match(
+  indexSource,
+  /function markSchemeDirty\(type\) \{[\s\S]*?settings\.dirtySchemeTypes\[type\] = true;[\s\S]*?renderSchemeOptions\(type\);/,
+  'dirtying a scheme should retain the current selection and only mark the working copy unsaved',
+);
+assert.doesNotMatch(
+  indexSource.slice(indexSource.indexOf('function markSchemeDirty(type)'), indexSource.indexOf('function markSchemeClean(type')),
+  /setSelectedSchemeId\(type, ''\)|setActiveSchemeId\(type, ''\)/,
+  'dirtying a scheme must not clear the scheme selector or active base scheme',
+);
+assert.match(
+  indexSource,
+  /const label = settings\.dirtySchemeTypes\?\.\[type\]\s*\? '未保存方案'/,
+  'the current-scheme label should say only that the working copy is unsaved',
+);
+
+const worldbookScanFunction = indexSource.slice(
+  indexSource.indexOf('async function scanImportCandidates('),
+  indexSource.indexOf('async function loadImportGroup('),
+);
+assert.match(
+  worldbookScanFunction,
+  /collectWorldbookImportGroups\(\{[\s\S]*?selectedWorldNames,[\s\S]*?explicitWorldbookNames: null,[\s\S]*?\}\)/,
+  'the worldbook directory should always be built from Tavern\'s complete catalog rather than only saved-scheme sources',
+);
+assert.doesNotMatch(
+  worldbookScanFunction,
+  /collectWorldbookImportCounts\(/,
+  'opening the directory must not eagerly load every worldbook merely to show counts',
+);
+assert.match(
+  indexSource,
+  /worldbookInitialized: false,[\s\S]*?worldbookDraftSources: \[\],/,
+  'new installs should track first-run worldbook initialization and a persistent working-source draft separately',
+);
+assert.match(
+  indexSource,
+  /if \(settings\.worldbookInitialized !== true\) \{[\s\S]*?setSelectedSchemeId\('worldbook', WORLD_BOOK_FOLLOW_TAVERN\);[\s\S]*?setActiveSchemeId\('worldbook', WORLD_BOOK_FOLLOW_TAVERN\);/,
+  'a first-time user should start from Tavern default without manually loading it',
+);
+
+const componentEditorConfirmHandler = indexSource.slice(
+  indexSource.indexOf("list.on('click.stEsgComponentEditor', '.st-esg-component-edit-confirm'"),
+  indexSource.indexOf("list.on('click.stEsgComponentEditor', '.st-esg-component-edit-cancel'"),
+);
+assert.match(
+  componentEditorConfirmHandler,
+  /updateComponentEditorSummary\(editor, item\);/,
+  'saving an existing component should patch only its own visible summary',
+);
+assert.doesNotMatch(
+  componentEditorConfirmHandler,
+  /renderComponentList\(\);/,
+  'saving an existing component must not rebuild the complete component library',
+);
 const schemeActionFunction = indexSource.slice(
   indexSource.indexOf('async function handleSchemeAction(type, action)'),
   indexSource.indexOf('function renderComponentPreview(item)'),
