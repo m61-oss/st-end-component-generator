@@ -348,8 +348,8 @@ assert.match(
 );
 assert.match(
   indexSource,
-  /st-esg-history-tag-rule-item/,
-  'history cleanup rows should opt into their own four-column layout',
+  /<span class="st-esg-history-rule-keep">保留 <input/,
+  'the retention label and number input must share one inline container instead of using a vertically styled label',
 );
 assert.match(
   indexSource,

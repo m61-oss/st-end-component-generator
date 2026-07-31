@@ -1091,7 +1091,7 @@ function renderTagRuleManager(type) {
     const entry = type === 'history' ? rawEntry.rule : rawEntry;
     const isRegex = entry.startsWith('re:');
     const display = isRegex ? entry.slice(3) : `<${entry}>...</${entry}>`;
-    const keep = type === 'history' ? `<label class="st-esg-history-rule-keep">保留 <input class="text_pole" type="number" min="0" step="1" value="${rawEntry.keep}" data-rule-index="${index}" /></label>` : '';
+    const keep = type === 'history' ? `<span class="st-esg-history-rule-keep">保留 <input class="text_pole" type="number" min="0" step="1" value="${rawEntry.keep}" data-rule-index="${index}" /></span>` : '';
     return `<div class="st-esg-tag-rule-item ${type === 'history' ? 'st-esg-history-tag-rule-item' : ''}"><span class="st-esg-tag-rule-kind">${isRegex ? '正则' : '标签'}</span><code>${escapeHtml(display)}</code>${keep}<button class="menu_button st-esg-tag-rule-delete" type="button" data-rule-index="${index}" title="删除规则"><i class="fa-solid fa-trash"></i></button></div>`;
   }).join('') || '<div class="st-esg-tag-rule-empty">尚未添加规则</div>');
 }
