@@ -348,6 +348,11 @@ assert.match(
 );
 assert.match(
   indexSource,
+  /st-esg-history-tag-rule-item/,
+  'history cleanup rows should opt into their own four-column layout',
+);
+assert.match(
+  indexSource,
   /worldbookInitialized: false,[\s\S]*?worldbookDraftSources: \[\],/,
   'new installs should track first-run worldbook initialization and a persistent working-source draft separately',
 );
