@@ -3,7 +3,7 @@ import fs from 'node:fs';
 
 const source = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 
-assert.match(source, /from '\.\/sources\/prompt-source-cache\.js\?ver=0\.1\.0'/);
+assert.match(source, /from '\.\/sources\/prompt-source-cache\.js\?ver=0\.1\.1'/);
 assert.match(source, /const promptSourceCache = createPromptSourceCacheState\(\)/);
 
 const ensureFunction = source.slice(
@@ -18,7 +18,7 @@ assert.doesNotMatch(
 );
 assert.match(
   ensureFunction,
-  /if \(!importGroups\.length \|\| promptSourceCache\.structureDirty\) await scanImportCandidates\(\{ loadWorldbookCounts: false \}\)/,
+  /if \(!importGroups\.length \|\| promptSourceCache\.structureDirty\) await scanImportCandidates\(\)/,
 );
 assert.match(ensureFunction, /await loadWorldbookSourceGroups\(\s*activeWorldbookGroups,/s);
 assert.match(ensureFunction, /\(worldbookName\) => collectWorldbookImportCandidates\(targetWindow, worldbookName\)/);
@@ -32,8 +32,8 @@ assert.match(scanFunction, /cachedWorldbookGroups/);
 assert.match(scanFunction, /promptSourceCache\.dirtyWorldbooks\.has\(group\.source\)/);
 assert.match(scanFunction, /promptSourceCache\.structureDirty = false/);
 assert.match(scanFunction, /promptSourceCache\.signature = getTavernSourceSignature\(\)/);
-assert.match(scanFunction, /loadWorldbookCounts = true/);
-assert.match(scanFunction, /loadWorldbookCounts\s*\?\s*await collectWorldbookImportCounts/s);
+assert.match(scanFunction, /explicitWorldbookNames: null/);
+assert.doesNotMatch(scanFunction, /collectWorldbookImportCounts\(/);
 
 assert.match(source, /function invalidateWorldbookSourceCache\(worldbookName\)/);
 assert.match(source, /markWorldbookSourceDirty\(promptSourceCache, worldbookName\)/);

@@ -103,7 +103,7 @@ assert.deepEqual(getWorldbookSchemeSourceNames({
   promptSelections: {
     '世界书：B::B::世界书::Entry::content': true,
   },
-}), ['B']);
+}), ['A', 'B', 'C']);
 
 const firstSave = saveScheme([], 'Daily', apiSnapshot);
 assert.equal(firstSave.length, 1);

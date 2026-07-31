@@ -48,9 +48,7 @@ export function getWorldbookSchemeSourceNames(snapshot = {}) {
 
   // Older versions saved every discoverable worldbook. When that snapshot also carries
   // explicit entry selections, those selections are the reliable static source list.
-  return selectionSources.size && sourceNames.length > selectionSources.size
-    ? sourceNames.filter((name) => selectionSources.has(name))
-    : sourceNames;
+  return sourceNames;
 }
 
 export function captureSchemeSnapshot(type, settings, groups = [], options = {}) {
@@ -89,11 +87,16 @@ export function captureSchemeSnapshot(type, settings, groups = [], options = {})
     const sourceSelections = (settings.sourceModes?.worldbook || settings.sourceMode || 'prompt') === 'import'
       ? settings.importSelections
       : settings.promptSelections;
-    // Native active books belong to the snapshot even before their lazy entries were opened.
-    // Inactive books belong only after the user explicitly selected one of their entries.
-    const savedWorldbookGroups = worldbookGroups.filter((group) => (
-      textOf(group?.category) !== 'inactive' || hasSelectedWorldbookItem(group, sourceSelections)
-    ));
+    const configuredSources = new Set((Array.isArray(settings.worldbookDraftSources) ? settings.worldbookDraftSources : [])
+      .map(textOf)
+      .filter(Boolean));
+    // A dirty or saved scheme keeps its own source list. Tavern default has no draft list,
+    // so retain the native active books until the user makes a change.
+    const savedWorldbookGroups = configuredSources.size
+      ? worldbookGroups.filter((group) => configuredSources.has(textOf(group.source)))
+      : worldbookGroups.filter((group) => (
+        textOf(group?.category) !== 'inactive' || hasSelectedWorldbookItem(group, sourceSelections)
+      ));
     const keys = groupKeys(savedWorldbookGroups, () => true);
     return {
       worldbookSources: [...new Set(savedWorldbookGroups.map((group) => textOf(group.source)).filter(Boolean))],

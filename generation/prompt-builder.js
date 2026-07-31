@@ -1,5 +1,5 @@
 import { buildBaiBaiBookInjections } from '../sources/baibai-book.js';
-import { stripConfiguredBlocks } from '../injection/tag-rules.js';
+import { stripHistoryBlocksByRules } from '../injection/tag-rules.js';
 
 const textOf = (value) => String(value ?? '').trim();
 const IGNORE_SYMBOL = Symbol.for('ignore');
@@ -14,16 +14,14 @@ function getVisibleChat(chat) {
 }
 
 function getRecentChatText(chat, { includeUserMessages = true, historyCleanupTags = '' } = {}) {
-  return getVisibleChat(chat)
-    .map((item) => ({ ...item, mes: stripConfiguredBlocks(item?.mes, historyCleanupTags) }))
+  return stripHistoryBlocksByRules(getVisibleChat(chat), historyCleanupTags)
     .filter((item) => includeUserMessages || !item?.is_user)
     .map((item) => `${item?.is_user ? '用户' : '助手'}：${item?.mes || ''}`)
     .join('\n\n');
 }
 
 function getRecentChatMessages(chat, historyCleanupTags = '') {
-  return getVisibleChat(chat)
-    .map((item) => ({ ...item, mes: stripConfiguredBlocks(item?.mes, historyCleanupTags) }))
+  return stripHistoryBlocksByRules(getVisibleChat(chat), historyCleanupTags)
     .map((item) => ({
       role: item?.is_user ? 'user' : 'assistant',
       content: textOf(item?.mes),

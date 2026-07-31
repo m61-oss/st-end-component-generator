@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { extractConfiguredBlocks, stripConfiguredBlocks } from '../injection/tag-rules.js';
+import { extractConfiguredBlocks, stripConfiguredBlocks, stripHistoryBlocksByRules } from '../injection/tag-rules.js';
 
 const source = '<thinking>private chain</thinking><content>visible body</content><details>aside</details>';
 
@@ -61,5 +61,14 @@ assert.equal(
 );
 
 assert.equal(stripConfiguredBlocks('<content>visible body</content>', 're:['), '<content>visible body</content>');
+
+const cleanedHistory = stripHistoryBlocksByRules([
+  { is_user: false, mes: '<state>old</state>old reply' },
+  { is_user: true, mes: 'user after old reply' },
+  { is_user: false, mes: '<state>new</state>new reply' },
+], [{ rule: 'state', keep: 1 }]);
+assert.equal(cleanedHistory[0].mes, 'old reply');
+assert.equal(cleanedHistory[1].mes, 'user after old reply');
+assert.equal(cleanedHistory[2].mes, '<state>new</state>new reply');
 
 console.log('tag-rules tests passed');
