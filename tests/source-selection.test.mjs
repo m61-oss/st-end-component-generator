@@ -170,3 +170,27 @@ assert.deepEqual(
 );
 
 console.log('source-selection tavern-disabled override tests passed');
+
+// A scheme is a static snapshot. Loading a book while a scheme drives the list must not seed missing
+// keys from Tavern's own entry state, otherwise opening one entry silently checks the whole book.
+const schemeScopedSync = syncPromptSelectionsFromGroups([
+  {
+    scope: '世界书',
+    category: 'global',
+    followsTavernState: false,
+    loaded: true,
+    items: [
+      { key: 'tavern_on_entry', enabled: true },
+      { key: 'tavern_off_entry', enabled: false },
+      { key: 'already_checked_entry', enabled: true },
+    ],
+  },
+], { already_checked_entry: true });
+
+assert.deepEqual(schemeScopedSync, {
+  already_checked_entry: true,
+  tavern_on_entry: false,
+  tavern_off_entry: false,
+}, 'a scheme-driven book starts unchecked instead of inheriting tavern activation');
+
+console.log('source-selection scheme snapshot tests passed');

@@ -2433,8 +2433,14 @@ function syncSelectionForChecks(checks) {
 }
 
 function syncPromptSelectionsFromLoadedGroups(groups = importGroups) {
+  // Tag each worldbook group with whether it mirrors Tavern. While a scheme is active the snapshot is
+  // authoritative, so loading a book must not seed its entries from Tavern's activation state.
+  const followingTavernWorldbook = isFollowingTavernWorldbook();
   const promptGroups = groups.filter((group) => getSourceMode(group) === SOURCE_MODE_PROMPT
-    && (group.category !== 'inactive' || !isFollowingTavernWorldbook()));
+    && (group.category !== 'inactive' || !followingTavernWorldbook))
+    .map((group) => (isWorldbookGroup(group)
+      ? { ...group, followsTavernState: followingTavernWorldbook }
+      : group));
   const before = JSON.stringify(settings.promptSelections || {});
   settings.promptSelections = syncPromptSelectionsFromGroups(promptGroups, settings.promptSelections, (group) => isWorldbookGroup(group) ? isFollowingTavernWorldbook() : isFollowingTavernPreset());
   if (JSON.stringify(settings.promptSelections || {}) !== before) saveSettings();

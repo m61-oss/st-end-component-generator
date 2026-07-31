@@ -352,8 +352,15 @@ assert.match(
 );
 assert.match(
   indexSource,
-  /group\.category !== 'inactive' \|\| !isFollowingTavernWorldbook\(\)/,
+  /group\.category !== 'inactive' \|\| !followingTavernWorldbook/,
   'opening an inactive Tavern worldbook must not synchronize its native enabled flags into plugin selections',
+);
+// While a scheme drives the list its snapshot is authoritative, so a book loaded then must be tagged
+// as not following Tavern; otherwise opening one entry seeds the whole book from Tavern's own flags.
+assert.match(
+  indexSource,
+  /followsTavernState: followingTavernWorldbook/,
+  'scheme-driven worldbooks must not inherit tavern activation when their entries load',
 );
 assert.match(
   indexSource,
