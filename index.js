@@ -2379,6 +2379,14 @@ function hasWorldbookDraftSource(source) {
   return settings.worldbookDraftSources.includes(textOf(source));
 }
 
+// A book is treated as enabled by the plugin when the current scheme lists it. A tavern-default
+// scheme that was only just edited has no captured list yet, so fall back to Tavern's own
+// assignment; otherwise every book would look unselected the moment the scheme turns dirty.
+function isWorldbookSourceEnabledByPlugin(group) {
+  if (hasWorldbookDraftSource(group?.source)) return true;
+  return !settings.worldbookDraftSources.length && textOf(group?.category) !== 'inactive';
+}
+
 function rememberWorldbookDraftSource(source) {
   const name = textOf(source);
   if (!name || hasWorldbookDraftSource(name)) return;
@@ -2396,7 +2404,8 @@ function captureWorldbookDraftSources() {
 function getSourceSelection(item) {
   if (item?.locked) return item.enabled !== false;
   if (item?.scope === SOURCE_WORLDBOOK && isFollowingTavernWorldbook() && item.worldbookCategory === 'inactive') return false;
-  if (item?.scope === SOURCE_WORLDBOOK && !isFollowingTavernWorldbook() && !hasWorldbookDraftSource(item.source)) return false;
+  if (item?.scope === SOURCE_WORLDBOOK && !isFollowingTavernWorldbook()
+    && !isWorldbookSourceEnabledByPlugin({ source: item.source, category: item.worldbookCategory })) return false;
   const store = getSourceSelectionStore(item);
   if (Object.prototype.hasOwnProperty.call(store, item.key)) return store[item.key] !== false;
   return getSourceMode(item) === SOURCE_MODE_PROMPT ? item.enabled !== false : false;
@@ -2724,7 +2733,7 @@ function updateWorldbookCountLabel(group) {
   const expectedCategory = getWorldbookImportDisplayCategory(group, {
     pluginEnabledCount: Number(group.pluginEnabledCount || 0),
     followingTavern: isFollowingTavernWorldbook(),
-    schemeEnabled: !isFollowingTavernWorldbook() && hasWorldbookDraftSource(group.source),
+    schemeEnabled: !isFollowingTavernWorldbook() && isWorldbookSourceEnabledByPlugin(group),
   });
   if (textOf(row.closest('.st-esg-import-category').data('category')) !== expectedCategory) {
     renderImportCandidates({ renderPreset: false });
@@ -2766,14 +2775,11 @@ async function scanImportCandidates({ explicitPresetName = '' } = {}) {
       ? textOf($t('#st-esg-source-preset').val()) || settings.activeSourcePreset || getCurrentPresetNameSafe(targetWindow, context)
       : getCurrentPresetNameSafe(targetWindow, context) || textOf($t('#st-esg-source-preset').val()) || settings.activeSourcePreset);
   saveSettings();
-  // The directory always lists Tavern's full catalog. `followingTavern` only decides whether the
-  // global/character/chat grouping applies, so an active scheme is not reordered by this window.
   const worldbookGroups = collectWorldbookImportGroups({
     targetWindow,
     context,
     selectedWorldNames,
     explicitWorldbookNames: null,
-    followingTavern: followingTavernWorldbook,
   });
   importGroups = [
     ...collectPresetImportGroups({ targetWindow, context, presetName: settings.activeSourcePreset }),
@@ -2846,7 +2852,7 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     const category = getWorldbookImportDisplayCategory(group, {
       pluginEnabledCount: currentEnabledCount,
       followingTavern: isFollowingTavernWorldbook(),
-      schemeEnabled: !isFollowingTavernWorldbook() && hasWorldbookDraftSource(group.source),
+      schemeEnabled: !isFollowingTavernWorldbook() && isWorldbookSourceEnabledByPlugin(group),
     });
     if (!worldbookCategories.has(category)) worldbookCategories.set(category, { categoryLabel: group.categoryLabel || '世界书', groups: [] });
     worldbookCategories.get(category).groups.push(group);

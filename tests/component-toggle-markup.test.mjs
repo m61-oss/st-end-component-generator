@@ -332,18 +332,18 @@ assert.doesNotMatch(
   'opening the directory must not eagerly load every worldbook merely to show counts',
 );
 
-// A scheme is a static snapshot, so the directory must stop applying Tavern's global/character/chat
-// grouping while one is active. Otherwise a book that only this window activates is sorted above the
-// books the scheme actually enables.
+// Placement while a scheme is active is decided by the plugin selection, not by re-grouping the
+// directory. A tavern-default scheme that was only just edited has no captured source list yet, so
+// the plugin-enabled check must fall back to Tavern's assignment instead of emptying every category.
 assert.match(
-  worldbookScanFunction,
-  /followingTavern: followingTavernWorldbook/,
-  'the worldbook directory should only apply tavern grouping while following tavern',
+  indexSource,
+  /schemeEnabled: !isFollowingTavernWorldbook\(\) && isWorldbookSourceEnabledByPlugin\(group\)/,
+  'books enabled by the active scheme should be categorised as plugin-enabled immediately',
 );
 assert.match(
   indexSource,
-  /schemeEnabled: !isFollowingTavernWorldbook\(\) && hasWorldbookDraftSource\(group\.source\)/,
-  'books enabled by the active scheme should be categorised as plugin-enabled immediately',
+  /function isWorldbookSourceEnabledByPlugin\(group\) \{[\s\S]*?return !settings\.worldbookDraftSources\.length && textOf\(group\?\.category\) !== 'inactive';/,
+  'a dirty tavern-default scheme should still treat tavern-active books as plugin-enabled',
 );
 assert.match(
   indexSource,
