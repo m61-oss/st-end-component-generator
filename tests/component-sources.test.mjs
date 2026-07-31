@@ -110,6 +110,66 @@ assert.equal(
   'character',
 );
 
+// Bug 2: a book that the active scheme enables belongs to the plugin category right away.
+// It must not wait for the background entry count, otherwise the user has to open the book once.
+assert.equal(
+  getWorldbookImportDisplayCategory({ category: 'inactive' }, {
+    pluginEnabledCount: 0,
+    followingTavern: false,
+    schemeEnabled: true,
+  }),
+  'plugin',
+  'scheme-enabled book is categorised as plugin before any entry count arrives',
+);
+assert.equal(
+  getWorldbookImportDisplayCategory({ category: 'inactive' }, {
+    pluginEnabledCount: 0,
+    followingTavern: false,
+    schemeEnabled: false,
+  }),
+  'inactive',
+  'a book outside the scheme stays inactive',
+);
+assert.equal(
+  getWorldbookImportDisplayCategory({ category: 'global' }, {
+    pluginEnabledCount: 0,
+    followingTavern: false,
+    schemeEnabled: true,
+  }),
+  'plugin',
+  'while a scheme is active, tavern assignment must not outrank the scheme selection',
+);
+
+// Bug 3: applying a saved scheme in another character window must classify books from the
+// scheme snapshot only. Tavern's current global/char/chat assignment must not leak in.
+const schemeScopedGroups = collectWorldbookImportGroups({
+  targetWindow,
+  context,
+  explicitWorldbookNames: ['??????'],
+});
+assert.deepEqual(
+  schemeScopedGroups.map((group) => group.source),
+  ['??????'],
+  'scheme snapshot decides the book list',
+);
+assert.deepEqual(
+  schemeScopedGroups.map((group) => group.category),
+  ['plugin'],
+  'scheme books are plugin-enabled regardless of the current window',
+);
+
+const schemeGroupsIgnoringTavernActive = collectWorldbookImportGroups({
+  targetWindow,
+  context,
+  selectedWorldNames: ['??????'],
+  explicitWorldbookNames: ['??????'],
+});
+assert.deepEqual(
+  schemeGroupsIgnoringTavernActive.map((group) => group.source),
+  ['??????'],
+  'a book active in the current window but absent from the scheme must not be listed on top',
+);
+
 const inUsePresetGroups = collectPresetImportGroups({
   targetWindow: {
     getPreset: (name) => name === 'in_use' ? {

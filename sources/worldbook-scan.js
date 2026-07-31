@@ -33,9 +33,11 @@ export function getWorldbookScanText(chat, depth = 2) {
     .join('\n');
 }
 
+// `enabled` / `disable` only carry Tavern's own toggle. They seed the default checkbox state when a
+// book is first synced, so they must not veto activation here: once an entry reaches this filter the
+// plugin has already decided it is selected, and the plugin selection is what the user expects to win.
 export function isWorldbookEntryActivated(entry, { scanText = '', depth = 2, activationMode = null } = {}) {
   const mode = normalizeWorldbookActivationMode(activationMode ?? entry?.activationMode, entry?.constant ? 'blue' : 'green');
-  if (entry?.disable === true || entry?.enabled === false) return false;
   if (mode === 'blue') return true;
   const worldbookKeys = normalizeKeys(entry?.worldbookKeys);
   const keys = worldbookKeys.length ? worldbookKeys : normalizeKeys(entry?.key);

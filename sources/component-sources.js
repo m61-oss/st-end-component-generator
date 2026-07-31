@@ -385,7 +385,7 @@ export function getWorldbookNamesSafe(targetWindow, context, selectedWorldNames 
   return getWorldbookGroupsSafe(targetWindow, context, selectedWorldNames).map((item) => item.name);
 }
 
-export function getWorldbookGroupsSafe(targetWindow, context, selectedWorldNames = [], { explicitWorldbookNames = null } = {}) {
+export function getWorldbookGroupsSafe(targetWindow, context, selectedWorldNames = [], { explicitWorldbookNames = null, followingTavern = true } = {}) {
   let globalNames = [];
   let charNames = [];
   let chatName = '';
@@ -421,20 +421,32 @@ export function getWorldbookGroupsSafe(targetWindow, context, selectedWorldNames
     seen.add(clean);
     groups.push({ name: clean, category, categoryLabel });
   };
-  [...globalNames, ...selected].forEach((name) => add(name, 'global', '全局世界书'));
-  charNames.forEach((name) => add(name, 'character', '角色世界书'));
-  add(chatName, 'chat', '聊天世界书');
+  // While a scheme is active the directory still lists every book so more can be added, but Tavern's
+  // global/character/chat grouping must not be applied: a book this window happens to activate would
+  // otherwise be sorted above the books the scheme actually enables.
+  if (followingTavern) {
+    [...globalNames, ...selected].forEach((name) => add(name, 'global', '全局世界书'));
+    charNames.forEach((name) => add(name, 'character', '角色世界书'));
+    add(chatName, 'chat', '聊天世界书');
+  }
   allNames.forEach((name) => add(name, 'inactive', '未启用世界书'));
   return groups;
 }
 
 // The Tavern-following view must mirror Tavern's current assignments only.
 // Plugin-only selections are meaningful only while a saved worldbook scheme is active.
-export function getWorldbookImportDisplayCategory(worldbook, { pluginEnabledCount = 0, followingTavern = false } = {}) {
+// `schemeEnabled` is the authoritative signal there: the scheme already records which books it uses,
+// so a book can be shown under the plugin category immediately instead of waiting for the background
+// entry count. Without it a scheme book stays misfiled until the user opens it once by hand.
+export function getWorldbookImportDisplayCategory(worldbook, {
+  pluginEnabledCount = 0,
+  followingTavern = false,
+  schemeEnabled = false,
+} = {}) {
   const category = textOf(worldbook?.category) || 'inactive';
-  return !followingTavern && category === 'inactive' && Number(pluginEnabledCount) > 0
-    ? 'plugin'
-    : category;
+  if (followingTavern) return category;
+  if (schemeEnabled) return 'plugin';
+  return category === 'inactive' && Number(pluginEnabledCount) > 0 ? 'plugin' : category;
 }
 
 export async function getWbEntriesSafe(targetWindow, name) {
@@ -601,8 +613,8 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
   return [{ scope: SOURCE_PRESET, group: `预设：${selected}`, source: selected, loaded: true, items: candidates }];
 }
 
-export function collectWorldbookImportGroups({ targetWindow, context, selectedWorldNames = [], explicitWorldbookNames = null }) {
-  return getWorldbookGroupsSafe(targetWindow, context, selectedWorldNames, { explicitWorldbookNames }).map((worldbook) => ({
+export function collectWorldbookImportGroups({ targetWindow, context, selectedWorldNames = [], explicitWorldbookNames = null, followingTavern = true }) {
+  return getWorldbookGroupsSafe(targetWindow, context, selectedWorldNames, { explicitWorldbookNames, followingTavern }).map((worldbook) => ({
     scope: SOURCE_WORLDBOOK,
     group: worldbook.name,
     source: worldbook.name,

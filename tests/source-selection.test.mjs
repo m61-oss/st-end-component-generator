@@ -149,3 +149,24 @@ const selectedLockedMarkerItems = collectSelectedPromptSourceItems([
 });
 
 assert.deepEqual(selectedLockedMarkerItems.map((item) => item.markerType), ['worldInfoBefore']);
+
+// A worldbook entry that Tavern disabled must still be collected when the plugin explicitly
+// checked it. `enabled` is only the Tavern-side default, never a veto over an explicit selection.
+const tavernDisabledButChecked = collectSelectedPromptSourceItems([
+  {
+    loaded: true,
+    items: [
+      { key: 'tavern_off_checked', scope: '???', name: 'Tavern Off', content: 'lore body', enabled: false },
+      { key: 'tavern_off_unchecked', scope: '???', name: 'Still Off', content: 'other body', enabled: false },
+    ],
+  },
+], {
+  tavern_off_checked: true,
+});
+assert.deepEqual(
+  tavernDisabledButChecked.map((item) => item.name),
+  ['Tavern Off'],
+  'explicit plugin selection overrides the tavern-disabled default',
+);
+
+console.log('source-selection tavern-disabled override tests passed');

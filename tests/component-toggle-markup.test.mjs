@@ -331,6 +331,20 @@ assert.doesNotMatch(
   /collectWorldbookImportCounts\(/,
   'opening the directory must not eagerly load every worldbook merely to show counts',
 );
+
+// A scheme is a static snapshot, so the directory must stop applying Tavern's global/character/chat
+// grouping while one is active. Otherwise a book that only this window activates is sorted above the
+// books the scheme actually enables.
+assert.match(
+  worldbookScanFunction,
+  /followingTavern: followingTavernWorldbook/,
+  'the worldbook directory should only apply tavern grouping while following tavern',
+);
+assert.match(
+  indexSource,
+  /schemeEnabled: !isFollowingTavernWorldbook\(\) && hasWorldbookDraftSource\(group\.source\)/,
+  'books enabled by the active scheme should be categorised as plugin-enabled immediately',
+);
 assert.match(
   indexSource,
   /function startBackgroundWorldbookCounts\(\)/,
