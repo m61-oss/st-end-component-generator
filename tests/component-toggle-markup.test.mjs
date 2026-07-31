@@ -353,6 +353,11 @@ assert.match(
 );
 assert.match(
   indexSource,
+  /\$\{config\.description\}.*“保留”只作用于当前规则/s,
+  'history cleanup help should retain the original rule explanation before its retention explanation',
+);
+assert.match(
+  indexSource,
   /worldbookInitialized: false,[\s\S]*?worldbookDraftSources: \[\],/,
   'new installs should track first-run worldbook initialization and a persistent working-source draft separately',
 );

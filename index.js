@@ -1078,7 +1078,7 @@ function saveTagRuleEntries(type, entries) {
 function buildTagRuleManager(type) {
   const config = TAG_RULE_CONFIG[type];
   const help = type === 'history'
-    ? '“保留”只作用于当前规则，表示最近保留多少条角色回复不执行清理；填 0 表示不保留。\n仅计数角色回复（assistant），用户和 system 消息不计数。'
+    ? `${config.description} 普通标签匹配成对标签；正则匹配完整内容。\n“保留”只作用于当前规则，表示最近保留多少条角色回复不执行清理；填 0 表示不保留。\n仅计数角色回复（assistant），用户和 system 消息不计数。`
     : `${config.description} 普通标签匹配成对标签；正则匹配完整内容。`;
   return `<div class="st-esg-tag-rule-manager" data-tag-rule-type="${type}"><div class="st-esg-tag-rule-head"><span>${config.title}</span><i class="fa-solid fa-circle-question" title="${help}"></i></div><div class="st-esg-tag-rule-add"><select id="st-esg-${type}-rule-mode" class="text_pole"><option value="tag">标签</option><option value="regex">正则</option></select><input id="st-esg-${type}-rule-input" class="text_pole" type="text" placeholder="thinking" /><button id="st-esg-${type}-rule-add" class="menu_button st-esg-secondary-action st-esg-tag-rule-add-button" type="button" title="添加规则"><i class="fa-solid fa-plus"></i></button></div><div id="st-esg-${type}-rule-list" class="st-esg-tag-rule-list"></div></div>`;
 }
