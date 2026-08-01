@@ -1356,6 +1356,13 @@ function isFollowingTavernWorldbook() {
   return getActiveSchemeId('worldbook') === WORLD_BOOK_FOLLOW_TAVERN && !settings.dirtySchemeTypes?.worldbook;
 }
 
+// The Tavern default is a mirror rather than a scheme: it owns no snapshot, so entry checkboxes must
+// come from Tavern's own enabled flags. This stays true after the draft turns dirty, which is why it
+// cannot be folded into isFollowingTavernWorldbook.
+function isTavernDefaultWorldbookScheme() {
+  return getActiveSchemeId('worldbook') === WORLD_BOOK_FOLLOW_TAVERN;
+}
+
 function isFollowingTavernPreset() {
   return getActiveSchemeId('preset') === WORLD_BOOK_FOLLOW_TAVERN && !settings.dirtySchemeTypes?.preset;
 }
@@ -2403,7 +2410,11 @@ function captureWorldbookDraftSources() {
 
 function getSourceSelection(item) {
   if (item?.locked) return item.enabled !== false;
-  if (item?.scope === SOURCE_WORLDBOOK && isFollowingTavernWorldbook() && item.worldbookCategory === 'inactive') return false;
+  if (item?.scope === SOURCE_WORLDBOOK && isTavernDefaultWorldbookScheme()) {
+    // Mirror Tavern directly: an inactive book contributes nothing and every other book reports the
+    // entry's own enabled flag, so no stale stored selection can survive into the count.
+    return textOf(item.worldbookCategory) !== 'inactive' && item.enabled !== false;
+  }
   if (item?.scope === SOURCE_WORLDBOOK && !isFollowingTavernWorldbook()
     && !isWorldbookSourceEnabledByPlugin({ source: item.source, category: item.worldbookCategory })) return false;
   const store = getSourceSelectionStore(item);
@@ -2435,7 +2446,7 @@ function syncSelectionForChecks(checks) {
 function syncPromptSelectionsFromLoadedGroups(groups = importGroups) {
   // Tag each worldbook group with whether it mirrors Tavern. While a scheme is active the snapshot is
   // authoritative, so loading a book must not seed its entries from Tavern's activation state.
-  const followingTavernWorldbook = isFollowingTavernWorldbook();
+  const followingTavernWorldbook = isTavernDefaultWorldbookScheme();
   const promptGroups = groups.filter((group) => getSourceMode(group) === SOURCE_MODE_PROMPT
     && (group.category !== 'inactive' || !followingTavernWorldbook))
     .map((group) => (isWorldbookGroup(group)

@@ -194,3 +194,26 @@ assert.deepEqual(schemeScopedSync, {
 }, 'a scheme-driven book starts unchecked instead of inheriting tavern activation');
 
 console.log('source-selection scheme snapshot tests passed');
+
+// Tavern's default is a mirror, not a scheme: it owns no snapshot, so a book loaded while it is
+// active must show Tavern's own per-entry enabled flags. Tagging such a group as not following
+// Tavern used to force every entry to false, which is what produced the 0/total counts.
+const tavernMirrorSync = syncPromptSelectionsFromGroups([
+  {
+    scope: '\u4e16\u754c\u4e66',
+    category: 'global',
+    followsTavernState: true,
+    loaded: true,
+    items: [
+      { key: 'tavern_enabled', enabled: true },
+      { key: 'tavern_disabled', enabled: false },
+    ],
+  },
+], {});
+
+assert.deepEqual(tavernMirrorSync, {
+  tavern_enabled: true,
+  tavern_disabled: false,
+}, 'the tavern default must mirror each entry\'s own enabled flag');
+
+console.log('source-selection tavern mirror tests passed');

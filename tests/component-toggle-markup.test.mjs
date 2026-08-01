@@ -364,8 +364,15 @@ assert.match(
 );
 assert.match(
   indexSource,
-  /item\.worldbookCategory === 'inactive'\) return false;/,
+  /textOf\(item\.worldbookCategory\) !== 'inactive' && item\.enabled !== false;/,
   'entries from inactive Tavern worldbooks must render unchecked until the user explicitly selects them',
+);
+// The Tavern default owns no snapshot, so its checkboxes must mirror Tavern even after the draft
+// turns dirty. Deciding this with isFollowingTavernWorldbook forced every entry to report 0/total.
+assert.match(
+  indexSource,
+  /function isTavernDefaultWorldbookScheme\(\) \{\s*return getActiveSchemeId\('worldbook'\) === WORLD_BOOK_FOLLOW_TAVERN;/,
+  'mirroring Tavern must not depend on whether the worldbook draft is dirty',
 );
 assert.match(
   indexSource,
