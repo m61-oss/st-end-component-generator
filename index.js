@@ -61,6 +61,7 @@ import {
   markWorldbookSourceDirty,
   takeDirtyWorldbookSources,
 } from './sources/prompt-source-cache.js?ver=0.1.2';
+import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from './settings/task-placement.js?ver=0.1.2';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.1.2';
@@ -91,10 +92,9 @@ const DEFAULT_SETTINGS = {
   autoInject: null,
   activeTab: 'workspace',
   taskPrompt: [
-    '请不要续写正文。',
-    '请根据当前对话与下方要求，为本次回复补充所需的文尾组件。',
-    '',
+    '现在停止生成正文，为最新的正文补充下面这些内容。',
     '{{external_components}}',
+    '上方为需要补充的内容，现在开始输出思考过程并按规则和格式输出需要补充的内容，禁止额外生成正文。',
   ].join('\n'),
   apiUrl: '',
   apiKey: '',
@@ -119,9 +119,9 @@ const DEFAULT_SETTINGS = {
   lastGenerationError: null,
   lastPromptLog: '',
   compressSystemMessages: false,
-  taskPlacementEnabled: false,
-  taskPlacementAfterSourceId: '',
-  replaceLastUserMessageWithTask: false,
+  taskPlacementEnabled: true,
+  taskPlacementAfterSourceId: TASK_PLACEMENT_AFTER_CHAT_HISTORY,
+  replaceLastUserMessageWithTask: true,
   omitOriginalUserMessages: false,
   baiBaiBookHistoryEnabled: false,
   baiBaiBookStateEnabled: false,
@@ -279,8 +279,12 @@ function getSettingsStore() {
 
 function loadSettings() {
   const storedSettings = getSettingsStore();
+  const isFreshInstall = Object.keys(storedSettings).length === 0;
   const hadActiveSchemeIds = Object.prototype.hasOwnProperty.call(storedSettings, 'activeSchemeIds');
   settings = Object.assign({ ...DEFAULT_SETTINGS }, storedSettings);
+  if (!isFreshInstall && !Object.prototype.hasOwnProperty.call(storedSettings, 'taskPlacementEnabled')) settings.taskPlacementEnabled = false;
+  if (!isFreshInstall && !Object.prototype.hasOwnProperty.call(storedSettings, 'taskPlacementAfterSourceId')) settings.taskPlacementAfterSourceId = '';
+  if (!isFreshInstall && !Object.prototype.hasOwnProperty.call(storedSettings, 'replaceLastUserMessageWithTask')) settings.replaceLastUserMessageWithTask = false;
   settings.ballSize = normalizeFloatingBallSize(settings.ballSize);
   settings.ballOpacity = normalizeFloatingBallOpacity(settings.ballOpacity);
   try {
@@ -2546,7 +2550,7 @@ function getPresetTaskPlacementItems() {
     .filter((group) => group?.scope !== SOURCE_WORLDBOOK && group.loaded && Array.isArray(group.items))
     .flatMap((group) => group.items
       .filter((item) => item?.key && (textOf(item.content) || textOf(item.markerType)))
-      .map((item) => ({ id: item.key, label: `${group.source || group.group} / ${item.name}` })));
+      .map((item) => ({ id: item.key, label: `${group.source || group.group} / ${item.name}`, markerType: textOf(item.markerType) })));
 }
 
 function getSourceContentValue(item) {
@@ -2624,8 +2628,11 @@ function renderTaskPlacementOptions() {
   select.html(items.length
     ? items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.label)}</option>`).join('')
     : '<option value="">请先在“预设/世界书”页同步当前预设</option>');
-  if (items.some((item) => item.id === settings.taskPlacementAfterSourceId)) {
-    select.val(settings.taskPlacementAfterSourceId);
+  const selectedPlacementId = settings.taskPlacementAfterSourceId === TASK_PLACEMENT_AFTER_CHAT_HISTORY
+    ? items.find((item) => item.markerType === 'chatHistory')?.id || ''
+    : settings.taskPlacementAfterSourceId;
+  if (items.some((item) => item.id === selectedPlacementId)) {
+    select.val(selectedPlacementId);
   } else {
     select.val('');
   }

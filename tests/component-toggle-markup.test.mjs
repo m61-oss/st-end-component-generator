@@ -424,5 +424,13 @@ const defaultTaskPrompt = indexSource.slice(
   indexSource.indexOf("  apiUrl: '',"),
 );
 assert.match(defaultTaskPrompt, /taskPrompt:\s*\[[\s\S]*?\{\{external_components\}\}[\s\S]*?\]\.join/, 'the default task prompt should retain the component insertion point');
+assert.match(defaultTaskPrompt, /现在停止生成正文，为最新的正文补充下面这些内容。/, 'the default task prompt should explicitly stop prose continuation');
+assert.match(defaultTaskPrompt, /上方为需要补充的内容，现在开始输出思考过程并按规则和格式输出需要补充的内容，禁止额外生成正文。/, 'the default task prompt should request only the missing components');
+assert.match(indexSource, /taskPlacementEnabled:\s*true,/, 'fresh installs should enable custom task placement');
+assert.match(indexSource, /taskPlacementAfterSourceId:\s*TASK_PLACEMENT_AFTER_CHAT_HISTORY,/, 'fresh installs should use semantic Chat History placement');
+assert.match(indexSource, /replaceLastUserMessageWithTask:\s*true,/, 'fresh installs should replace LastUserMessage with the task');
+assert.match(indexSource, /const isFreshInstall = Object\.keys\(storedSettings\)\.length === 0;/, 'settings loading should distinguish a fresh install from an existing settings object');
+assert.match(indexSource, /if \(!isFreshInstall && !Object\.prototype\.hasOwnProperty\.call\(storedSettings, 'taskPlacementEnabled'\)\) settings\.taskPlacementEnabled = false;/, 'old settings objects without the placement option must retain the legacy disabled behavior');
+assert.match(indexSource, /if \(!isFreshInstall && !Object\.prototype\.hasOwnProperty\.call\(storedSettings, 'replaceLastUserMessageWithTask'\)\) settings\.replaceLastUserMessageWithTask = false;/, 'old settings objects without LastUserMessage replacement must retain the legacy disabled behavior');
 assert.doesNotMatch(defaultTaskPrompt, /\u5206\u6790/, 'the default task prompt must not suppress model reasoning output');
 assert.doesNotMatch(indexSource, /现在只输出需要追加的内容，不解释，不输出分析过程。/, 'the default task prompt must not suppress model reasoning output');

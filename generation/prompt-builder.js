@@ -597,7 +597,11 @@ function buildPromptSourceMessages(promptSourceItems, { context, latestMessage, 
     }
 
     if (markerType === 'chatHistory') {
-      messages.push(...buildChatHistoryMessages(context, { includeUserMessages, historyCleanupTags, inChatInjections, depthReferenceMessages }).map((message) => ({ ...message, sourceItemId })));
+      messages.push(...buildChatHistoryMessages(context, { includeUserMessages, historyCleanupTags, inChatInjections, depthReferenceMessages }).map((message) => ({
+        ...message,
+        sourceItemId,
+        sourceMarkerType: markerType,
+      })));
       continue;
     }
 
@@ -705,7 +709,9 @@ function insertTaskMessage(messages, taskMessage, taskPlacement) {
     messages.push(taskMessage);
     return;
   }
-  const index = messages.findLastIndex((message) => textOf(message?.sourceItemId) === afterSourceId);
+  const index = afterSourceId === TASK_PLACEMENT_AFTER_CHAT_HISTORY
+    ? messages.findLastIndex((message) => textOf(message?.sourceMarkerType) === 'chatHistory')
+    : messages.findLastIndex((message) => textOf(message?.sourceItemId) === afterSourceId);
   messages.splice(index >= 0 ? index + 1 : messages.length, 0, taskMessage);
 }
 
@@ -713,6 +719,7 @@ function stripInternalMessageFields(messages) {
   messages.forEach((message) => {
     delete message.runtimeMarkerType;
     delete message.sourceItemId;
+    delete message.sourceMarkerType;
     delete message.injected;
     delete message.originalUserMessage;
   });
@@ -765,3 +772,4 @@ export async function buildExternalStatusbarMessages({ targetWindow, context, la
   insertTaskMessage(messages, { role: 'user', content: taskContent }, taskPlacement);
   return stripInternalMessageFields(messages);
 }
+import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from '../settings/task-placement.js';

@@ -747,6 +747,44 @@ assert.deepEqual(
   ['Preset A prompt', 'Task fallback tail'],
 );
 
+const messagesWithTaskAfterChatHistory = await buildExternalStatusbarMessages({
+  targetWindow: {},
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: 'Task after chat history',
+  components: [],
+  promptSourceItems: [
+    { key: 'preset-before', scope: 'preset', name: 'Before', role: 'system', content: 'Before history' },
+    { key: 'preset-history', scope: 'preset', name: 'Chat History', role: 'system', markerType: 'chatHistory', content: '' },
+    { key: 'preset-after', scope: 'preset', name: 'After', role: 'system', content: 'After history' },
+  ],
+  taskPlacement: { enabled: true, afterSourceId: '__st_esg_after_chat_history__' },
+});
+
+assert.deepEqual(
+  messagesWithTaskAfterChatHistory.map((message) => message.content),
+  ['Before history', 'Hello', 'Reply', 'Task after chat history', 'After history'],
+  'the semantic default should insert after all messages emitted by the Chat History marker',
+);
+
+const messagesWithSemanticPlacementButNoHistory = await buildExternalStatusbarMessages({
+  targetWindow: {},
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: 'Semantic fallback tail',
+  components: [],
+  promptSourceItems: [
+    { key: 'preset-only', scope: 'preset', name: 'Only', role: 'system', content: 'Only preset prompt' },
+  ],
+  taskPlacement: { enabled: true, afterSourceId: '__st_esg_after_chat_history__' },
+});
+
+assert.deepEqual(
+  messagesWithSemanticPlacementButNoHistory.map((message) => message.content),
+  ['Only preset prompt', 'Semantic fallback tail'],
+  'the semantic default should fall back to the prompt tail when Chat History is absent',
+);
+
 const messagesFromSelectedSourcesWithMissingMarkers = await buildExternalStatusbarMessages({
   targetWindow: {
     TavernHelper: {
