@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
-import { filterWorldbookPromptItems, getWorldbookScanText, isWorldbookEntryActivated } from '../sources/worldbook-scan.js';
+import {
+  filterWorldbookPromptItems,
+  getWorldbookScanText,
+  isWorldbookEntryActivated,
+  parseWorldbookRegex,
+  splitWorldbookKeywords,
+} from '../sources/worldbook-scan.js';
 
 const chat = [
   { is_user: true, mes: '很久以前的地点' },
@@ -89,3 +95,56 @@ assert.equal(
 );
 
 console.log('worldbook-scan cleanup-before-scan tests passed');
+
+assert.deepEqual(
+  splitWorldbookKeywords('坂田银时, /<content>[\\s\\S]{0,20}坂田,银时<\\/content>/i, 银魂'),
+  ['坂田银时', '/<content>[\\s\\S]{0,20}坂田,银时<\\/content>/i', '银魂'],
+  'commas inside a slash-delimited regex must not split the native keyword field',
+);
+assert.equal(parseWorldbookRegex('/a\\/b/i')?.test('A/B'), true, 'escaped slashes should work in native-style regex keywords');
+assert.equal(parseWorldbookRegex('/broken[/'), null, 'invalid regex-like text must fall back to ordinary keyword matching');
+assert.equal(
+  isWorldbookEntryActivated({ activationMode: 'green', worldbookKeys: ['/broken[/'] }, { scanText: 'literal /broken[/ text' }),
+  true,
+  'invalid regex-like text should remain usable as a literal keyword',
+);
+assert.equal(
+  isWorldbookEntryActivated({ activationMode: 'green', worldbookKeys: ['/<content>[\\s\\S]*?坂田银时[\\s\\S]*?<\\/content>/i'] }, {
+    scanText: '<content>坂田银时正在吃饭</content>\n[角色|坂田银时]',
+  }),
+  true,
+  'valid regex keywords should scan the complete history text',
+);
+assert.equal(
+  isWorldbookEntryActivated({ activationMode: 'green', worldbookKeys: ['/{{char}}/i'] }, {
+    scanText: 'GINTOKI appears in the injected statusbar',
+    substituteKeyword: (keyword) => keyword.replace('{{char}}', 'Gintoki'),
+  }),
+  true,
+  'standard Tavern macro substitution should run before keyword matching',
+);
+assert.equal(
+  isWorldbookEntryActivated({ activationMode: 'green', worldbookKeys: ['Moon'], caseSensitive: true }, { scanText: 'moon' }),
+  false,
+  'plain keywords should respect Tavern case sensitivity',
+);
+assert.equal(
+  isWorldbookEntryActivated({ activationMode: 'green', worldbookKeys: ['cat'], matchWholeWords: true }, { scanText: 'concatenate' }),
+  false,
+  'plain keywords should respect Tavern whole-word matching',
+);
+assert.equal(
+  isWorldbookEntryActivated({ activationMode: 'green', worldbookKeys: ['cat'], matchWholeWords: true }, { scanText: 'a cat appears' }),
+  true,
+  'whole-word keywords should still match a standalone word',
+);
+const globalRegexEntry = { activationMode: 'green', worldbookKeys: ['/cat/g'] };
+assert.equal(isWorldbookEntryActivated(globalRegexEntry, { scanText: 'cat' }), true);
+assert.equal(isWorldbookEntryActivated(globalRegexEntry, { scanText: 'cat' }), true, 'global regex state must not leak between scans');
+assert.equal(
+  isWorldbookEntryActivated({ activationMode: 'green', key: 'internal-entry-id', worldbookKeys: [] }, { scanText: 'internal-entry-id' }),
+  false,
+  'clearing the editable keyword field must not fall back to the plugin internal entry id',
+);
+
+console.log('worldbook-scan native keyword tests passed');

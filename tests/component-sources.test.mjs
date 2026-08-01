@@ -495,7 +495,7 @@ assert.deepEqual(
 const orderedWorldbookItems = await collectWorldbookImportCandidates({
   TavernHelper: {
     getWorldbook: () => [
-      { uid: 30, comment: 'Component start', content: 'start' },
+      { uid: 30, comment: 'Component start', content: 'start', caseSensitive: true, matchWholeWords: true },
       { uid: 10, comment: 'Component middle', content: 'middle' },
       { uid: 20, comment: 'Component end', content: 'end' },
     ],
@@ -503,6 +503,8 @@ const orderedWorldbookItems = await collectWorldbookImportCandidates({
 }, 'Ordered Book');
 assert.deepEqual(orderedWorldbookItems.map((item) => item.name), ['Component start', 'Component middle', 'Component end']);
 assert.deepEqual(orderedWorldbookItems.map((item) => item.sourceOrder), [0, 1, 2]);
+assert.equal(orderedWorldbookItems[0].caseSensitive, true);
+assert.equal(orderedWorldbookItems[0].matchWholeWords, true);
 
 const shuffledImportedComponents = [
   { name: 'Component end', scope: '鍏ㄥ眬', sourceType: SOURCE_WORLDBOOK, source: 'Ordered Book', sourceOrder: 2, content: 'end' },

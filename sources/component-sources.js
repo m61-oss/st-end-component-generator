@@ -650,6 +650,8 @@ export async function collectWorldbookImportCandidates(targetWindow, worldName) 
       sourceOrder,
       sourceUid: entry?.uid,
       worldbookKeys: getWorldbookEntryKeys(entry),
+      caseSensitive: entry?.caseSensitive === true,
+      matchWholeWords: entry?.matchWholeWords === true,
       activationMode: isWorldbookEntryConstant(entry) ? 'blue' : 'green',
       worldbookPosition: entry?.position,
       worldbookDepth: entry?.depth,

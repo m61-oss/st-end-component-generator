@@ -434,3 +434,9 @@ assert.match(indexSource, /if \(!isFreshInstall && !Object\.prototype\.hasOwnPro
 assert.match(indexSource, /if \(!isFreshInstall && !Object\.prototype\.hasOwnProperty\.call\(storedSettings, 'replaceLastUserMessageWithTask'\)\) settings\.replaceLastUserMessageWithTask = false;/, 'old settings objects without LastUserMessage replacement must retain the legacy disabled behavior');
 assert.doesNotMatch(defaultTaskPrompt, /\u5206\u6790/, 'the default task prompt must not suppress model reasoning output');
 assert.doesNotMatch(indexSource, /现在只输出需要追加的内容，不解释，不输出分析过程。/, 'the default task prompt must not suppress model reasoning output');
+
+assert.match(indexSource, /worldbookKeywordOverrides:\s*\{\}/, 'worldbook keyword overrides need their own plugin-side settings store');
+assert.match(indexSource, /class="text_pole[^"]*st-esg-worldbook-keywords"/, 'worldbook edit mode should expose one native-style primary-keyword field');
+assert.match(indexSource, /splitWorldbookKeywords\(String\(keywordInput\.val\(\) \?\? ''\)\)/, 'saving the shared editor should parse its comma-separated keyword field');
+assert.match(indexSource, /delete settings\.sourceContentOverrides\[item\.key\];[\s\S]*?delete settings\.worldbookKeywordOverrides\[item\.key\];/, 'restore native should remove content and primary-keyword overrides together');
+assert.match(indexSource, /hasSourceItemOverride\(item\)/, 'modified filtering and badges should share content-or-keyword override detection');

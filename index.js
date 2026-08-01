@@ -38,7 +38,7 @@ import {
 import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.2';
 import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.2';
 import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.2';
-import { filterWorldbookPromptItems, normalizeWorldbookActivationMode } from './sources/worldbook-scan.js?ver=0.1.2';
+import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.2';
 import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.2';
 import { createGenerationErrorRecord, isGenerationResponseError, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.2';
 import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.2';
@@ -143,6 +143,7 @@ const DEFAULT_SETTINGS = {
   importSelections: {},
   sourceContentOverrides: {},
   worldbookActivationOverrides: {},
+  worldbookKeywordOverrides: {},
   worldbookInitialized: false,
   worldbookDraftSources: [],
   apiSchemes: [],
@@ -324,6 +325,7 @@ function loadSettings() {
   }
   if (!settings.sourceContentOverrides || typeof settings.sourceContentOverrides !== 'object') settings.sourceContentOverrides = {};
   if (!settings.worldbookActivationOverrides || typeof settings.worldbookActivationOverrides !== 'object') settings.worldbookActivationOverrides = {};
+  if (!settings.worldbookKeywordOverrides || typeof settings.worldbookKeywordOverrides !== 'object') settings.worldbookKeywordOverrides = {};
   settings.worldbookDraftSources = [...new Set((Array.isArray(settings.worldbookDraftSources) ? settings.worldbookDraftSources : [])
     .map(textOf)
     .filter(Boolean))];
@@ -359,7 +361,7 @@ function loadSettings() {
       || settings.selectedWorldbookSchemeId
       || settings.activeSchemeIds.worldbook
       || settings.worldbookDraftSources.length
-      || [settings.promptSelections, settings.importSelections, settings.sourceContentOverrides, settings.worldbookActivationOverrides]
+      || [settings.promptSelections, settings.importSelections, settings.sourceContentOverrides, settings.worldbookActivationOverrides, settings.worldbookKeywordOverrides]
         .some((store) => Object.keys(store).some((key) => key.includes('::worldbook::')));
     if (!hasExistingWorldbookConfiguration) {
       setSelectedSchemeId('worldbook', WORLD_BOOK_FOLLOW_TAVERN);
@@ -1468,10 +1470,12 @@ async function applyWorldbookScheme(snapshot) {
   settings.importSelections = clearImportSelectionsForScope(settings.importSelections, SOURCE_WORLDBOOK);
   settings.sourceContentOverrides = clearImportSelectionsForScope(settings.sourceContentOverrides, SOURCE_WORLDBOOK);
   settings.worldbookActivationOverrides = clearImportSelectionsForScope(settings.worldbookActivationOverrides, SOURCE_WORLDBOOK);
+  settings.worldbookKeywordOverrides = clearImportSelectionsForScope(settings.worldbookKeywordOverrides, SOURCE_WORLDBOOK);
   Object.assign(settings.promptSelections, snapshot.promptSelections || {});
   Object.assign(settings.importSelections, snapshot.importSelections || {});
   Object.assign(settings.sourceContentOverrides, snapshot.sourceContentOverrides || {});
   Object.assign(settings.worldbookActivationOverrides, snapshot.worldbookActivationOverrides || {});
+  Object.assign(settings.worldbookKeywordOverrides, snapshot.worldbookKeywordOverrides || {});
   // Do not eagerly load every book while applying a scheme. Lazy loading restores entry details
   // when they are opened or needed for generation, avoiding a mobile UI freeze on large libraries.
   await scanImportCandidates();
@@ -1484,6 +1488,7 @@ async function applyFollowTavernWorldbook() {
   settings.importSelections = clearImportSelectionsForScope(settings.importSelections, SOURCE_WORLDBOOK);
   settings.sourceContentOverrides = clearImportSelectionsForScope(settings.sourceContentOverrides, SOURCE_WORLDBOOK);
   settings.worldbookActivationOverrides = {};
+  settings.worldbookKeywordOverrides = {};
   await scanImportCandidates();
   renderImportCandidates({ renderPreset: false });
 }
@@ -2526,12 +2531,20 @@ async function ensurePromptSourceItemsForGeneration() {
   const snapshotItems = ['preset', 'worldbook'].flatMap((type) => (
     getSourceMode(type) === SOURCE_MODE_IMPORT ? getPromptSourceSnapshotItems(type) : []
   ));
-  return filterWorldbookPromptItems([...sourceItems, ...snapshotItems], {
-    chat: getContext().chat,
+  const context = getContext();
+  const itemsWithKeywordOverrides = [...sourceItems, ...snapshotItems].map((item) => {
+    if (item?.scope !== SOURCE_WORLDBOOK || !item?.key || !Object.prototype.hasOwnProperty.call(settings.worldbookKeywordOverrides, item.key)) return item;
+    return { ...item, worldbookKeys: splitWorldbookKeywords(settings.worldbookKeywordOverrides[item.key]) };
+  });
+  return filterWorldbookPromptItems(itemsWithKeywordOverrides, {
+    chat: context.chat,
     scanDepth: getWorldbookScanDepth(),
     // The lamp must see the same history the model gets, so the cleanup rules are applied first.
     historyCleanupRules: settings.historyCleanupRules,
     activationModeForItem: isFollowingTavernWorldbook() ? (item) => item?.activationMode : getWorldbookActivationMode,
+    substituteKeyword: (keyword) => typeof context?.substituteParams === 'function'
+      ? context.substituteParams.call(context, keyword)
+      : keyword,
   });
 }
 
@@ -2576,7 +2589,20 @@ function getSourceContentValue(item) {
   return String(item?.content ?? '');
 }
 
-function setSourceContentOverride(item, value) {
+function getWorldbookKeywordValue(item) {
+  const value = item?.key && Object.prototype.hasOwnProperty.call(settings.worldbookKeywordOverrides, item.key)
+    ? settings.worldbookKeywordOverrides[item.key]
+    : item?.worldbookKeys;
+  return splitWorldbookKeywords(value).join(', ');
+}
+
+function hasSourceItemOverride(item) {
+  if (!item?.key) return false;
+  return Object.prototype.hasOwnProperty.call(settings.sourceContentOverrides, item.key)
+    || (item?.scope === SOURCE_WORLDBOOK && Object.prototype.hasOwnProperty.call(settings.worldbookKeywordOverrides, item.key));
+}
+
+function setSourceItemOverrides(item, value, keywordValue = '') {
   if (!item?.key || item?.locked) return;
   if (item?.scope === SOURCE_WORLDBOOK) {
     captureWorldbookDraftSources();
@@ -2588,6 +2614,15 @@ function setSourceContentOverride(item, value) {
     delete settings.sourceContentOverrides[item.key];
   } else {
     settings.sourceContentOverrides[item.key] = next;
+  }
+  if (item?.scope === SOURCE_WORLDBOOK) {
+    const originalKeywords = splitWorldbookKeywords(item.worldbookKeys);
+    const nextKeywords = splitWorldbookKeywords(keywordValue);
+    if (JSON.stringify(nextKeywords) === JSON.stringify(originalKeywords)) {
+      delete settings.worldbookKeywordOverrides[item.key];
+    } else {
+      settings.worldbookKeywordOverrides[item.key] = nextKeywords;
+    }
   }
   markSchemeDirty(item?.scope === SOURCE_WORLDBOOK ? 'worldbook' : 'preset');
   saveSettings();
@@ -2627,12 +2662,15 @@ function renderSourceContentEditor(item, groupIndex, itemIndex) {
   if (item?.markerType && !value) {
     return '<div class="st-esg-empty st-esg-empty-small">运行时插入，无可编辑内容。</div>';
   }
+  const keywordEditor = item?.scope === SOURCE_WORLDBOOK
+    ? `<label class="st-esg-worldbook-keyword-editor"><span>主关键词</span><textarea class="text_pole textarea_compact st-esg-worldbook-keywords" rows="2" data-group-index="${groupIndex}" data-item-index="${itemIndex}">${escapeHtml(getWorldbookKeywordValue(item))}</textarea></label>`
+    : '';
   const textarea = `<textarea class="text_pole textarea_compact st-esg-textarea st-esg-source-content" rows="7" data-group-index="${groupIndex}" data-item-index="${itemIndex}" ${item?.locked ? 'readonly' : ''}>${escapeHtml(value)}</textarea>`;
-  if (item?.locked) return textarea;
-  const restoreAction = item.key && Object.prototype.hasOwnProperty.call(settings.sourceContentOverrides, item.key)
+  if (item?.locked) return `${keywordEditor}${textarea}`;
+  const restoreAction = hasSourceItemOverride(item)
     ? `<button class="menu_button st-esg-source-restore" type="button" data-group-index="${groupIndex}" data-item-index="${itemIndex}">恢复原生</button>`
     : '';
-  return `${textarea}<div class="st-esg-source-actions"><button class="menu_button st-esg-source-confirm" type="button" data-group-index="${groupIndex}" data-item-index="${itemIndex}">确认</button><button class="menu_button st-esg-source-cancel" type="button" data-group-index="${groupIndex}" data-item-index="${itemIndex}">取消</button>${restoreAction}</div>`;
+  return `${keywordEditor}${textarea}<div class="st-esg-source-actions"><button class="menu_button st-esg-source-confirm" type="button" data-group-index="${groupIndex}" data-item-index="${itemIndex}">确认</button><button class="menu_button st-esg-source-cancel" type="button" data-group-index="${groupIndex}" data-item-index="${itemIndex}">取消</button>${restoreAction}</div>`;
 }
 
 function renderTaskPlacementOptions() {
@@ -2704,11 +2742,11 @@ function applyListFilters() {
       const group = importGroups[Number(row.data('group-index'))];
       const item = group?.items?.[Number(row.data('item-index'))];
       if (!item) return;
-      const searchableText = `${item.name || ''}\n${item.content || ''}`.toLocaleLowerCase();
+      const searchableText = `${item.name || ''}\n${item.content || ''}\n${getWorldbookKeywordValue(item)}`.toLocaleLowerCase();
       const matchesQuery = !query || searchableText.includes(query);
       const matchesFilter = listFilterMode === 'all'
         || (listFilterMode === 'enabled' && getSourceSelection(item))
-        || (listFilterMode === 'modified' && item.key && Object.prototype.hasOwnProperty.call(settings.sourceContentOverrides, item.key));
+        || (listFilterMode === 'modified' && hasSourceItemOverride(item));
       const visible = matchesQuery && matchesFilter;
       row.toggleClass('st-esg-hidden', !visible);
       if (visible) visibleCount += 1;
@@ -2912,8 +2950,8 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
       const summaryLabel = item.locked
         ? `<span class="st-esg-import-label"><i class="fa-solid fa-lock"></i><span>${escapeHtml(item.name)}</span></span>`
         : `<label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" ${checked ? 'checked' : ''} /><span>${escapeHtml(item.name)}</span></label>`;
-      const modifiedMark = item.key && Object.prototype.hasOwnProperty.call(settings.sourceContentOverrides, item.key)
-        ? '<i class="fa-solid fa-pen st-esg-source-modified-mark" title="内容已修改" aria-label="内容已修改"></i>'
+      const modifiedMark = hasSourceItemOverride(item)
+        ? '<i class="fa-solid fa-pen st-esg-source-modified-mark" title="条目已修改" aria-label="条目已修改"></i>'
         : '';
       const worldbookMode = isWorldbookItem
         ? (() => {
@@ -2982,8 +3020,8 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     const details = $(this).closest('.st-esg-import-item').get(0);
     if (details) details.open = !details.open;
   });
-  $t('.st-esg-source-content').off('.stEsgSourceContent');
-  $t('.st-esg-source-content').on('click.stEsgSourceContent', (event) => event.stopPropagation());
+  $t('.st-esg-source-content, .st-esg-worldbook-keywords').off('.stEsgSourceContent');
+  $t('.st-esg-source-content, .st-esg-worldbook-keywords').on('click.stEsgSourceContent', (event) => event.stopPropagation());
   $t('.st-esg-source-confirm').off('.stEsgSourceContent');
   $t('.st-esg-source-confirm').on('click.stEsgSourceContent', function (event) {
     event.preventDefault();
@@ -2992,10 +3030,14 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     const item = group?.items?.[Number($(this).data('item-index'))];
     const detail = $(this).closest('.st-esg-source-detail');
     const textarea = detail.find('.st-esg-source-content');
-    setSourceContentOverride(item, textarea.val());
+    const keywordInput = detail.find('.st-esg-worldbook-keywords');
+    const keywordValue = item?.scope === SOURCE_WORLDBOOK
+      ? splitWorldbookKeywords(String(keywordInput.val() ?? ''))
+      : [];
+    setSourceItemOverrides(item, textarea.val(), keywordValue);
     textarea.val(getSourceContentValue(item));
     renderImportCandidates();
-    setStatus('已保存条目内容。');
+    setStatus('已保存条目。');
   });
   $t('.st-esg-source-cancel').off('.stEsgSourceContent');
   $t('.st-esg-source-cancel').on('click.stEsgSourceContent', function (event) {
@@ -3005,6 +3047,7 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     const item = group?.items?.[Number($(this).data('item-index'))];
     const detail = $(this).closest('.st-esg-source-detail');
     detail.find('.st-esg-source-content').val(getSourceContentValue(item));
+    detail.find('.st-esg-worldbook-keywords').val(getWorldbookKeywordValue(item));
     setStatus('已取消编辑。');
   });
   $t('.st-esg-source-restore').off('.stEsgSourceContent');
@@ -3015,10 +3058,11 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     const item = group?.items?.[Number($(this).data('item-index'))];
     if (!item?.key || item.locked) return;
     delete settings.sourceContentOverrides[item.key];
+    delete settings.worldbookKeywordOverrides[item.key];
     markSchemeDirty(item.scope === SOURCE_WORLDBOOK ? 'worldbook' : 'preset');
     saveSettings();
     renderImportCandidates();
-    setStatus('已恢复原生内容。');
+    setStatus('已恢复原生条目。');
   });
   if (renderWorldbook) $t('.st-esg-import-detail-toggle').on('click', function (event) {
     event.preventDefault();

@@ -105,6 +105,7 @@ export function captureSchemeSnapshot(type, settings, groups = [], options = {})
       importSelections: pickByKeys(settings.importSelections, keys),
       sourceContentOverrides: pickByKeys(settings.sourceContentOverrides, keys),
       worldbookActivationOverrides: pickByKeys(settings.worldbookActivationOverrides, keys),
+      worldbookKeywordOverrides: pickByKeys(settings.worldbookKeywordOverrides, keys),
     };
   }
   return {};

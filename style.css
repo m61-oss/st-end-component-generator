@@ -455,6 +455,8 @@ details.st-esg-import-item[open] > summary { border-bottom: 1px solid var(--esg-
 .st-esg-worldbook-switch-thumb { position: absolute; z-index: 1; top: 3px; left: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--esg-worldbook-blue); transition: transform 160ms ease, background 160ms ease; }
 .st-esg-worldbook-mode-green .st-esg-worldbook-switch-thumb { transform: translateX(12px); background: var(--esg-worldbook-green); }
 .st-esg-source-detail .st-esg-source-content { min-height: 150px; resize: vertical; }
+.st-esg-worldbook-keyword-editor { display: grid; gap: 4px; color: var(--esg-text-muted); font-size: 11px; }
+.st-esg-worldbook-keywords { min-height: 52px; resize: vertical; font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace); }
 .st-esg-import-item .st-esg-checkbox { min-width: 0; flex: 1; }
 .st-esg-import-item .st-esg-checkbox span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-esg-import-label { display: inline-flex; align-items: center; min-width: 0; gap: 6px; color: var(--esg-text-main); font-size: 12px; font-weight: 500; }

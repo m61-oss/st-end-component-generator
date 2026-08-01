@@ -41,6 +41,9 @@ const settings = {
   worldbookActivationOverrides: {
     world_a: 'blue',
   },
+  worldbookKeywordOverrides: {
+    world_a: ['坂田银时', '/<content>[\\s\\S]*?银时<\\/content>/i'],
+  },
 };
 
 const groups = [
@@ -85,6 +88,7 @@ assert.deepEqual(worldbookSnapshot, {
   importSelections: { world_a: true },
   sourceContentOverrides: { world_a: 'Edited world' },
   worldbookActivationOverrides: { world_a: 'blue' },
+  worldbookKeywordOverrides: { world_a: ['坂田银时', '/<content>[\\s\\S]*?银时<\\/content>/i'] },
 });
 
 const worldbookSnapshotWithInactiveBooks = captureSchemeSnapshot('worldbook', {
