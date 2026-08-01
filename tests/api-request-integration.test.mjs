@@ -33,6 +33,8 @@ const generateFunction = source.slice(generateStart, generateEnd);
 assert.doesNotMatch(generateFunction, /switchTab\('workspace'\)/, 'generation completion must not force the workspace tab');
 assert.match(generateFunction, /error\?\.name === 'AbortError'[\s\S]*?error\?\.streamedText[\s\S]*?applyGeneratedResult\(/, 'manual stop should retain and finalize the partial streamed text');
 assert.match(generateFunction, /clearGeneratedThinking\(\);[\s\S]*?callExternalApi\(/, 'starting a new generation should clear the previous thinking panel before the API call');
+assert.match(source, /function clearGeneratedThinking\(\)[\s\S]*?thinkingPanel\?\.replaceChildren\(\);[\s\S]*?thinkingPanel\?\.classList\.add\('st-esg-hidden'\);/, 'clearing thinking should directly remove the stale details element from the mounted page');
+assert.match(source, /thinking\.toggleClass\('st-esg-hidden', Boolean\(error\) \|\| !lastGeneratedThinking\.length\);/, 'result-panel refreshes must keep an empty thinking container hidden');
 
 assert.match(modelFunction, /const additional = parseApiAdditionalParameters\(settings, yaml\);/, 'model fetching should validate saved YAML');
 assert.match(modelFunction, /headers:\s*\{[\s\S]*?\.\.\.additional\.additionalHeaders[\s\S]*?\}/, 'model fetching should apply custom request headers');

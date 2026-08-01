@@ -554,7 +554,9 @@ function renderGeneratedThinking(blocks = lastGeneratedThinking) {
 function clearGeneratedThinking() {
   lastGeneratedThinking = [];
   settings.lastGeneratedThinking = [];
-  renderGeneratedThinking([]);
+  const thinkingPanel = targetDoc.getElementById('st-esg-thinking-panel');
+  thinkingPanel?.replaceChildren();
+  thinkingPanel?.classList.add('st-esg-hidden');
 }
 
 function applyGeneratedResult(rawText) {
@@ -984,7 +986,7 @@ function renderGenerationResultPanel() {
   card.find('.st-esg-generation-result-title').text(error ? '报错日志' : '生成内容');
   card.find('.st-esg-generation-result-desc').text(error ? '本次操作未完成。请根据错误详情检查后再次尝试。' : '这里是文尾组件生成结果。你可以先检查，再注入回复文尾末尾。');
   preview.toggleClass('st-esg-hidden', Boolean(error));
-  thinking.toggleClass('st-esg-hidden', Boolean(error));
+  thinking.toggleClass('st-esg-hidden', Boolean(error) || !lastGeneratedThinking.length);
   if (!error) {
     panel.empty().addClass('st-esg-hidden');
     resizeGeneratedPreview();
