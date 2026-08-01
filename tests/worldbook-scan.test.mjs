@@ -27,3 +27,65 @@ const items = filterWorldbookPromptItems([
 assert.deepEqual(items.map((item) => item.activationMode || item.scope), ['blue', 'green', '预设']);
 
 console.log('worldbook-scan tests passed');
+
+// Plugin selections must win over Tavern's own entry toggle. An entry that is disabled in
+// Tavern can still be checked inside the plugin, and it has to reach the prompt.
+assert.equal(isWorldbookEntryActivated({
+  activationMode: 'blue',
+  enabled: false,
+  key: ['\u4e0d\u5b58\u5728'],
+}, { scanText: '' }), true, 'tavern-disabled entry must stay activatable when the plugin selected it');
+
+assert.equal(isWorldbookEntryActivated({
+  activationMode: 'green',
+  disable: true,
+  key: ['\u6708\u5149'],
+}, { scanText: getWorldbookScanText(chat, 2) }), true, 'tavern-disabled green entry must still match its keyword');
+
+const tavernDisabledItems = filterWorldbookPromptItems([
+  { scope: '\u4e16\u754c\u4e66', activationMode: 'blue', enabled: false, key: ['\u84dd\u706f'] },
+  { scope: '\u4e16\u754c\u4e66', activationMode: 'green', disable: true, key: ['\u6708\u5149'] },
+  { scope: '\u4e16\u754c\u4e66', activationMode: 'green', enabled: false, key: ['\u4e0d\u5b58\u5728'] },
+], { chat, scanDepth: 2 });
+assert.deepEqual(
+  tavernDisabledItems.map((item) => item.activationMode),
+  ['blue', 'green'],
+  'tavern-disabled entries follow plugin selection and normal lamp rules',
+);
+
+console.log('worldbook-scan tavern-disabled selection tests passed');
+
+
+// Green-light keywords must be scanned against the history the model will actually receive. A
+// keyword that only survives inside a block the cleanup rules strip must not activate its entry.
+const taggedChat = [
+  { is_user: false, mes: '普通正文<thinking>机密词</thinking>' },
+  { is_user: true, mes: '用户发言' },
+];
+
+assert.equal(
+  getWorldbookScanText(taggedChat, 2, { historyCleanupRules: [{ rule: 'thinking', keep: 0 }] }),
+  '用户发言\n普通正文',
+  'scan text must exclude content removed by the history cleanup rules',
+);
+
+assert.equal(
+  filterWorldbookPromptItems(
+    [{ scope: '世界书', activationMode: 'green', key: ['机密词'] }],
+    { chat: taggedChat, scanDepth: 2, historyCleanupRules: [{ rule: 'thinking', keep: 0 }] },
+  ).length,
+  0,
+  'a keyword only present inside a stripped block must not trigger the green lamp',
+);
+
+// The cleanup rules must not blind the scan to text that survives cleanup.
+assert.equal(
+  filterWorldbookPromptItems(
+    [{ scope: '世界书', activationMode: 'green', key: ['普通正文'] }],
+    { chat: taggedChat, scanDepth: 2, historyCleanupRules: [{ rule: 'thinking', keep: 0 }] },
+  ).length,
+  1,
+  'keywords in surviving text still activate their entry',
+);
+
+console.log('worldbook-scan cleanup-before-scan tests passed');

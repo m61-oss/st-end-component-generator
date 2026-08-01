@@ -421,6 +421,8 @@ export function getWorldbookGroupsSafe(targetWindow, context, selectedWorldNames
     seen.add(clean);
     groups.push({ name: clean, category, categoryLabel });
   };
+  // Always record Tavern's own assignment. It stays the grouping for books that the plugin also
+  // enables; whether it is used at all is decided by getWorldbookImportDisplayCategory.
   [...globalNames, ...selected].forEach((name) => add(name, 'global', '全局世界书'));
   charNames.forEach((name) => add(name, 'character', '角色世界书'));
   add(chatName, 'chat', '聊天世界书');
@@ -428,13 +430,22 @@ export function getWorldbookGroupsSafe(targetWindow, context, selectedWorldNames
   return groups;
 }
 
-// The Tavern-following view must mirror Tavern's current assignments only.
-// Plugin-only selections are meaningful only while a saved worldbook scheme is active.
-export function getWorldbookImportDisplayCategory(worldbook, { pluginEnabledCount = 0, followingTavern = false } = {}) {
+// Following Tavern means mirroring its assignment exactly, so the category passes straight through.
+// Once a scheme drives the list, the plugin selection decides placement in three steps:
+//   - not enabled in the plugin -> inactive, even when this window activates the book
+//   - enabled in the plugin and inactive in Tavern -> the plugin category
+//   - enabled in both -> keep Tavern's own global / character / chat grouping
+// `schemeEnabled` short-circuits the count so a scheme book is filed correctly before the background
+// entry count arrives; otherwise it would stay misplaced until the user opened it once by hand.
+export function getWorldbookImportDisplayCategory(worldbook, {
+  pluginEnabledCount = 0,
+  followingTavern = false,
+  schemeEnabled = false,
+} = {}) {
   const category = textOf(worldbook?.category) || 'inactive';
-  return !followingTavern && category === 'inactive' && Number(pluginEnabledCount) > 0
-    ? 'plugin'
-    : category;
+  if (followingTavern) return category;
+  if (!schemeEnabled && Number(pluginEnabledCount) <= 0) return 'inactive';
+  return category === 'inactive' ? 'plugin' : category;
 }
 
 export async function getWbEntriesSafe(targetWindow, name) {

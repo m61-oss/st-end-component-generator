@@ -331,6 +331,20 @@ assert.doesNotMatch(
   /collectWorldbookImportCounts\(/,
   'opening the directory must not eagerly load every worldbook merely to show counts',
 );
+
+// Placement while a scheme is active is decided by the plugin selection, not by re-grouping the
+// directory. A tavern-default scheme that was only just edited has no captured source list yet, so
+// the plugin-enabled check must fall back to Tavern's assignment instead of emptying every category.
+assert.match(
+  indexSource,
+  /schemeEnabled: !isFollowingTavernWorldbook\(\) && isWorldbookSourceEnabledByPlugin\(group\)/,
+  'books enabled by the active scheme should be categorised as plugin-enabled immediately',
+);
+assert.match(
+  indexSource,
+  /function isWorldbookSourceEnabledByPlugin\(group\) \{[\s\S]*?return !settings\.worldbookDraftSources\.length && textOf\(group\?\.category\) !== 'inactive';/,
+  'a dirty tavern-default scheme should still treat tavern-active books as plugin-enabled',
+);
 assert.match(
   indexSource,
   /function startBackgroundWorldbookCounts\(\)/,
@@ -338,13 +352,27 @@ assert.match(
 );
 assert.match(
   indexSource,
-  /group\.category !== 'inactive' \|\| !isFollowingTavernWorldbook\(\)/,
+  /group\.category !== 'inactive' \|\| !followingTavernWorldbook/,
   'opening an inactive Tavern worldbook must not synchronize its native enabled flags into plugin selections',
+);
+// While a scheme drives the list its snapshot is authoritative, so a book loaded then must be tagged
+// as not following Tavern; otherwise opening one entry seeds the whole book from Tavern's own flags.
+assert.match(
+  indexSource,
+  /followsTavernState: followingTavernWorldbook/,
+  'scheme-driven worldbooks must not inherit tavern activation when their entries load',
 );
 assert.match(
   indexSource,
-  /item\.worldbookCategory === 'inactive'\) return false;/,
+  /textOf\(item\.worldbookCategory\) !== 'inactive' && item\.enabled !== false;/,
   'entries from inactive Tavern worldbooks must render unchecked until the user explicitly selects them',
+);
+// The Tavern default owns no snapshot, so its checkboxes must mirror Tavern even after the draft
+// turns dirty. Deciding this with isFollowingTavernWorldbook forced every entry to report 0/total.
+assert.match(
+  indexSource,
+  /function isTavernDefaultWorldbookScheme\(\) \{\s*return getActiveSchemeId\('worldbook'\) === WORLD_BOOK_FOLLOW_TAVERN;/,
+  'mirroring Tavern must not depend on whether the worldbook draft is dirty',
 );
 assert.match(
   indexSource,

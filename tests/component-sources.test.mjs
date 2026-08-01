@@ -110,6 +110,86 @@ assert.equal(
   'character',
 );
 
+// Category rules once a scheme drives the list:
+//   - not enabled in the plugin -> inactive, even when this window activates the book
+//   - enabled in the plugin, inactive in Tavern -> plugin category
+//   - enabled in both -> keep Tavern's own global / character / chat grouping
+assert.equal(
+  getWorldbookImportDisplayCategory({ category: 'inactive' }, {
+    pluginEnabledCount: 0,
+    followingTavern: false,
+    schemeEnabled: true,
+  }),
+  'plugin',
+  'scheme book that tavern does not activate is plugin-enabled before any count arrives',
+);
+assert.equal(
+  getWorldbookImportDisplayCategory({ category: 'global' }, {
+    pluginEnabledCount: 0,
+    followingTavern: false,
+    schemeEnabled: true,
+  }),
+  'global',
+  'a book enabled in both keeps its tavern grouping',
+);
+assert.equal(
+  getWorldbookImportDisplayCategory({ category: 'character' }, {
+    pluginEnabledCount: 3,
+    followingTavern: false,
+    schemeEnabled: false,
+  }),
+  'character',
+  'a book with plugin-enabled entries keeps its tavern grouping',
+);
+assert.equal(
+  getWorldbookImportDisplayCategory({ category: 'global' }, {
+    pluginEnabledCount: 0,
+    followingTavern: false,
+    schemeEnabled: false,
+  }),
+  'inactive',
+  'a book this window activates but the scheme does not enable must not outrank scheme books',
+);
+assert.equal(
+  getWorldbookImportDisplayCategory({ category: 'inactive' }, {
+    pluginEnabledCount: 0,
+    followingTavern: false,
+    schemeEnabled: false,
+  }),
+  'inactive',
+  'a book outside the scheme stays inactive',
+);
+
+// Following Tavern mirrors its activation state exactly, so categories pass through untouched.
+for (const category of ['global', 'character', 'chat', 'inactive']) {
+  assert.equal(
+    getWorldbookImportDisplayCategory({ category }, { pluginEnabledCount: 0, followingTavern: true }),
+    category,
+    'the tavern-default view must mirror tavern activation state',
+  );
+}
+
+// Tavern's assignment is always recorded, so books enabled in both have a grouping to fall back on.
+assert.deepEqual(
+  collectWorldbookImportGroups({ targetWindow, context }).map((group) => group.category),
+  ['global', 'character', 'chat', 'inactive'],
+  'tavern assignment is recorded regardless of the active scheme',
+);
+
+// A saved scheme snapshot is static: it lists exactly its own books, as plugin-enabled.
+const schemeScopedGroups = collectWorldbookImportGroups({
+  targetWindow,
+  context,
+  selectedWorldNames: ['状态栏世界书'],
+  explicitWorldbookNames: ['未启用世界书'],
+});
+assert.deepEqual(
+  schemeScopedGroups.map((group) => group.source),
+  ['未启用世界书'],
+  'scheme snapshot decides the book list, not the current window',
+);
+assert.deepEqual(schemeScopedGroups.map((group) => group.category), ['plugin']);
+
 const inUsePresetGroups = collectPresetImportGroups({
   targetWindow: {
     getPreset: (name) => name === 'in_use' ? {

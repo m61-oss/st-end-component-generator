@@ -149,3 +149,71 @@ const selectedLockedMarkerItems = collectSelectedPromptSourceItems([
 });
 
 assert.deepEqual(selectedLockedMarkerItems.map((item) => item.markerType), ['worldInfoBefore']);
+
+// A worldbook entry that Tavern disabled must still be collected when the plugin explicitly
+// checked it. `enabled` is only the Tavern-side default, never a veto over an explicit selection.
+const tavernDisabledButChecked = collectSelectedPromptSourceItems([
+  {
+    loaded: true,
+    items: [
+      { key: 'tavern_off_checked', scope: '???', name: 'Tavern Off', content: 'lore body', enabled: false },
+      { key: 'tavern_off_unchecked', scope: '???', name: 'Still Off', content: 'other body', enabled: false },
+    ],
+  },
+], {
+  tavern_off_checked: true,
+});
+assert.deepEqual(
+  tavernDisabledButChecked.map((item) => item.name),
+  ['Tavern Off'],
+  'explicit plugin selection overrides the tavern-disabled default',
+);
+
+console.log('source-selection tavern-disabled override tests passed');
+
+// A scheme is a static snapshot. Loading a book while a scheme drives the list must not seed missing
+// keys from Tavern's own entry state, otherwise opening one entry silently checks the whole book.
+const schemeScopedSync = syncPromptSelectionsFromGroups([
+  {
+    scope: '世界书',
+    category: 'global',
+    followsTavernState: false,
+    loaded: true,
+    items: [
+      { key: 'tavern_on_entry', enabled: true },
+      { key: 'tavern_off_entry', enabled: false },
+      { key: 'already_checked_entry', enabled: true },
+    ],
+  },
+], { already_checked_entry: true });
+
+assert.deepEqual(schemeScopedSync, {
+  already_checked_entry: true,
+  tavern_on_entry: false,
+  tavern_off_entry: false,
+}, 'a scheme-driven book starts unchecked instead of inheriting tavern activation');
+
+console.log('source-selection scheme snapshot tests passed');
+
+// Tavern's default is a mirror, not a scheme: it owns no snapshot, so a book loaded while it is
+// active must show Tavern's own per-entry enabled flags. Tagging such a group as not following
+// Tavern used to force every entry to false, which is what produced the 0/total counts.
+const tavernMirrorSync = syncPromptSelectionsFromGroups([
+  {
+    scope: '\u4e16\u754c\u4e66',
+    category: 'global',
+    followsTavernState: true,
+    loaded: true,
+    items: [
+      { key: 'tavern_enabled', enabled: true },
+      { key: 'tavern_disabled', enabled: false },
+    ],
+  },
+], {});
+
+assert.deepEqual(tavernMirrorSync, {
+  tavern_enabled: true,
+  tavern_disabled: false,
+}, 'the tavern default must mirror each entry\'s own enabled flag');
+
+console.log('source-selection tavern mirror tests passed');

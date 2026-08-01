@@ -13,13 +13,17 @@ export function syncPromptSelectionsFromGroups(groups, currentSelections = {}, s
   const nextSelections = { ...(currentSelections && typeof currentSelections === 'object' ? currentSelections : {}) };
   for (const group of Array.isArray(groups) ? groups : []) {
     if (!group?.loaded || !Array.isArray(group.items)) continue;
-    const inactiveWorldbook = group?.scope === '世界书' && group?.category === 'inactive';
+    // Tavern's own entry state may only seed defaults for a book the plugin is mirroring. An inactive
+    // book contributes nothing, and while a scheme drives the list (followsTavernState === false) the
+    // snapshot is authoritative, so missing keys must default to unchecked rather than to Tavern.
+    const ignoresTavernState = group?.scope === '世界书'
+      && (group?.category === 'inactive' || group?.followsTavernState === false);
     const forceOverwrite = typeof shouldForceOverwrite === 'function' ? shouldForceOverwrite(group) : Boolean(shouldForceOverwrite);
     for (const item of group.items) {
       if (!item?.key) continue;
       if (item?.locked) continue;
       if (forceOverwrite || !Object.prototype.hasOwnProperty.call(nextSelections, item.key)) {
-        nextSelections[item.key] = inactiveWorldbook ? false : item.enabled !== false;
+        nextSelections[item.key] = ignoresTavernState ? false : item.enabled !== false;
       }
     }
   }

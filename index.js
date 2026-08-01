@@ -1356,6 +1356,13 @@ function isFollowingTavernWorldbook() {
   return getActiveSchemeId('worldbook') === WORLD_BOOK_FOLLOW_TAVERN && !settings.dirtySchemeTypes?.worldbook;
 }
 
+// The Tavern default is a mirror rather than a scheme: it owns no snapshot, so entry checkboxes must
+// come from Tavern's own enabled flags. This stays true after the draft turns dirty, which is why it
+// cannot be folded into isFollowingTavernWorldbook.
+function isTavernDefaultWorldbookScheme() {
+  return getActiveSchemeId('worldbook') === WORLD_BOOK_FOLLOW_TAVERN;
+}
+
 function isFollowingTavernPreset() {
   return getActiveSchemeId('preset') === WORLD_BOOK_FOLLOW_TAVERN && !settings.dirtySchemeTypes?.preset;
 }
@@ -2379,6 +2386,14 @@ function hasWorldbookDraftSource(source) {
   return settings.worldbookDraftSources.includes(textOf(source));
 }
 
+// A book is treated as enabled by the plugin when the current scheme lists it. A tavern-default
+// scheme that was only just edited has no captured list yet, so fall back to Tavern's own
+// assignment; otherwise every book would look unselected the moment the scheme turns dirty.
+function isWorldbookSourceEnabledByPlugin(group) {
+  if (hasWorldbookDraftSource(group?.source)) return true;
+  return !settings.worldbookDraftSources.length && textOf(group?.category) !== 'inactive';
+}
+
 function rememberWorldbookDraftSource(source) {
   const name = textOf(source);
   if (!name || hasWorldbookDraftSource(name)) return;
@@ -2395,8 +2410,13 @@ function captureWorldbookDraftSources() {
 
 function getSourceSelection(item) {
   if (item?.locked) return item.enabled !== false;
-  if (item?.scope === SOURCE_WORLDBOOK && isFollowingTavernWorldbook() && item.worldbookCategory === 'inactive') return false;
-  if (item?.scope === SOURCE_WORLDBOOK && !isFollowingTavernWorldbook() && !hasWorldbookDraftSource(item.source)) return false;
+  if (item?.scope === SOURCE_WORLDBOOK && isTavernDefaultWorldbookScheme()) {
+    // Mirror Tavern directly: an inactive book contributes nothing and every other book reports the
+    // entry's own enabled flag, so no stale stored selection can survive into the count.
+    return textOf(item.worldbookCategory) !== 'inactive' && item.enabled !== false;
+  }
+  if (item?.scope === SOURCE_WORLDBOOK && !isFollowingTavernWorldbook()
+    && !isWorldbookSourceEnabledByPlugin({ source: item.source, category: item.worldbookCategory })) return false;
   const store = getSourceSelectionStore(item);
   if (Object.prototype.hasOwnProperty.call(store, item.key)) return store[item.key] !== false;
   return getSourceMode(item) === SOURCE_MODE_PROMPT ? item.enabled !== false : false;
@@ -2424,8 +2444,14 @@ function syncSelectionForChecks(checks) {
 }
 
 function syncPromptSelectionsFromLoadedGroups(groups = importGroups) {
+  // Tag each worldbook group with whether it mirrors Tavern. While a scheme is active the snapshot is
+  // authoritative, so loading a book must not seed its entries from Tavern's activation state.
+  const followingTavernWorldbook = isTavernDefaultWorldbookScheme();
   const promptGroups = groups.filter((group) => getSourceMode(group) === SOURCE_MODE_PROMPT
-    && (group.category !== 'inactive' || !isFollowingTavernWorldbook()));
+    && (group.category !== 'inactive' || !followingTavernWorldbook))
+    .map((group) => (isWorldbookGroup(group)
+      ? { ...group, followsTavernState: followingTavernWorldbook }
+      : group));
   const before = JSON.stringify(settings.promptSelections || {});
   settings.promptSelections = syncPromptSelectionsFromGroups(promptGroups, settings.promptSelections, (group) => isWorldbookGroup(group) ? isFollowingTavernWorldbook() : isFollowingTavernPreset());
   if (JSON.stringify(settings.promptSelections || {}) !== before) saveSettings();
@@ -2483,6 +2509,8 @@ async function ensurePromptSourceItemsForGeneration() {
   return filterWorldbookPromptItems([...sourceItems, ...snapshotItems], {
     chat: getContext().chat,
     scanDepth: getWorldbookScanDepth(),
+    // The lamp must see the same history the model gets, so the cleanup rules are applied first.
+    historyCleanupRules: settings.historyCleanupRules,
     activationModeForItem: isFollowingTavernWorldbook() ? (item) => item?.activationMode : getWorldbookActivationMode,
   });
 }
@@ -2715,7 +2743,20 @@ function getWorldbookCountText(group) {
 function updateWorldbookCountLabel(group) {
   const groupIndex = importGroups.indexOf(group);
   if (groupIndex < 0) return;
-  $t(`.st-esg-worldbook-row[data-group-index="${groupIndex}"] em`).text(getWorldbookCountText(group));
+  const row = $t(`.st-esg-worldbook-row[data-group-index="${groupIndex}"]`);
+  if (!row.length) return;
+  row.find('em').text(getWorldbookCountText(group));
+  // A fresh count can move a book between categories. The label lives inside the old category body,
+  // so rewriting only the text would leave the book filed under the wrong heading until the next
+  // full redraw. Re-render once the category no longer matches where the row currently sits.
+  const expectedCategory = getWorldbookImportDisplayCategory(group, {
+    pluginEnabledCount: Number(group.pluginEnabledCount || 0),
+    followingTavern: isFollowingTavernWorldbook(),
+    schemeEnabled: !isFollowingTavernWorldbook() && isWorldbookSourceEnabledByPlugin(group),
+  });
+  if (textOf(row.closest('.st-esg-import-category').data('category')) !== expectedCategory) {
+    renderImportCandidates({ renderPreset: false });
+  }
 }
 
 async function startBackgroundWorldbookCounts() {
@@ -2830,6 +2871,7 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     const category = getWorldbookImportDisplayCategory(group, {
       pluginEnabledCount: currentEnabledCount,
       followingTavern: isFollowingTavernWorldbook(),
+      schemeEnabled: !isFollowingTavernWorldbook() && isWorldbookSourceEnabledByPlugin(group),
     });
     if (!worldbookCategories.has(category)) worldbookCategories.set(category, { categoryLabel: group.categoryLabel || '世界书', groups: [] });
     worldbookCategories.get(category).groups.push(group);
@@ -2878,7 +2920,7 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
   const detailGroup = activeWorldbookGroupIndex === null ? null : groupsWithIndex.find((group) => group.groupIndex === activeWorldbookGroupIndex && group.scope === SOURCE_WORLDBOOK);
   const worldbookSection = detailGroup
     ? renderWorldbookDetail(detailGroup)
-    : (worldbookGroups.length ? `<details class="st-esg-import-scope" open><summary class="st-esg-import-scope-summary"><span>世界书</span><em>${worldbookGroups.length} 本来源</em></summary><div class="st-esg-import-scope-body">${[...worldbookCategories.values()].filter((category) => category.groups.length).map((category) => `<details class="st-esg-import-category" open><summary class="st-esg-import-category-summary"><span>${escapeHtml(category.categoryLabel)}</span><em>${category.groups.length} 本</em></summary><div class="st-esg-import-category-body">${category.groups.map(renderWorldbookRow).join('')}</div></details>`).join('')}</div></details>` : '');
+    : (worldbookGroups.length ? `<details class="st-esg-import-scope" open><summary class="st-esg-import-scope-summary"><span>世界书</span><em>${worldbookGroups.length} 本来源</em></summary><div class="st-esg-import-scope-body">${[...worldbookCategories.entries()].filter(([, category]) => category.groups.length).map(([categoryKey, category]) => `<details class="st-esg-import-category" data-category="${escapeHtml(categoryKey)}" open><summary class="st-esg-import-category-summary"><span>${escapeHtml(category.categoryLabel)}</span><em>${category.groups.length} 本</em></summary><div class="st-esg-import-category-body">${category.groups.map(renderWorldbookRow).join('')}</div></details>`).join('')}</div></details>` : '');
   if (renderPreset) presetBox.html(`${renderListToolbar()}${presetGroups.length ? presetGroups.map(renderGroup).join('') : '<div class="st-esg-empty st-esg-empty-small">当前预设没有可导入条目。</div>'}`);
   if (renderWorldbook) worldbookBox.html(worldbookSection || '<div class="st-esg-empty st-esg-empty-small">没有世界书来源。</div>');
   renderTaskPlacementOptions();
