@@ -35,7 +35,7 @@ assert.match(
 );
 assert.match(
   source,
-  /import \{ createInjectionUndoSnapshot, validateInjectionUndoSnapshot \} from '\.\/injection\/injection-undo\.js\?ver=0\.1\.1';/,
+  /import \{ createInjectionUndoSnapshot, validateInjectionUndoSnapshot \} from '\.\/injection\/injection-undo\.js\?ver=0\.1\.2';/,
   'injection undo should use the tested strict snapshot validator',
 );
 assert.match(source, /let latestInjectionUndoSnapshot = null;/, 'only one latest injection snapshot should be retained');
