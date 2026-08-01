@@ -11,13 +11,13 @@ const readme = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
 assert.equal(manifest.display_name, '外置文尾组件生成器');
 assert.equal(manifest.author, 'm61-oss');
 assert.equal(manifest.homePage, 'https://github.com/m61-oss/st-end-component-generator');
-assert.equal(manifest.version, '0.1.2');
+assert.equal(manifest.version, '0.1.3');
 
 assert.equal(packageJson.name, 'st-end-component-generator');
-assert.equal(packageJson.version, '0.1.2');
+assert.equal(packageJson.version, '0.1.3');
 
 assert.match(indexSource, /const EXTENSION_ID = 'st-end-component-generator';/);
-assert.match(indexSource, /const EXTENSION_VERSION = '0\.1\.2';/);
+assert.match(indexSource, /const EXTENSION_VERSION = '0\.1\.3';/);
 assert.match(indexSource, /const QR_SHORTCUT_SET_NAME = '外置文尾组件生成器快捷键';/);
 assert.match(readme, /^# 外置文尾组件生成器/m);
 assert.doesNotMatch(indexSource, /\?ver=0\.3\./, 'the public release should use one cache-busting version');
