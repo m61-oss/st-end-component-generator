@@ -63,6 +63,7 @@ import {
 } from './sources/prompt-source-cache.js?ver=0.1.2';
 import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from './settings/task-placement.js?ver=0.1.2';
 import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.1.2';
+import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.1.2';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.1.2';
@@ -505,24 +506,32 @@ async function reprocessMvuVariables(context, messageIndex) {
   return true;
 }
 
-function resizeTextareaToContent(textarea, fallbackMinHeight = 0) {
-  if (!textarea) return;
-  const computed = targetWindow.getComputedStyle(textarea);
-  const cssMinHeight = parseFloat(computed.minHeight) || 0;
-  const minHeight = Math.max(fallbackMinHeight, cssMinHeight);
-  textarea.style.setProperty('height', '0px', 'important');
-  textarea.style.setProperty('min-height', '0px', 'important');
-  textarea.style.setProperty('max-height', 'none', 'important');
-  const contentHeight = Math.ceil(textarea.scrollHeight) + 12;
-  textarea.style.setProperty('min-height', `${minHeight}px`, 'important');
-  textarea.style.setProperty('height', `${Math.max(contentHeight, minHeight)}px`, 'important');
-  textarea.style.setProperty('overflow-y', 'hidden', 'important');
-}
-
-function resizeGeneratedPreview() {
+function resizeGeneratedPreview({ followBottom = false, preserveScrollTop = null } = {}) {
   const preview = $t('#st-esg-preview').get(0);
   if (!preview || preview.classList.contains('st-esg-hidden')) return;
-  resizeTextareaToContent(preview, 160);
+  const requestedScrollTop = preserveScrollTop === null ? preview.scrollTop : Number(preserveScrollTop);
+  const previousScrollTop = Number.isFinite(requestedScrollTop) ? requestedScrollTop : preview.scrollTop;
+  const computed = targetWindow.getComputedStyle(preview);
+  const minHeight = Math.max(160, parseFloat(computed.minHeight) || 0);
+  const viewportHeight = Number(targetWindow.innerHeight) || 720;
+  const maxHeight = Math.max(minHeight, Math.min(520, Math.floor(viewportHeight * 0.55)));
+  preview.style.setProperty('height', '0px', 'important');
+  preview.style.setProperty('min-height', '0px', 'important');
+  const layout = getPreviewLayout(Math.ceil(preview.scrollHeight) + 12, minHeight, maxHeight);
+  preview.style.setProperty('min-height', `${minHeight}px`, 'important');
+  preview.style.setProperty('max-height', `${maxHeight}px`, 'important');
+  preview.style.setProperty('height', `${layout.height}px`, 'important');
+  preview.style.setProperty('overflow-y', layout.overflowY, 'important');
+  preview.scrollTop = followBottom ? preview.scrollHeight : previousScrollTop;
+}
+
+function updateStreamedPreview(text) {
+  const preview = $t('#st-esg-preview').get(0);
+  if (!preview) return;
+  const followBottom = isPreviewNearBottom(preview);
+  const previousScrollTop = preview.scrollTop;
+  preview.value = String(text ?? '');
+  resizeGeneratedPreview({ followBottom, preserveScrollTop: previousScrollTop });
 }
 
 function scheduleGeneratedPreviewResize() {
@@ -540,6 +549,12 @@ function renderGeneratedThinking(blocks = lastGeneratedThinking) {
   if (!entries.length) { box.empty().addClass('st-esg-hidden'); return; }
   const label = entries.length === 1 ? '1 段思维链' : `${entries.length} 段思维链`;
   box.html(`<details class="st-esg-thinking-details"><summary><span class="st-esg-thinking-title"><i class="fa-solid fa-brain"></i>思维链</span><em>${label} · 不会注入</em></summary><pre>${escapeHtml(entries.join('\n\n'))}</pre></details>`).removeClass('st-esg-hidden');
+}
+
+function clearGeneratedThinking() {
+  lastGeneratedThinking = [];
+  settings.lastGeneratedThinking = [];
+  renderGeneratedThinking([]);
 }
 
 function applyGeneratedResult(rawText) {
@@ -649,7 +664,7 @@ async function callExternalApi(latestMessage, signal) {
   if (streamingEnabled) {
     const streamPreview = createStreamPreviewController({
       intervalMs: 80,
-      onPreview: (text) => $t('#st-esg-preview').val(text),
+      onPreview: updateStreamedPreview,
     });
     try {
       const streamed = await readOpenAiStream(response, (_, fullText) => {
@@ -703,6 +718,9 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     notifyStatus(error.message, 'warning');
     return '';
   }
+  clearGeneratedThinking();
+  const preview = $t('#st-esg-preview').get(0);
+  if (preview) preview.scrollTop = preview.scrollHeight;
   notifyStatus('正在生成文尾组件……', 'info');
   generationAbortController = new AbortController();
   if (entryType === 'automatic') activeAutomaticTarget = automaticTarget;
@@ -2657,7 +2675,10 @@ function getWorldbookScanDepth() {
 function renderSourceContentEditor(item, groupIndex, itemIndex) {
   const value = getSourceContentValue(item);
   if (getSourceMode(item?.scope === SOURCE_WORLDBOOK ? 'worldbook' : 'preset') === SOURCE_MODE_IMPORT) {
-    return `<pre class="st-esg-source-content-preview">${escapeHtml(value || '暂无内容')}</pre>`;
+    const keywordPreview = item?.scope === SOURCE_WORLDBOOK
+      ? `<div class="st-esg-card-desc st-esg-worldbook-keywords-readonly">主关键词：${escapeHtml(getWorldbookKeywordValue(item) || '无')}</div>`
+      : '';
+    return `${keywordPreview}<pre class="st-esg-source-content-preview">${escapeHtml(value || '暂无内容')}</pre>`;
   }
   if (item?.markerType && !value) {
     return '<div class="st-esg-empty st-esg-empty-small">运行时插入，无可编辑内容。</div>';
@@ -2961,10 +2982,7 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
           })()
         : '';
       const summary = `${summaryLabel}${modifiedMark}${worldbookMode}<button class="menu_button st-esg-source-expand" type="button" title="展开内容"><i class="fa-solid fa-chevron-down"></i></button>`;
-      const worldbookMeta = isWorldbookItem
-        ? `<div class="st-esg-worldbook-meta"><div class="st-esg-card-desc">主关键词：${escapeHtml(Array.isArray(item.worldbookKeys) ? item.worldbookKeys.join('，') : item.worldbookKeys || '无')}</div></div>`
-        : '';
-      return `<details class="st-esg-import-item ${item.locked ? 'st-esg-import-item-locked' : ''}" data-group-index="${group.groupIndex}" data-item-index="${itemIndex}"><summary>${summary}</summary><div class="st-esg-source-detail"><div class="st-esg-card-desc">${escapeHtml(meta)}</div>${worldbookMeta}${renderSourceContentEditor(item, group.groupIndex, itemIndex)}</div></details>`;
+      return `<details class="st-esg-import-item ${item.locked ? 'st-esg-import-item-locked' : ''}" data-group-index="${group.groupIndex}" data-item-index="${itemIndex}"><summary>${summary}</summary><div class="st-esg-source-detail"><div class="st-esg-card-desc">${escapeHtml(meta)}</div>${renderSourceContentEditor(item, group.groupIndex, itemIndex)}</div></details>`;
     }).join('');
   };
   const renderGroup = (group) => {

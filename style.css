@@ -319,7 +319,7 @@ select.st-esg-scheme-select {
 }
 
 .st-esg-textarea { min-height: 68px; resize: vertical; line-height: 1.45 !important; }
-.st-esg-preview { --st-esg-preview-min-height: 160px; display: block !important; box-sizing: border-box; width: 100%; min-height: var(--st-esg-preview-min-height); padding-bottom: 14px !important; max-height: none !important; overflow-y: hidden !important; flex: none !important; align-self: stretch; resize: none; font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace); }
+.st-esg-preview { --st-esg-preview-min-height: 160px; display: block !important; box-sizing: border-box; width: 100%; min-height: var(--st-esg-preview-min-height); padding-bottom: 14px !important; max-height: min(520px, 55vh) !important; overflow-y: auto !important; flex: none !important; align-self: stretch; resize: none; font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace); }
 .st-esg-generation-error { display: flex; flex: 0 0 auto; flex-direction: column; min-height: 160px; max-height: 420px; gap: 8px; color: var(--esg-text-main); }
 .st-esg-generation-error .st-esg-error-meta { color: var(--esg-text-muted); font-size: 11px; }
 .st-esg-generation-error pre { flex: 1 1 auto; min-height: 0; margin: 0; padding: 9px; overflow: auto; border: 1px solid var(--esg-border); border-radius: 8px; background: var(--esg-bg-input); color: var(--esg-text-main); font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace); font-size: 12px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }

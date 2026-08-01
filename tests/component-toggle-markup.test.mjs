@@ -440,3 +440,5 @@ assert.match(indexSource, /class="text_pole[^"]*st-esg-worldbook-keywords"/, 'wo
 assert.match(indexSource, /splitWorldbookKeywords\(String\(keywordInput\.val\(\) \?\? ''\)\)/, 'saving the shared editor should parse its comma-separated keyword field');
 assert.match(indexSource, /delete settings\.sourceContentOverrides\[item\.key\];[\s\S]*?delete settings\.worldbookKeywordOverrides\[item\.key\];/, 'restore native should remove content and primary-keyword overrides together');
 assert.match(indexSource, /hasSourceItemOverride\(item\)/, 'modified filtering and badges should share content-or-keyword override detection');
+assert.doesNotMatch(indexSource, /const worldbookMeta = isWorldbookItem/, 'worldbook details must not render a second primary-keyword block outside the editor');
+assert.match(indexSource, /st-esg-worldbook-keywords-readonly/, 'import mode should retain one read-only primary-keyword display');
