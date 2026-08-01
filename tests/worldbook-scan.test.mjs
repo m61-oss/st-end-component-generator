@@ -55,3 +55,37 @@ assert.deepEqual(
 
 console.log('worldbook-scan tavern-disabled selection tests passed');
 
+
+// Green-light keywords must be scanned against the history the model will actually receive. A
+// keyword that only survives inside a block the cleanup rules strip must not activate its entry.
+const taggedChat = [
+  { is_user: false, mes: '普通正文<thinking>机密词</thinking>' },
+  { is_user: true, mes: '用户发言' },
+];
+
+assert.equal(
+  getWorldbookScanText(taggedChat, 2, { historyCleanupRules: [{ rule: 'thinking', keep: 0 }] }),
+  '用户发言\n普通正文',
+  'scan text must exclude content removed by the history cleanup rules',
+);
+
+assert.equal(
+  filterWorldbookPromptItems(
+    [{ scope: '世界书', activationMode: 'green', key: ['机密词'] }],
+    { chat: taggedChat, scanDepth: 2, historyCleanupRules: [{ rule: 'thinking', keep: 0 }] },
+  ).length,
+  0,
+  'a keyword only present inside a stripped block must not trigger the green lamp',
+);
+
+// The cleanup rules must not blind the scan to text that survives cleanup.
+assert.equal(
+  filterWorldbookPromptItems(
+    [{ scope: '世界书', activationMode: 'green', key: ['普通正文'] }],
+    { chat: taggedChat, scanDepth: 2, historyCleanupRules: [{ rule: 'thinking', keep: 0 }] },
+  ).length,
+  1,
+  'keywords in surviving text still activate their entry',
+);
+
+console.log('worldbook-scan cleanup-before-scan tests passed');

@@ -1,3 +1,5 @@
+import { stripHistoryBlocksByRules } from '../injection/tag-rules.js';
+
 const IGNORE_SYMBOL = Symbol.for('ignore');
 
 const textOf = (value) => String(value ?? '').trim();
@@ -22,10 +24,13 @@ export function normalizeWorldbookActivationMode(value, fallback = 'green') {
   return textOf(value).toLowerCase() === 'blue' ? 'blue' : textOf(value).toLowerCase() === 'green' ? 'green' : fallback;
 }
 
-export function getWorldbookScanText(chat, depth = 2) {
+// Green-light keywords are scanned against the history the model will actually receive, so the
+// history cleanup rules run first. Scanning the raw text would let a keyword that only survives
+// inside a stripped block activate an entry whose trigger never reaches the prompt.
+export function getWorldbookScanText(chat, depth = 2, { historyCleanupRules = [] } = {}) {
   const limit = Math.max(0, Number.isFinite(Number(depth)) ? Math.floor(Number(depth)) : 2);
-  return (Array.isArray(chat) ? chat : [])
-    .filter(isVisibleChatMessage)
+  const visible = (Array.isArray(chat) ? chat : []).filter(isVisibleChatMessage);
+  return stripHistoryBlocksByRules(visible, historyCleanupRules)
     .slice(-limit)
     .reverse()
     .map((item) => textOf(item?.mes))
@@ -45,8 +50,8 @@ export function isWorldbookEntryActivated(entry, { scanText = '', depth = 2, act
   return keys.some((key) => matches(scanText, key, caseSensitive));
 }
 
-export function filterWorldbookPromptItems(items, { chat = [], scanDepth = 2, activationModeForItem = null } = {}) {
-  const scanText = getWorldbookScanText(chat, scanDepth);
+export function filterWorldbookPromptItems(items, { chat = [], scanDepth = 2, activationModeForItem = null, historyCleanupRules = [] } = {}) {
+  const scanText = getWorldbookScanText(chat, scanDepth, { historyCleanupRules });
   return (Array.isArray(items) ? items : []).filter((item) => {
     if (textOf(item?.scope) !== '世界书') return true;
     const activationMode = typeof activationModeForItem === 'function' ? activationModeForItem(item) : item?.activationMode;

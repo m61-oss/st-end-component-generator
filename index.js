@@ -2498,6 +2498,8 @@ async function ensurePromptSourceItemsForGeneration() {
   return filterWorldbookPromptItems([...sourceItems, ...snapshotItems], {
     chat: getContext().chat,
     scanDepth: getWorldbookScanDepth(),
+    // The lamp must see the same history the model gets, so the cleanup rules are applied first.
+    historyCleanupRules: settings.historyCleanupRules,
     activationModeForItem: isFollowingTavernWorldbook() ? (item) => item?.activationMode : getWorldbookActivationMode,
   });
 }
