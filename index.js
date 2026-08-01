@@ -62,6 +62,7 @@ import {
   takeDirtyWorldbookSources,
 } from './sources/prompt-source-cache.js?ver=0.1.2';
 import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from './settings/task-placement.js?ver=0.1.2';
+import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.1.2';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.1.2';
@@ -644,12 +645,24 @@ async function callExternalApi(latestMessage, signal) {
   });
   if (!response.ok) throw markGenerationResponseError(new Error(`API 请求失败：${response.status} ${(await response.text().catch(() => '')).slice(0, 160)}`));
   if (streamingEnabled) {
-    const streamed = await readOpenAiStream(response, (_, fullText) => {
-      applyGeneratedResult(fullText);
-      switchTab('workspace');
+    const streamPreview = createStreamPreviewController({
+      intervalMs: 80,
+      onPreview: (text) => $t('#st-esg-preview').val(text),
     });
-    if (!streamed.trim()) throw markGenerationResponseError(new Error('API 返回为空。'));
-    return streamed;
+    try {
+      const streamed = await readOpenAiStream(response, (_, fullText) => {
+        streamPreview.push(fullText);
+      });
+      streamPreview.flush();
+      if (!streamed.trim()) throw markGenerationResponseError(new Error('API 返回为空。'));
+      return streamed;
+    } catch (error) {
+      streamPreview.flush();
+      if (error && typeof error === 'object') error.streamedText = streamPreview.getText();
+      throw error;
+    } finally {
+      streamPreview.dispose();
+    }
   }
   const data = await response.json().catch((error) => { throw markGenerationResponseError(error); });
   const content = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text || '';
@@ -703,6 +716,11 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   }
   catch (error) {
     if (error?.name === 'AbortError') {
+      const partialStreamText = String(error?.streamedText ?? '');
+      if (partialStreamText.trim()) {
+        applyGeneratedResult(partialStreamText);
+        saveSettings();
+      }
       notifyStatus('已停止生成。提示词查看器内容已保留。', 'warning');
     } else if (isGenerationResponseError(error)) {
       recordGenerationError('生成', error);
@@ -726,7 +744,6 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   }
   applyGeneratedResult(result);
   saveSettings();
-  switchTab('workspace');
   if (settings.autoInject && result) await injectGeneratedStatusbar(latest.index);
   else notifyStatus('已生成文尾组件内容，等待检查或注入。');
   return settings.lastGenerated;
@@ -935,7 +952,6 @@ function recordGenerationError(action, error) {
   settings.lastGenerationError = createGenerationErrorRecord(action, error);
   saveSettings();
   renderGenerationResultPanel();
-  switchTab('workspace');
 }
 
 function renderGenerationResultPanel() {

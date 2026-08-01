@@ -20,6 +20,16 @@ assert.match(callFunction, /maxTokens:\s*String\(numeric\.maxTokens\),\s*tempera
 assert.match(callFunction, /headers,\s*body:\s*JSON\.stringify\(body\),/, 'fetch should use merged request parts');
 assert.doesNotMatch(callFunction, /createPromptLog\(\{[^}]*additionalHeaders/s, 'custom header values must not enter prompt logs');
 assert.doesNotMatch(callFunction, /createPromptLog\(\{[^}]*additionalHeadersYaml/s, 'custom header YAML must not enter prompt logs');
+assert.match(callFunction, /createStreamPreviewController\(/, 'streaming requests should use the lightweight preview controller');
+assert.match(callFunction, /streamPreview\.push\(fullText\);/, 'stream chunks should only enter the throttled preview path');
+assert.doesNotMatch(callFunction, /readOpenAiStream\([\s\S]*?applyGeneratedResult\(fullText\)/, 'stream chunks must not run final tag cleanup and rendering');
+assert.doesNotMatch(callFunction, /readOpenAiStream\([\s\S]*?switchTab\('workspace'\)/, 'stream chunks must not force the workspace tab');
+
+const generateStart = source.indexOf('async function generateStatusbar(');
+const generateEnd = source.indexOf('async function injectGeneratedStatusbar(', generateStart);
+const generateFunction = source.slice(generateStart, generateEnd);
+assert.doesNotMatch(generateFunction, /switchTab\('workspace'\)/, 'generation completion must not force the workspace tab');
+assert.match(generateFunction, /error\?\.name === 'AbortError'[\s\S]*?error\?\.streamedText[\s\S]*?applyGeneratedResult\(/, 'manual stop should retain and finalize the partial streamed text');
 
 assert.match(modelFunction, /const additional = parseApiAdditionalParameters\(settings, yaml\);/, 'model fetching should validate saved YAML');
 assert.match(modelFunction, /headers:\s*\{[\s\S]*?\.\.\.additional\.additionalHeaders[\s\S]*?\}/, 'model fetching should apply custom request headers');
