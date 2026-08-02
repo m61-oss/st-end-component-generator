@@ -9,11 +9,12 @@ const modelEnd = source.indexOf('const SCHEME_CONFIG', modelStart);
 const callFunction = source.slice(callStart, callEnd);
 const modelFunction = source.slice(modelStart, modelEnd);
 
-assert.match(source, /import \{ yaml \} from '\.\.\/\.\.\/\.\.\/\.\.\/lib\.js';/, 'the extension should import SillyTavern\'s YAML parser from the public root');
+assert.doesNotMatch(source, /import \{ yaml \} from '\.\.\/\.\.\/\.\.\/\.\.\/lib\.js';/, 'the extension must not fail to load when a compatible frontend omits the named YAML export');
+assert.match(source, /async function getYamlParser\(\)[\s\S]*?import\('\.\.\/\.\.\/\.\.\/\.\.\/lib\.js'\)[\s\S]*?yamlModule\.yaml\s*\?\?\s*yamlModule\.default\?\.yaml/, 'the extension should resolve YAML dynamically and support the default library facade used by compatible frontends');
 assert.match(source, /import \{[\s\S]*?buildApiRequestParts,[\s\S]*?parseApiAdditionalParameters,[\s\S]*?parseApiNumericSettings,[\s\S]*?\} from '\.\/api\/api-request-parameters\.js\?ver=0\.1\.3';/, 'request parameter helpers should be imported');
 
 assert.match(callFunction, /const numeric = parseApiNumericSettings\(settings\);/, 'generation should validate user-entered numeric settings');
-assert.match(callFunction, /const additional = parseApiAdditionalParameters\(settings, yaml\);/, 'generation should validate saved YAML before requesting');
+assert.match(callFunction, /const additional = parseApiAdditionalParameters\(settings, await getYamlParser\(\)\);/, 'generation should validate saved YAML before requesting');
 assert.match(callFunction, /const \{ body, headers \} = buildApiRequestParts\(/, 'generation should merge additional body and headers centrally');
 assert.match(callFunction, /max_tokens:\s*numeric\.maxTokens,\s*temperature:\s*numeric\.temperature,/, 'generation should send actual input values');
 assert.match(callFunction, /maxTokens:\s*String\(numeric\.maxTokens\),\s*temperature:\s*String\(numeric\.temperature\),/, 'prompt logs should use actual input values');
@@ -36,7 +37,7 @@ assert.match(generateFunction, /clearGeneratedThinking\(\);[\s\S]*?callExternalA
 assert.match(source, /function clearGeneratedThinking\(\)[\s\S]*?thinkingPanel\?\.replaceChildren\(\);[\s\S]*?thinkingPanel\?\.classList\.add\('st-esg-hidden'\);/, 'clearing thinking should directly remove the stale details element from the mounted page');
 assert.match(source, /thinking\.toggleClass\('st-esg-hidden', Boolean\(error\) \|\| !lastGeneratedThinking\.length\);/, 'result-panel refreshes must keep an empty thinking container hidden');
 
-assert.match(modelFunction, /const additional = parseApiAdditionalParameters\(settings, yaml\);/, 'model fetching should validate saved YAML');
+assert.match(modelFunction, /const additional = parseApiAdditionalParameters\(settings, await getYamlParser\(\)\);/, 'model fetching should validate saved YAML');
 assert.match(modelFunction, /headers:\s*\{[\s\S]*?\.\.\.additional\.additionalHeaders[\s\S]*?\}/, 'model fetching should apply custom request headers');
 assert.doesNotMatch(modelFunction, /additional\.additionalBody/, 'model-list GET requests should not apply custom body parameters');
 
