@@ -36,7 +36,7 @@ import {
   resolveWorldbookSelection,
   syncPromptSelectionsFromGroups,
 } from './sources/source-selection.js?ver=0.1.3';
-import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hasEnabledWorldbookSource, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.3';
+import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hasEnabledWorldbookSource, hydrateTavernWorldbookSelections, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.3';
 import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.3';
 import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.3';
 import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.3';
@@ -1432,6 +1432,24 @@ function currentSchemeSnapshot(type) {
   return captureSchemeSnapshot(type, settings, importGroups, { isWorldbookGroup });
 }
 
+async function prepareTavernWorldbookSchemeSnapshot() {
+  const activeGroups = importGroups.filter((group) => isWorldbookGroup(group) && group.category !== 'inactive');
+  if (!activeGroups.length) return;
+  let completed = activeGroups.filter((group) => group.loaded && Array.isArray(group.items)).length;
+  setStatus(`正在读取世界书并保存方案：${completed}/${activeGroups.length}`);
+  settings.promptSelections = await hydrateTavernWorldbookSelections(
+    activeGroups,
+    settings.promptSelections,
+    async (group) => {
+      const items = await readWorldbookItemsForGroup(group);
+      completed += 1;
+      setStatus(`正在读取世界书并保存方案：${completed}/${activeGroups.length}`);
+      return items;
+    },
+  );
+  saveSettings();
+}
+
 function applyApiScheme(snapshot) {
   Object.assign(settings, {
     apiUrl: snapshot.apiUrl || '',
@@ -1601,7 +1619,17 @@ async function handleSchemeAction(type, action) {
   if (action === 'new') {
     const name = await requestSchemeName(type);
     if (!name) { notifyStatus('请先输入方案名。', 'warning'); return; }
-    const next = saveScheme(list, name, currentSchemeSnapshot(type));
+    if (type === 'worldbook' && isTavernDefaultWorldbookScheme()) {
+      try {
+        await prepareTavernWorldbookSchemeSnapshot();
+      } catch (error) {
+        notifyStatus(`读取酒馆世界书失败，方案未保存：${error?.message || '未知错误'}`, 'error');
+        return;
+      }
+    }
+    const snapshot = currentSchemeSnapshot(type);
+    const next = saveScheme(list, name, snapshot);
+    if (type === 'worldbook') settings.worldbookDraftSources = getWorldbookSchemeSourceNames(snapshot);
     setSchemeList(type, next);
     setSelectedSchemeId(type, next.at(-1)?.id || '');
     markSchemeClean(type, next.at(-1)?.id || '');
@@ -2856,7 +2884,7 @@ async function startBackgroundWorldbookCounts() {
     await new Promise((resolve) => targetWindow.setTimeout(resolve, 0));
     if (revision !== worldbookCountRevision || group.loaded) continue;
     try {
-      const items = await collectWorldbookImportCandidates(targetWindow, group.source);
+      const items = await readWorldbookItemsForGroup(group);
       if (revision !== worldbookCountRevision || group.loaded) continue;
       group.entryCount = items.length;
       group.pluginEnabledCount = items.filter((item) => getSourceSelection({ ...item, worldbookCategory: group.category })).length;
@@ -2871,10 +2899,28 @@ async function startBackgroundWorldbookCounts() {
   }
 }
 
+async function readWorldbookItemsForGroup(group) {
+  if (group?.loaded && Array.isArray(group.items)) return group.items;
+  if (Array.isArray(group?.backgroundItems)) return group.backgroundItems;
+  if (!group?.backgroundItemsPromise) {
+    group.backgroundItemsPromise = collectWorldbookImportCandidates(targetWindow, group.source)
+      .then((items) => items.map((item) => ({ ...item, worldbookCategory: group.category })));
+  }
+  try {
+    const items = await group.backgroundItemsPromise;
+    group.backgroundItems = items;
+    return items;
+  } finally {
+    group.backgroundItemsPromise = null;
+  }
+}
+
 async function scanImportCandidates({ explicitPresetName = '' } = {}) {
   const context = getContext();
   const cachedWorldbookGroups = new Map(importGroups
-    .filter((group) => group?.scope === SOURCE_WORLDBOOK && group.loaded && !promptSourceCache.dirtyWorldbooks.has(group.source))
+    .filter((group) => group?.scope === SOURCE_WORLDBOOK
+      && (group.loaded || Array.isArray(group.backgroundItems) || group.backgroundItemsPromise)
+      && !promptSourceCache.dirtyWorldbooks.has(group.source))
     .map((group) => [group.source, group]));
   const followingTavernWorldbook = isFollowingTavernWorldbook();
   const selectedWorldNames = followingTavernWorldbook ? getSelectedGlobalWorldbookNamesFromDom() : [];
@@ -2896,7 +2942,9 @@ async function scanImportCandidates({ explicitPresetName = '' } = {}) {
       const cached = cachedWorldbookGroups.get(group.source);
       return {
         ...group,
-        ...(cached ? { loaded: true, items: cached.items, error: cached.error } : {}),
+        ...(cached?.loaded ? { loaded: true, items: cached.items, error: cached.error } : {}),
+        ...(Array.isArray(cached?.backgroundItems) ? { backgroundItems: cached.backgroundItems } : {}),
+        ...(cached?.backgroundItemsPromise ? { backgroundItemsPromise: cached.backgroundItemsPromise } : {}),
       };
     }),
   ];
@@ -2922,8 +2970,7 @@ async function loadImportGroup(groupIndex) {
   renderImportCandidates({ renderPreset: false });
   scrollWorldbookCardIntoView();
   try {
-    group.items = (await collectWorldbookImportCandidates(targetWindow, group.source))
-      .map((item) => ({ ...item, worldbookCategory: group.category }));
+    group.items = await readWorldbookItemsForGroup(group);
     group.loaded = true;
     syncPromptSelectionsFromLoadedGroups([group]);
     setStatus(`已加载 ${group.source}：${group.items.length} 个条目。`);

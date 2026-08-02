@@ -415,6 +415,31 @@ const schemeActionFunction = indexSource.slice(
 );
 assert.match(
   schemeActionFunction,
+  /if \(type === 'worldbook' && isTavernDefaultWorldbookScheme\(\)\) \{[\s\S]*?await prepareTavernWorldbookSchemeSnapshot\(\);[\s\S]*?\}[\s\S]*?currentSchemeSnapshot\(type\)/,
+  'saving a new scheme from Tavern default must hydrate unloaded active worldbooks before capturing the snapshot',
+);
+assert.match(
+  schemeActionFunction,
+  /const snapshot = currentSchemeSnapshot\(type\);[\s\S]*?saveScheme\(list, name, snapshot\)[\s\S]*?settings\.worldbookDraftSources = getWorldbookSchemeSourceNames\(snapshot\);/,
+  'a newly saved worldbook scheme should immediately adopt its own static source list',
+);
+assert.match(
+  indexSource,
+  /async function prepareTavernWorldbookSchemeSnapshot\(\)[\s\S]*?let completed = activeGroups\.filter\(\(group\) => group\.loaded && Array\.isArray\(group\.items\)\)\.length;/,
+  'save progress should count active books that were already loaded',
+);
+assert.match(
+  indexSource,
+  /async function readWorldbookItemsForGroup\(group\)[\s\S]*?group\.backgroundItemsPromise[\s\S]*?collectWorldbookImportCandidates/,
+  'background counts, detail loading, and scheme saving should share one per-group worldbook read',
+);
+assert.match(
+  worldbookScanFunction,
+  /group\.loaded \|\| Array\.isArray\(group\.backgroundItems\) \|\| group\.backgroundItemsPromise[\s\S]*?backgroundItems: cached\.backgroundItems[\s\S]*?backgroundItemsPromise: cached\.backgroundItemsPromise/,
+  'rebuilding the worldbook directory should retain completed and in-flight background reads',
+);
+assert.match(
+  schemeActionFunction,
   /if \(isSchemeMutationLocked\(type, action\)\) \{[\s\S]*?return;/,
   'scheme mutation handlers should reject save, overwrite, and delete actions while a source is in import mode',
 );

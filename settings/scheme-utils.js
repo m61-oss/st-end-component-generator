@@ -51,6 +51,22 @@ export function hasEnabledWorldbookSource(selections, source) {
     .some(([key, value]) => key.startsWith(prefix) && value !== false);
 }
 
+export async function hydrateTavernWorldbookSelections(groups, selections = {}, loadItems = async () => []) {
+  const next = { ...(selections && typeof selections === 'object' ? selections : {}) };
+  const activeGroups = (Array.isArray(groups) ? groups : [])
+    .filter((group) => group?.scope === '世界书' && textOf(group?.category) !== 'inactive');
+  for (const group of activeGroups) {
+    const items = group?.loaded && Array.isArray(group.items)
+      ? group.items
+      : await loadItems(group);
+    for (const item of Array.isArray(items) ? items : []) {
+      if (!item?.key || item?.locked) continue;
+      next[item.key] = item.enabled !== false;
+    }
+  }
+  return next;
+}
+
 function hasSelectedWorldbookItem(group, selections) {
   const store = selections && typeof selections === 'object' ? selections : {};
   return (Array.isArray(group?.items) ? group.items : []).some((item) => (

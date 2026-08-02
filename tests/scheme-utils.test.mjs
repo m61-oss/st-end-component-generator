@@ -150,6 +150,37 @@ assert.equal(schemeUtils.hasEnabledWorldbookSource({ [lazyBookEntry]: true }, 'L
 assert.equal(schemeUtils.hasEnabledWorldbookSource({ [lazyBookEntry]: false }, 'Lazy Book'), false);
 assert.equal(schemeUtils.hasEnabledWorldbookSource({ [lazyBookEntry]: true }, 'Other Book'), false);
 
+assert.equal(typeof schemeUtils.hydrateTavernWorldbookSelections, 'function');
+const loadedTavernEntry = '世界书：Loaded Tavern::Loaded Tavern::世界书::Loaded::loaded';
+const unloadedTavernEnabled = '世界书：Unloaded Tavern::Unloaded Tavern::世界书::Enabled::enabled';
+const unloadedTavernDisabled = '世界书：Unloaded Tavern::Unloaded Tavern::世界书::Disabled::disabled';
+const inactiveTavernEntry = '世界书：Inactive Tavern::Inactive Tavern::世界书::Ignored::ignored';
+const hydratedSources = [];
+const hydratedTavernSelections = await schemeUtils.hydrateTavernWorldbookSelections([
+  {
+    scope: '世界书', source: 'Loaded Tavern', category: 'global', loaded: true,
+    items: [{ key: loadedTavernEntry, enabled: true }],
+  },
+  { scope: '世界书', source: 'Unloaded Tavern', category: 'character', loaded: false, items: [] },
+  { scope: '世界书', source: 'Inactive Tavern', category: 'inactive', loaded: false, items: [] },
+], { unrelated: true }, async (group) => {
+  hydratedSources.push(group.source);
+  if (group.source === 'Unloaded Tavern') {
+    return [
+      { key: unloadedTavernEnabled, enabled: true },
+      { key: unloadedTavernDisabled, enabled: false },
+    ];
+  }
+  return [{ key: inactiveTavernEntry, enabled: true }];
+});
+assert.deepEqual(hydratedSources, ['Unloaded Tavern'], 'only active unloaded Tavern books should be read before saving');
+assert.deepEqual(hydratedTavernSelections, {
+  unrelated: true,
+  [loadedTavernEntry]: true,
+  [unloadedTavernEnabled]: true,
+  [unloadedTavernDisabled]: false,
+}, 'Tavern-default hydration should materialize a complete static selection snapshot');
+
 assert.deepEqual(getWorldbookSchemeSourceNames({
   worldbookSources: ['A', 'B', 'C'],
   promptSelections: {
