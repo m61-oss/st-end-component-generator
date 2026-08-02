@@ -27,6 +27,30 @@ function pickByKeys(source, keys) {
   return result;
 }
 
+export function getWorldbookEntryKeyPrefix(source) {
+  const name = textOf(source);
+  return name ? `世界书：${name}::${name}::世界书::` : '';
+}
+
+function collectStoredWorldbookKeys(stores, source) {
+  const prefix = getWorldbookEntryKeyPrefix(source);
+  if (!prefix) return [];
+  const keys = new Set();
+  for (const store of stores) {
+    for (const key of Object.keys(store && typeof store === 'object' ? store : {})) {
+      if (key.startsWith(prefix)) keys.add(key);
+    }
+  }
+  return [...keys];
+}
+
+export function hasEnabledWorldbookSource(selections, source) {
+  const prefix = getWorldbookEntryKeyPrefix(source);
+  if (!prefix) return false;
+  return Object.entries(selections && typeof selections === 'object' ? selections : {})
+    .some(([key, value]) => key.startsWith(prefix) && value !== false);
+}
+
 function hasSelectedWorldbookItem(group, selections) {
   const store = selections && typeof selections === 'object' ? selections : {};
   return (Array.isArray(group?.items) ? group.items : []).some((item) => (
@@ -97,7 +121,23 @@ export function captureSchemeSnapshot(type, settings, groups = [], options = {})
       : worldbookGroups.filter((group) => (
         textOf(group?.category) !== 'inactive' || hasSelectedWorldbookItem(group, sourceSelections)
       ));
-    const keys = groupKeys(savedWorldbookGroups, () => true);
+    const worldbookStores = [
+      settings.promptSelections,
+      settings.importSelections,
+      settings.sourceContentOverrides,
+      settings.worldbookActivationOverrides,
+      settings.worldbookKeywordOverrides,
+    ];
+    const keys = new Set();
+    for (const group of savedWorldbookGroups) {
+      if (group?.loaded && Array.isArray(group.items)) {
+        for (const item of group.items) {
+          if (item?.key) keys.add(item.key);
+        }
+      } else {
+        collectStoredWorldbookKeys(worldbookStores, group?.source).forEach((key) => keys.add(key));
+      }
+    }
     return {
       worldbookSources: [...new Set(savedWorldbookGroups.map((group) => textOf(group.source)).filter(Boolean))],
       sourceMode: settings.sourceModes?.worldbook || settings.sourceMode || 'prompt',

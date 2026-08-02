@@ -33,9 +33,10 @@ import {
   clearImportSelectionsForScope,
   collectSelectedPromptSourceItems,
   normalizePromptSourceType,
+  resolveWorldbookSelection,
   syncPromptSelectionsFromGroups,
 } from './sources/source-selection.js?ver=0.1.3';
-import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.3';
+import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hasEnabledWorldbookSource, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.3';
 import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.3';
 import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.3';
 import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.3';
@@ -2435,8 +2436,11 @@ function hasWorldbookDraftSource(source) {
 // scheme that was only just edited has no captured list yet, so fall back to Tavern's own
 // assignment; otherwise every book would look unselected the moment the scheme turns dirty.
 function isWorldbookSourceEnabledByPlugin(group) {
-  if (hasWorldbookDraftSource(group?.source)) return true;
-  return !settings.worldbookDraftSources.length && textOf(group?.category) !== 'inactive';
+  if (isTavernDefaultWorldbookScheme()) {
+    if (hasWorldbookDraftSource(group?.source)) return true;
+    return !settings.worldbookDraftSources.length && textOf(group?.category) !== 'inactive';
+  }
+  return hasEnabledWorldbookSource(getSourceSelectionStore(group), group?.source);
 }
 
 function rememberWorldbookDraftSource(source) {
@@ -2455,14 +2459,16 @@ function captureWorldbookDraftSources() {
 
 function getSourceSelection(item) {
   if (item?.locked) return item.enabled !== false;
-  if (item?.scope === SOURCE_WORLDBOOK && isTavernDefaultWorldbookScheme()) {
-    // Mirror Tavern directly: an inactive book contributes nothing and every other book reports the
-    // entry's own enabled flag, so no stale stored selection can survive into the count.
-    return textOf(item.worldbookCategory) !== 'inactive' && item.enabled !== false;
-  }
-  if (item?.scope === SOURCE_WORLDBOOK && !isFollowingTavernWorldbook()
-    && !isWorldbookSourceEnabledByPlugin({ source: item.source, category: item.worldbookCategory })) return false;
   const store = getSourceSelectionStore(item);
+  if (item?.scope === SOURCE_WORLDBOOK) {
+    const followsTavernState = isTavernDefaultWorldbookScheme();
+    if (!followsTavernState && !isWorldbookSourceEnabledByPlugin({
+      scope: item.scope,
+      source: item.source,
+      category: item.worldbookCategory,
+    })) return false;
+    return resolveWorldbookSelection(item, store, followsTavernState);
+  }
   if (Object.prototype.hasOwnProperty.call(store, item.key)) return store[item.key] !== false;
   return getSourceMode(item) === SOURCE_MODE_PROMPT ? item.enabled !== false : false;
 }

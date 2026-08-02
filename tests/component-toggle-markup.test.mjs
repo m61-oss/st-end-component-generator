@@ -342,8 +342,8 @@ assert.match(
 );
 assert.match(
   indexSource,
-  /function isWorldbookSourceEnabledByPlugin\(group\) \{[\s\S]*?return !settings\.worldbookDraftSources\.length && textOf\(group\?\.category\) !== 'inactive';/,
-  'a dirty tavern-default scheme should still treat tavern-active books as plugin-enabled',
+  /function isWorldbookSourceEnabledByPlugin\(group\) \{[\s\S]*?isTavernDefaultWorldbookScheme\(\)[\s\S]*?hasEnabledWorldbookSource\(getSourceSelectionStore\(group\), group\?\.source\)/,
+  'custom schemes should classify books from explicit enabled entries while Tavern-default drafts retain their native fallback',
 );
 assert.match(
   indexSource,
@@ -364,8 +364,8 @@ assert.match(
 );
 assert.match(
   indexSource,
-  /textOf\(item\.worldbookCategory\) !== 'inactive' && item\.enabled !== false;/,
-  'entries from inactive Tavern worldbooks must render unchecked until the user explicitly selects them',
+  /resolveWorldbookSelection\(item, store, followsTavernState\)/,
+  'worldbook rows and background counts should use the same tested selection resolver',
 );
 // The Tavern default owns no snapshot, so its checkboxes must mirror Tavern even after the draft
 // turns dirty. Deciding this with isFollowingTavernWorldbook forced every entry to report 0/total.

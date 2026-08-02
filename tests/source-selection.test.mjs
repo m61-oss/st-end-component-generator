@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import * as sourceSelection from '../sources/source-selection.js';
 import {
   clearImportSelectionsForScope,
   collectSelectedPromptSourceItems,
@@ -192,6 +193,29 @@ assert.deepEqual(schemeScopedSync, {
   tavern_on_entry: false,
   tavern_off_entry: false,
 }, 'a scheme-driven book starts unchecked instead of inheriting tavern activation');
+
+assert.equal(typeof sourceSelection.resolveWorldbookSelection, 'function');
+const nativeEnabledWorldbookEntry = {
+  key: 'worldbook_entry',
+  scope: '世界书',
+  worldbookCategory: 'global',
+  enabled: true,
+};
+assert.equal(
+  sourceSelection.resolveWorldbookSelection(nativeEnabledWorldbookEntry, {}, true),
+  true,
+  'the Tavern default should use the native enabled state when no stored record exists',
+);
+assert.equal(
+  sourceSelection.resolveWorldbookSelection(nativeEnabledWorldbookEntry, {}, false),
+  false,
+  'a custom scheme should treat a missing stored record as disabled',
+);
+assert.equal(
+  sourceSelection.resolveWorldbookSelection({ ...nativeEnabledWorldbookEntry, enabled: false }, { worldbook_entry: true }, false),
+  true,
+  'an explicit custom-scheme selection should override Tavern disabled state',
+);
 
 console.log('source-selection scheme snapshot tests passed');
 

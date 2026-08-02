@@ -9,6 +9,14 @@ export function clearImportSelectionsForScope(selections, scope) {
     .filter(([key]) => !marker || !String(key).includes(marker)));
 }
 
+export function resolveWorldbookSelection(item, selections = {}, followsTavernState = false) {
+  if (followsTavernState) {
+    return String(item?.worldbookCategory ?? '').trim() !== 'inactive' && item?.enabled !== false;
+  }
+  const store = selections && typeof selections === 'object' ? selections : {};
+  return Boolean(item?.key && Object.prototype.hasOwnProperty.call(store, item.key) && store[item.key] !== false);
+}
+
 export function syncPromptSelectionsFromGroups(groups, currentSelections = {}, shouldForceOverwrite = false) {
   const nextSelections = { ...(currentSelections && typeof currentSelections === 'object' ? currentSelections : {}) };
   for (const group of Array.isArray(groups) ? groups : []) {

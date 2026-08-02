@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import * as schemeUtils from '../settings/scheme-utils.js';
 import {
   captureSchemeSnapshot,
   deleteScheme,
@@ -101,6 +102,53 @@ const worldbookSnapshotWithInactiveBooks = captureSchemeSnapshot('worldbook', {
   { scope: 'world', source: 'Ignored Inactive Book', category: 'inactive', loaded: true, items: [{ key: 'ignored_inactive_entry' }] },
 ], { isWorldbookGroup: (group) => group.scope === 'world' });
 assert.deepEqual(worldbookSnapshotWithInactiveBooks.worldbookSources, ['Active Book', 'Selected Inactive Book']);
+
+const lazyBookEntry = '世界书：Lazy Book::Lazy Book::世界书::Entry A::content-a';
+const unloadedWorldbookSnapshot = captureSchemeSnapshot('worldbook', {
+  ...settings,
+  worldbookDraftSources: ['Lazy Book'],
+  sourceModes: { ...settings.sourceModes, worldbook: 'prompt' },
+  promptSelections: { [lazyBookEntry]: true },
+  importSelections: { [lazyBookEntry]: false },
+  sourceContentOverrides: { [lazyBookEntry]: 'edited while previously loaded' },
+  worldbookActivationOverrides: { [lazyBookEntry]: 'blue' },
+  worldbookKeywordOverrides: { [lazyBookEntry]: ['lazy-keyword'] },
+}, [
+  { scope: 'world', source: 'Lazy Book', category: 'inactive', loaded: false, items: [] },
+], { isWorldbookGroup: (group) => group.scope === 'world' });
+assert.deepEqual(unloadedWorldbookSnapshot, {
+  worldbookSources: ['Lazy Book'],
+  sourceMode: 'prompt',
+  promptSelections: { [lazyBookEntry]: true },
+  importSelections: { [lazyBookEntry]: false },
+  sourceContentOverrides: { [lazyBookEntry]: 'edited while previously loaded' },
+  worldbookActivationOverrides: { [lazyBookEntry]: 'blue' },
+  worldbookKeywordOverrides: { [lazyBookEntry]: ['lazy-keyword'] },
+}, 'an unloaded worldbook must inherit its existing entry records when a scheme is saved');
+
+const currentLoadedEntry = '世界书：Loaded Book::Loaded Book::世界书::Current::current-content';
+const staleLoadedEntry = '世界书：Loaded Book::Loaded Book::世界书::Stale::stale-content';
+const loadedWorldbookSnapshot = captureSchemeSnapshot('worldbook', {
+  ...settings,
+  worldbookDraftSources: ['Loaded Book'],
+  sourceModes: { ...settings.sourceModes, worldbook: 'prompt' },
+  promptSelections: { [currentLoadedEntry]: true, [staleLoadedEntry]: true },
+  importSelections: {},
+  sourceContentOverrides: { [staleLoadedEntry]: 'obsolete override' },
+  worldbookActivationOverrides: {},
+  worldbookKeywordOverrides: {},
+}, [
+  { scope: 'world', source: 'Loaded Book', category: 'inactive', loaded: true, items: [{ key: currentLoadedEntry }] },
+], { isWorldbookGroup: (group) => group.scope === 'world' });
+assert.deepEqual(loadedWorldbookSnapshot.promptSelections, { [currentLoadedEntry]: true });
+assert.deepEqual(loadedWorldbookSnapshot.sourceContentOverrides, {}, 'loaded sources must not retain stale entry records');
+
+assert.equal(typeof schemeUtils.getWorldbookEntryKeyPrefix, 'function');
+assert.equal(typeof schemeUtils.hasEnabledWorldbookSource, 'function');
+assert.equal(schemeUtils.getWorldbookEntryKeyPrefix(' Lazy Book '), '世界书：Lazy Book::Lazy Book::世界书::');
+assert.equal(schemeUtils.hasEnabledWorldbookSource({ [lazyBookEntry]: true }, 'Lazy Book'), true);
+assert.equal(schemeUtils.hasEnabledWorldbookSource({ [lazyBookEntry]: false }, 'Lazy Book'), false);
+assert.equal(schemeUtils.hasEnabledWorldbookSource({ [lazyBookEntry]: true }, 'Other Book'), false);
 
 assert.deepEqual(getWorldbookSchemeSourceNames({
   worldbookSources: ['A', 'B', 'C'],
