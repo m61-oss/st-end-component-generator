@@ -193,6 +193,7 @@ let componentEditMode = false;
 let selectedComponentIds = new Set();
 let quickReplySyncTimer = null;
 let worldbookCountRevision = 0;
+let magicWandMenuTimer = null;
 
 const $t = (selectorOrHtml) => $(selectorOrHtml, targetDoc);
 const textOf = (value) => String(value ?? '').trim();
@@ -1770,11 +1771,20 @@ function suppressNextClickAfterFloatingBallOpen() {
   }, { capture: true, once: true });
 }
 
-function renderMagicWandMenuButton(retry = 0) {
+function renderMagicWandMenuButton() {
   if (targetDoc.getElementById('st-esg-menu-button')) return;
-  if (retry > 30) return;
   const menu = targetDoc.getElementById('extensions_menu') || targetDoc.getElementById('extensionsMenu');
-  if (!menu) { targetWindow.setTimeout(() => renderMagicWandMenuButton(retry + 1), 500); return; }
+  if (!menu) {
+    if (magicWandMenuTimer) return;
+    magicWandMenuTimer = targetWindow.setInterval(() => {
+      renderMagicWandMenuButton();
+    }, 500);
+    return;
+  }
+  if (magicWandMenuTimer) {
+    targetWindow.clearInterval(magicWandMenuTimer);
+    magicWandMenuTimer = null;
+  }
   const button = targetDoc.createElement('div');
   button.id = 'st-esg-menu-button';
   button.className = 'list-group-item flex-container flexGap5 interactable';
@@ -3634,6 +3644,14 @@ function mountUi() {
   renderMagicWandMenuButton(); renderFloatingBall(); renderPluginPanel();
 }
 
+function mountUiWhenDocumentReady() {
+  if (targetDoc.readyState === 'loading') {
+    targetDoc.addEventListener('DOMContentLoaded', mountUi, { once: true });
+    return;
+  }
+  mountUi();
+}
+
 function loadStylesheet() {
   if (targetDoc.getElementById(`${EXTENSION_ID}-style`)) return;
   const link = targetDoc.createElement('link');
@@ -3646,7 +3664,7 @@ function loadStylesheet() {
 function init() {
   if (initialized) return;
   initialized = true;
-  loadSettings(); loadStylesheet(); mountUi();
+  loadSettings(); loadStylesheet(); mountUiWhenDocumentReady();
   updateQuickReplyShortcutActions();
   void syncQuickReplyShortcuts();
   startTavernDefaultSync();
