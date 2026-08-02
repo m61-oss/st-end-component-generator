@@ -65,6 +65,16 @@ assert.deepEqual(parseApiAdditionalParameters({
   additionalHeaders: {},
 });
 
+assert.deepEqual(parseApiAdditionalParameters({
+  additionalBodyYaml: '',
+  excludedBodyYaml: '',
+  additionalHeadersYaml: '',
+}, null), {
+  additionalBody: {},
+  excludedBodyKeys: [],
+  additionalHeaders: {},
+}, 'empty additional parameters should not require a YAML parser');
+
 assert.throws(
   () => parseApiAdditionalParameters({
     additionalBodyYaml: 'broken',

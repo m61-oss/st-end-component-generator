@@ -1,5 +1,4 @@
 import { getContext } from '../../../st-context.js';
-import { yaml } from '../../../../lib.js';
 import {
   COMPONENT_SCOPE_CHARACTER,
   COMPONENT_SCOPE_GLOBAL,
@@ -193,11 +192,26 @@ let componentEditMode = false;
 let selectedComponentIds = new Set();
 let quickReplySyncTimer = null;
 let worldbookCountRevision = 0;
+let magicWandMenuTimer = null;
+let yamlParserPromise = null;
 
 const $t = (selectorOrHtml) => $(selectorOrHtml, targetDoc);
 const textOf = (value) => String(value ?? '').trim();
 const escapeHtml = (value) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+async function getYamlParser() {
+  if (!yamlParserPromise) {
+    yamlParserPromise = import('../../../../lib.js').then((yamlModule) => {
+      const yamlParser = yamlModule.yaml
+        ?? yamlModule.default?.yaml
+        ?? targetWindow.yaml
+        ?? targetWindow.jsyaml;
+      return yamlParser && typeof yamlParser.parse === 'function' ? yamlParser : null;
+    });
+  }
+  return await yamlParserPromise;
+}
 
 function getQuickReplyApi() {
   return targetWindow.quickReplyApi ?? globalThis.quickReplyApi;
@@ -633,7 +647,7 @@ async function callExternalApi(latestMessage, signal) {
   const model = textOf(settings.apiModel);
   if (!apiUrl || !model) throw new Error('请先在“API 设置”里填写 API 地址和模型名称。');
   const numeric = parseApiNumericSettings(settings);
-  const additional = parseApiAdditionalParameters(settings, yaml);
+  const additional = parseApiAdditionalParameters(settings, await getYamlParser());
   const builtMessages = await buildMessages(latestMessage);
   const messages = settings.compressSystemMessages ? mergeConsecutiveSystemMessages(builtMessages) : builtMessages;
   const { body, headers } = buildApiRequestParts(
@@ -1171,7 +1185,7 @@ async function fetchApiModels() {
   $t('#st-esg-api-model-feedback').text('正在拉取模型列表...');
   setStatus('正在拉取模型列表……');
   try {
-    const additional = parseApiAdditionalParameters(settings, yaml);
+    const additional = parseApiAdditionalParameters(settings, await getYamlParser());
     const response = await fetch(modelsUrl, {
       method: 'GET',
       headers: {
@@ -1361,7 +1375,7 @@ function showApiAdditionalParametersDialog() {
     if (dialog.open && typeof dialog.close === 'function') dialog.close(returnValue);
     dialog.remove();
   };
-  dialog.querySelector('form').addEventListener('submit', (event) => {
+  dialog.querySelector('form').addEventListener('submit', async (event) => {
     event.preventDefault();
     const draft = {
       additionalBodyYaml: includeBody.value,
@@ -1369,7 +1383,7 @@ function showApiAdditionalParametersDialog() {
       additionalHeadersYaml: includeHeaders.value,
     };
     try {
-      parseApiAdditionalParameters(draft, yaml);
+      parseApiAdditionalParameters(draft, await getYamlParser());
       Object.assign(settings, draft);
       markSchemeDirty('api');
       closeDialog('save');
@@ -1770,11 +1784,20 @@ function suppressNextClickAfterFloatingBallOpen() {
   }, { capture: true, once: true });
 }
 
-function renderMagicWandMenuButton(retry = 0) {
+function renderMagicWandMenuButton() {
   if (targetDoc.getElementById('st-esg-menu-button')) return;
-  if (retry > 30) return;
   const menu = targetDoc.getElementById('extensions_menu') || targetDoc.getElementById('extensionsMenu');
-  if (!menu) { targetWindow.setTimeout(() => renderMagicWandMenuButton(retry + 1), 500); return; }
+  if (!menu) {
+    if (magicWandMenuTimer) return;
+    magicWandMenuTimer = targetWindow.setInterval(() => {
+      renderMagicWandMenuButton();
+    }, 500);
+    return;
+  }
+  if (magicWandMenuTimer) {
+    targetWindow.clearInterval(magicWandMenuTimer);
+    magicWandMenuTimer = null;
+  }
   const button = targetDoc.createElement('div');
   button.id = 'st-esg-menu-button';
   button.className = 'list-group-item flex-container flexGap5 interactable';
@@ -3634,6 +3657,14 @@ function mountUi() {
   renderMagicWandMenuButton(); renderFloatingBall(); renderPluginPanel();
 }
 
+function mountUiWhenDocumentReady() {
+  if (targetDoc.readyState === 'loading') {
+    targetDoc.addEventListener('DOMContentLoaded', mountUi, { once: true });
+    return;
+  }
+  mountUi();
+}
+
 function loadStylesheet() {
   if (targetDoc.getElementById(`${EXTENSION_ID}-style`)) return;
   const link = targetDoc.createElement('link');
@@ -3646,7 +3677,7 @@ function loadStylesheet() {
 function init() {
   if (initialized) return;
   initialized = true;
-  loadSettings(); loadStylesheet(); mountUi();
+  loadSettings(); loadStylesheet(); mountUiWhenDocumentReady();
   updateQuickReplyShortcutActions();
   void syncQuickReplyShortcuts();
   startTavernDefaultSync();
