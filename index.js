@@ -207,10 +207,7 @@ async function getYamlParser() {
         ?? yamlModule.default?.yaml
         ?? targetWindow.yaml
         ?? targetWindow.jsyaml;
-      if (!yamlParser || typeof yamlParser.parse !== 'function') {
-        throw new Error('当前前端未提供兼容的 YAML 解析器。');
-      }
-      return yamlParser;
+      return yamlParser && typeof yamlParser.parse === 'function' ? yamlParser : null;
     });
   }
   return await yamlParserPromise;

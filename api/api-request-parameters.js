@@ -60,13 +60,19 @@ export function parseApiNumericSettings({ maxTokens, temperature }) {
 }
 
 export function parseApiAdditionalParameters(settings, yamlParser) {
+  const additionalBodyYaml = settings?.additionalBodyYaml;
+  const excludedBodyYaml = settings?.excludedBodyYaml;
+  const additionalHeadersYaml = settings?.additionalHeadersYaml;
+  if (!textOf(additionalBodyYaml) && !textOf(excludedBodyYaml) && !textOf(additionalHeadersYaml)) {
+    return { additionalBody: {}, excludedBodyKeys: [], additionalHeaders: {} };
+  }
   if (!yamlParser || typeof yamlParser.parse !== 'function') {
     throw new ApiParameterValidationError('附加参数', '酒馆 YAML 解析器不可用');
   }
   return {
-    additionalBody: parseIncludedObject(settings?.additionalBodyYaml, '追加请求体参数', yamlParser),
-    excludedBodyKeys: parseExcludedKeys(settings?.excludedBodyYaml, '排除请求体参数', yamlParser),
-    additionalHeaders: parseIncludedObject(settings?.additionalHeadersYaml, '追加请求头', yamlParser),
+    additionalBody: parseIncludedObject(additionalBodyYaml, '追加请求体参数', yamlParser),
+    excludedBodyKeys: parseExcludedKeys(excludedBodyYaml, '排除请求体参数', yamlParser),
+    additionalHeaders: parseIncludedObject(additionalHeadersYaml, '追加请求头', yamlParser),
   };
 }
 
