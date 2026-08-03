@@ -54,6 +54,9 @@ const groups = [
 
 const apiSnapshot = captureSchemeSnapshot('api', settings, groups, { isWorldbookGroup: (group) => group.scope === 'world' });
 assert.deepEqual(apiSnapshot, {
+  apiMode: 'custom',
+  useMainApi: true,
+  tavernProfile: '',
   apiUrl: 'https://api.example.com/v1',
   apiKey: 'secret',
   apiModel: 'model-a',

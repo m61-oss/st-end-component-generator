@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+const schemeSource = readFileSync(new URL('../settings/scheme-utils.js', import.meta.url), 'utf8');
 const callStart = source.indexOf('async function callExternalApi(');
 const callEnd = source.indexOf('function injectStatusbar(', callStart);
 const modelStart = source.indexOf('async function fetchApiModels()');
@@ -14,6 +15,8 @@ assert.match(source, /async function getYamlParser\(\)[\s\S]*?import\('\.\.\/\.\
 assert.match(source, /import \{[\s\S]*?buildApiRequestParts,[\s\S]*?parseApiAdditionalParameters,[\s\S]*?parseApiNumericSettings,[\s\S]*?\} from '\.\/api\/api-request-parameters\.js\?ver=0\.1\.3';/, 'request parameter helpers should be imported');
 
 assert.match(callFunction, /const numeric = parseApiNumericSettings\(settings\);/, 'generation should validate user-entered numeric settings');
+assert.match(callFunction, /TavernHelper\?\.generateRaw/, '酒馆主 API should use TavernHelper.generateRaw');
+assert.match(callFunction, /ConnectionManagerRequestService/, '酒馆预设 should use the connection manager service');
 assert.match(callFunction, /const additional = parseApiAdditionalParameters\(settings, await getYamlParser\(\)\);/, 'generation should validate saved YAML before requesting');
 assert.match(callFunction, /const \{ body, headers \} = buildApiRequestParts\(/, 'generation should merge additional body and headers centrally');
 assert.match(callFunction, /max_tokens:\s*numeric\.maxTokens,\s*temperature:\s*numeric\.temperature,/, 'generation should send actual input values');
@@ -21,6 +24,8 @@ assert.match(callFunction, /maxTokens:\s*String\(numeric\.maxTokens\),\s*tempera
 assert.match(callFunction, /headers,\s*body:\s*JSON\.stringify\(body\),/, 'fetch should use merged request parts');
 assert.doesNotMatch(callFunction, /createPromptLog\(\{[^}]*additionalHeaders/s, 'custom header values must not enter prompt logs');
 assert.doesNotMatch(callFunction, /createPromptLog\(\{[^}]*additionalHeadersYaml/s, 'custom header YAML must not enter prompt logs');
+assert.match(source, /data-api-mode="main"[\s\S]*?data-api-mode="custom"[\s\S]*?data-api-mode="tavern"/, 'API settings should expose the three connection tabs');
+assert.match(schemeSource, /apiMode: settings\.apiMode/, 'API schemes should save the selected connection mode');
 assert.match(callFunction, /createStreamPreviewController\(/, 'streaming requests should use the lightweight preview controller');
 assert.match(callFunction, /streamPreview\.push\(fullText\);/, 'stream chunks should only enter the throttled preview path');
 assert.match(callFunction, /onPreview:\s*updateStreamedPreview/, 'each throttled stream preview update should resize and scroll through one lightweight callback');
