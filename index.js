@@ -211,13 +211,31 @@ const textOf = (value) => String(value ?? '').trim();
 const escapeHtml = (value) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
+const VISIBLE_GENERATION_LOG_STAGES = new Set([
+  'api-start',
+  'api-returned',
+  'generation-error',
+  'generation-skip',
+  'inject-skip',
+  'inject-finished',
+  'inject-save-warning',
+  'inject-error',
+  'undo-skip',
+  'undo-finished',
+  'undo-save-warning',
+  '等待渲染',
+  '等待结束结果',
+  '找到 assistant',
+  '跳过重复',
+]);
+
 function logAutomaticGenerationStage(stage, details = '') {
   const stageLabels = {
     'generation-start': '开始生成',
     'target-ready': '找到目标回复',
-    'api-start': '开始调用 API',
+    'api-start': '开始调用外置 API',
     'prompt-build-start': '开始组装提示词',
-    'api-returned': 'API 已返回',
+    'api-returned': '生成完成',
     'generation-error': '生成失败',
     'api-finished': 'API 调用结束',
     'generation-skip': '跳过生成',
@@ -237,13 +255,13 @@ function logAutomaticGenerationStage(stage, details = '') {
     'undo-restore': '恢复注入前内容',
     'undo-save-warning': '撤回保存警告',
     'undo-finished': '撤回完成',
-    'generation-started': '正文生成开始',
-    'generation-ended': '正文生成结束',
+    'generation-started': '收到生成开始事件',
+    'generation-ended': '收到生成结束事件',
     'message-received': '收到 assistant 消息',
     'message-rendered': 'assistant 消息已渲染',
-    '等待渲染': '等待页面渲染',
-    '等待结束结果': '等待正文稳定',
-    '找到 assistant': '找到 assistant',
+    '等待渲染': '等待生成条件',
+    '等待结束结果': '等待最新 assistant',
+    '找到 assistant': '检测到 assistant',
     '跳过重复': '跳过重复',
   };
   const detailText = String(details || '')
@@ -269,6 +287,8 @@ function logAutomaticGenerationStage(stage, details = '') {
     .replace(/^message (\d+); /, '楼层 $1；');
   const suffix = detailText ? `：${detailText}` : '';
   const line = `${new Date().toLocaleTimeString()} ${stageLabels[stage] || stage}${suffix}`;
+  console.log(`[${EXTENSION_ID}] ${line}`);
+  if (!VISIBLE_GENERATION_LOG_STAGES.has(stage)) return;
   automaticGenerationLogEntries.push(line);
   if (automaticGenerationLogEntries.length > 40) automaticGenerationLogEntries.shift();
   const logElement = targetDoc.getElementById('st-esg-generation-log');
@@ -276,7 +296,6 @@ function logAutomaticGenerationStage(stage, details = '') {
     logElement.textContent = automaticGenerationLogEntries.join('\n');
     logElement.scrollTop = logElement.scrollHeight;
   }
-  console.log(`[${EXTENSION_ID}] ${line}`);
 }
 
 function clearAutomaticGenerationLog() {
@@ -939,9 +958,6 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   if (entryType === 'automatic') activeAutomaticTarget = automaticTarget;
   logAutomaticGenerationStage('target-ready', `message ${latest.index}`);
   logAutomaticGenerationStage('api-start', `楼层 ${latest.index}`);
-  if (entryType === 'automatic') {
-    logAutomaticGenerationStage('api-start', `楼层 ${latest.index}`);
-  }
   setGeneratingState(true);
   let result = '';
   try {
@@ -960,7 +976,6 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     beginPromptLogBuild();
     result = await callExternalApi(latest.message, generationAbortController.signal);
     logAutomaticGenerationStage('api-returned', result ? 'received content' : 'empty response');
-    if (entryType === 'automatic') logAutomaticGenerationStage('api-returned', result ? '已收到内容' : '返回为空');
   }
   catch (error) {
     logAutomaticGenerationStage('generation-error', error?.message || 'generation failed');
@@ -985,7 +1000,6 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     }
     generationAbortController = null;
     if (entryType === 'automatic') activeAutomaticTarget = null;
-    if (entryType === 'automatic') logAutomaticGenerationStage('api-finished', result ? '流程结束' : '未生成内容');
     logAutomaticGenerationStage('api-finished', result ? 'response handling complete' : 'no generated content');
     setGeneratingState(false);
   }
@@ -1192,6 +1206,18 @@ function invalidatePendingAutomaticGeneration({ abortActive = false } = {}) {
   if (abortActive && activeAutomaticTarget && generationAbortController) generationAbortController.abort();
 }
 
+function buildAutomaticGenerationWaitDiagnostics(target, chat) {
+  const targetIndex = Number(target?.messageIndex);
+  const targetMessage = Number.isInteger(targetIndex) ? chat?.[targetIndex] : null;
+  const latestAssistant = getLatestAssistantMessage(chat);
+  return [
+    `目标楼层=${Number.isInteger(targetIndex) ? targetIndex : '无'}`,
+    `最新 assistant=${latestAssistant?.index ?? '无'}`,
+    `正文存在=${String(targetMessage?.mes || '').trim() ? '是' : '否'}`,
+    `已有外置生成=${generationAbortController ? '是' : '否'}`,
+  ].join('，');
+}
+
 async function runDeferredAutomaticGeneration(pendingTarget, revision, attempt = 0) {
   const context = getContext();
   if (!settings.autoGenerate || revision !== automaticGenerationRevision) return;
@@ -1202,6 +1228,8 @@ async function runDeferredAutomaticGeneration(pendingTarget, revision, attempt =
       targetWindow.setTimeout(() => {
         void runDeferredAutomaticGeneration(pendingTarget, revision, attempt + 1);
       }, 25);
+    } else {
+      logAutomaticGenerationStage('generation-skip', `等待最新 assistant 超时；${buildAutomaticGenerationWaitDiagnostics(pendingTarget, context.chat)}`);
     }
     return;
   }
@@ -1224,6 +1252,8 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
         automaticGenerationEndTimer = null;
         void runGenerationEndedAutomaticGeneration(baseline, revision, attempt + 1);
       }, 100);
+    } else {
+      logAutomaticGenerationStage('generation-skip', `等待当前外置生成结束超时；${buildAutomaticGenerationWaitDiagnostics(null, context.chat)}`);
     }
     return;
   }
@@ -1240,6 +1270,8 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
         automaticGenerationEndTimer = null;
         void runGenerationEndedAutomaticGeneration(baseline, revision, attempt + 1);
       }, 100);
+    } else {
+      logAutomaticGenerationStage('generation-skip', `等待最新 assistant 超时；${buildAutomaticGenerationWaitDiagnostics(pendingTarget, context.chat)}`);
     }
     return;
   }
@@ -1256,7 +1288,7 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
 
 function handleGenerationStarted() {
   if (!settings.autoGenerate || generationAbortController) return;
-  clearAutomaticGenerationLog();
+  automaticGenerationLogActive = false;
   logAutomaticGenerationStage('generation-started');
   invalidatePendingAutomaticGeneration();
   automaticGenerationBaseline = captureAutomaticGenerationBaseline(getContext().chat);
@@ -1281,7 +1313,7 @@ function handleAssistantMessageReceived(messageId) {
   if (!settings.autoGenerate) return;
   const pendingTarget = captureAutomaticAssistantTarget(messageId, context.chat);
   if (!pendingTarget) return;
-  if (!automaticGenerationLogActive) clearAutomaticGenerationLog();
+  clearAutomaticGenerationLog();
   logAutomaticGenerationStage('message-received', `楼层 ${pendingTarget.messageIndex}`);
   invalidatePendingAutomaticGeneration();
   const revision = automaticGenerationRevision;

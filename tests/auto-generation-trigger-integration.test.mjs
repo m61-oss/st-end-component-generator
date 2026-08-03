@@ -21,8 +21,10 @@ assert.match(
 assert.match(source, /function logAutomaticGenerationStage\(/, 'automatic generation should expose stage logging');
 assert.match(source, /function clearAutomaticGenerationLog\(/, 'a new generation should clear the visible stage log');
 assert.match(source, /id=["']st-esg-generation-log["']/, 'the generation page should contain a visible stage log');
-assert.match(source, /logAutomaticGenerationStage\('generation-started'/, 'generation start should be logged');
-assert.match(source, /logAutomaticGenerationStage\('generation-ended'/, 'generation end should be logged');
+assert.match(source, /const VISIBLE_GENERATION_LOG_STAGES = new Set\(/, 'the page log should have an explicit user-facing stage allowlist');
+assert.match(source, /if \(!VISIBLE_GENERATION_LOG_STAGES\.has\(stage\)\) return;/, 'raw internal stages should stay out of the page log');
+assert.doesNotMatch(source, /VISIBLE_GENERATION_LOG_STAGES[\s\S]{0,500}'generation-started'/, 'raw Tavern generation-start events should not be user-facing');
+assert.doesNotMatch(source, /VISIBLE_GENERATION_LOG_STAGES[\s\S]{0,500}'message-rendered'/, 'assistant render internals should not be user-facing');
 assert.match(source, /logAutomaticGenerationStage\('api-start'/, 'automatic API start should be logged');
 assert.doesNotMatch(source, /createAutoGenerationTracker|autoGenerationTracker/, 'generation session state should be removed');
 assert.match(source, /function getAssistantMessageAtIndex\(chat, messageIndex\)/, 'an exact assistant-message resolver should exist');
@@ -58,6 +60,9 @@ assert.match(
 );
 assert.doesNotMatch(source, /eventTypes\.MESSAGE_SWIPED[\s\S]{0,180}invalidatePendingAutomaticGeneration/, 'switching swipes must not cancel automatic work');
 assert.doesNotMatch(receivedHandler, /invalidatePendingAutomaticGeneration\(\{ abortActive: true \}\)/, 'a newer assistant event must not abort an already running external generation');
+assert.doesNotMatch(generateFunction, /if \(entryType === 'automatic'\) logAutomaticGenerationStage\('api-start'/, 'automatic API start should not be logged twice');
+assert.doesNotMatch(generateFunction, /if \(entryType === 'automatic'\) logAutomaticGenerationStage\('api-returned'/, 'automatic API completion should not be logged twice');
+assert.match(triggerHandlers, /logAutomaticGenerationStage\('generation-skip', `等待最新 assistant 超时/, 'a readiness timeout should expose actionable diagnostics');
 
 assert.match(
   generateFunction,
