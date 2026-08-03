@@ -760,7 +760,34 @@ async function callExternalApi(latestMessage, signal) {
     const profileId = textOf(profile?.id || requestedProfile);
     if (!profileId || typeof service?.sendRequest !== 'function') throw new Error('未选择可用的酒馆预设。');
     settings.tavernProfile = profileId;
-    const response = await service.sendRequest(profileId, messages, Number(settings.maxTokens) || MAX_OUTPUT_TOKENS, { extractData: true, includePreset: true, stream: false, signal });
+    const response = await service.sendRequest(profileId, messages, Number(settings.maxTokens) || MAX_OUTPUT_TOKENS, {
+      extractData: true,
+      includePreset: true,
+      stream: Boolean(settings.streamingEnabled),
+      signal,
+    });
+    if (settings.streamingEnabled && typeof response === 'function') {
+      const streamPreview = createStreamPreviewController({ intervalMs: 80, onPreview: updateStreamedPreview });
+      let streamedText = '';
+      try {
+        for await (const chunk of response()) {
+          const nextText = chunk?.text ?? chunk?.content ?? '';
+          if (typeof nextText === 'string') {
+            streamedText = nextText;
+            streamPreview.push(streamedText);
+          }
+        }
+        streamPreview.flush();
+        if (!streamedText.trim()) throw markGenerationResponseError(new Error('酒馆预设 API 返回为空。'));
+        return streamedText.trim();
+      } catch (error) {
+        streamPreview.flush();
+        if (error && typeof error === 'object') error.streamedText = streamPreview.getText();
+        throw error;
+      } finally {
+        streamPreview.dispose();
+      }
+    }
     const content = response?.result?.choices?.[0]?.message?.content ?? response?.content ?? '';
     if (typeof content !== 'string' || !content.trim()) throw markGenerationResponseError(new Error('酒馆预设 API 返回为空。'));
     return content.trim();

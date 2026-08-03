@@ -30,8 +30,10 @@ assert.match(source, /settings\.apiMode = mode;[\s\S]*?settings\.useMainApi = fa
 assert.match(source, /st-esg-api-model-picker[^>]*st-esg-api-custom-fields/, 'the model picker should only be visible for custom API mode');
 assert.match(source, /Object\.entries\(rawProfiles\)/, 'Tavern profile refresh should support object-shaped profile registries');
 assert.match(source, /getContext\(\)\?\.extensionSettings\?\.connectionManager\?\.profiles/, 'Tavern profiles should be read from the host context store');
-assert.match(source, /includePreset: true, stream: false/, 'profile requests should use the selected Tavern preset');
+assert.match(source, /includePreset: true,[\s\S]*?stream: Boolean\(settings\.streamingEnabled\)/, 'profile requests should use the selected Tavern preset');
 assert.match(callFunction, /Number\(settings\.maxTokens\) \|\| MAX_OUTPUT_TOKENS/, 'profile requests should use the internal default token limit without exposing the input');
+assert.match(callFunction, /stream: Boolean\(settings\.streamingEnabled\)/, 'Tavern profile requests should follow the streaming toggle');
+assert.match(callFunction, /typeof response === 'function'/, 'Tavern streaming responses should be consumed as generators');
 assert.doesNotMatch(source, /if \(mode === 'tavern'\) refreshTavernProfiles\(\)/, 'switching API tabs must not refresh Tavern profiles');
 assert.match(source, /apiUrlLabel\?\.classList\.add\('st-esg-api-custom-fields'\)/, 'the API URL field should be hidden outside custom mode');
 assert.match(callFunction, /createStreamPreviewController\(/, 'streaming requests should use the lightweight preview controller');
