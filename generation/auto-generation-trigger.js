@@ -95,3 +95,17 @@ export function isAutomaticAssistantTargetCurrent(target, chat = []) {
     && String(message.swipes[message.swipe_id] ?? '') === target.messageText
   );
 }
+
+export function isAutomaticAssistantTargetAddressable(target, chat = []) {
+  if (!target || target.messageIndex !== chat.length - 1) return false;
+  const message = chat[target.messageIndex];
+  const numericSwipeId = Number(message?.swipe_id);
+  const currentSwipeId = Number.isInteger(numericSwipeId) && numericSwipeId >= 0 ? numericSwipeId : null;
+  return Boolean(
+    message
+    && message.is_user !== true
+    && message.is_system !== true
+    && currentSwipeId === target.swipeId
+    && Array.isArray(message.swipes),
+  );
+}

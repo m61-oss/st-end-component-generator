@@ -47,6 +47,7 @@ import {
   captureAutomaticAssistantTarget,
   captureAutomaticGenerationBaseline,
   getAutomaticAssistantTargetKey,
+  isAutomaticAssistantTargetAddressable,
   isAutomaticAssistantTargetCurrent,
   isAutomaticTargetAfterGenerationStart,
   resolveReadyAutomaticAssistantTarget,
@@ -809,7 +810,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     if (entryType === 'automatic') logAutomaticGenerationStage('api-finished', result ? '流程结束' : '未生成内容');
     setGeneratingState(false);
   }
-  if (automaticTarget && !isAutomaticAssistantTargetCurrent(automaticTarget, getContext().chat)) {
+  if (automaticTarget && !isAutomaticAssistantTargetAddressable(automaticTarget, getContext().chat)) {
     notifyStatus('正文楼层或翻页状态已经变化，旧组件结果已丢弃。', 'warning');
     return '';
   }

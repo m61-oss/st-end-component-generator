@@ -4,6 +4,7 @@ import {
   captureAutomaticGenerationBaseline,
   getAutomaticAssistantTargetKey,
   isAutomaticTargetAfterGenerationStart,
+  isAutomaticAssistantTargetAddressable,
   isAutomaticAssistantTargetCurrent,
   resolveAutomaticAssistantMessageIndex,
   resolveReadyAutomaticAssistantTarget,
@@ -42,6 +43,11 @@ assert.deepEqual(
   'the stable target should use the finalized text instead of the temporary MESSAGE_RECEIVED text',
 );
 assert.equal(isAutomaticAssistantTargetCurrent(readyTarget, readyChat), true);
+assert.equal(
+  isAutomaticAssistantTargetAddressable(readyTarget, [chat[0], { ...readyChat[1], mes: '同楼层被其他插件更新' }]),
+  true,
+  'a same-floor text update should still allow injection into the current assistant message',
+);
 const baseline = captureAutomaticGenerationBaseline(readyChat);
 assert.equal(
   isAutomaticTargetAfterGenerationStart(readyTarget, baseline),

@@ -15,7 +15,7 @@ const receivedHandler = source.slice(
 
 assert.match(
   source,
-  /captureAutomaticAssistantTarget,[\s\S]*?isAutomaticAssistantTargetCurrent,[\s\S]*?resolveReadyAutomaticAssistantTarget/,
+  /captureAutomaticAssistantTarget,[\s\S]*?isAutomaticAssistantTargetAddressable,[\s\S]*?isAutomaticAssistantTargetCurrent,[\s\S]*?resolveReadyAutomaticAssistantTarget/,
   'the assistant-message resolver should be imported',
 );
 assert.match(source, /function logAutomaticGenerationStage\(/, 'automatic generation should expose stage logging');
@@ -67,8 +67,8 @@ assert.match(
 );
 assert.match(
   generateFunction,
-  /if \(automaticTarget && !isAutomaticAssistantTargetCurrent\(automaticTarget, getContext\(\)\.chat\)\)[\s\S]*?return '';/,
-  'an automatic result should be discarded when its floor or swipe changed while the API was running',
+  /if \(automaticTarget && !isAutomaticAssistantTargetAddressable\(automaticTarget, getContext\(\)\.chat\)\)[\s\S]*?return '';/,
+  'an automatic result should be discarded when its floor or swipe target changed while the API was running',
 );
 assert.match(
   generateFunction,
