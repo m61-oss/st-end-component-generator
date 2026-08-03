@@ -2464,7 +2464,12 @@ function renderComponentList() {
       const { groupPosition, siblingGroups } = group.isDefault ? { groupPosition: -1, siblingGroups: [] } : getComponentGroupSiblingGroups(group.groupId);
       const actions = componentEditMode ? (group.isDefault ? '' : `<span class="st-esg-component-group-actions"><button class="st-esg-icon-btn st-esg-component-group-move-up" type="button" data-group-id="${escapeHtml(group.groupId)}" title="上移分组" aria-label="上移分组" ${groupPosition <= 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-up"></i></button><button class="st-esg-icon-btn st-esg-component-group-move-down" type="button" data-group-id="${escapeHtml(group.groupId)}" title="下移分组" aria-label="下移分组" ${groupPosition < 0 || groupPosition >= siblingGroups.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-down"></i></button><button class="st-esg-icon-btn st-esg-component-group-rename" type="button" data-group-id="${escapeHtml(group.groupId)}" title="重命名分组" aria-label="重命名分组"><i class="fa-solid fa-pen"></i></button><button class="st-esg-icon-btn st-esg-icon-danger st-esg-component-group-delete" type="button" data-group-id="${escapeHtml(group.groupId)}" title="删除分组" aria-label="删除分组"><i class="fa-solid fa-trash"></i></button></span>`) : '';
       const body = group.items.length ? group.items.map(renderComponentItem).join('') : '<div class="st-esg-empty st-esg-empty-small">暂无组件</div>';
-      return `<details class="st-esg-component-folder${groupEnabled ? '' : ' st-esg-component-folder-is-disabled'}" data-group-id="${escapeHtml(group.groupId)}" data-default-group="${group.isDefault ? 'true' : 'false'}" data-folder-state-id="${escapeHtml(folderStateId)}" ${openFolderStateIds.has(folderStateId) ? 'open' : ''}><summary class="st-esg-component-folder-head"><span class="st-esg-component-folder-title">${escapeHtml(group.name)}</span><em class="st-esg-component-folder-count${groupEnabled ? '' : ' is-disabled'}">${enabledCount}/${group.items.length}</em>${control}${actions}<i class="fa-solid fa-chevron-down st-esg-component-folder-caret"></i></summary><div class="st-esg-component-folder-body">${body}</div></details>`;
+      const allItemsEnabled = group.items.length > 0 && enabledCount === group.items.length;
+      const toggleItemsButton = group.items.length
+        ? `<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-group-toggle-items" type="button" data-group-id="${escapeHtml(group.groupId)}"><i class="fa-solid ${allItemsEnabled ? 'fa-toggle-off' : 'fa-toggle-on'}"></i><span>${allItemsEnabled ? '关闭全部条目' : '开启全部条目'}</span></button>`
+        : '';
+      const groupContent = `<div class="st-esg-component-group-content"><div class="st-esg-component-group-toolbar">${toggleItemsButton}</div><div class="st-esg-component-group-items">${body}</div></div>`;
+      return `<details class="st-esg-component-folder${groupEnabled ? '' : ' st-esg-component-folder-is-disabled'}" data-group-id="${escapeHtml(group.groupId)}" data-default-group="${group.isDefault ? 'true' : 'false'}" data-folder-state-id="${escapeHtml(folderStateId)}" ${openFolderStateIds.has(folderStateId) ? 'open' : ''}><summary class="st-esg-component-folder-head"><span class="st-esg-component-folder-title">${escapeHtml(group.name)}</span><em class="st-esg-component-folder-count${groupEnabled ? '' : ' is-disabled'}">${enabledCount}/${group.items.length}</em>${control}${actions}<i class="fa-solid fa-chevron-down st-esg-component-folder-caret"></i></summary><div class="st-esg-component-folder-body">${groupContent}</div></details>`;
     }).join('');
     const sectionContent = groupHtml;
     const createGroupButton = componentEditMode ? `<button class="st-esg-icon-btn st-esg-component-group-create" type="button" data-scope="${escapeHtml(section.scope)}" title="新建分组" aria-label="新建分组"><i class="fa-solid fa-folder-plus"></i></button>` : '';
@@ -2610,6 +2615,17 @@ function renderComponentList() {
       else selectedComponentIds.add(id);
     });
     updateComponentEditSelectionUi();
+  });
+  list.find('.st-esg-component-group-toggle-items').on('click', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const ids = $(this).closest('.st-esg-component-folder').find('.st-esg-component-item').map((_, item) => textOf($(item).attr('data-component-id'))).get().filter(Boolean);
+    const groupItems = ids.map((id) => findComponentById(id)).filter(Boolean);
+    if (!groupItems.length) return;
+    const allEnabled = groupItems.every((item) => item.enabled !== false);
+    groupItems.forEach((item) => { item.enabled = !allEnabled; });
+    saveSettings();
+    renderComponentList();
   });
   list.find('.st-esg-component-item-actions button').on('click', (event) => event.stopPropagation());
   list.find('.st-esg-component-move-up').on('click', function (event) {

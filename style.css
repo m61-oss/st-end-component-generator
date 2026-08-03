@@ -426,11 +426,16 @@ select.st-esg-scheme-select {
 .st-esg-component-folder[open] .st-esg-component-folder-caret { transform: rotate(180deg); }
 .st-esg-component-folder-body { display: grid; gap: 0; padding: 0; border: 0; border-top: 1px solid var(--esg-border); border-radius: 0; background: transparent; overflow: hidden; }
 .st-esg-component-folder-is-disabled .st-esg-component-folder-body { opacity: 0.5; }
-.st-esg-theater-group-content { margin: 6px; border: 1px solid var(--esg-border); border-radius: 8px; background: var(--esg-bg-card); overflow: hidden; }
-.st-esg-theater-group-toolbar { display: flex; justify-content: flex-end; padding: 6px 8px; border-bottom: 1px solid var(--esg-border); background: var(--esg-bg-secondary); }
-.st-esg-theater-group-toolbar:empty { display: none; }
-.st-esg-theater-group-toggle-items { min-height: 28px; padding-inline: 8px !important; white-space: nowrap; }
-.st-esg-theater-group-items { display: grid; gap: 0; }
+.st-esg-theater-group-content,
+.st-esg-component-group-content { margin: 6px; border: 1px solid var(--esg-border); border-radius: 8px; background: var(--esg-bg-card); overflow: hidden; }
+.st-esg-theater-group-toolbar,
+.st-esg-component-group-toolbar { display: flex; justify-content: flex-end; padding: 6px 8px; border-bottom: 1px solid var(--esg-border); background: var(--esg-bg-secondary); }
+.st-esg-theater-group-toolbar:empty,
+.st-esg-component-group-toolbar:empty { display: none; }
+.st-esg-theater-group-toggle-items,
+.st-esg-component-group-toggle-items { min-height: 28px; padding-inline: 8px !important; white-space: nowrap; }
+.st-esg-theater-group-items,
+.st-esg-component-group-items { display: grid; gap: 0; }
 .st-esg-component-ungrouped { display: grid; gap: 0; margin: 0; padding: 0; }
 .st-esg-import-scope { border: 0; border-radius: 0; background: transparent; overflow: visible; }
 .st-esg-import-scope-summary { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 2px 2px 5px; cursor: pointer; color: var(--esg-text-muted); font-size: 11px; font-weight: 700; background: transparent; }
