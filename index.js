@@ -206,6 +206,11 @@ const textOf = (value) => String(value ?? '').trim();
 const escapeHtml = (value) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
+function logAutomaticGenerationStage(stage, details = '') {
+  const suffix = details ? `：${details}` : '';
+  console.log(`[${EXTENSION_ID}] [自动生成] ${stage}${suffix}`);
+}
+
 async function getYamlParser() {
   if (!yamlParserPromise) {
     yamlParserPromise = import('../../../../lib.js').then((yamlModule) => {
@@ -747,6 +752,9 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   notifyStatus('正在生成文尾组件……', 'info');
   generationAbortController = new AbortController();
   if (entryType === 'automatic') activeAutomaticTarget = automaticTarget;
+  if (entryType === 'automatic') {
+    logAutomaticGenerationStage('api-start', `楼层 ${latest.index}`);
+  }
   setGeneratingState(true);
   let result = '';
   try {
@@ -756,6 +764,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     }
     beginPromptLogBuild();
     result = await callExternalApi(latest.message, generationAbortController.signal);
+    if (entryType === 'automatic') logAutomaticGenerationStage('api-returned', result ? '已收到内容' : '返回为空');
   }
   catch (error) {
     if (error?.name === 'AbortError') {
@@ -779,6 +788,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     }
     generationAbortController = null;
     if (entryType === 'automatic') activeAutomaticTarget = null;
+    if (entryType === 'automatic') logAutomaticGenerationStage('api-finished', result ? '流程结束' : '未生成内容');
     setGeneratingState(false);
   }
   if (automaticTarget && !isAutomaticAssistantTargetCurrent(automaticTarget, getContext().chat)) {
@@ -948,6 +958,7 @@ async function runDeferredAutomaticGeneration(pendingTarget, revision, attempt =
   const readyTarget = resolveReadyAutomaticAssistantTarget(pendingTarget, context.chat);
   const messageElementReady = Boolean(targetDoc.querySelector(`#chat .mes[mesid="${pendingTarget.messageIndex}"]`));
   if (!readyTarget || !messageElementReady || generationAbortController) {
+    if (attempt === 0) logAutomaticGenerationStage('等待渲染', 'assistant 或页面节点尚未稳定');
     if (attempt < 400) {
       targetWindow.setTimeout(() => {
         void runDeferredAutomaticGeneration(pendingTarget, revision, attempt + 1);
@@ -956,8 +967,12 @@ async function runDeferredAutomaticGeneration(pendingTarget, revision, attempt =
     return;
   }
   const targetKey = getAutomaticAssistantTargetKey(readyTarget);
-  if (!targetKey || targetKey === lastAutomaticTargetKey) return;
+  if (!targetKey || targetKey === lastAutomaticTargetKey) {
+    logAutomaticGenerationStage('跳过重复', `楼层 ${readyTarget.messageIndex}`);
+    return;
+  }
   lastAutomaticTargetKey = targetKey;
+  logAutomaticGenerationStage('找到 assistant', `楼层 ${readyTarget.messageIndex}`);
   await generateStatusbar('automatic', readyTarget.messageIndex, readyTarget);
 }
 
@@ -983,6 +998,7 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
     readyTarget && targetDoc.querySelector(`#chat .mes[mesid="${readyTarget.messageIndex}"]`),
   );
   if (!readyTarget || !messageElementReady || !isAutomaticTargetAfterGenerationStart(readyTarget, baseline)) {
+    if (attempt === 0) logAutomaticGenerationStage('等待结束结果', 'assistant 尚未稳定或不是本轮正文');
     if (attempt < 20) {
       automaticGenerationEndTimer = targetWindow.setTimeout(() => {
         automaticGenerationEndTimer = null;
@@ -993,19 +1009,25 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
   }
 
   const targetKey = getAutomaticAssistantTargetKey(readyTarget);
-  if (!targetKey || targetKey === lastAutomaticTargetKey) return;
+  if (!targetKey || targetKey === lastAutomaticTargetKey) {
+    logAutomaticGenerationStage('跳过重复', `楼层 ${readyTarget?.messageIndex ?? '未知'}`);
+    return;
+  }
   lastAutomaticTargetKey = targetKey;
+  logAutomaticGenerationStage('找到 assistant', `楼层 ${readyTarget.messageIndex}`);
   await generateStatusbar('automatic', readyTarget.messageIndex, readyTarget);
 }
 
 function handleGenerationStarted() {
   if (!settings.autoGenerate || generationAbortController) return;
+  logAutomaticGenerationStage('generation-started');
   invalidatePendingAutomaticGeneration();
   automaticGenerationBaseline = captureAutomaticGenerationBaseline(getContext().chat);
 }
 
 function handleGenerationEnded() {
   if (!settings.autoGenerate || generationAbortController) return;
+  logAutomaticGenerationStage('generation-ended', '等待 500ms 检查最终消息');
   const baseline = automaticGenerationBaseline;
   automaticGenerationBaseline = null;
   const revision = automaticGenerationRevision;
@@ -1021,6 +1043,7 @@ function handleAssistantMessageReceived(messageId) {
   if (!settings.autoGenerate) return;
   const pendingTarget = captureAutomaticAssistantTarget(messageId, context.chat);
   if (!pendingTarget) return;
+  logAutomaticGenerationStage('message-received', `楼层 ${pendingTarget.messageIndex}`);
   invalidatePendingAutomaticGeneration({ abortActive: true });
   const revision = automaticGenerationRevision;
   pendingAutomaticTargets.set(pendingTarget.messageIndex, { pendingTarget, revision });
@@ -1030,6 +1053,7 @@ function handleAssistantMessageRendered(messageId) {
   const messageIndex = Number(messageId);
   const pending = pendingAutomaticTargets.get(messageIndex);
   if (!pending) return;
+  logAutomaticGenerationStage('message-rendered', `楼层 ${messageIndex}`);
   pendingAutomaticTargets.delete(messageIndex);
   targetWindow.setTimeout(() => {
     void runDeferredAutomaticGeneration(pending.pendingTarget, pending.revision);

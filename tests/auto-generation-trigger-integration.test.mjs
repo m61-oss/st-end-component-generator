@@ -18,6 +18,10 @@ assert.match(
   /captureAutomaticAssistantTarget,[\s\S]*?isAutomaticAssistantTargetCurrent,[\s\S]*?resolveReadyAutomaticAssistantTarget/,
   'the assistant-message resolver should be imported',
 );
+assert.match(source, /function logAutomaticGenerationStage\(/, 'automatic generation should expose stage logging');
+assert.match(source, /logAutomaticGenerationStage\('generation-started'/, 'generation start should be logged');
+assert.match(source, /logAutomaticGenerationStage\('generation-ended'/, 'generation end should be logged');
+assert.match(source, /logAutomaticGenerationStage\('api-start'/, 'automatic API start should be logged');
 assert.doesNotMatch(source, /createAutoGenerationTracker|autoGenerationTracker/, 'generation session state should be removed');
 assert.match(source, /function getAssistantMessageAtIndex\(chat, messageIndex\)/, 'an exact assistant-message resolver should exist');
 assert.match(
