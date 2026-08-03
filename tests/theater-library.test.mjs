@@ -55,8 +55,8 @@ assert.deepEqual(
 
 assert.deepEqual(
   selectTheaterComponents(items, { mode: THEATER_RANDOM_MODE_ALL, count: 99, groups, random: () => 0.5 }).map((item) => item.id),
-  ['format', 'scene-2', 'scene-1', 'ungrouped'],
-  'sampling more than the pool returns the whole eligible pool',
+  ['format', 'scene-2', 'scene-1', 'disabled-group-item', 'ungrouped'],
+  'all mode samples the complete theater library, including disabled groups',
 );
 
 console.log('theater-library tests passed');

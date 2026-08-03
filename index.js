@@ -219,6 +219,7 @@ let theaterSearchQuery = '';
 let theaterFilterMode = 'all';
 let theaterEditMode = false;
 let selectedTheaterIds = new Set();
+let theaterRandomSettingsOpen = false;
 let quickReplySyncTimer = null;
 let worldbookCountRevision = 0;
 let magicWandMenuTimer = null;
@@ -2852,6 +2853,8 @@ function renderTheaterLibrary() {
   if (!host.length) return;
   const openFolders = new Set(host.find('.st-esg-theater-folder[open]').map((_, item) => textOf($(item).attr('data-folder-state-id'))).get());
   const openItems = new Set(host.find('.st-esg-theater-item[open]').map((_, item) => textOf($(item).attr('data-component-id'))).get());
+  const randomSettingsOpen = host.find('.st-esg-theater-random-settings').prop('open');
+  if (typeof randomSettingsOpen === 'boolean') theaterRandomSettingsOpen = randomSettingsOpen;
   const folders = getTheaterLibraryFolders(settings.theaterComponents, settings.theaterGroups, settings.theaterDefaultGroupEnabled);
   const groups = [...folders.groups, { id: '', name: '默认分组', enabled: settings.theaterDefaultGroupEnabled !== false, items: folders.ungrouped, isDefault: true }];
   const editButton = theaterEditMode ? '' : '<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-edit-toggle" type="button"><i class="fa-solid fa-pen-to-square"></i><span>编辑</span></button>';
@@ -2862,8 +2865,13 @@ function renderTheaterLibrary() {
   const modeDescription = mode === THEATER_RANDOM_MODE_OFF
     ? '关闭随机时只发送已启用的小剧场。'
     : mode === THEATER_RANDOM_MODE_ALL
-      ? '从启用分组中的全部小剧场随机抽取。'
+      ? '从小剧场库中的全部小剧场随机抽取。'
       : '已启用内容固定发送，再从未启用内容中随机抽取。';
+  const modeLabel = mode === THEATER_RANDOM_MODE_OFF
+    ? '关闭随机'
+    : mode === THEATER_RANDOM_MODE_ALL
+      ? '全部随机'
+      : '启用固定 + 未启用随机';
   const renderItem = (item) => {
     const isOpen = openItems.has(item.id);
     const controls = theaterEditMode
@@ -2895,8 +2903,9 @@ function renderTheaterLibrary() {
     const body = group.items.length ? group.items.map(renderItem).join('') : '<div class="st-esg-empty st-esg-empty-small">暂无小剧场</div>';
     return `<details class="st-esg-component-folder st-esg-theater-folder${groupEnabled ? '' : ' st-esg-component-folder-is-disabled'}" data-group-id="${escapeHtml(groupId)}" data-folder-state-id="${escapeHtml(folderStateId)}" ${openFolders.has(folderStateId) ? 'open' : ''}><summary class="st-esg-component-folder-head"><span class="st-esg-component-folder-title">${escapeHtml(group.name)}</span><em class="st-esg-component-folder-count${groupEnabled ? '' : ' is-disabled'}">${enabledCount}/${group.items.length}</em>${controls}${actions}${createGroupButton}<i class="fa-solid fa-chevron-down st-esg-component-folder-caret"></i></summary><div class="st-esg-component-folder-body">${body}</div></details>`;
   }).join('');
-  host.html(`<div class="st-esg-card st-esg-component-library-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">小剧场库</div><div class="st-esg-card-desc">独立管理格式要求和剧情小剧场；启用状态可用于随机抽取。</div></div>${editButton}</div>${editToolbar}<div class="st-esg-list-toolbar st-esg-component-list-toolbar"><input type="text" class="st-esg-search-input st-esg-theater-search-input text_pole" placeholder="搜索小剧场..." value="${escapeHtml(theaterSearchQuery)}"><select class="st-esg-filter-select st-esg-theater-filter-select text_pole"><option value="all" ${theaterFilterMode === 'all' ? 'selected' : ''}>全部</option><option value="enabled" ${theaterFilterMode === 'enabled' ? 'selected' : ''}>仅启用</option><option value="disabled" ${theaterFilterMode === 'disabled' ? 'selected' : ''}>仅禁用</option></select><span class="st-esg-theater-count"></span></div><div class="st-esg-theater-random-settings"><label>随机模式<select class="text_pole st-esg-theater-random-mode"><option value="off" ${mode === THEATER_RANDOM_MODE_OFF ? 'selected' : ''}>关闭随机</option><option value="all" ${mode === THEATER_RANDOM_MODE_ALL ? 'selected' : ''}>全部随机</option><option value="fixed-enabled" ${mode === THEATER_RANDOM_MODE_FIXED_ENABLED ? 'selected' : ''}>启用固定 + 未启用随机</option></select></label><label>随机数量<input class="text_pole st-esg-theater-random-count" type="number" min="0" step="1" value="${settings.theaterRandomCount}" /></label><span class="st-esg-card-desc st-esg-theater-random-description">${modeDescription}</span></div><div class="st-esg-theater-folders">${folderHtml}</div></div>`);
+  host.html(`<div class="st-esg-card st-esg-component-library-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">小剧场库</div><div class="st-esg-card-desc">独立管理格式要求和剧情小剧场；启用状态可用于随机抽取。</div></div>${editButton}</div>${editToolbar}<div class="st-esg-list-toolbar st-esg-component-list-toolbar"><input type="text" class="st-esg-search-input st-esg-theater-search-input text_pole" placeholder="搜索小剧场..." value="${escapeHtml(theaterSearchQuery)}"><select class="st-esg-filter-select st-esg-theater-filter-select text_pole"><option value="all" ${theaterFilterMode === 'all' ? 'selected' : ''}>全部</option><option value="enabled" ${theaterFilterMode === 'enabled' ? 'selected' : ''}>仅启用</option><option value="disabled" ${theaterFilterMode === 'disabled' ? 'selected' : ''}>仅禁用</option></select><span class="st-esg-theater-count"></span></div><details class="st-esg-theater-random-settings" ${theaterRandomSettingsOpen ? 'open' : ''}><summary class="st-esg-theater-random-summary"><span>随机设置</span><em>${modeLabel}</em><i class="fa-solid fa-chevron-down st-esg-theater-random-caret"></i></summary><div class="st-esg-theater-random-body"><label>随机模式<select class="text_pole st-esg-theater-random-mode"><option value="off" ${mode === THEATER_RANDOM_MODE_OFF ? 'selected' : ''}>关闭随机</option><option value="all" ${mode === THEATER_RANDOM_MODE_ALL ? 'selected' : ''}>全部随机</option><option value="fixed-enabled" ${mode === THEATER_RANDOM_MODE_FIXED_ENABLED ? 'selected' : ''}>启用固定 + 未启用随机</option></select></label><label>随机数量<input class="text_pole st-esg-theater-random-count" type="number" min="0" step="1" value="${settings.theaterRandomCount}" /></label><span class="st-esg-card-desc st-esg-theater-random-description">${modeDescription}</span></div></details><div class="st-esg-theater-folders">${folderHtml}</div></div>`);
 
+  host.find('.st-esg-theater-random-settings').on('toggle', function () { theaterRandomSettingsOpen = this.open; });
   host.find('.st-esg-theater-random-mode').on('change', function () { settings.theaterRandomMode = normalizeTheaterRandomMode($(this).val()); saveSettings(); renderTheaterLibrary(); });
   host.find('.st-esg-theater-random-count').on('change', function () { settings.theaterRandomCount = normalizeTheaterRandomCount($(this).val()); $(this).val(settings.theaterRandomCount); saveSettings(); });
   host.find('.st-esg-theater-search-input').on('input', function () { theaterSearchQuery = String($(this).val() || ''); applyTheaterLibraryFilters(); });

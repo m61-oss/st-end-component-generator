@@ -70,7 +70,7 @@ function chooseRandomItems(items, count, random = Math.random) {
 export function selectTheaterComponents(items, options = {}) {
   const mode = normalizeTheaterRandomMode(options.mode);
   const orderedItems = getTheaterLibraryItems(items, options.groups, options.defaultGroupEnabled !== false)
-    .filter((item) => item.theaterGroupEnabled !== false);
+    .filter((item) => mode === THEATER_RANDOM_MODE_ALL || item.theaterGroupEnabled !== false);
   const enabledItems = orderedItems.filter((item) => item.enabled !== false);
   if (mode === THEATER_RANDOM_MODE_OFF) return enabledItems;
   if (mode === THEATER_RANDOM_MODE_FIXED_ENABLED) {
