@@ -183,6 +183,8 @@ const pendingAutomaticTargets = new Map();
 let automaticGenerationBaseline = null;
 let automaticGenerationEndTimer = null;
 let lastAutomaticTargetKey = '';
+let automaticGenerationLogActive = false;
+const automaticGenerationLogEntries = [];
 let lastRuntimeDiagnostics = {};
 let lastPromptLogText = '';
 let promptLogBuilding = false;
@@ -208,7 +210,22 @@ const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
 function logAutomaticGenerationStage(stage, details = '') {
   const suffix = details ? `：${details}` : '';
-  console.log(`[${EXTENSION_ID}] [自动生成] ${stage}${suffix}`);
+  const line = `${new Date().toLocaleTimeString()} [自动生成] ${stage}${suffix}`;
+  automaticGenerationLogEntries.push(line);
+  if (automaticGenerationLogEntries.length > 40) automaticGenerationLogEntries.shift();
+  const logElement = targetDoc.getElementById('st-esg-generation-log');
+  if (logElement) {
+    logElement.textContent = automaticGenerationLogEntries.join('\n');
+    logElement.scrollTop = logElement.scrollHeight;
+  }
+  console.log(`[${EXTENSION_ID}] ${line}`);
+}
+
+function clearAutomaticGenerationLog() {
+  automaticGenerationLogEntries.length = 0;
+  automaticGenerationLogActive = true;
+  const logElement = targetDoc.getElementById('st-esg-generation-log');
+  if (logElement) logElement.textContent = '';
 }
 
 async function getYamlParser() {
@@ -746,6 +763,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     notifyStatus(error.message, 'warning');
     return '';
   }
+  if (entryType !== 'automatic' || !automaticGenerationLogActive) clearAutomaticGenerationLog();
   clearGeneratedThinking();
   const preview = $t('#st-esg-preview').get(0);
   if (preview) preview.scrollTop = preview.scrollHeight;
@@ -1020,6 +1038,7 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
 
 function handleGenerationStarted() {
   if (!settings.autoGenerate || generationAbortController) return;
+  clearAutomaticGenerationLog();
   logAutomaticGenerationStage('generation-started');
   invalidatePendingAutomaticGeneration();
   automaticGenerationBaseline = captureAutomaticGenerationBaseline(getContext().chat);
@@ -1027,6 +1046,7 @@ function handleGenerationStarted() {
 
 function handleGenerationEnded() {
   if (!settings.autoGenerate || generationAbortController) return;
+  if (!automaticGenerationLogActive) clearAutomaticGenerationLog();
   logAutomaticGenerationStage('generation-ended', '等待 500ms 检查最终消息');
   const baseline = automaticGenerationBaseline;
   automaticGenerationBaseline = null;
@@ -1043,6 +1063,7 @@ function handleAssistantMessageReceived(messageId) {
   if (!settings.autoGenerate) return;
   const pendingTarget = captureAutomaticAssistantTarget(messageId, context.chat);
   if (!pendingTarget) return;
+  if (!automaticGenerationLogActive) clearAutomaticGenerationLog();
   logAutomaticGenerationStage('message-received', `楼层 ${pendingTarget.messageIndex}`);
   invalidatePendingAutomaticGeneration({ abortActive: true });
   const revision = automaticGenerationRevision;
@@ -3349,6 +3370,7 @@ function renderPluginPanel() {
   const modeCard = workspace?.querySelector('#st-esg-mode')?.closest('.st-esg-card');
   modeCard?.replaceWith(...$(buildGenerationSettingsMarkup()).toArray());
   injectionCard?.remove();
+  workspace?.insertAdjacentHTML('beforeend', '<div class="st-esg-card st-esg-generation-log-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">本次生成日志</div><div class="st-esg-card-desc">每次开始生成时清空，只保留本次生成流程。</div></div></div><pre id="st-esg-generation-log" class="st-esg-generation-log">尚未开始生成</pre></div>');
   workspace?.querySelector('#st-esg-preview')?.closest('.st-esg-card')?.classList.add('st-esg-generation-content');
   const apiFields = dialog.querySelector('#st-esg-api-url')?.closest('.st-esg-grid');
   const apiKeyLabel = dialog.querySelector('#st-esg-api-key')?.closest('label');

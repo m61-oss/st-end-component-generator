@@ -19,6 +19,8 @@ assert.match(
   'the assistant-message resolver should be imported',
 );
 assert.match(source, /function logAutomaticGenerationStage\(/, 'automatic generation should expose stage logging');
+assert.match(source, /function clearAutomaticGenerationLog\(/, 'a new generation should clear the visible stage log');
+assert.match(source, /id=["']st-esg-generation-log["']/, 'the generation page should contain a visible stage log');
 assert.match(source, /logAutomaticGenerationStage\('generation-started'/, 'generation start should be logged');
 assert.match(source, /logAutomaticGenerationStage\('generation-ended'/, 'generation end should be logged');
 assert.match(source, /logAutomaticGenerationStage\('api-start'/, 'automatic API start should be logged');
