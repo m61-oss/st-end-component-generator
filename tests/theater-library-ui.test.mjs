@@ -16,5 +16,7 @@ assert.match(indexSource, /const theaterRandomSettingsMarkup =/);
 assert.match(indexSource, /\$\{editToolbar\}\$\{theaterRandomSettingsMarkup\}<div class="st-esg-list-toolbar/);
 assert.match(styleSource, /\.st-esg-library-collapsible:not\(\[open\]\)[\s\S]*st-esg-component-edit-toggle/);
 assert.match(styleSource, /\.st-esg-library-card-summary \{[^}]*min-height: 34px/s);
+assert.match(styleSource, /\.st-esg-library-card-body \{ padding: 8px; }/);
+assert.match(styleSource, /\.st-esg-library-card-body > \.st-esg-list-toolbar \{[^}]*top: 0;[^}]*margin: 0 0 8px;/s);
 
 console.log('theater-library UI tests passed');
