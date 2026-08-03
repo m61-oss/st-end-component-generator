@@ -792,6 +792,57 @@ async function callExternalApi(latestMessage, signal) {
     if (typeof content !== 'string' || !content.trim()) throw markGenerationResponseError(new Error('酒馆预设 API 返回为空。'));
     return content.trim();
   }
+  const tavernChatService = targetWindow?.SillyTavern?.ChatCompletionService
+    || targetWindow?.ChatCompletionService
+    || getContext()?.ChatCompletionService;
+  if (typeof tavernChatService?.processRequest === 'function') {
+    const requestData = {
+      ...additional.additionalBody,
+      stream: Boolean(settings.streamingEnabled),
+      messages,
+      model,
+      chat_completion_source: 'custom',
+      max_tokens: numeric.maxTokens,
+      temperature: numeric.temperature,
+      custom_url: settings.apiUrl,
+      custom_include_headers: {
+        ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
+        ...additional.additionalHeaders,
+      },
+      custom_exclude_body: additional.excludedBody,
+    };
+    lastPromptLogText = createPromptLog({ apiUrl, apiKey: settings.apiKey, model, maxTokens: String(numeric.maxTokens), temperature: String(numeric.temperature), messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics: lastRuntimeDiagnostics, compressSystemMessages: settings.compressSystemMessages });
+    promptLogBuilding = false;
+    settings.lastPromptLog = '';
+    saveSettings();
+    renderPromptLog();
+    const response = await tavernChatService.processRequest(requestData, {}, true, signal);
+    if (settings.streamingEnabled && typeof response === 'function') {
+      const streamPreview = createStreamPreviewController({ intervalMs: 80, onPreview: updateStreamedPreview });
+      let streamedText = '';
+      try {
+        for await (const chunk of response()) {
+          const nextText = chunk?.text ?? chunk?.content ?? '';
+          if (typeof nextText === 'string') {
+            streamedText = nextText;
+            streamPreview.push(streamedText);
+          }
+        }
+        streamPreview.flush();
+        if (!streamedText.trim()) throw markGenerationResponseError(new Error('API 返回为空。'));
+        return streamedText.trim();
+      } catch (error) {
+        streamPreview.flush();
+        if (error && typeof error === 'object') error.streamedText = streamPreview.getText();
+        throw error;
+      } finally {
+        streamPreview.dispose();
+      }
+    }
+    const content = response?.content ?? response?.result?.choices?.[0]?.message?.content ?? '';
+    if (typeof content !== 'string' || !content.trim()) throw markGenerationResponseError(new Error('API 返回为空。'));
+    return content.trim();
+  }
   const { body, headers } = buildApiRequestParts(
     {
       model,

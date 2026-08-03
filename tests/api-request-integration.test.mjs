@@ -15,6 +15,8 @@ assert.match(source, /async function getYamlParser\(\)[\s\S]*?import\('\.\.\/\.\
 assert.match(source, /import \{[\s\S]*?buildApiRequestParts,[\s\S]*?parseApiAdditionalParameters,[\s\S]*?parseApiNumericSettings,[\s\S]*?\} from '\.\/api\/api-request-parameters\.js\?ver=0\.1\.3';/, 'request parameter helpers should be imported');
 
 assert.match(callFunction, /const numeric = parseApiNumericSettings\(settings\);/, 'generation should validate user-entered numeric settings');
+assert.match(callFunction, /ChatCompletionService/, 'custom API requests should use Tavern ChatCompletionService when available');
+assert.match(callFunction, /chat_completion_source: 'custom'/, 'custom API requests should identify the OpenAI-compatible source');
 assert.match(callFunction, /ConnectionManagerRequestService/, '酒馆预设 should use the connection manager service');
 assert.match(callFunction, /const additional = parseApiAdditionalParameters\(settings, await getYamlParser\(\)\);/, 'generation should validate saved YAML before requesting');
 assert.match(callFunction, /const \{ body, headers \} = buildApiRequestParts\(/, 'generation should merge additional body and headers centrally');
