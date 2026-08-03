@@ -48,7 +48,6 @@ import {
   captureAutomaticGenerationBaseline,
   getAutomaticAssistantTargetKey,
   isAutomaticAssistantTargetAddressable,
-  isAutomaticAssistantTargetCurrent,
   isAutomaticTargetAfterGenerationStart,
   resolveReadyAutomaticAssistantTarget,
 } from './generation/auto-generation-trigger.js?ver=0.1.3';
@@ -990,15 +989,15 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     logAutomaticGenerationStage('api-finished', result ? 'response handling complete' : 'no generated content');
     setGeneratingState(false);
   }
-  if (automaticTarget && !isAutomaticAssistantTargetAddressable(automaticTarget, getContext().chat)) {
-    logAutomaticGenerationStage('generation-skip', 'target floor or swipe changed');
-    notifyStatus('正文楼层或翻页状态已经变化，旧组件结果已丢弃。', 'warning');
-    return '';
-  }
   logAutomaticGenerationStage('result-apply', 'updating preview');
   applyGeneratedResult(result);
   saveSettings();
   if (settings.autoInject && result) {
+    if (automaticTarget && !isAutomaticAssistantTargetAddressable(automaticTarget, getContext().chat)) {
+      logAutomaticGenerationStage('inject-skip', '目标已不是最新 assistant，结果保留在预览中');
+      notifyStatus('组件已经生成，但原目标已不是最新 assistant，已保留结果并跳过自动注入。', 'warning');
+      return settings.lastGenerated;
+    }
     logAutomaticGenerationStage('inject-queued', 'auto-inject enabled');
     await injectGeneratedStatusbar(latest.index);
   }
@@ -1196,16 +1195,9 @@ function invalidatePendingAutomaticGeneration({ abortActive = false } = {}) {
 async function runDeferredAutomaticGeneration(pendingTarget, revision, attempt = 0) {
   const context = getContext();
   if (!settings.autoGenerate || revision !== automaticGenerationRevision) return;
-  const currentTarget = captureAutomaticAssistantTarget(pendingTarget.messageIndex, context.chat);
-  if (
-    !currentTarget
-    || currentTarget.messageIndex !== context.chat.length - 1
-  ) return;
-
   const readyTarget = resolveReadyAutomaticAssistantTarget(pendingTarget, context.chat);
-  const messageElementReady = Boolean(targetDoc.querySelector(`#chat .mes[mesid="${pendingTarget.messageIndex}"]`));
-  if (!readyTarget || !messageElementReady || generationAbortController) {
-    if (attempt === 0) logAutomaticGenerationStage('等待渲染', 'assistant 或页面节点尚未稳定');
+  if (!readyTarget || generationAbortController) {
+    if (attempt === 0) logAutomaticGenerationStage('等待渲染', '最新 assistant 尚未可用或已有外置生成');
     if (attempt < 400) {
       targetWindow.setTimeout(() => {
         void runDeferredAutomaticGeneration(pendingTarget, revision, attempt + 1);
@@ -1241,11 +1233,8 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
   const readyTarget = pendingTarget
     ? resolveReadyAutomaticAssistantTarget(pendingTarget, context.chat)
     : null;
-  const messageElementReady = Boolean(
-    readyTarget && targetDoc.querySelector(`#chat .mes[mesid="${readyTarget.messageIndex}"]`),
-  );
-  if (!readyTarget || !messageElementReady || !isAutomaticTargetAfterGenerationStart(readyTarget, baseline)) {
-    if (attempt === 0) logAutomaticGenerationStage('等待结束结果', 'assistant 尚未稳定或不是本轮正文');
+  if (!readyTarget || !isAutomaticTargetAfterGenerationStart(readyTarget, baseline)) {
+    if (attempt === 0) logAutomaticGenerationStage('等待结束结果', '最新 assistant 尚未可用或不是本轮正文');
     if (attempt < 20) {
       automaticGenerationEndTimer = targetWindow.setTimeout(() => {
         automaticGenerationEndTimer = null;
@@ -1294,7 +1283,7 @@ function handleAssistantMessageReceived(messageId) {
   if (!pendingTarget) return;
   if (!automaticGenerationLogActive) clearAutomaticGenerationLog();
   logAutomaticGenerationStage('message-received', `楼层 ${pendingTarget.messageIndex}`);
-  invalidatePendingAutomaticGeneration({ abortActive: true });
+  invalidatePendingAutomaticGeneration();
   const revision = automaticGenerationRevision;
   pendingAutomaticTargets.set(pendingTarget.messageIndex, { pendingTarget, revision });
 }
@@ -4098,7 +4087,6 @@ function init() {
   if (context.eventTypes.GENERATION_ENDED) context.eventSource.on(context.eventTypes.GENERATION_ENDED, handleGenerationEnded);
   if (context.eventTypes.MESSAGE_RECEIVED) context.eventSource.on(context.eventTypes.MESSAGE_RECEIVED, handleAssistantMessageReceived);
   if (context.eventTypes.CHARACTER_MESSAGE_RENDERED) context.eventSource.on(context.eventTypes.CHARACTER_MESSAGE_RENDERED, handleAssistantMessageRendered);
-  if (context.eventTypes.MESSAGE_SWIPED) context.eventSource.on(context.eventTypes.MESSAGE_SWIPED, () => invalidatePendingAutomaticGeneration({ abortActive: true }));
   if (context.eventTypes.CHAT_CHANGED) context.eventSource.on(context.eventTypes.CHAT_CHANGED, () => {
     invalidatePendingAutomaticGeneration({ abortActive: true });
     automaticGenerationBaseline = null;
