@@ -77,7 +77,7 @@ assert.match(
 );
 assert.match(
   generateFunction,
-  /if \(settings\.autoInject && result\) await injectGeneratedStatusbar\(latest\.index\);/,
+  /if \(settings\.autoInject && result\) \{[\s\S]*?await injectGeneratedStatusbar\(latest\.index\);/,
   'automatic injection should receive the same message index',
 );
 assert.match(

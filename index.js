@@ -755,22 +755,26 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     generationAbortController.abort();
     return '';
   }
+  if (entryType !== 'automatic' || !automaticGenerationLogActive) clearAutomaticGenerationLog();
+  logAutomaticGenerationStage('generation-start', `${entryType}; preparing target`);
   const context = getContext();
   const latest = targetMessageIndex === null
     ? getLatestAssistantMessage(context.chat)
     : getAssistantMessageAtIndex(context.chat, targetMessageIndex);
   if (!latest) {
     const error = new Error('没有找到可用于生成的助手回复。');
+    logAutomaticGenerationStage('generation-skip', error.message);
     notifyStatus(error.message, 'warning');
     return '';
   }
-  if (entryType !== 'automatic' || !automaticGenerationLogActive) clearAutomaticGenerationLog();
   clearGeneratedThinking();
   const preview = $t('#st-esg-preview').get(0);
   if (preview) preview.scrollTop = preview.scrollHeight;
   notifyStatus('正在生成文尾组件……', 'info');
   generationAbortController = new AbortController();
   if (entryType === 'automatic') activeAutomaticTarget = automaticTarget;
+  logAutomaticGenerationStage('target-ready', `message ${latest.index}`);
+  logAutomaticGenerationStage('api-start', `${entryType}; message ${latest.index}`);
   if (entryType === 'automatic') {
     logAutomaticGenerationStage('api-start', `楼层 ${latest.index}`);
   }
@@ -778,14 +782,18 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   let result = '';
   try {
     if (!settings.apiUrl || !settings.apiModel) {
+      logAutomaticGenerationStage('generation-error', 'API address or model is missing');
       notifyStatus('请先在“API 配置”里填写 API 地址和模型名称。', 'warning');
       return '';
     }
+    logAutomaticGenerationStage('prompt-build-start');
     beginPromptLogBuild();
     result = await callExternalApi(latest.message, generationAbortController.signal);
+    logAutomaticGenerationStage('api-returned', result ? 'received content' : 'empty response');
     if (entryType === 'automatic') logAutomaticGenerationStage('api-returned', result ? '已收到内容' : '返回为空');
   }
   catch (error) {
+    logAutomaticGenerationStage('generation-error', error?.message || 'generation failed');
     if (error?.name === 'AbortError') {
       const partialStreamText = String(error?.streamedText ?? '');
       if (partialStreamText.trim()) {
@@ -808,41 +816,54 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     generationAbortController = null;
     if (entryType === 'automatic') activeAutomaticTarget = null;
     if (entryType === 'automatic') logAutomaticGenerationStage('api-finished', result ? '流程结束' : '未生成内容');
+    logAutomaticGenerationStage('api-finished', result ? 'response handling complete' : 'no generated content');
     setGeneratingState(false);
   }
   if (automaticTarget && !isAutomaticAssistantTargetAddressable(automaticTarget, getContext().chat)) {
+    logAutomaticGenerationStage('generation-skip', 'target floor or swipe changed');
     notifyStatus('正文楼层或翻页状态已经变化，旧组件结果已丢弃。', 'warning');
     return '';
   }
+  logAutomaticGenerationStage('result-apply', 'updating preview');
   applyGeneratedResult(result);
   saveSettings();
-  if (settings.autoInject && result) await injectGeneratedStatusbar(latest.index);
+  if (settings.autoInject && result) {
+    logAutomaticGenerationStage('inject-queued', 'auto-inject enabled');
+    await injectGeneratedStatusbar(latest.index);
+  }
   else notifyStatus('已生成文尾组件内容，等待检查或注入。');
   return settings.lastGenerated;
 }
 
 async function injectGeneratedStatusbar(targetMessageIndex = null) {
   const context = getContext();
+  logAutomaticGenerationStage('inject-start', targetMessageIndex === null ? 'latest assistant' : `message ${targetMessageIndex}`);
   const latest = targetMessageIndex === null
     ? getLatestAssistantMessage(context.chat)
     : getAssistantMessageAtIndex(context.chat, targetMessageIndex);
   if (!latest) {
     const error = new Error('没有找到可注入的助手回复。');
+    logAutomaticGenerationStage('inject-skip', error.message);
     notifyStatus(error.message, 'warning');
     return;
   }
   try {
     const text = settings.lastGenerated || $t('#st-esg-preview').val() || await generateStatusbar('manual', targetMessageIndex);
-    if (!text) return;
+    if (!text) {
+      logAutomaticGenerationStage('inject-skip', '没有可注入的生成内容');
+      return;
+    }
     const injectedText = cleanGeneratedText(text);
     const originalText = String(latest.message.mes ?? '');
     const swipeId = Number.isInteger(latest.message.swipe_id) ? latest.message.swipe_id : null;
     const hadSwipe = swipeId !== null && Array.isArray(latest.message.swipes);
     const originalSwipeText = hadSwipe ? String(latest.message.swipes[swipeId] ?? originalText) : '';
+    logAutomaticGenerationStage('inject-snapshot', `message ${latest.index}; snapshot saved`);
     injectStatusbar(latest.message, injectedText);
     if (Array.isArray(latest.message.swipes) && Number.isInteger(latest.message.swipe_id)) latest.message.swipes[latest.message.swipe_id] = latest.message.mes;
     let mvuReprocessed = false;
     if (settings.mvuReprocessOnInject && containsMvuUpdateVariable(injectedText)) {
+      logAutomaticGenerationStage('mvu-reprocess', 'UpdateVariable detected');
       try {
         mvuReprocessed = await reprocessMvuVariables(context, latest.index);
       } catch (error) {
@@ -869,13 +890,17 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
       await context.eventSource.emit(messageUpdatedEvent, latest.index);
     }
     try {
+      logAutomaticGenerationStage('chat-save', 'saving injected chat');
       const saveResult = await context.saveChat();
       if (saveResult === false) throw new Error('聊天保存接口返回失败');
       notifyStatus('已注入到最新助手回复。');
+      logAutomaticGenerationStage('inject-finished', 'injection complete');
     } catch (saveError) {
+      logAutomaticGenerationStage('inject-save-warning', 'injection complete, chat save failed');
       notifyStatus('已注入，但聊天保存失败，刷新后可能丢失。', 'warning');
     }
   } catch (error) {
+    logAutomaticGenerationStage('inject-error', error?.message || 'injection failed');
     notifyStatus(error?.message || '注入失败。', 'error');
   }
 }
@@ -895,8 +920,10 @@ function clearInjectionUndoSnapshot() {
 
 async function undoLatestInjection() {
   let context = getContext();
+  logAutomaticGenerationStage('undo-start');
   let validation = refreshInjectionUndoState();
   if (!validation.valid) {
+    logAutomaticGenerationStage('undo-skip', validation.reason || 'invalid snapshot');
     notifyStatus('本次注入已不在最新楼层，或消息内容已经变化，无法安全撤回。', 'warning');
     return;
   }
@@ -905,12 +932,14 @@ async function undoLatestInjection() {
   context = getContext();
   validation = validateInjectionUndoSnapshot(latestInjectionUndoSnapshot, context.chat);
   if (!validation.valid) {
+    logAutomaticGenerationStage('undo-skip', 'message changed during confirmation');
     clearInjectionUndoSnapshot();
     notifyStatus('确认期间消息发生了变化，已取消撤回。', 'warning');
     return;
   }
 
   const snapshot = latestInjectionUndoSnapshot;
+  logAutomaticGenerationStage('undo-restore', `message ${snapshot.targetIndex}`);
   const message = validation.message;
   message.mes = snapshot.originalText;
   if (snapshot.hadSwipe && snapshot.swipeId !== null && Array.isArray(message.swipes)) {
@@ -938,7 +967,9 @@ async function undoLatestInjection() {
     notifyStatus('已撤回本次注入，最新回复已恢复。');
   } catch (saveError) {
     notifyStatus('已恢复注入前内容，但聊天保存失败，刷新后可能丢失。', 'warning');
+    logAutomaticGenerationStage('undo-save-warning', 'restore complete, chat save failed');
   }
+  logAutomaticGenerationStage('undo-finished', 'undo complete');
 }
 
 function registerInjectionUndoInvalidation(context) {

@@ -10,11 +10,11 @@ const generateFunction = source.slice(generateStart, injectStart);
 const generationEndedFunction = source.slice(handlerStart, statusStart);
 const injectFunction = source.slice(injectStart, handlerStart);
 
-assert.match(generateFunction, /if \(settings\.autoInject && result\) await injectGeneratedStatusbar\(latest\.index\);/, 'every successful plugin generation should auto-inject into the same assistant message when enabled');
+assert.match(generateFunction, /if \(settings\.autoInject && result\) \{[\s\S]*?await injectGeneratedStatusbar\(latest\.index\);/, 'every successful plugin generation should auto-inject into the same assistant message when enabled');
 assert.doesNotMatch(generationEndedFunction, /injectGeneratedStatusbar\(/, 'the Tavern completion handler must not inject a second time');
 assert.match(generationEndedFunction, /await generateStatusbar\('automatic', readyTarget\.messageIndex, readyTarget\);/, 'automatic generation should pass the stable assistant swipe identity');
 assert.match(generateFunction, /conflictAction === 'ignore'[\s\S]*?return '';/, 'an automatic trigger should be ignored while generation is active');
-assert.match(injectFunction, /context\.updateMessageBlock\(latest\.index, latest\.message\);\s*const messageUpdatedEvent = context\.eventTypes\?\.MESSAGE_UPDATED;\s*if \(messageUpdatedEvent && context\.eventSource\?\.emit\) \{\s*await context\.eventSource\.emit\(messageUpdatedEvent, latest\.index\);\s*\}\s*try \{\s*const saveResult = await context\.saveChat\(\);/s, 'injection should mirror the Tavern edit lifecycle by notifying message-update listeners before saving');
+assert.match(injectFunction, /context\.updateMessageBlock\(latest\.index, latest\.message\);\s*const messageUpdatedEvent = context\.eventTypes\?\.MESSAGE_UPDATED;\s*if \(messageUpdatedEvent && context\.eventSource\?\.emit\) \{\s*await context\.eventSource\.emit\(messageUpdatedEvent, latest\.index\);\s*\}\s*try \{[\s\S]*?const saveResult = await context\.saveChat\(\);/, 'injection should mirror the Tavern edit lifecycle by notifying message-update listeners before saving');
 assert.match(source, /mvuReprocessOnInject: true,/, 'MVU reprocessing should default to enabled for generated variable updates');
 assert.match(injectFunction, /const injectedText = cleanGeneratedText\(text\);[\s\S]*?injectStatusbar\(latest\.message, injectedText\);/, 'injection should retain the exact generated text for post-injection decisions');
 assert.match(injectFunction, /if \(settings\.mvuReprocessOnInject && containsMvuUpdateVariable\(injectedText\)\) \{[\s\S]*?await reprocessMvuVariables\(context, latest\.index\);[\s\S]*?\}/, 'MVU reprocessing should run only when this injected content contains an UpdateVariable tag');
@@ -39,6 +39,9 @@ assert.match(
   'injection undo should use the tested strict snapshot validator',
 );
 assert.match(source, /let latestInjectionUndoSnapshot = null;/, 'only one latest injection snapshot should be retained');
+assert.match(source, /logAutomaticGenerationStage\('inject-start'/, 'injection should log its start');
+assert.match(source, /logAutomaticGenerationStage\('undo-start'/, 'undo should log its start');
+assert.match(source, /logAutomaticGenerationStage\('inject-finished'/, 'injection should log completion');
 assert.match(
   injectFunction,
   /const originalText = String\(latest\.message\.mes \?\? ''\);[\s\S]*?injectStatusbar\(latest\.message, injectedText\);[\s\S]*?createInjectionUndoSnapshot\(\{[\s\S]*?targetIndex: latest\.index,[\s\S]*?chatLength: context\.chat\.length,[\s\S]*?originalText,[\s\S]*?injectedText: latest\.message\.mes,/,
