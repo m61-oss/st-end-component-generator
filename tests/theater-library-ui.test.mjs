@@ -12,5 +12,9 @@ assert.match(styleSource, /\.st-esg-theater-random-fields \{[^}]*grid-template-c
 assert.match(indexSource, /st-esg-component-library-card st-esg-library-collapsible/);
 assert.match(indexSource, /st-esg-library-collapsible st-esg-theater-library-card/);
 assert.equal((indexSource.match(/st-esg-library-card-summary/g) || []).length, 2);
+assert.match(indexSource, /const theaterRandomSettingsMarkup =/);
+assert.match(indexSource, /\$\{editToolbar\}\$\{theaterRandomSettingsMarkup\}<div class="st-esg-list-toolbar/);
+assert.match(styleSource, /\.st-esg-library-collapsible:not\(\[open\]\)[\s\S]*st-esg-component-edit-toggle/);
+assert.match(styleSource, /\.st-esg-library-card-summary \{[^}]*min-height: 34px/s);
 
 console.log('theater-library UI tests passed');
