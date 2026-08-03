@@ -695,10 +695,14 @@ function buildComponentText(components, substituteParams) {
 
 const EXTERNAL_COMPONENTS_PLACEHOLDER = '{{external_components}}';
 
-async function buildPluginTaskMessage({ taskPrompt, components, substituteParams, renderTemplate }) {
+async function buildPluginTaskMessage({ taskPrompt, components, theaterComponents, substituteParams, renderTemplate }) {
   const task = applySubstituteParams(taskPrompt, substituteParams);
+  const allComponents = [
+    ...(Array.isArray(components) ? components : []),
+    ...(Array.isArray(theaterComponents) ? theaterComponents : []),
+  ];
   const expandedTask = task.includes(EXTERNAL_COMPONENTS_PLACEHOLDER)
-    ? task.split(EXTERNAL_COMPONENTS_PLACEHOLDER).join(buildComponentText(components, substituteParams))
+    ? task.split(EXTERNAL_COMPONENTS_PLACEHOLDER).join(buildComponentText(allComponents, substituteParams))
     : task;
   return renderTemplate ? await renderTemplate(expandedTask) : expandedTask;
 }
@@ -726,7 +730,7 @@ function stripInternalMessageFields(messages) {
   return messages;
 }
 
-export async function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, promptSourceItems, worldbookSourceControlled = false, historyCleanupTags = '', substituteParams, taskPlacement, replaceLastUserMessageWithTask = false, omitOriginalUserMessages = false, baiBaiBook = null, renderTemplate = null }) {
+export async function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, theaterComponents, promptSourceItems, worldbookSourceControlled = false, historyCleanupTags = '', substituteParams, taskPlacement, replaceLastUserMessageWithTask = false, omitOriginalUserMessages = false, baiBaiBook = null, renderTemplate = null }) {
   const hasSelectedPromptSources = Array.isArray(promptSourceItems) && promptSourceItems.length > 0;
   const preset = getCurrentPreset(targetWindow, context);
   const worldbooks = worldbookSourceControlled
@@ -739,7 +743,7 @@ export async function buildExternalStatusbarMessages({ targetWindow, context, la
     ...worldbooks.atDepth,
     ...baiBaiBookInjections,
   ];
-  const taskContent = await buildPluginTaskMessage({ taskPrompt, components, substituteParams, renderTemplate });
+  const taskContent = await buildPluginTaskMessage({ taskPrompt, components, theaterComponents, substituteParams, renderTemplate });
   const depthReferenceMessages = taskPlacement?.enabled
     ? [{ role: 'user', content: taskContent, _depthReferenceOnly: true }]
     : [];
