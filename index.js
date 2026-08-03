@@ -45,7 +45,10 @@ import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.3';
 import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.1.3';
 import {
   captureAutomaticAssistantTarget,
+  captureAutomaticGenerationBaseline,
+  getAutomaticAssistantTargetKey,
   isAutomaticAssistantTargetCurrent,
+  isAutomaticTargetAfterGenerationStart,
   resolveReadyAutomaticAssistantTarget,
 } from './generation/auto-generation-trigger.js?ver=0.1.3';
 import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.1.3';
@@ -177,6 +180,9 @@ let generationAbortController = null;
 let activeAutomaticTarget = null;
 let automaticGenerationRevision = 0;
 const pendingAutomaticTargets = new Map();
+let automaticGenerationBaseline = null;
+let automaticGenerationEndTimer = null;
+let lastAutomaticTargetKey = '';
 let lastRuntimeDiagnostics = {};
 let lastPromptLogText = '';
 let promptLogBuilding = false;
@@ -923,6 +929,10 @@ function registerInjectionUndoInvalidation(context) {
 function invalidatePendingAutomaticGeneration({ abortActive = false } = {}) {
   automaticGenerationRevision += 1;
   pendingAutomaticTargets.clear();
+  if (automaticGenerationEndTimer !== null) {
+    targetWindow.clearTimeout(automaticGenerationEndTimer);
+    automaticGenerationEndTimer = null;
+  }
   if (abortActive && activeAutomaticTarget && generationAbortController) generationAbortController.abort();
 }
 
@@ -945,7 +955,65 @@ async function runDeferredAutomaticGeneration(pendingTarget, revision, attempt =
     }
     return;
   }
+  const targetKey = getAutomaticAssistantTargetKey(readyTarget);
+  if (!targetKey || targetKey === lastAutomaticTargetKey) return;
+  lastAutomaticTargetKey = targetKey;
   await generateStatusbar('automatic', readyTarget.messageIndex, readyTarget);
+}
+
+async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt = 0) {
+  const context = getContext();
+  if (!settings.autoGenerate || revision !== automaticGenerationRevision) return;
+  if (generationAbortController) {
+    if (attempt < 20) {
+      automaticGenerationEndTimer = targetWindow.setTimeout(() => {
+        automaticGenerationEndTimer = null;
+        void runGenerationEndedAutomaticGeneration(baseline, revision, attempt + 1);
+      }, 100);
+    }
+    return;
+  }
+
+  const latest = getLatestAssistantMessage(context.chat);
+  const pendingTarget = latest ? captureAutomaticAssistantTarget(latest.index, context.chat) : null;
+  const readyTarget = pendingTarget
+    ? resolveReadyAutomaticAssistantTarget(pendingTarget, context.chat)
+    : null;
+  const messageElementReady = Boolean(
+    readyTarget && targetDoc.querySelector(`#chat .mes[mesid="${readyTarget.messageIndex}"]`),
+  );
+  if (!readyTarget || !messageElementReady || !isAutomaticTargetAfterGenerationStart(readyTarget, baseline)) {
+    if (attempt < 20) {
+      automaticGenerationEndTimer = targetWindow.setTimeout(() => {
+        automaticGenerationEndTimer = null;
+        void runGenerationEndedAutomaticGeneration(baseline, revision, attempt + 1);
+      }, 100);
+    }
+    return;
+  }
+
+  const targetKey = getAutomaticAssistantTargetKey(readyTarget);
+  if (!targetKey || targetKey === lastAutomaticTargetKey) return;
+  lastAutomaticTargetKey = targetKey;
+  await generateStatusbar('automatic', readyTarget.messageIndex, readyTarget);
+}
+
+function handleGenerationStarted() {
+  if (!settings.autoGenerate || generationAbortController) return;
+  invalidatePendingAutomaticGeneration();
+  automaticGenerationBaseline = captureAutomaticGenerationBaseline(getContext().chat);
+}
+
+function handleGenerationEnded() {
+  if (!settings.autoGenerate || generationAbortController) return;
+  const baseline = automaticGenerationBaseline;
+  automaticGenerationBaseline = null;
+  const revision = automaticGenerationRevision;
+  if (automaticGenerationEndTimer !== null) targetWindow.clearTimeout(automaticGenerationEndTimer);
+  automaticGenerationEndTimer = targetWindow.setTimeout(() => {
+    automaticGenerationEndTimer = null;
+    void runGenerationEndedAutomaticGeneration(baseline, revision);
+  }, 500);
 }
 
 function handleAssistantMessageReceived(messageId) {
@@ -3684,10 +3752,16 @@ function init() {
   const context = getContext();
   registerPromptSourceCacheInvalidation(context);
   registerInjectionUndoInvalidation(context);
+  if (context.eventTypes.GENERATION_STARTED) context.eventSource.on(context.eventTypes.GENERATION_STARTED, handleGenerationStarted);
+  if (context.eventTypes.GENERATION_ENDED) context.eventSource.on(context.eventTypes.GENERATION_ENDED, handleGenerationEnded);
   if (context.eventTypes.MESSAGE_RECEIVED) context.eventSource.on(context.eventTypes.MESSAGE_RECEIVED, handleAssistantMessageReceived);
   if (context.eventTypes.CHARACTER_MESSAGE_RENDERED) context.eventSource.on(context.eventTypes.CHARACTER_MESSAGE_RENDERED, handleAssistantMessageRendered);
   if (context.eventTypes.MESSAGE_SWIPED) context.eventSource.on(context.eventTypes.MESSAGE_SWIPED, () => invalidatePendingAutomaticGeneration({ abortActive: true }));
-  if (context.eventTypes.CHAT_CHANGED) context.eventSource.on(context.eventTypes.CHAT_CHANGED, () => invalidatePendingAutomaticGeneration({ abortActive: true }));
+  if (context.eventTypes.CHAT_CHANGED) context.eventSource.on(context.eventTypes.CHAT_CHANGED, () => {
+    invalidatePendingAutomaticGeneration({ abortActive: true });
+    automaticGenerationBaseline = null;
+    lastAutomaticTargetKey = '';
+  });
   console.log(`[${EXTENSION_ID}] 已加载，dialog top layer，UI 挂载文档：${targetWindow === window ? 'current' : 'parent'}`);
 }
 

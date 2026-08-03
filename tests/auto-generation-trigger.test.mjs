@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import {
   captureAutomaticAssistantTarget,
+  captureAutomaticGenerationBaseline,
+  getAutomaticAssistantTargetKey,
+  isAutomaticTargetAfterGenerationStart,
   isAutomaticAssistantTargetCurrent,
   resolveAutomaticAssistantMessageIndex,
   resolveReadyAutomaticAssistantTarget,
@@ -39,6 +42,26 @@ assert.deepEqual(
   'the stable target should use the finalized text instead of the temporary MESSAGE_RECEIVED text',
 );
 assert.equal(isAutomaticAssistantTargetCurrent(readyTarget, readyChat), true);
+const baseline = captureAutomaticGenerationBaseline(readyChat);
+assert.equal(
+  isAutomaticTargetAfterGenerationStart(readyTarget, baseline),
+  false,
+  'an ended event without a new assistant or swipe must not retrigger the same reply',
+);
+const newSwipeTarget = resolveReadyAutomaticAssistantTarget(
+  { messageIndex: 1 },
+  [chat[0], { ...assistant, mes: 'Another swipe', swipe_id: 1, swipes: ['Assistant reply normalized', 'Another swipe'] }],
+);
+assert.equal(isAutomaticTargetAfterGenerationStart(newSwipeTarget, baseline), true);
+assert.notEqual(getAutomaticAssistantTargetKey(newSwipeTarget), getAutomaticAssistantTargetKey(readyTarget));
+assert.equal(
+  isAutomaticTargetAfterGenerationStart(
+    resolveReadyAutomaticAssistantTarget({ messageIndex: 2 }, [...readyChat, { is_user: false, is_system: false, mes: 'New reply', swipe_id: 0, swipes: ['New reply'] }]),
+    baseline,
+  ),
+  true,
+  'a newly appended assistant reply must be eligible after generation ended',
+);
 assert.equal(
   isAutomaticAssistantTargetCurrent(readyTarget, [
     chat[0],
