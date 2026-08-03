@@ -210,8 +210,63 @@ const escapeHtml = (value) => String(value ?? '').replaceAll('&', '&amp;').repla
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
 function logAutomaticGenerationStage(stage, details = '') {
-  const suffix = details ? `：${details}` : '';
-  const line = `${new Date().toLocaleTimeString()} [自动生成] ${stage}${suffix}`;
+  const stageLabels = {
+    'generation-start': '开始生成',
+    'target-ready': '找到目标回复',
+    'api-start': '开始调用 API',
+    'prompt-build-start': '开始组装提示词',
+    'api-returned': 'API 已返回',
+    'generation-error': '生成失败',
+    'api-finished': 'API 调用结束',
+    'generation-skip': '跳过生成',
+    'result-apply': '更新生成预览',
+    'inject-queued': '准备注入',
+    'generation-finished': '生成完成',
+    'inject-start': '开始注入',
+    'inject-skip': '跳过注入',
+    'inject-snapshot': '保存注入前快照',
+    'mvu-reprocess': '处理 MVU 变量',
+    'chat-save': '保存聊天记录',
+    'inject-finished': '注入完成',
+    'inject-save-warning': '注入保存警告',
+    'inject-error': '注入失败',
+    'undo-start': '开始撤回',
+    'undo-skip': '跳过撤回',
+    'undo-restore': '恢复注入前内容',
+    'undo-save-warning': '撤回保存警告',
+    'undo-finished': '撤回完成',
+    'generation-started': '正文生成开始',
+    'generation-ended': '正文生成结束',
+    'message-received': '收到 assistant 消息',
+    'message-rendered': 'assistant 消息已渲染',
+    '等待渲染': '等待页面渲染',
+    '等待结束结果': '等待正文稳定',
+    '找到 assistant': '找到 assistant',
+    '跳过重复': '跳过重复',
+  };
+  const detailText = String(details || '')
+    .replaceAll('automatic', '自动生成')
+    .replaceAll('manual', '手动生成')
+    .replaceAll('quickReply', '快捷回复')
+    .replaceAll('latest assistant', '最新 assistant')
+    .replaceAll('received content', '已收到内容')
+    .replaceAll('empty response', '返回为空')
+    .replaceAll('response handling complete', '响应处理完成')
+    .replaceAll('no generated content', '没有生成内容')
+    .replaceAll('preparing target', '准备目标回复')
+    .replaceAll('updating preview', '正在更新预览')
+    .replaceAll('auto-inject enabled', '已开启自动注入')
+    .replaceAll('waiting for manual injection', '等待手动注入')
+    .replaceAll('injection complete', '注入完成')
+    .replaceAll('injection failed', '注入失败')
+    .replaceAll('restore complete, chat save failed', '恢复完成，但聊天保存失败')
+    .replaceAll('message changed during confirmation', '确认期间消息发生变化')
+    .replaceAll('invalid snapshot', '快照无效')
+    .replaceAll('API address or model is missing', 'API 地址或模型未填写')
+    .replace(/^message (\d+)/, '楼层 $1')
+    .replace(/^message (\d+); /, '楼层 $1；');
+  const suffix = detailText ? `：${detailText}` : '';
+  const line = `${new Date().toLocaleTimeString()} ${stageLabels[stage] || stage}${suffix}`;
   automaticGenerationLogEntries.push(line);
   if (automaticGenerationLogEntries.length > 40) automaticGenerationLogEntries.shift();
   const logElement = targetDoc.getElementById('st-esg-generation-log');
@@ -756,7 +811,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     return '';
   }
   if (entryType !== 'automatic' || !automaticGenerationLogActive) clearAutomaticGenerationLog();
-  logAutomaticGenerationStage('generation-start', `${entryType}; preparing target`);
+  logAutomaticGenerationStage('generation-start', '准备目标回复');
   const context = getContext();
   const latest = targetMessageIndex === null
     ? getLatestAssistantMessage(context.chat)
@@ -774,7 +829,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   generationAbortController = new AbortController();
   if (entryType === 'automatic') activeAutomaticTarget = automaticTarget;
   logAutomaticGenerationStage('target-ready', `message ${latest.index}`);
-  logAutomaticGenerationStage('api-start', `${entryType}; message ${latest.index}`);
+  logAutomaticGenerationStage('api-start', `楼层 ${latest.index}`);
   if (entryType === 'automatic') {
     logAutomaticGenerationStage('api-start', `楼层 ${latest.index}`);
   }
