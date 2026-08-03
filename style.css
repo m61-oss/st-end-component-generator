@@ -373,6 +373,14 @@ select.st-esg-scheme-select {
 .st-esg-component-section-body { display: grid; gap: 0; padding: 0; border: 1px solid var(--esg-border); border-radius: 10px; background: var(--esg-bg-card); overflow: hidden; }
 .st-esg-component-library-card > .st-esg-card-head { flex-direction: row; align-items: center; }
 .st-esg-theater-list { margin-top: 12px; }
+.st-esg-card.st-esg-library-collapsible { padding: 0; overflow: hidden; }
+.st-esg-library-card-summary { display: flex; align-items: center; gap: 8px; padding: 8px; cursor: pointer; list-style: none; }
+.st-esg-library-card-summary::-webkit-details-marker { display: none; }
+.st-esg-library-card-summary .st-esg-card-head { flex: 1; min-width: 0; margin-bottom: 0; }
+.st-esg-library-card-summary::after { content: '▾'; color: var(--esg-text-muted); transition: transform 140ms ease; }
+.st-esg-library-collapsible[open] > .st-esg-library-card-summary { border-bottom: 1px solid var(--esg-border); }
+.st-esg-library-collapsible[open] > .st-esg-library-card-summary::after { transform: rotate(180deg); }
+.st-esg-library-card-body { padding: 0 8px 8px; }
 .st-esg-theater-random-settings { margin: 0 0 8px; border: 1px solid var(--esg-border); border-radius: 8px; background: var(--esg-bg-secondary); overflow: hidden; }
 .st-esg-theater-random-summary { display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 6px 8px; cursor: pointer; list-style: none; color: var(--esg-text-main); font-size: 12px; }
 .st-esg-theater-random-summary::-webkit-details-marker { display: none; }
@@ -704,6 +712,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   .st-esg-footer-actions #st-esg-undo-injection { flex: 0 0 32px; width: 32px; min-width: 32px; padding: 0 !important; }
   #st-esg-undo-injection span { display: none; }
   .st-esg-card-head { flex-direction: column; align-items: stretch; }
+  .st-esg-library-card-summary .st-esg-card-head { flex-direction: row; align-items: center; }
   .st-esg-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .st-esg-workflow,
   .st-esg-grid { grid-template-columns: 1fr; }

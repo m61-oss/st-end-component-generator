@@ -55,8 +55,8 @@ assert.match(
 
 assert.match(
   indexSource,
-  /const componentViewState = captureComponentLibraryViewState\(\);\s*const openFolderStateIds = componentViewState\.openFolders;/,
-  'component list rendering should retain expanded component-library state before a refresh',
+  /const componentViewState = captureComponentLibraryViewState\(\);\s*const currentLibraryOpen = list\.find\('\.st-esg-component-library-card'\)\.prop\('open'\);[\s\S]*?const openFolderStateIds = componentViewState\.openFolders;/,
+  'component list rendering should retain library and folder state before a refresh',
 );
 assert.match(
   indexSource,

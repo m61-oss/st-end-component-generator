@@ -215,10 +215,12 @@ let componentSearchQuery = '';
 let componentFilterMode = 'all';
 let componentEditMode = false;
 let selectedComponentIds = new Set();
+let componentLibraryOpen = true;
 let theaterSearchQuery = '';
 let theaterFilterMode = 'all';
 let theaterEditMode = false;
 let selectedTheaterIds = new Set();
+let theaterLibraryOpen = true;
 let theaterRandomSettingsOpen = false;
 let quickReplySyncTimer = null;
 let worldbookCountRevision = 0;
@@ -2416,11 +2418,13 @@ function renderComponentList() {
   if (!list.length) return;
   pruneSelectedComponentIds();
   const componentViewState = captureComponentLibraryViewState();
+  const currentLibraryOpen = list.find('.st-esg-component-library-card').prop('open');
+  if (typeof currentLibraryOpen === 'boolean') componentLibraryOpen = currentLibraryOpen;
   const openFolderStateIds = componentViewState.openFolders;
   const openComponentIds = componentViewState.openItems;
   const editButton = componentEditMode ? '' : '<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-edit-toggle" type="button"><i class="fa-solid fa-pen-to-square"></i><span>编辑</span></button>';
   const editToolbar = componentEditMode ? '<div class="st-esg-component-edit-toolbar"><span class="st-esg-component-edit-selection-count">未选择项目</span><span class="st-esg-component-batch-actions"><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-batch-move" type="button" title="移动到分组" aria-label="移动到分组" disabled><i class="fa-solid fa-folder-open"></i><span>移动到</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger st-esg-component-batch-delete" type="button" title="删除选中组件" aria-label="删除选中组件" disabled><i class="fa-solid fa-trash"></i><span>删除</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-edit-exit" type="button" title="退出编辑" aria-label="退出编辑"><i class="fa-solid fa-check"></i><span>退出</span></button></span></div>' : '';
-  const wrapLibrary = (content) => `<div class="st-esg-card st-esg-component-library-card"><div class="st-esg-card-head"><div class="st-esg-card-title">组件库</div>${editButton}</div>${editToolbar}${renderComponentListToolbar()}${content}</div>`;
+  const wrapLibrary = (content) => `<details class="st-esg-card st-esg-component-library-card st-esg-library-collapsible" ${componentLibraryOpen ? 'open' : ''}><summary class="st-esg-library-card-summary"><div class="st-esg-card-head"><div class="st-esg-card-title">组件库</div>${editButton}</div></summary><div class="st-esg-library-card-body">${editToolbar}${renderComponentListToolbar()}${content}</div></details>`;
   settings.components = settings.components.map((item) => normalizeComponent(item, targetWindow, getContext()));
   const sections = [
     { scope: COMPONENT_SCOPE_GLOBAL, title: '全局组件', desc: '启用后始终参与文尾组件生成。' },
@@ -2471,6 +2475,7 @@ function renderComponentList() {
   const currentCharacterName = getCurrentCharacterNameSafe(getContext()) || '未选择角色';
   list.find('.st-esg-component-section').eq(2).find('.st-esg-import-group-title').after(`<small class="st-esg-component-section-context">当前角色：${escapeHtml(currentCharacterName)}</small>`);
   saveSettings();
+  list.find('.st-esg-component-library-card').on('toggle', function () { componentLibraryOpen = this.open; });
   list.find('.st-esg-component-edit-toggle').on('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -2853,6 +2858,8 @@ function renderTheaterLibrary() {
   if (!host.length) return;
   const openFolders = new Set(host.find('.st-esg-theater-folder[open]').map((_, item) => textOf($(item).attr('data-folder-state-id'))).get());
   const openItems = new Set(host.find('.st-esg-theater-item[open]').map((_, item) => textOf($(item).attr('data-component-id'))).get());
+  const currentLibraryOpen = host.find('.st-esg-theater-library-card').prop('open');
+  if (typeof currentLibraryOpen === 'boolean') theaterLibraryOpen = currentLibraryOpen;
   const randomSettingsOpen = host.find('.st-esg-theater-random-settings').prop('open');
   if (typeof randomSettingsOpen === 'boolean') theaterRandomSettingsOpen = randomSettingsOpen;
   const folders = getTheaterLibraryFolders(settings.theaterComponents, settings.theaterGroups, settings.theaterDefaultGroupEnabled);
@@ -2903,8 +2910,9 @@ function renderTheaterLibrary() {
     const body = group.items.length ? group.items.map(renderItem).join('') : '<div class="st-esg-empty st-esg-empty-small">暂无小剧场</div>';
     return `<details class="st-esg-component-folder st-esg-theater-folder${groupEnabled ? '' : ' st-esg-component-folder-is-disabled'}" data-group-id="${escapeHtml(groupId)}" data-folder-state-id="${escapeHtml(folderStateId)}" ${openFolders.has(folderStateId) ? 'open' : ''}><summary class="st-esg-component-folder-head"><span class="st-esg-component-folder-title">${escapeHtml(group.name)}</span><em class="st-esg-component-folder-count${groupEnabled ? '' : ' is-disabled'}">${enabledCount}/${group.items.length}</em>${controls}${actions}${createGroupButton}<i class="fa-solid fa-chevron-down st-esg-component-folder-caret"></i></summary><div class="st-esg-component-folder-body">${body}</div></details>`;
   }).join('');
-  host.html(`<div class="st-esg-card st-esg-component-library-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">小剧场库</div><div class="st-esg-card-desc">独立管理格式要求和剧情小剧场；启用状态可用于随机抽取。</div></div>${editButton}</div>${editToolbar}<div class="st-esg-list-toolbar st-esg-component-list-toolbar"><input type="text" class="st-esg-search-input st-esg-theater-search-input text_pole" placeholder="搜索条目..." value="${escapeHtml(theaterSearchQuery)}"><select class="st-esg-filter-select st-esg-theater-filter-select text_pole"><option value="all" ${theaterFilterMode === 'all' ? 'selected' : ''}>全部</option><option value="enabled" ${theaterFilterMode === 'enabled' ? 'selected' : ''}>仅启用</option><option value="disabled" ${theaterFilterMode === 'disabled' ? 'selected' : ''}>仅禁用</option></select><span class="st-esg-theater-count"></span></div><details class="st-esg-theater-random-settings" ${theaterRandomSettingsOpen ? 'open' : ''}><summary class="st-esg-theater-random-summary"><span>随机设置</span><em>${modeLabel}</em><i class="fa-solid fa-chevron-down st-esg-theater-random-caret"></i></summary><div class="st-esg-theater-random-body"><div class="st-esg-theater-random-fields"><span class="st-esg-theater-random-label">随机模式</span><select class="text_pole st-esg-theater-random-mode"><option value="off" ${mode === THEATER_RANDOM_MODE_OFF ? 'selected' : ''}>关闭随机</option><option value="all" ${mode === THEATER_RANDOM_MODE_ALL ? 'selected' : ''}>全部随机</option><option value="fixed-enabled" ${mode === THEATER_RANDOM_MODE_FIXED_ENABLED ? 'selected' : ''}>启用固定 + 未启用随机</option></select><span class="st-esg-theater-random-label">随机数量</span><input class="text_pole st-esg-theater-random-count" type="number" min="0" step="1" value="${settings.theaterRandomCount}" /></div><span class="st-esg-card-desc st-esg-theater-random-description">${modeDescription}</span></div></details><div class="st-esg-theater-folders">${folderHtml}</div></div>`);
+  host.html(`<details class="st-esg-card st-esg-component-library-card st-esg-library-collapsible st-esg-theater-library-card" ${theaterLibraryOpen ? 'open' : ''}><summary class="st-esg-library-card-summary"><div class="st-esg-card-head"><div><div class="st-esg-card-title">小剧场库</div><div class="st-esg-card-desc">独立管理格式要求和剧情小剧场；启用状态可用于随机抽取。</div></div>${editButton}</div></summary><div class="st-esg-library-card-body">${editToolbar}<div class="st-esg-list-toolbar st-esg-component-list-toolbar"><input type="text" class="st-esg-search-input st-esg-theater-search-input text_pole" placeholder="搜索条目..." value="${escapeHtml(theaterSearchQuery)}"><select class="st-esg-filter-select st-esg-theater-filter-select text_pole"><option value="all" ${theaterFilterMode === 'all' ? 'selected' : ''}>全部</option><option value="enabled" ${theaterFilterMode === 'enabled' ? 'selected' : ''}>仅启用</option><option value="disabled" ${theaterFilterMode === 'disabled' ? 'selected' : ''}>仅禁用</option></select><span class="st-esg-theater-count"></span></div><details class="st-esg-theater-random-settings" ${theaterRandomSettingsOpen ? 'open' : ''}><summary class="st-esg-theater-random-summary"><span>随机设置</span><em>${modeLabel}</em><i class="fa-solid fa-chevron-down st-esg-theater-random-caret"></i></summary><div class="st-esg-theater-random-body"><div class="st-esg-theater-random-fields"><span class="st-esg-theater-random-label">随机模式</span><select class="text_pole st-esg-theater-random-mode"><option value="off" ${mode === THEATER_RANDOM_MODE_OFF ? 'selected' : ''}>关闭随机</option><option value="all" ${mode === THEATER_RANDOM_MODE_ALL ? 'selected' : ''}>全部随机</option><option value="fixed-enabled" ${mode === THEATER_RANDOM_MODE_FIXED_ENABLED ? 'selected' : ''}>启用固定 + 未启用随机</option></select><span class="st-esg-theater-random-label">随机数量</span><input class="text_pole st-esg-theater-random-count" type="number" min="0" step="1" value="${settings.theaterRandomCount}" /></div><span class="st-esg-card-desc st-esg-theater-random-description">${modeDescription}</span></div></details><div class="st-esg-theater-folders">${folderHtml}</div></div></details>`);
 
+  host.find('.st-esg-theater-library-card').on('toggle', function () { theaterLibraryOpen = this.open; });
   host.find('.st-esg-theater-random-settings').on('toggle', function () { theaterRandomSettingsOpen = this.open; });
   host.find('.st-esg-theater-random-mode').on('change', function () { settings.theaterRandomMode = normalizeTheaterRandomMode($(this).val()); saveSettings(); renderTheaterLibrary(); });
   host.find('.st-esg-theater-random-count').on('change', function () { settings.theaterRandomCount = normalizeTheaterRandomCount($(this).val()); $(this).val(settings.theaterRandomCount); saveSettings(); });
