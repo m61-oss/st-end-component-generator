@@ -1,11 +1,12 @@
 export const THEATER_RANDOM_MODE_OFF = 'off';
 export const THEATER_RANDOM_MODE_ALL = 'all';
+export const THEATER_RANDOM_MODE_ENABLED = 'enabled';
 export const THEATER_RANDOM_MODE_FIXED_ENABLED = 'fixed-enabled';
 
 const textOf = (value) => String(value ?? '').trim();
 
 export function normalizeTheaterRandomMode(mode) {
-  return [THEATER_RANDOM_MODE_OFF, THEATER_RANDOM_MODE_ALL, THEATER_RANDOM_MODE_FIXED_ENABLED].includes(textOf(mode))
+  return [THEATER_RANDOM_MODE_OFF, THEATER_RANDOM_MODE_ALL, THEATER_RANDOM_MODE_ENABLED, THEATER_RANDOM_MODE_FIXED_ENABLED].includes(textOf(mode))
     ? textOf(mode)
     : THEATER_RANDOM_MODE_OFF;
 }
@@ -69,12 +70,12 @@ function chooseRandomItems(items, count, random = Math.random) {
 
 export function selectTheaterComponents(items, options = {}) {
   const mode = normalizeTheaterRandomMode(options.mode);
-  const orderedItems = getTheaterLibraryItems(items, options.groups, options.defaultGroupEnabled !== false)
-    .filter((item) => mode === THEATER_RANDOM_MODE_ALL || item.theaterGroupEnabled !== false);
-  const enabledItems = orderedItems.filter((item) => item.enabled !== false);
+  const orderedItems = getTheaterLibraryItems(items, options.groups, options.defaultGroupEnabled !== false);
+  const enabledItems = orderedItems.filter((item) => item.theaterGroupEnabled !== false && item.enabled !== false);
   if (mode === THEATER_RANDOM_MODE_OFF) return enabledItems;
+  if (mode === THEATER_RANDOM_MODE_ENABLED) return chooseRandomItems(enabledItems, options.count, options.random);
   if (mode === THEATER_RANDOM_MODE_FIXED_ENABLED) {
-    const disabledItems = orderedItems.filter((item) => item.enabled === false);
+    const disabledItems = orderedItems.filter((item) => item.theaterGroupEnabled === false || item.enabled === false);
     const randomItems = chooseRandomItems(disabledItems, options.count, options.random);
     const selectedIds = new Set([...enabledItems, ...randomItems].map((item) => item.id));
     return orderedItems.filter((item) => selectedIds.has(item.id));

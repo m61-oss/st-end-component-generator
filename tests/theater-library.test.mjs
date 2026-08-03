@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   THEATER_RANDOM_MODE_ALL,
+  THEATER_RANDOM_MODE_ENABLED,
   THEATER_RANDOM_MODE_FIXED_ENABLED,
   THEATER_RANDOM_MODE_OFF,
   getTheaterLibraryItems,
@@ -25,6 +26,7 @@ const items = [
 
 assert.equal(normalizeTheaterRandomMode('bad'), THEATER_RANDOM_MODE_OFF);
 assert.equal(normalizeTheaterRandomMode('all'), THEATER_RANDOM_MODE_ALL);
+assert.equal(normalizeTheaterRandomMode('enabled'), THEATER_RANDOM_MODE_ENABLED);
 assert.equal(normalizeTheaterRandomMode('fixed-enabled'), THEATER_RANDOM_MODE_FIXED_ENABLED);
 assert.equal(normalizeTheaterRandomCount('2.8'), 2);
 assert.equal(normalizeTheaterRandomCount('-1'), 0);
@@ -48,9 +50,15 @@ assert.deepEqual(
 );
 
 assert.deepEqual(
-  selectTheaterComponents(items, { mode: THEATER_RANDOM_MODE_FIXED_ENABLED, count: 1, groups, random: () => 0.99 }).map((item) => item.id),
-  ['format', 'scene-2', 'scene-1', 'ungrouped'],
-  'fixed mode keeps enabled items and samples disabled items',
+  selectTheaterComponents(items, { mode: THEATER_RANDOM_MODE_FIXED_ENABLED, count: 1, groups, random: () => 0 }).map((item) => item.id),
+  ['format', 'scene-1', 'disabled-group-item', 'ungrouped'],
+  'fixed mode treats disabled groups as part of the disabled item pool',
+);
+
+assert.deepEqual(
+  selectTheaterComponents(items, { mode: THEATER_RANDOM_MODE_ENABLED, count: 99, groups, random: () => 0.5 }).map((item) => item.id),
+  ['format', 'scene-1', 'ungrouped'],
+  'enabled random mode samples only effectively enabled items',
 );
 
 assert.deepEqual(
