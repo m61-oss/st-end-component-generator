@@ -1715,7 +1715,6 @@ function applyApiScheme(snapshot) {
   $t('#st-esg-api-url').val(settings.apiUrl);
   $t('#st-esg-api-key').val(settings.apiKey);
   $t('#st-esg-api-model').val(settings.apiModel);
-  renderApiModeUi();
   $t('#st-esg-max-tokens').val(settings.maxTokens);
   $t('#st-esg-temperature').val(settings.temperature);
   $t('#st-esg-streaming-enabled').prop('checked', settings.streamingEnabled);
@@ -1725,7 +1724,11 @@ function applyApiScheme(snapshot) {
 }
 
 function renderApiModeUi() {
-  const mode = settings.apiMode || (settings.useMainApi ? 'main' : 'custom');
+  const mode = ['main', 'custom', 'tavern'].includes(settings.apiMode)
+    ? settings.apiMode
+    : (settings.useMainApi ? 'main' : 'custom');
+  settings.apiMode = mode;
+  settings.useMainApi = mode === 'main';
   $t('.st-esg-api-tab').each(function () { $(this).toggleClass('is-active', String($(this).data('api-mode')) === mode); });
   $t('.st-esg-api-mode-panel').addClass('st-esg-hidden');
   $t(`#st-esg-api-${mode}-panel`).removeClass('st-esg-hidden');
@@ -1735,14 +1738,20 @@ function renderApiModeUi() {
 }
 
 function refreshTavernProfiles() {
-  const profiles = targetWindow?.SillyTavern?.extensionSettings?.connectionManager?.profiles || [];
+  const rawProfiles = targetWindow?.SillyTavern?.extensionSettings?.connectionManager?.profiles || [];
+  const profiles = Array.isArray(rawProfiles)
+    ? rawProfiles
+    : Object.entries(rawProfiles).map(([id, profile]) => ({ ...(profile || {}), id: profile?.id || id }));
   const select = $t('#st-esg-tavern-profile');
   if (!select.length) return;
   select.empty().append('<option value="">请选择酒馆预设</option>');
   profiles.filter((profile) => profile?.id).forEach((profile) => {
     select.append($('<option>').val(String(profile.id)).text(String(profile.name || profile.id)));
   });
-  select.val(settings.tavernProfile);
+  if (settings.tavernProfile && !profiles.some((profile) => String(profile?.id || '') === String(settings.tavernProfile))) {
+    select.append($('<option>').val(String(settings.tavernProfile)).text(`当前方案（未找到：${settings.tavernProfile}）`));
+  }
+  select.val(settings.tavernProfile || '');
 }
 
 function applyTaskScheme(snapshot) {
@@ -3538,7 +3547,7 @@ function renderPluginPanel() {
   fetchModelsButton?.insertAdjacentHTML('afterend', '<div id="st-esg-additional-parameters" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-sliders"></i><span>附加参数</span></div>');
   dialog.querySelector('#st-esg-additional-parameters')?.classList.add('st-esg-api-custom-fields');
   const apiModel = dialog.querySelector('#st-esg-api-model');
-  apiModel?.insertAdjacentHTML('afterend', '<select id="st-esg-api-model-picker" class="text_pole st-esg-api-model-picker" style="display:none;"></select><div id="st-esg-api-model-feedback" class="st-esg-api-model-feedback"></div>');
+  apiModel?.insertAdjacentHTML('afterend', '<select id="st-esg-api-model-picker" class="text_pole st-esg-api-model-picker st-esg-api-custom-fields" style="display:none;"></select><div id="st-esg-api-model-feedback" class="st-esg-model-feedback st-esg-api-custom-fields"></div>');
   const preview = dialog.querySelector('#st-esg-preview');
   preview?.closest('.st-esg-card')?.querySelector('.st-esg-card-title')?.classList.add('st-esg-generation-result-title');
   preview?.closest('.st-esg-card')?.querySelector('.st-esg-card-desc')?.classList.add('st-esg-generation-result-desc');

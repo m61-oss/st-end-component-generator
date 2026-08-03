@@ -96,7 +96,7 @@ export function captureSchemeSnapshot(type, settings, groups = [], options = {})
   if (type === 'api') {
     return {
       apiMode: settings.apiMode || 'custom',
-      useMainApi: settings.useMainApi !== false,
+      useMainApi: settings.useMainApi === true,
       tavernProfile: settings.tavernProfile || '',
       apiUrl: settings.apiUrl || '',
       apiKey: settings.apiKey || '',

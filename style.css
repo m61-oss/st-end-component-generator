@@ -566,7 +566,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-preset-extra-options[open] > summary { border-bottom: 1px solid var(--esg-border); }
 .st-esg-preset-extra-options-body { display: grid; gap: 6px; padding: 6px 8px 8px; }
 .st-esg-generation-inject-mode { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px; font-size: 11px; }
-.st-esg-api-model-feedback { margin-top: 3px; color: var(--esg-text-muted); font-size: 10px; line-height: 1.3; }
+.st-esg-model-feedback { margin-top: 3px; color: var(--esg-text-muted); font-size: 10px; line-height: 1.3; }
 .st-esg-collapsible-body > .st-esg-grid > label {
   grid-template-rows: auto minmax(28px, auto) auto;
   align-content: start;

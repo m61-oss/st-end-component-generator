@@ -26,6 +26,9 @@ assert.doesNotMatch(callFunction, /createPromptLog\(\{[^}]*additionalHeaders/s, 
 assert.doesNotMatch(callFunction, /createPromptLog\(\{[^}]*additionalHeadersYaml/s, 'custom header YAML must not enter prompt logs');
 assert.match(source, /data-api-mode="main"[\s\S]*?data-api-mode="custom"[\s\S]*?data-api-mode="tavern"/, 'API settings should expose the three connection tabs');
 assert.match(schemeSource, /apiMode: settings\.apiMode/, 'API schemes should save the selected connection mode');
+assert.match(source, /settings\.apiMode = mode;[\s\S]*?settings\.useMainApi = mode === 'main';/, 'API mode rendering should normalize the legacy flag to the selected tab');
+assert.match(source, /st-esg-api-model-picker[^>]*st-esg-api-custom-fields/, 'the model picker should only be visible for custom API mode');
+assert.match(source, /Object\.entries\(rawProfiles\)/, 'Tavern profile refresh should support object-shaped profile registries');
 assert.match(callFunction, /createStreamPreviewController\(/, 'streaming requests should use the lightweight preview controller');
 assert.match(callFunction, /streamPreview\.push\(fullText\);/, 'stream chunks should only enter the throttled preview path');
 assert.match(callFunction, /onPreview:\s*updateStreamedPreview/, 'each throttled stream preview update should resize and scroll through one lightweight callback');
