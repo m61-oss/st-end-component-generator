@@ -751,14 +751,16 @@ async function callExternalApi(latestMessage, signal) {
     settings.lastPromptLog = '';
     saveSettings();
     renderPromptLog();
-    const service = targetWindow?.SillyTavern?.ConnectionManagerRequestService || targetWindow?.ConnectionManagerRequestService;
+    const service = targetWindow?.SillyTavern?.ConnectionManagerRequestService
+      || targetWindow?.ConnectionManagerRequestService
+      || getContext()?.ConnectionManagerRequestService;
     const profiles = getTavernProfiles();
     const requestedProfile = textOf(settings.tavernProfile);
     const profile = profiles.find((item) => String(item?.id || '') === requestedProfile || String(item?.name || '') === requestedProfile);
     const profileId = textOf(profile?.id || requestedProfile);
     if (!profileId || typeof service?.sendRequest !== 'function') throw new Error('未选择可用的酒馆预设。');
     settings.tavernProfile = profileId;
-    const response = await service.sendRequest(profileId, messages, undefined, { extractData: true, includePreset: true, stream: false, signal });
+    const response = await service.sendRequest(profileId, messages, Number(settings.maxTokens) || MAX_OUTPUT_TOKENS, { extractData: true, includePreset: true, stream: false, signal });
     const content = response?.result?.choices?.[0]?.message?.content ?? response?.content ?? '';
     if (typeof content !== 'string' || !content.trim()) throw markGenerationResponseError(new Error('酒馆预设 API 返回为空。'));
     return content.trim();
@@ -1738,7 +1740,6 @@ function renderApiModeUi() {
   $t('.st-esg-api-custom-fields').toggleClass('st-esg-hidden', mode !== 'custom');
   $t('#st-esg-streaming-enabled').closest('label').removeClass('st-esg-hidden');
   $t('#st-esg-max-tokens, #st-esg-temperature').closest('label').toggleClass('st-esg-hidden', mode === 'tavern');
-  if (mode === 'tavern') refreshTavernProfiles();
 }
 
 function getTavernProfiles() {
