@@ -20,53 +20,66 @@ import {
   normalizeComponent,
   normalizeComponentIds,
   normalizeComponentScope,
-} from './sources/component-sources.js?ver=0.1.3';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.1.3';
-import { containsStatusPlaceholder, injectStatusbarText, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.1.3';
-import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.3';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.3';
-import { renderPromptTemplate } from './generation/template-compat.js?ver=0.1.3';
-import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.1.3';
-import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './generation/prompt-log.js?ver=0.1.3';
+} from './sources/component-sources.js?ver=0.1.4';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.1.4';
+import { containsStatusPlaceholder, injectStatusbarText, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.1.4';
+import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.4';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.4';
+import { renderPromptTemplate } from './generation/template-compat.js?ver=0.1.4';
+import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.1.4';
+import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './generation/prompt-log.js?ver=0.1.4';
 import {
   clearImportSelectionsForScope,
   collectSelectedPromptSourceItems,
   normalizePromptSourceType,
   resolveWorldbookSelection,
   syncPromptSelectionsFromGroups,
-} from './sources/source-selection.js?ver=0.1.3';
-import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hasEnabledWorldbookSource, hydrateTavernWorldbookSelections, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.3';
-import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.3';
-import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.3';
-import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.3';
-import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.3';
-import { createGenerationErrorRecord, isGenerationResponseError, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.3';
-import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.3';
-import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.1.3';
+} from './sources/source-selection.js?ver=0.1.4';
+import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hasEnabledWorldbookSource, hydrateTavernWorldbookSelections, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.4';
+import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.4';
+import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.4';
+import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.4';
+import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.4';
+import { createGenerationErrorRecord, isGenerationResponseError, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.4';
+import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.4';
+import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.1.4';
+import {
+  THEATER_RANDOM_MODE_ALL,
+  THEATER_RANDOM_MODE_ENABLED,
+  THEATER_RANDOM_MODE_FIXED_ENABLED,
+  THEATER_RANDOM_MODE_OFF,
+  getTheaterLibraryFolders,
+  normalizeTheaterRandomCount,
+  normalizeTheaterRandomMode,
+  selectTheaterComponents,
+} from './sources/theater-library.js?ver=0.1.4';
 import {
   captureAutomaticAssistantTarget,
-  isAutomaticAssistantTargetCurrent,
+  captureAutomaticGenerationBaseline,
+  getAutomaticAssistantTargetKey,
+  isAutomaticAssistantTargetAddressable,
+  isAutomaticTargetAfterGenerationStart,
   resolveReadyAutomaticAssistantTarget,
-} from './generation/auto-generation-trigger.js?ver=0.1.3';
-import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.1.3';
+} from './generation/auto-generation-trigger.js?ver=0.1.4';
+import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.1.4';
 import {
   buildApiRequestParts,
   parseApiAdditionalParameters,
   parseApiNumericSettings,
-} from './api/api-request-parameters.js?ver=0.1.3';
+} from './api/api-request-parameters.js?ver=0.1.4';
 import {
   createPromptSourceCacheState,
   loadWorldbookSourceGroups,
   markPromptSourceStructureDirty,
   markWorldbookSourceDirty,
   takeDirtyWorldbookSources,
-} from './sources/prompt-source-cache.js?ver=0.1.3';
-import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from './settings/task-placement.js?ver=0.1.3';
-import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.1.3';
-import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.1.3';
+} from './sources/prompt-source-cache.js?ver=0.1.4';
+import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from './settings/task-placement.js?ver=0.1.4';
+import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.1.4';
+import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.1.4';
 
 const EXTENSION_ID = 'st-end-component-generator';
-const EXTENSION_VERSION = '0.1.3';
+const EXTENSION_VERSION = '0.1.4';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
@@ -101,6 +114,9 @@ const DEFAULT_SETTINGS = {
   apiUrl: '',
   apiKey: '',
   apiModel: '',
+  apiMode: 'custom',
+  useMainApi: false,
+  tavernProfile: '',
   apiModelOptions: [],
   maxTokens: String(MAX_OUTPUT_TOKENS),
   temperature: '1',
@@ -161,6 +177,11 @@ const DEFAULT_SETTINGS = {
   componentGroups: [],
   defaultGroupEnabled: {},
   componentGroupsMigrated: false,
+  theaterComponents: [],
+  theaterGroups: [],
+  theaterDefaultGroupEnabled: true,
+  theaterRandomMode: THEATER_RANDOM_MODE_OFF,
+  theaterRandomCount: 1,
 };
 
 const targetWindow = (() => {
@@ -177,6 +198,11 @@ let generationAbortController = null;
 let activeAutomaticTarget = null;
 let automaticGenerationRevision = 0;
 const pendingAutomaticTargets = new Map();
+let automaticGenerationBaseline = null;
+let automaticGenerationEndTimer = null;
+let lastAutomaticTargetKey = '';
+let automaticGenerationLogActive = false;
+const automaticGenerationLogEntries = [];
 let lastRuntimeDiagnostics = {};
 let lastPromptLogText = '';
 let promptLogBuilding = false;
@@ -190,6 +216,13 @@ let componentSearchQuery = '';
 let componentFilterMode = 'all';
 let componentEditMode = false;
 let selectedComponentIds = new Set();
+let componentLibraryOpen = true;
+let theaterSearchQuery = '';
+let theaterFilterMode = 'all';
+let theaterEditMode = false;
+let selectedTheaterIds = new Set();
+let theaterLibraryOpen = true;
+let theaterRandomSettingsOpen = false;
 let quickReplySyncTimer = null;
 let worldbookCountRevision = 0;
 let magicWandMenuTimer = null;
@@ -199,6 +232,100 @@ const $t = (selectorOrHtml) => $(selectorOrHtml, targetDoc);
 const textOf = (value) => String(value ?? '').trim();
 const escapeHtml = (value) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const VISIBLE_GENERATION_LOG_STAGES = new Set([
+  'api-start',
+  'api-returned',
+  'generation-error',
+  'generation-skip',
+  'inject-skip',
+  'inject-finished',
+  'inject-save-warning',
+  'inject-error',
+  'undo-skip',
+  'undo-finished',
+  'undo-save-warning',
+  '等待渲染',
+  '等待结束结果',
+  '找到 assistant',
+  '跳过重复',
+]);
+
+function logAutomaticGenerationStage(stage, details = '') {
+  const stageLabels = {
+    'generation-start': '开始生成',
+    'target-ready': '找到目标回复',
+    'api-start': '开始调用外置 API',
+    'prompt-build-start': '开始组装提示词',
+    'api-returned': '生成完成',
+    'generation-error': '生成失败',
+    'api-finished': 'API 调用结束',
+    'generation-skip': '跳过生成',
+    'result-apply': '更新生成预览',
+    'inject-queued': '准备注入',
+    'generation-finished': '生成完成',
+    'inject-start': '开始注入',
+    'inject-skip': '跳过注入',
+    'inject-snapshot': '保存注入前快照',
+    'mvu-reprocess': '处理 MVU 变量',
+    'chat-save': '保存聊天记录',
+    'inject-finished': '注入完成',
+    'inject-save-warning': '注入保存警告',
+    'inject-error': '注入失败',
+    'undo-start': '开始撤回',
+    'undo-skip': '跳过撤回',
+    'undo-restore': '恢复注入前内容',
+    'undo-save-warning': '撤回保存警告',
+    'undo-finished': '撤回完成',
+    'generation-started': '收到生成开始事件',
+    'generation-ended': '收到生成结束事件',
+    'message-received': '收到 assistant 消息',
+    'message-rendered': 'assistant 消息已渲染',
+    '等待渲染': '等待生成条件',
+    '等待结束结果': '等待最新 assistant',
+    '找到 assistant': '检测到 assistant',
+    '跳过重复': '跳过重复',
+  };
+  const detailText = String(details || '')
+    .replaceAll('automatic', '自动生成')
+    .replaceAll('manual', '手动生成')
+    .replaceAll('quickReply', '快捷回复')
+    .replaceAll('latest assistant', '最新 assistant')
+    .replaceAll('received content', '已收到内容')
+    .replaceAll('empty response', '返回为空')
+    .replaceAll('response handling complete', '响应处理完成')
+    .replaceAll('no generated content', '没有生成内容')
+    .replaceAll('preparing target', '准备目标回复')
+    .replaceAll('updating preview', '正在更新预览')
+    .replaceAll('auto-inject enabled', '已开启自动注入')
+    .replaceAll('waiting for manual injection', '等待手动注入')
+    .replaceAll('injection complete', '注入完成')
+    .replaceAll('injection failed', '注入失败')
+    .replaceAll('restore complete, chat save failed', '恢复完成，但聊天保存失败')
+    .replaceAll('message changed during confirmation', '确认期间消息发生变化')
+    .replaceAll('invalid snapshot', '快照无效')
+    .replaceAll('API address or model is missing', 'API 地址或模型未填写')
+    .replace(/^message (\d+)/, '楼层 $1')
+    .replace(/^message (\d+); /, '楼层 $1；');
+  const suffix = detailText ? `：${detailText}` : '';
+  const line = `${new Date().toLocaleTimeString()} ${stageLabels[stage] || stage}${suffix}`;
+  console.log(`[${EXTENSION_ID}] ${line}`);
+  if (!VISIBLE_GENERATION_LOG_STAGES.has(stage)) return;
+  automaticGenerationLogEntries.push(line);
+  if (automaticGenerationLogEntries.length > 40) automaticGenerationLogEntries.shift();
+  const logElement = targetDoc.getElementById('st-esg-generation-log');
+  if (logElement) {
+    logElement.textContent = automaticGenerationLogEntries.join('\n');
+    logElement.scrollTop = logElement.scrollHeight;
+  }
+}
+
+function clearAutomaticGenerationLog() {
+  automaticGenerationLogEntries.length = 0;
+  automaticGenerationLogActive = true;
+  const logElement = targetDoc.getElementById('st-esg-generation-log');
+  if (logElement) logElement.textContent = '';
+}
 
 async function getYamlParser() {
   if (!yamlParserPromise) {
@@ -305,6 +432,7 @@ function loadSettings() {
   if (!isFreshInstall && !Object.prototype.hasOwnProperty.call(storedSettings, 'replaceLastUserMessageWithTask')) settings.replaceLastUserMessageWithTask = false;
   settings.ballSize = normalizeFloatingBallSize(settings.ballSize);
   settings.ballOpacity = normalizeFloatingBallOpacity(settings.ballOpacity);
+  if (!['replace', 'append', 'rollbackAppend', 'rollbackReplace'].includes(settings.injectMode)) settings.injectMode = 'replace';
   try {
     const localValue = targetWindow.localStorage?.getItem(PROMPT_TEMPLATE_COMPAT_STORAGE_KEY);
     if (localValue === 'true' || localValue === 'false') settings.promptTemplateCompatEnabled = localValue === 'true';
@@ -312,12 +440,20 @@ function loadSettings() {
   if (typeof settings.autoGenerate !== 'boolean') settings.autoGenerate = settings.mode !== 'manual';
   if (typeof settings.promptTemplateCompatEnabled !== 'boolean') settings.promptTemplateCompatEnabled = false;
   if (typeof settings.autoInject !== 'boolean') settings.autoInject = settings.mode === 'autoInject';
+  settings.apiMode = ['custom', 'tavern'].includes(settings.apiMode) ? settings.apiMode : 'custom';
+  settings.useMainApi = false;
+  if (typeof settings.tavernProfile !== 'string') settings.tavernProfile = '';
   if (typeof settings.mvuReprocessOnInject !== 'boolean') settings.mvuReprocessOnInject = true;
   lastPromptLogText = textOf(settings.lastPromptLog);
   lastGeneratedThinking = Array.isArray(settings.lastGeneratedThinking) ? settings.lastGeneratedThinking.map((item) => String(item || '')).filter(Boolean) : [];
   settings.lastPromptLog = '';
   if (!Array.isArray(settings.components)) settings.components = [];
   if (!Array.isArray(settings.componentGroups)) settings.componentGroups = [];
+  if (!Array.isArray(settings.theaterComponents)) settings.theaterComponents = [];
+  if (!Array.isArray(settings.theaterGroups)) settings.theaterGroups = [];
+  settings.theaterDefaultGroupEnabled = settings.theaterDefaultGroupEnabled !== false;
+  settings.theaterRandomMode = normalizeTheaterRandomMode(settings.theaterRandomMode);
+  settings.theaterRandomCount = normalizeTheaterRandomCount(settings.theaterRandomCount);
   if (!settings.defaultGroupEnabled || typeof settings.defaultGroupEnabled !== 'object' || Array.isArray(settings.defaultGroupEnabled)) settings.defaultGroupEnabled = {};
   settings.componentGroups = settings.componentGroups
     .map((group, index) => ({ ...group, id: textOf(group?.id), name: textOf(group?.name), scope: normalizeComponentScope(group?.scope), enabled: group?.enabled !== false, order: Number.isFinite(Number(group?.order)) ? Number(group.order) : index }))
@@ -403,6 +539,19 @@ function loadSettings() {
     settings.components.map((item) => normalizeComponent(item, targetWindow, getContext())),
     targetWindow.crypto,
   );
+  settings.theaterComponents = normalizeComponentIds(
+    settings.theaterComponents.map((item) => ({ ...item, groupId: textOf(item?.groupId), enabled: item?.enabled !== false })),
+    targetWindow.crypto,
+  );
+  const theaterGroupIds = new Set();
+  settings.theaterGroups = settings.theaterGroups
+    .map((group, index) => {
+      let id = textOf(group?.id);
+      if (!id || theaterGroupIds.has(id)) id = createComponentId(theaterGroupIds, targetWindow.crypto);
+      theaterGroupIds.add(id);
+      return { ...group, id, name: textOf(group?.name), enabled: group?.enabled !== false, order: Number.isFinite(Number(group?.order)) ? Number(group.order) : index };
+    })
+    .filter((group) => group.name);
   normalizePresetComponentBindings();
 }
 
@@ -438,12 +587,29 @@ function getEnabledComponents() {
   });
 }
 
+function getEnabledTheaterComponents() {
+  return selectTheaterComponents(settings.theaterComponents, {
+    mode: settings.theaterRandomMode,
+    count: settings.theaterRandomCount,
+    groups: settings.theaterGroups,
+    defaultGroupEnabled: settings.theaterDefaultGroupEnabled,
+  });
+}
+
 function createNewComponentId() {
   return createComponentId(new Set(settings.components.map((component) => textOf(component?.id)).filter(Boolean)), targetWindow.crypto);
 }
 
 function createNewComponentGroupId() {
   return createComponentId(new Set(settings.componentGroups.map((group) => textOf(group?.id)).filter(Boolean)), targetWindow.crypto);
+}
+
+function createNewTheaterId() {
+  return createComponentId(new Set(settings.theaterComponents.map((item) => textOf(item?.id)).filter(Boolean)), targetWindow.crypto);
+}
+
+function createNewTheaterGroupId() {
+  return createComponentId(new Set(settings.theaterGroups.map((group) => textOf(group?.id)).filter(Boolean)), targetWindow.crypto);
 }
 
 function findComponentById(id) {
@@ -490,6 +656,7 @@ function renderPresetBindingControls() {
     bindingElement.val(getPresetSchemeById(selectedId) ? selectedId : '');
     bindingElement.closest('label').toggle(scopeElement.val() === COMPONENT_SCOPE_PRESET);
   });
+  if ($t('#st-esg-component-target-library').length || $t('#st-esg-import-target-library').length || $t('#st-esg-worldbook-import-target-library').length) renderComponentLibraryTargetVisibility();
 }
 
 function cleanGeneratedText(text) {
@@ -591,6 +758,7 @@ function applyGeneratedResult(rawText) {
 async function buildMessages(latestMessage) {
   const context = getContext();
   const components = getEnabledComponents();
+  const theaterComponents = getEnabledTheaterComponents();
   const promptSourceItems = await ensurePromptSourceItemsForGeneration();
   const templateStats = { enabled: Boolean(settings.promptTemplateCompatEnabled), renderCount: 0, changedCount: 0 };
   const messages = await buildExternalStatusbarMessages({
@@ -599,6 +767,7 @@ async function buildMessages(latestMessage) {
     latestMessage,
     taskPrompt: settings.taskPrompt,
     components,
+    theaterComponents,
     promptSourceItems,
     worldbookSourceControlled: getSourceMode('worldbook') === SOURCE_MODE_PROMPT || getPromptSourceSnapshotItems('worldbook').length > 0,
     historyCleanupTags: settings.historyCleanupRules,
@@ -643,13 +812,116 @@ function setGeneratingState(isGenerating) {
 }
 
 async function callExternalApi(latestMessage, signal) {
-  const apiUrl = normalizeChatCompletionsUrl(settings.apiUrl);
-  const model = textOf(settings.apiModel);
+  const apiUrl = (settings.apiMode || 'custom') === 'custom'
+    ? normalizeChatCompletionsUrl(settings.apiUrl)
+    : 'https://tavern.internal';
+  const model = textOf(settings.apiModel) || (settings.apiMode === 'custom' ? '' : '酒馆预设');
+  const apiMode = ['custom', 'tavern'].includes(settings.apiMode) ? settings.apiMode : 'custom';
   if (!apiUrl || !model) throw new Error('请先在“API 设置”里填写 API 地址和模型名称。');
   const numeric = parseApiNumericSettings(settings);
   const additional = parseApiAdditionalParameters(settings, await getYamlParser());
   const builtMessages = await buildMessages(latestMessage);
   const messages = settings.compressSystemMessages ? mergeConsecutiveSystemMessages(builtMessages) : builtMessages;
+  if (apiMode === 'tavern') {
+    const numeric = parseApiNumericSettings(settings);
+    const promptLogApi = `酒馆预设：${settings.tavernProfile || '未选择'}`;
+    lastPromptLogText = createPromptLog({ apiUrl: promptLogApi, apiKey: '', model, maxTokens: String(numeric.maxTokens), temperature: String(numeric.temperature), messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics: lastRuntimeDiagnostics, compressSystemMessages: settings.compressSystemMessages });
+    promptLogBuilding = false;
+    settings.lastPromptLog = '';
+    saveSettings();
+    renderPromptLog();
+    const service = targetWindow?.SillyTavern?.ConnectionManagerRequestService
+      || targetWindow?.ConnectionManagerRequestService
+      || getContext()?.ConnectionManagerRequestService;
+    const profiles = getTavernProfiles();
+    const requestedProfile = textOf(settings.tavernProfile);
+    const profile = profiles.find((item) => String(item?.id || '') === requestedProfile || String(item?.name || '') === requestedProfile);
+    const profileId = textOf(profile?.id || requestedProfile);
+    if (!profileId || typeof service?.sendRequest !== 'function') throw new Error('未选择可用的酒馆预设。');
+    settings.tavernProfile = profileId;
+    const response = await service.sendRequest(profileId, messages, Number(settings.maxTokens) || MAX_OUTPUT_TOKENS, {
+      extractData: true,
+      includePreset: true,
+      stream: Boolean(settings.streamingEnabled),
+      signal,
+    });
+    if (settings.streamingEnabled && typeof response === 'function') {
+      const streamPreview = createStreamPreviewController({ intervalMs: 80, onPreview: updateStreamedPreview });
+      let streamedText = '';
+      try {
+        for await (const chunk of response()) {
+          const nextText = chunk?.text ?? chunk?.content ?? '';
+          if (typeof nextText === 'string') {
+            streamedText = nextText;
+            streamPreview.push(streamedText);
+          }
+        }
+        streamPreview.flush();
+        if (!streamedText.trim()) throw markGenerationResponseError(new Error('酒馆预设 API 返回为空。'));
+        return streamedText.trim();
+      } catch (error) {
+        streamPreview.flush();
+        if (error && typeof error === 'object') error.streamedText = streamPreview.getText();
+        throw error;
+      } finally {
+        streamPreview.dispose();
+      }
+    }
+    const content = response?.result?.choices?.[0]?.message?.content ?? response?.content ?? '';
+    if (typeof content !== 'string' || !content.trim()) throw markGenerationResponseError(new Error('酒馆预设 API 返回为空。'));
+    return content.trim();
+  }
+  const tavernChatService = targetWindow?.SillyTavern?.ChatCompletionService
+    || targetWindow?.ChatCompletionService
+    || getContext()?.ChatCompletionService;
+  if (typeof tavernChatService?.processRequest === 'function') {
+    const requestData = {
+      ...additional.additionalBody,
+      stream: Boolean(settings.streamingEnabled),
+      messages,
+      model,
+      chat_completion_source: 'custom',
+      max_tokens: numeric.maxTokens,
+      temperature: numeric.temperature,
+      custom_url: settings.apiUrl,
+      custom_include_headers: {
+        ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
+        ...additional.additionalHeaders,
+      },
+      custom_exclude_body: additional.excludedBody,
+    };
+    lastPromptLogText = createPromptLog({ apiUrl, apiKey: settings.apiKey, model, maxTokens: String(numeric.maxTokens), temperature: String(numeric.temperature), messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics: lastRuntimeDiagnostics, compressSystemMessages: settings.compressSystemMessages });
+    promptLogBuilding = false;
+    settings.lastPromptLog = '';
+    saveSettings();
+    renderPromptLog();
+    const response = await tavernChatService.processRequest(requestData, {}, true, signal);
+    if (settings.streamingEnabled && typeof response === 'function') {
+      const streamPreview = createStreamPreviewController({ intervalMs: 80, onPreview: updateStreamedPreview });
+      let streamedText = '';
+      try {
+        for await (const chunk of response()) {
+          const nextText = chunk?.text ?? chunk?.content ?? '';
+          if (typeof nextText === 'string') {
+            streamedText = nextText;
+            streamPreview.push(streamedText);
+          }
+        }
+        streamPreview.flush();
+        if (!streamedText.trim()) throw markGenerationResponseError(new Error('API 返回为空。'));
+        return streamedText.trim();
+      } catch (error) {
+        streamPreview.flush();
+        if (error && typeof error === 'object') error.streamedText = streamPreview.getText();
+        throw error;
+      } finally {
+        streamPreview.dispose();
+      }
+    }
+    const content = response?.content ?? response?.result?.choices?.[0]?.message?.content ?? '';
+    if (typeof content !== 'string' || !content.trim()) throw markGenerationResponseError(new Error('API 返回为空。'));
+    return content.trim();
+  }
   const { body, headers } = buildApiRequestParts(
     {
       model,
@@ -704,12 +976,12 @@ async function callExternalApi(latestMessage, signal) {
   return content;
 }
 
-function injectStatusbar(message, text) {
+function injectStatusbar(message, text, mode = settings.injectMode) {
   const rawStatusbarText = settings.lastGeneratedStatusPlaceholderPresent
     ? `${text}\n${STATUS_PLACEHOLDER_TAG}`
     : text;
   message.mes = injectStatusbarText(message.mes, text, {
-    mode: settings.injectMode,
+    mode,
     normalizeStatusPlaceholder: settings.statusPlaceholderEnabled,
     rawStatusbarText,
   });
@@ -726,12 +998,15 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     generationAbortController.abort();
     return '';
   }
+  if (entryType !== 'automatic' || !automaticGenerationLogActive) clearAutomaticGenerationLog();
+  logAutomaticGenerationStage('generation-start', '准备目标回复');
   const context = getContext();
   const latest = targetMessageIndex === null
     ? getLatestAssistantMessage(context.chat)
     : getAssistantMessageAtIndex(context.chat, targetMessageIndex);
   if (!latest) {
     const error = new Error('没有找到可用于生成的助手回复。');
+    logAutomaticGenerationStage('generation-skip', error.message);
     notifyStatus(error.message, 'warning');
     return '';
   }
@@ -741,17 +1016,29 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   notifyStatus('正在生成文尾组件……', 'info');
   generationAbortController = new AbortController();
   if (entryType === 'automatic') activeAutomaticTarget = automaticTarget;
+  logAutomaticGenerationStage('target-ready', `message ${latest.index}`);
+  logAutomaticGenerationStage('api-start', `楼层 ${latest.index}`);
   setGeneratingState(true);
   let result = '';
   try {
-    if (!settings.apiUrl || !settings.apiModel) {
+    const apiMode = settings.apiMode || 'custom';
+    if (apiMode === 'custom' && (!settings.apiUrl || !settings.apiModel)) {
+      logAutomaticGenerationStage('generation-error', 'API address or model is missing');
       notifyStatus('请先在“API 配置”里填写 API 地址和模型名称。', 'warning');
       return '';
     }
+    if (apiMode === 'tavern' && !settings.tavernProfile) {
+      logAutomaticGenerationStage('generation-error', 'Tavern profile is missing');
+      notifyStatus('请先选择酒馆预设。', 'warning');
+      return '';
+    }
+    logAutomaticGenerationStage('prompt-build-start');
     beginPromptLogBuild();
     result = await callExternalApi(latest.message, generationAbortController.signal);
+    logAutomaticGenerationStage('api-returned', result ? 'received content' : 'empty response');
   }
   catch (error) {
+    logAutomaticGenerationStage('generation-error', error?.message || 'generation failed');
     if (error?.name === 'AbortError') {
       const partialStreamText = String(error?.streamedText ?? '');
       if (partialStreamText.trim()) {
@@ -773,41 +1060,80 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     }
     generationAbortController = null;
     if (entryType === 'automatic') activeAutomaticTarget = null;
+    logAutomaticGenerationStage('api-finished', result ? 'response handling complete' : 'no generated content');
     setGeneratingState(false);
   }
-  if (automaticTarget && !isAutomaticAssistantTargetCurrent(automaticTarget, getContext().chat)) {
-    notifyStatus('正文楼层或翻页状态已经变化，旧组件结果已丢弃。', 'warning');
-    return '';
-  }
+  logAutomaticGenerationStage('result-apply', 'updating preview');
   applyGeneratedResult(result);
   saveSettings();
-  if (settings.autoInject && result) await injectGeneratedStatusbar(latest.index);
+  if (settings.autoInject && result) {
+    if (automaticTarget && !isAutomaticAssistantTargetAddressable(automaticTarget, getContext().chat)) {
+      logAutomaticGenerationStage('inject-skip', '目标已不是最新 assistant，结果保留在预览中');
+      notifyStatus('组件已经生成，但原目标已不是最新 assistant，已保留结果并跳过自动注入。', 'warning');
+      return settings.lastGenerated;
+    }
+    logAutomaticGenerationStage('inject-queued', 'auto-inject enabled');
+    await injectGeneratedStatusbar(latest.index);
+  }
   else notifyStatus('已生成文尾组件内容，等待检查或注入。');
   return settings.lastGenerated;
 }
 
 async function injectGeneratedStatusbar(targetMessageIndex = null) {
   const context = getContext();
+  logAutomaticGenerationStage('inject-start', targetMessageIndex === null ? 'latest assistant' : `message ${targetMessageIndex}`);
   const latest = targetMessageIndex === null
     ? getLatestAssistantMessage(context.chat)
     : getAssistantMessageAtIndex(context.chat, targetMessageIndex);
   if (!latest) {
     const error = new Error('没有找到可注入的助手回复。');
+    logAutomaticGenerationStage('inject-skip', error.message);
     notifyStatus(error.message, 'warning');
     return;
   }
   try {
     const text = settings.lastGenerated || $t('#st-esg-preview').val() || await generateStatusbar('manual', targetMessageIndex);
-    if (!text) return;
+    if (!text) {
+      logAutomaticGenerationStage('inject-skip', '没有可注入的生成内容');
+      return;
+    }
     const injectedText = cleanGeneratedText(text);
+    const rollbackMode = settings.injectMode === 'rollbackAppend' || settings.injectMode === 'rollbackReplace';
+    let effectiveMode = settings.injectMode === 'rollbackAppend' ? 'append' : settings.injectMode === 'rollbackReplace' ? 'replace' : settings.injectMode;
+    if (rollbackMode) {
+      const rollbackValidation = validateInjectionUndoSnapshot(latestInjectionUndoSnapshot, context.chat);
+      if (rollbackValidation.valid && rollbackValidation.message === latest.message) {
+        const rollbackSnapshot = latestInjectionUndoSnapshot;
+        logAutomaticGenerationStage('undo-restore', `message ${rollbackSnapshot.targetIndex}; reroll restore`);
+        latest.message.mes = rollbackSnapshot.originalText;
+        if (rollbackSnapshot.hadSwipe && rollbackSnapshot.swipeId !== null && Array.isArray(latest.message.swipes)) {
+          latest.message.swipes[rollbackSnapshot.swipeId] = rollbackSnapshot.originalSwipeText;
+        }
+        if (rollbackSnapshot.mvuReprocessed) {
+          try {
+            await reprocessMvuVariables(context, rollbackSnapshot.targetIndex);
+          } catch (error) {
+            console.warn(`[${EXTENSION_ID}] failed to reprocess MVU variables before reroll`, error);
+          }
+        }
+        latestInjectionUndoSnapshot = null;
+        refreshInjectionUndoState();
+      } else {
+        latestInjectionUndoSnapshot = null;
+        refreshInjectionUndoState();
+        logAutomaticGenerationStage('inject-rollback-fallback', 'no valid snapshot; using normal mode');
+      }
+    }
     const originalText = String(latest.message.mes ?? '');
     const swipeId = Number.isInteger(latest.message.swipe_id) ? latest.message.swipe_id : null;
     const hadSwipe = swipeId !== null && Array.isArray(latest.message.swipes);
     const originalSwipeText = hadSwipe ? String(latest.message.swipes[swipeId] ?? originalText) : '';
-    injectStatusbar(latest.message, injectedText);
+    logAutomaticGenerationStage('inject-snapshot', `message ${latest.index}; snapshot saved`);
+    injectStatusbar(latest.message, injectedText, effectiveMode);
     if (Array.isArray(latest.message.swipes) && Number.isInteger(latest.message.swipe_id)) latest.message.swipes[latest.message.swipe_id] = latest.message.mes;
     let mvuReprocessed = false;
     if (settings.mvuReprocessOnInject && containsMvuUpdateVariable(injectedText)) {
+      logAutomaticGenerationStage('mvu-reprocess', 'UpdateVariable detected');
       try {
         mvuReprocessed = await reprocessMvuVariables(context, latest.index);
       } catch (error) {
@@ -834,13 +1160,17 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
       await context.eventSource.emit(messageUpdatedEvent, latest.index);
     }
     try {
+      logAutomaticGenerationStage('chat-save', 'saving injected chat');
       const saveResult = await context.saveChat();
       if (saveResult === false) throw new Error('聊天保存接口返回失败');
       notifyStatus('已注入到最新助手回复。');
+      logAutomaticGenerationStage('inject-finished', 'injection complete');
     } catch (saveError) {
+      logAutomaticGenerationStage('inject-save-warning', 'injection complete, chat save failed');
       notifyStatus('已注入，但聊天保存失败，刷新后可能丢失。', 'warning');
     }
   } catch (error) {
+    logAutomaticGenerationStage('inject-error', error?.message || 'injection failed');
     notifyStatus(error?.message || '注入失败。', 'error');
   }
 }
@@ -860,8 +1190,10 @@ function clearInjectionUndoSnapshot() {
 
 async function undoLatestInjection() {
   let context = getContext();
+  logAutomaticGenerationStage('undo-start');
   let validation = refreshInjectionUndoState();
   if (!validation.valid) {
+    logAutomaticGenerationStage('undo-skip', validation.reason || 'invalid snapshot');
     notifyStatus('本次注入已不在最新楼层，或消息内容已经变化，无法安全撤回。', 'warning');
     return;
   }
@@ -870,12 +1202,14 @@ async function undoLatestInjection() {
   context = getContext();
   validation = validateInjectionUndoSnapshot(latestInjectionUndoSnapshot, context.chat);
   if (!validation.valid) {
+    logAutomaticGenerationStage('undo-skip', 'message changed during confirmation');
     clearInjectionUndoSnapshot();
     notifyStatus('确认期间消息发生了变化，已取消撤回。', 'warning');
     return;
   }
 
   const snapshot = latestInjectionUndoSnapshot;
+  logAutomaticGenerationStage('undo-restore', `message ${snapshot.targetIndex}`);
   const message = validation.message;
   message.mes = snapshot.originalText;
   if (snapshot.hadSwipe && snapshot.swipeId !== null && Array.isArray(message.swipes)) {
@@ -903,7 +1237,9 @@ async function undoLatestInjection() {
     notifyStatus('已撤回本次注入，最新回复已恢复。');
   } catch (saveError) {
     notifyStatus('已恢复注入前内容，但聊天保存失败，刷新后可能丢失。', 'warning');
+    logAutomaticGenerationStage('undo-save-warning', 'restore complete, chat save failed');
   }
+  logAutomaticGenerationStage('undo-finished', 'undo complete');
 }
 
 function registerInjectionUndoInvalidation(context) {
@@ -923,29 +1259,113 @@ function registerInjectionUndoInvalidation(context) {
 function invalidatePendingAutomaticGeneration({ abortActive = false } = {}) {
   automaticGenerationRevision += 1;
   pendingAutomaticTargets.clear();
+  if (automaticGenerationEndTimer !== null) {
+    targetWindow.clearTimeout(automaticGenerationEndTimer);
+    automaticGenerationEndTimer = null;
+  }
   if (abortActive && activeAutomaticTarget && generationAbortController) generationAbortController.abort();
+}
+
+function buildAutomaticGenerationWaitDiagnostics(target, chat) {
+  const targetIndex = Number(target?.messageIndex);
+  const targetMessage = Number.isInteger(targetIndex) ? chat?.[targetIndex] : null;
+  const latestAssistant = getLatestAssistantMessage(chat);
+  return [
+    `目标楼层=${Number.isInteger(targetIndex) ? targetIndex : '无'}`,
+    `最新 assistant=${latestAssistant?.index ?? '无'}`,
+    `正文存在=${String(targetMessage?.mes || '').trim() ? '是' : '否'}`,
+    `已有外置生成=${generationAbortController ? '是' : '否'}`,
+  ].join('，');
 }
 
 async function runDeferredAutomaticGeneration(pendingTarget, revision, attempt = 0) {
   const context = getContext();
   if (!settings.autoGenerate || revision !== automaticGenerationRevision) return;
-  const currentTarget = captureAutomaticAssistantTarget(pendingTarget.messageIndex, context.chat);
-  if (
-    !currentTarget
-    || currentTarget.messageIndex !== context.chat.length - 1
-  ) return;
-
   const readyTarget = resolveReadyAutomaticAssistantTarget(pendingTarget, context.chat);
-  const messageElementReady = Boolean(targetDoc.querySelector(`#chat .mes[mesid="${pendingTarget.messageIndex}"]`));
-  if (!readyTarget || !messageElementReady || generationAbortController) {
+  if (!readyTarget || generationAbortController) {
+    if (attempt === 0) logAutomaticGenerationStage('等待渲染', '最新 assistant 尚未可用或已有外置生成');
     if (attempt < 400) {
       targetWindow.setTimeout(() => {
         void runDeferredAutomaticGeneration(pendingTarget, revision, attempt + 1);
       }, 25);
+    } else {
+      logAutomaticGenerationStage('generation-skip', `等待最新 assistant 超时；${buildAutomaticGenerationWaitDiagnostics(pendingTarget, context.chat)}`);
     }
     return;
   }
+  const targetKey = getAutomaticAssistantTargetKey(readyTarget);
+  if (!targetKey || targetKey === lastAutomaticTargetKey) {
+    logAutomaticGenerationStage('跳过重复', `楼层 ${readyTarget.messageIndex}`);
+    return;
+  }
+  lastAutomaticTargetKey = targetKey;
+  logAutomaticGenerationStage('找到 assistant', `楼层 ${readyTarget.messageIndex}`);
   await generateStatusbar('automatic', readyTarget.messageIndex, readyTarget);
+}
+
+async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt = 0) {
+  const context = getContext();
+  if (!settings.autoGenerate || revision !== automaticGenerationRevision) return;
+  if (generationAbortController) {
+    if (attempt < 20) {
+      automaticGenerationEndTimer = targetWindow.setTimeout(() => {
+        automaticGenerationEndTimer = null;
+        void runGenerationEndedAutomaticGeneration(baseline, revision, attempt + 1);
+      }, 100);
+    } else {
+      logAutomaticGenerationStage('generation-skip', `等待当前外置生成结束超时；${buildAutomaticGenerationWaitDiagnostics(null, context.chat)}`);
+    }
+    return;
+  }
+
+  const latest = getLatestAssistantMessage(context.chat);
+  const pendingTarget = latest ? captureAutomaticAssistantTarget(latest.index, context.chat) : null;
+  const readyTarget = pendingTarget
+    ? resolveReadyAutomaticAssistantTarget(pendingTarget, context.chat)
+    : null;
+  if (!readyTarget || !isAutomaticTargetAfterGenerationStart(readyTarget, baseline)) {
+    if (attempt === 0) logAutomaticGenerationStage('等待结束结果', '最新 assistant 尚未可用或不是本轮正文');
+    if (attempt < 20) {
+      automaticGenerationEndTimer = targetWindow.setTimeout(() => {
+        automaticGenerationEndTimer = null;
+        void runGenerationEndedAutomaticGeneration(baseline, revision, attempt + 1);
+      }, 100);
+    } else {
+      logAutomaticGenerationStage('generation-skip', `等待最新 assistant 超时；${buildAutomaticGenerationWaitDiagnostics(pendingTarget, context.chat)}`);
+    }
+    return;
+  }
+
+  const targetKey = getAutomaticAssistantTargetKey(readyTarget);
+  if (!targetKey || targetKey === lastAutomaticTargetKey) {
+    logAutomaticGenerationStage('跳过重复', `楼层 ${readyTarget?.messageIndex ?? '未知'}`);
+    return;
+  }
+  lastAutomaticTargetKey = targetKey;
+  logAutomaticGenerationStage('找到 assistant', `楼层 ${readyTarget.messageIndex}`);
+  await generateStatusbar('automatic', readyTarget.messageIndex, readyTarget);
+}
+
+function handleGenerationStarted() {
+  if (!settings.autoGenerate || generationAbortController) return;
+  automaticGenerationLogActive = false;
+  logAutomaticGenerationStage('generation-started');
+  invalidatePendingAutomaticGeneration();
+  automaticGenerationBaseline = captureAutomaticGenerationBaseline(getContext().chat);
+}
+
+function handleGenerationEnded() {
+  if (!settings.autoGenerate || generationAbortController) return;
+  if (!automaticGenerationLogActive) clearAutomaticGenerationLog();
+  logAutomaticGenerationStage('generation-ended', '等待 500ms 检查最终消息');
+  const baseline = automaticGenerationBaseline;
+  automaticGenerationBaseline = null;
+  const revision = automaticGenerationRevision;
+  if (automaticGenerationEndTimer !== null) targetWindow.clearTimeout(automaticGenerationEndTimer);
+  automaticGenerationEndTimer = targetWindow.setTimeout(() => {
+    automaticGenerationEndTimer = null;
+    void runGenerationEndedAutomaticGeneration(baseline, revision);
+  }, 500);
 }
 
 function handleAssistantMessageReceived(messageId) {
@@ -953,7 +1373,9 @@ function handleAssistantMessageReceived(messageId) {
   if (!settings.autoGenerate) return;
   const pendingTarget = captureAutomaticAssistantTarget(messageId, context.chat);
   if (!pendingTarget) return;
-  invalidatePendingAutomaticGeneration({ abortActive: true });
+  clearAutomaticGenerationLog();
+  logAutomaticGenerationStage('message-received', `楼层 ${pendingTarget.messageIndex}`);
+  invalidatePendingAutomaticGeneration();
   const revision = automaticGenerationRevision;
   pendingAutomaticTargets.set(pendingTarget.messageIndex, { pendingTarget, revision });
 }
@@ -962,6 +1384,7 @@ function handleAssistantMessageRendered(messageId) {
   const messageIndex = Number(messageId);
   const pending = pendingAutomaticTargets.get(messageIndex);
   if (!pending) return;
+  logAutomaticGenerationStage('message-rendered', `楼层 ${messageIndex}`);
   pendingAutomaticTargets.delete(messageIndex);
   targetWindow.setTimeout(() => {
     void runDeferredAutomaticGeneration(pending.pendingTarget, pending.revision);
@@ -1466,6 +1889,9 @@ async function prepareTavernWorldbookSchemeSnapshot() {
 
 function applyApiScheme(snapshot) {
   Object.assign(settings, {
+    apiMode: ['custom', 'tavern'].includes(snapshot.apiMode) ? snapshot.apiMode : 'custom',
+    useMainApi: false,
+    tavernProfile: snapshot.tavernProfile || '',
     apiUrl: snapshot.apiUrl || '',
     apiKey: snapshot.apiKey || '',
     apiModel: snapshot.apiModel || '',
@@ -1485,6 +1911,44 @@ function applyApiScheme(snapshot) {
   $t('#st-esg-streaming-enabled').prop('checked', settings.streamingEnabled);
   $t('#st-esg-prompt-template-compat').prop('checked', settings.promptTemplateCompatEnabled);
   renderModelOptions();
+  renderApiModeUi();
+}
+
+function renderApiModeUi() {
+  const mode = ['custom', 'tavern'].includes(settings.apiMode)
+    ? settings.apiMode
+    : 'custom';
+  settings.apiMode = mode;
+  settings.useMainApi = false;
+  $t('.st-esg-api-tab').each(function () { $(this).toggleClass('is-active', String($(this).data('api-mode')) === mode); });
+  $t('.st-esg-api-mode-panel').addClass('st-esg-hidden');
+  $t(`#st-esg-api-${mode}-panel`).removeClass('st-esg-hidden');
+  $t('.st-esg-api-custom-fields').toggleClass('st-esg-hidden', mode !== 'custom');
+  $t('#st-esg-streaming-enabled').closest('label').removeClass('st-esg-hidden');
+  $t('#st-esg-max-tokens, #st-esg-temperature').closest('label').toggleClass('st-esg-hidden', mode === 'tavern');
+}
+
+function getTavernProfiles() {
+  const rawProfiles = getContext()?.extensionSettings?.connectionManager?.profiles || [];
+  const profiles = Array.isArray(rawProfiles)
+    ? rawProfiles
+    : Object.entries(rawProfiles).map(([id, profile]) => ({ ...(profile || {}), id: profile?.id || id }));
+  return profiles.filter((profile) => profile?.id);
+}
+
+function refreshTavernProfiles() {
+  const profiles = getTavernProfiles();
+  const select = $t('#st-esg-tavern-profile');
+  if (!select.length) return;
+  select.empty().append('<option value="">请选择酒馆预设</option>');
+  profiles.forEach((profile) => {
+    select.append($('<option>').val(String(profile.id)).text(String(profile.name || profile.id)));
+  });
+  if (settings.tavernProfile && !profiles.some((profile) => String(profile?.id || '') === String(settings.tavernProfile))) {
+    select.append($('<option>').val(String(settings.tavernProfile)).text(`当前方案（未找到：${settings.tavernProfile}）`));
+  }
+  select.val(settings.tavernProfile || '');
+  setStatus(`已刷新酒馆预设（${profiles.length} 个）`);
 }
 
 function applyTaskScheme(snapshot) {
@@ -1950,15 +2414,18 @@ function applyComponentListFilters() {
 }
 
 function renderComponentList() {
+  ensureComponentLibraryEnhancements();
   const list = $t('#st-esg-component-list');
   if (!list.length) return;
   pruneSelectedComponentIds();
   const componentViewState = captureComponentLibraryViewState();
+  const currentLibraryOpen = list.find('.st-esg-component-library-card').prop('open');
+  if (typeof currentLibraryOpen === 'boolean') componentLibraryOpen = currentLibraryOpen;
   const openFolderStateIds = componentViewState.openFolders;
   const openComponentIds = componentViewState.openItems;
   const editButton = componentEditMode ? '' : '<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-edit-toggle" type="button"><i class="fa-solid fa-pen-to-square"></i><span>编辑</span></button>';
   const editToolbar = componentEditMode ? '<div class="st-esg-component-edit-toolbar"><span class="st-esg-component-edit-selection-count">未选择项目</span><span class="st-esg-component-batch-actions"><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-batch-move" type="button" title="移动到分组" aria-label="移动到分组" disabled><i class="fa-solid fa-folder-open"></i><span>移动到</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger st-esg-component-batch-delete" type="button" title="删除选中组件" aria-label="删除选中组件" disabled><i class="fa-solid fa-trash"></i><span>删除</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-edit-exit" type="button" title="退出编辑" aria-label="退出编辑"><i class="fa-solid fa-check"></i><span>退出</span></button></span></div>' : '';
-  const wrapLibrary = (content) => `<div class="st-esg-card st-esg-component-library-card"><div class="st-esg-card-head"><div class="st-esg-card-title">组件库</div>${editButton}</div>${editToolbar}${renderComponentListToolbar()}${content}</div>`;
+  const wrapLibrary = (content) => `<details class="st-esg-card st-esg-component-library-card st-esg-library-collapsible" ${componentLibraryOpen ? 'open' : ''}><summary class="st-esg-library-card-summary"><div class="st-esg-card-head"><div><div class="st-esg-card-title">组件库</div></div>${editButton}</div></summary><div class="st-esg-library-card-body">${editToolbar}${renderComponentListToolbar()}${content}</div></details>`;
   settings.components = settings.components.map((item) => normalizeComponent(item, targetWindow, getContext()));
   const sections = [
     { scope: COMPONENT_SCOPE_GLOBAL, title: '全局组件', desc: '启用后始终参与文尾组件生成。' },
@@ -1997,7 +2464,12 @@ function renderComponentList() {
       const { groupPosition, siblingGroups } = group.isDefault ? { groupPosition: -1, siblingGroups: [] } : getComponentGroupSiblingGroups(group.groupId);
       const actions = componentEditMode ? (group.isDefault ? '' : `<span class="st-esg-component-group-actions"><button class="st-esg-icon-btn st-esg-component-group-move-up" type="button" data-group-id="${escapeHtml(group.groupId)}" title="上移分组" aria-label="上移分组" ${groupPosition <= 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-up"></i></button><button class="st-esg-icon-btn st-esg-component-group-move-down" type="button" data-group-id="${escapeHtml(group.groupId)}" title="下移分组" aria-label="下移分组" ${groupPosition < 0 || groupPosition >= siblingGroups.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-down"></i></button><button class="st-esg-icon-btn st-esg-component-group-rename" type="button" data-group-id="${escapeHtml(group.groupId)}" title="重命名分组" aria-label="重命名分组"><i class="fa-solid fa-pen"></i></button><button class="st-esg-icon-btn st-esg-icon-danger st-esg-component-group-delete" type="button" data-group-id="${escapeHtml(group.groupId)}" title="删除分组" aria-label="删除分组"><i class="fa-solid fa-trash"></i></button></span>`) : '';
       const body = group.items.length ? group.items.map(renderComponentItem).join('') : '<div class="st-esg-empty st-esg-empty-small">暂无组件</div>';
-      return `<details class="st-esg-component-folder${groupEnabled ? '' : ' st-esg-component-folder-is-disabled'}" data-group-id="${escapeHtml(group.groupId)}" data-default-group="${group.isDefault ? 'true' : 'false'}" data-folder-state-id="${escapeHtml(folderStateId)}" ${openFolderStateIds.has(folderStateId) ? 'open' : ''}><summary class="st-esg-component-folder-head"><span class="st-esg-component-folder-title">${escapeHtml(group.name)}</span><em class="st-esg-component-folder-count${groupEnabled ? '' : ' is-disabled'}">${enabledCount}/${group.items.length}</em>${control}${actions}<i class="fa-solid fa-chevron-down st-esg-component-folder-caret"></i></summary><div class="st-esg-component-folder-body">${body}</div></details>`;
+      const allItemsEnabled = group.items.length > 0 && enabledCount === group.items.length;
+      const toggleItemsButton = group.items.length
+        ? `<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-group-toggle-items" type="button" data-group-id="${escapeHtml(group.groupId)}"><i class="fa-solid ${allItemsEnabled ? 'fa-toggle-off' : 'fa-toggle-on'}"></i><span>${allItemsEnabled ? '关闭全部条目' : '开启全部条目'}</span></button>`
+        : '';
+      const groupContent = `<div class="st-esg-component-group-content"><div class="st-esg-component-group-toolbar">${toggleItemsButton}</div><div class="st-esg-component-group-items">${body}</div></div>`;
+      return `<details class="st-esg-component-folder${groupEnabled ? '' : ' st-esg-component-folder-is-disabled'}" data-group-id="${escapeHtml(group.groupId)}" data-default-group="${group.isDefault ? 'true' : 'false'}" data-folder-state-id="${escapeHtml(folderStateId)}" ${openFolderStateIds.has(folderStateId) ? 'open' : ''}><summary class="st-esg-component-folder-head"><span class="st-esg-component-folder-title">${escapeHtml(group.name)}</span><em class="st-esg-component-folder-count${groupEnabled ? '' : ' is-disabled'}">${enabledCount}/${group.items.length}</em>${control}${actions}<i class="fa-solid fa-chevron-down st-esg-component-folder-caret"></i></summary><div class="st-esg-component-folder-body">${groupContent}</div></details>`;
     }).join('');
     const sectionContent = groupHtml;
     const createGroupButton = componentEditMode ? `<button class="st-esg-icon-btn st-esg-component-group-create" type="button" data-scope="${escapeHtml(section.scope)}" title="新建分组" aria-label="新建分组"><i class="fa-solid fa-folder-plus"></i></button>` : '';
@@ -2009,6 +2481,7 @@ function renderComponentList() {
   const currentCharacterName = getCurrentCharacterNameSafe(getContext()) || '未选择角色';
   list.find('.st-esg-component-section').eq(2).find('.st-esg-import-group-title').after(`<small class="st-esg-component-section-context">当前角色：${escapeHtml(currentCharacterName)}</small>`);
   saveSettings();
+  list.find('.st-esg-component-library-card').on('toggle', function () { componentLibraryOpen = this.open; });
   list.find('.st-esg-component-edit-toggle').on('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -2143,6 +2616,17 @@ function renderComponentList() {
     });
     updateComponentEditSelectionUi();
   });
+  list.find('.st-esg-component-group-toggle-items').on('click', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const ids = $(this).closest('.st-esg-component-folder').find('.st-esg-component-item').map((_, item) => textOf($(item).attr('data-component-id'))).get().filter(Boolean);
+    const groupItems = ids.map((id) => findComponentById(id)).filter(Boolean);
+    if (!groupItems.length) return;
+    const allEnabled = groupItems.every((item) => item.enabled !== false);
+    groupItems.forEach((item) => { item.enabled = !allEnabled; });
+    saveSettings();
+    renderComponentList();
+  });
   list.find('.st-esg-component-item-actions button').on('click', (event) => event.stopPropagation());
   list.find('.st-esg-component-move-up').on('click', function (event) {
     event.preventDefault();
@@ -2254,14 +2738,250 @@ function renderComponentList() {
   });
   restoreComponentLibraryViewState(componentViewState);
   applyComponentListFilters();
+  renderTheaterLibrary();
 }
 
 function updateComponentEditorSummary(editor, item) {
   editor.closest('.st-esg-component-item').find('.st-esg-component-name').first().text(item.name || '未命名组件');
 }
 
+function ensureComponentLibraryEnhancements() {
+  const componentList = $t('#st-esg-component-list');
+  if (!componentList.length) return;
+  if (!$t('#st-esg-theater-list').length) componentList.after('<div id="st-esg-theater-list" class="st-esg-component-list st-esg-theater-list"></div>');
+  const manualCard = $t('#st-esg-component-name').closest('.st-esg-card');
+  if (manualCard.length && !$t('#st-esg-component-target-library').length) {
+    const scopeLabel = $t('#st-esg-component-scope').closest('label');
+    scopeLabel.before('<label>添加到<select id="st-esg-component-target-library" class="text_pole"><option value="components">组件库</option><option value="theater">小剧场库</option></select></label>');
+  }
+  [
+    ['#st-esg-import-target-scope', 'st-esg-import-target-library'],
+    ['#st-esg-worldbook-import-target-scope', 'st-esg-worldbook-import-target-library'],
+  ].forEach(([scopeSelector, libraryId]) => {
+    const scope = $t(scopeSelector);
+    if (!scope.length || $t(`#${libraryId}`).length) return;
+    scope.closest('label').before(`<label>导入到<select id="${libraryId}" class="text_pole"><option value="components">组件库</option><option value="theater">小剧场库</option></select></label>`);
+  });
+  renderComponentLibraryTargetVisibility();
+}
+
+function renderComponentLibraryTargetVisibility() {
+  const manualTheater = textOf($t('#st-esg-component-target-library').val()) === 'theater';
+  const manualScope = $t('#st-esg-component-scope');
+  manualScope.closest('label').toggle(!manualTheater);
+  $t('#st-esg-component-preset-scheme').closest('label').toggle(!manualTheater && manualScope.val() === COMPONENT_SCOPE_PRESET);
+  $t('#st-esg-add-component span').text(manualTheater ? '添加到小剧场库' : '添加到组件库');
+  [
+    ['#st-esg-import-target-library', '#st-esg-import-target-scope', '#st-esg-import-preset-scheme'],
+    ['#st-esg-worldbook-import-target-library', '#st-esg-worldbook-import-target-scope', '#st-esg-worldbook-import-preset-scheme'],
+  ].forEach(([librarySelector, scopeSelector, bindingSelector]) => {
+    const theater = textOf($t(librarySelector).val()) === 'theater';
+    const scope = $t(scopeSelector);
+    scope.closest('label').toggle(!theater);
+    $t(bindingSelector).closest('label').toggle(!theater && scope.val() === COMPONENT_SCOPE_PRESET);
+  });
+}
+
+function findTheaterItemById(id) {
+  const itemId = textOf(id);
+  return itemId ? settings.theaterComponents.find((item) => textOf(item?.id) === itemId) || null : null;
+}
+
+function getTheaterSiblingIndexes(itemId) {
+  const sourceIndex = settings.theaterComponents.findIndex((item) => textOf(item?.id) === textOf(itemId));
+  const item = settings.theaterComponents[sourceIndex];
+  if (!item) return { sourceIndex: -1, siblingIndexes: [] };
+  const groupId = textOf(item.groupId);
+  const siblingIndexes = settings.theaterComponents.reduce((indexes, candidate, index) => {
+    if (textOf(candidate?.groupId) === groupId) indexes.push(index);
+    return indexes;
+  }, []);
+  return { sourceIndex, siblingIndexes };
+}
+
+function moveTheaterItemWithinGroup(itemId, direction) {
+  const { sourceIndex, siblingIndexes } = getTheaterSiblingIndexes(itemId);
+  const siblingPosition = siblingIndexes.indexOf(sourceIndex);
+  const targetIndex = siblingIndexes[siblingPosition + direction];
+  if (sourceIndex < 0 || !Number.isInteger(targetIndex)) return false;
+  [settings.theaterComponents[sourceIndex], settings.theaterComponents[targetIndex]] = [settings.theaterComponents[targetIndex], settings.theaterComponents[sourceIndex]];
+  return true;
+}
+
+function moveTheaterGroupWithinLibrary(groupId, direction) {
+  const groups = [...settings.theaterGroups].sort((left, right) => Number(left.order) - Number(right.order));
+  const position = groups.findIndex((group) => textOf(group?.id) === textOf(groupId));
+  const target = groups[position + direction];
+  const group = groups[position];
+  if (!group || !target) return false;
+  [group.order, target.order] = [target.order, group.order];
+  return true;
+}
+
+function moveTheaterItemToGroup(itemId, targetGroupId) {
+  const sourceIndex = settings.theaterComponents.findIndex((item) => textOf(item?.id) === textOf(itemId));
+  const item = settings.theaterComponents[sourceIndex];
+  if (!item) return false;
+  const groupId = textOf(targetGroupId);
+  if (groupId && !settings.theaterGroups.some((group) => textOf(group?.id) === groupId)) return false;
+  if (textOf(item.groupId) === groupId) return false;
+  settings.theaterComponents.splice(sourceIndex, 1);
+  item.groupId = groupId;
+  let insertIndex = settings.theaterComponents.length;
+  settings.theaterComponents.forEach((candidate, index) => {
+    if (textOf(candidate?.groupId) === groupId) insertIndex = index + 1;
+  });
+  settings.theaterComponents.splice(insertIndex, 0, item);
+  return true;
+}
+
+function renderTheaterPreview(item) {
+  if (!theaterEditMode) return `<pre>${escapeHtml(item.content || '')}</pre>`;
+  return `<div class="st-esg-component-editor"><input class="text_pole st-esg-theater-name-input" type="text" value="${escapeHtml(item.name || '')}" placeholder="小剧场名称" /><textarea class="text_pole textarea_compact st-esg-textarea st-esg-theater-content" rows="7">${escapeHtml(item.content || '')}</textarea><div class="st-esg-source-actions"><button class="menu_button st-esg-source-confirm st-esg-theater-edit-confirm" type="button">确认</button><button class="menu_button st-esg-source-cancel st-esg-theater-edit-cancel" type="button">取消</button></div></div>`;
+}
+
+function theaterMatchesFilter(item) {
+  const query = theaterSearchQuery.trim().toLocaleLowerCase();
+  const searchableText = `${item.name || ''}\n${item.content || ''}`.toLocaleLowerCase();
+  return (!query || searchableText.includes(query))
+    && (theaterFilterMode === 'all' || (theaterFilterMode === 'enabled' && item.enabled !== false) || (theaterFilterMode === 'disabled' && item.enabled === false));
+}
+
+function applyTheaterLibraryFilters() {
+  const host = $t('#st-esg-theater-list');
+  if (!host.length) return;
+  const filtering = Boolean(theaterSearchQuery.trim()) || theaterFilterMode !== 'all';
+  let visible = 0;
+  host.find('.st-esg-theater-item').each(function () {
+    const item = findTheaterItemById($(this).attr('data-component-id'));
+    const matches = Boolean(item) && theaterMatchesFilter(item);
+    $(this).toggleClass('st-esg-hidden', !matches);
+    if (matches) visible += 1;
+  });
+  host.find('.st-esg-theater-folder').each(function () {
+    const folder = $(this);
+    const visibleItems = folder.find('.st-esg-theater-item').not('.st-esg-hidden').length;
+    folder.toggleClass('st-esg-hidden', visibleItems === 0 && filtering);
+  });
+  host.find('.st-esg-theater-count').text(`${visible} / ${settings.theaterComponents.length}`);
+  const visibleIds = new Set(host.find('.st-esg-theater-item').not('.st-esg-hidden').map((_, item) => textOf($(item).attr('data-component-id'))).get());
+  const hiddenCount = [...selectedTheaterIds].filter((id) => !visibleIds.has(id)).length;
+  host.find('.st-esg-theater-selection-count').text(selectedTheaterIds.size ? `已选 ${selectedTheaterIds.size} 项${hiddenCount ? `（${hiddenCount} 项已筛选隐藏）` : ''}` : '未选择项目');
+  host.find('.st-esg-theater-batch-move, .st-esg-theater-batch-delete').prop('disabled', selectedTheaterIds.size === 0);
+}
+
+function renderTheaterLibrary() {
+  const host = $t('#st-esg-theater-list');
+  if (!host.length) return;
+  const openFolders = new Set(host.find('.st-esg-theater-folder[open]').map((_, item) => textOf($(item).attr('data-folder-state-id'))).get());
+  const openItems = new Set(host.find('.st-esg-theater-item[open]').map((_, item) => textOf($(item).attr('data-component-id'))).get());
+  const currentLibraryOpen = host.find('.st-esg-theater-library-card').prop('open');
+  if (typeof currentLibraryOpen === 'boolean') theaterLibraryOpen = currentLibraryOpen;
+  const randomSettingsOpen = host.find('.st-esg-theater-random-settings').prop('open');
+  if (typeof randomSettingsOpen === 'boolean') theaterRandomSettingsOpen = randomSettingsOpen;
+  const folders = getTheaterLibraryFolders(settings.theaterComponents, settings.theaterGroups, settings.theaterDefaultGroupEnabled);
+  const groups = [...folders.groups, { id: '', name: '默认分组', enabled: settings.theaterDefaultGroupEnabled !== false, items: folders.ungrouped, isDefault: true }];
+  const editButton = theaterEditMode ? '' : '<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-edit-toggle" type="button"><i class="fa-solid fa-pen-to-square"></i><span>编辑</span></button>';
+  const editToolbar = theaterEditMode
+    ? '<div class="st-esg-component-edit-toolbar"><span class="st-esg-theater-selection-count">未选择项目</span><span class="st-esg-component-batch-actions"><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-batch-move" type="button" disabled><i class="fa-solid fa-folder-open"></i><span>移动</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger st-esg-theater-batch-delete" type="button" disabled><i class="fa-solid fa-trash"></i><span>删除</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-edit-exit" type="button"><i class="fa-solid fa-check"></i><span>退出</span></button></span></div>'
+    : '';
+  const mode = normalizeTheaterRandomMode(settings.theaterRandomMode);
+  const modeDescription = mode === THEATER_RANDOM_MODE_OFF
+    ? '关闭随机时只发送已启用的条目。'
+    : mode === THEATER_RANDOM_MODE_ALL
+      ? '从小剧场库中的全部条目随机抽取。'
+      : mode === THEATER_RANDOM_MODE_ENABLED
+        ? '从已启用的条目中随机抽取。'
+      : '已启用内容固定发送，再从未启用内容中随机抽取。';
+  const modeLabel = mode === THEATER_RANDOM_MODE_OFF
+    ? '关闭随机'
+    : mode === THEATER_RANDOM_MODE_ALL
+      ? '全部随机'
+      : mode === THEATER_RANDOM_MODE_ENABLED
+        ? '已启用条目随机'
+      : '启用固定 + 未启用随机';
+  const renderItem = (item) => {
+    const isOpen = openItems.has(item.id);
+    const controls = theaterEditMode
+      ? `<label class="st-esg-checkbox st-esg-component-select-label" title="选择小剧场"><input class="st-esg-theater-select" type="checkbox" data-component-id="${escapeHtml(item.id)}" ${selectedTheaterIds.has(item.id) ? 'checked' : ''} /></label>`
+      : `<label class="st-esg-switch st-esg-switch-sm"><input class="st-esg-theater-enabled" type="checkbox" ${item.enabled === false ? '' : 'checked'} /><span></span></label>`;
+    const { sourceIndex, siblingIndexes } = getTheaterSiblingIndexes(item.id);
+    const siblingPosition = siblingIndexes.indexOf(sourceIndex);
+    const actions = theaterEditMode
+      ? `<span class="st-esg-component-item-actions"><button class="st-esg-icon-btn st-esg-theater-move-up" type="button" data-component-id="${escapeHtml(item.id)}" ${siblingPosition <= 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-up"></i></button><button class="st-esg-icon-btn st-esg-theater-move-down" type="button" data-component-id="${escapeHtml(item.id)}" ${siblingPosition < 0 || siblingPosition >= siblingIndexes.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-down"></i></button><button class="st-esg-icon-btn st-esg-theater-move-to" type="button" data-component-id="${escapeHtml(item.id)}"><i class="fa-solid fa-folder-open"></i></button><button class="st-esg-icon-btn st-esg-icon-danger st-esg-theater-delete" type="button" data-component-id="${escapeHtml(item.id)}"><i class="fa-solid fa-trash"></i></button></span>`
+      : '';
+    return `<details class="st-esg-component-item st-esg-theater-item" data-component-id="${escapeHtml(item.id)}" ${isOpen ? 'open' : ''}><summary class="st-esg-component-item-head"><span class="st-esg-component-name">${escapeHtml(item.name || '未命名小剧场')}</span>${controls}${actions}</summary><div class="st-esg-component-preview" data-loaded="${isOpen ? 'true' : 'false'}">${isOpen ? renderTheaterPreview(item) : ''}</div></details>`;
+  };
+  const folderHtml = groups.map((group) => {
+    const groupId = textOf(group.id);
+    const folderStateId = `theater::${group.isDefault ? '__default__' : groupId}`;
+    const groupEnabled = group.enabled !== false;
+    const enabledCount = group.items.filter((item) => item.enabled !== false).length;
+    const allItemsEnabled = group.items.length > 0 && enabledCount === group.items.length;
+    const orderedGroups = [...settings.theaterGroups].sort((left, right) => Number(left.order) - Number(right.order));
+    const groupPosition = orderedGroups.findIndex((item) => textOf(item?.id) === groupId);
+    const controls = theaterEditMode
+      ? `<label class="st-esg-checkbox st-esg-component-group-select-label"><input class="st-esg-theater-group-select" type="checkbox" /></label>`
+      : group.isDefault
+        ? `<label class="st-esg-switch st-esg-switch-sm"><input class="st-esg-theater-default-enabled" type="checkbox" ${groupEnabled ? 'checked' : ''} /><span></span></label>`
+        : `<label class="st-esg-switch st-esg-switch-sm"><input class="st-esg-theater-group-enabled" type="checkbox" data-group-id="${escapeHtml(groupId)}" ${groupEnabled ? 'checked' : ''} /><span></span></label>`;
+    const actions = theaterEditMode && !group.isDefault
+      ? `<span class="st-esg-component-group-actions"><button class="st-esg-icon-btn st-esg-theater-group-up" type="button" data-group-id="${escapeHtml(groupId)}" ${groupPosition <= 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-up"></i></button><button class="st-esg-icon-btn st-esg-theater-group-down" type="button" data-group-id="${escapeHtml(groupId)}" ${groupPosition < 0 || groupPosition >= orderedGroups.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-down"></i></button><button class="st-esg-icon-btn st-esg-theater-group-rename" type="button" data-group-id="${escapeHtml(groupId)}"><i class="fa-solid fa-pen"></i></button><button class="st-esg-icon-btn st-esg-icon-danger st-esg-theater-group-delete" type="button" data-group-id="${escapeHtml(groupId)}"><i class="fa-solid fa-trash"></i></button></span>`
+      : '';
+    const createGroupButton = theaterEditMode && group.isDefault ? '<button class="st-esg-icon-btn st-esg-theater-group-create" type="button"><i class="fa-solid fa-folder-plus"></i></button>' : '';
+    const body = group.items.length ? group.items.map(renderItem).join('') : '<div class="st-esg-empty st-esg-empty-small">暂无小剧场</div>';
+    const toggleItemsButton = group.items.length
+      ? `<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-group-toggle-items" type="button" data-group-id="${escapeHtml(groupId)}"><i class="fa-solid ${allItemsEnabled ? 'fa-toggle-off' : 'fa-toggle-on'}"></i><span>${allItemsEnabled ? '关闭全部条目' : '开启全部条目'}</span></button>`
+      : '';
+    const groupContent = `<div class="st-esg-theater-group-content"><div class="st-esg-theater-group-toolbar">${toggleItemsButton}</div><div class="st-esg-theater-group-items">${body}</div></div>`;
+    return `<details class="st-esg-component-folder st-esg-theater-folder${groupEnabled ? '' : ' st-esg-component-folder-is-disabled'}" data-group-id="${escapeHtml(groupId)}" data-folder-state-id="${escapeHtml(folderStateId)}" ${openFolders.has(folderStateId) ? 'open' : ''}><summary class="st-esg-component-folder-head"><span class="st-esg-component-folder-title">${escapeHtml(group.name)}</span><em class="st-esg-component-folder-count${groupEnabled ? '' : ' is-disabled'}">${enabledCount}/${group.items.length}</em>${controls}${actions}${createGroupButton}<i class="fa-solid fa-chevron-down st-esg-component-folder-caret"></i></summary><div class="st-esg-component-folder-body">${groupContent}</div></details>`;
+  }).join('');
+  const theaterRandomSettingsMarkup = `<details class="st-esg-theater-random-settings" ${theaterRandomSettingsOpen ? 'open' : ''}><summary class="st-esg-theater-random-summary"><span>随机设置</span><em>${modeLabel}</em><i class="fa-solid fa-chevron-down st-esg-theater-random-caret"></i></summary><div class="st-esg-theater-random-body"><div class="st-esg-theater-random-fields"><span class="st-esg-theater-random-label">随机模式</span><select class="text_pole st-esg-theater-random-mode"><option value="off" ${mode === THEATER_RANDOM_MODE_OFF ? 'selected' : ''}>关闭随机</option><option value="all" ${mode === THEATER_RANDOM_MODE_ALL ? 'selected' : ''}>全部随机</option><option value="enabled" ${mode === THEATER_RANDOM_MODE_ENABLED ? 'selected' : ''}>已启用条目随机</option><option value="fixed-enabled" ${mode === THEATER_RANDOM_MODE_FIXED_ENABLED ? 'selected' : ''}>启用固定 + 未启用随机</option></select><span class="st-esg-theater-random-label">随机数量</span><input class="text_pole st-esg-theater-random-count" type="number" min="0" step="1" value="${settings.theaterRandomCount}" /></div><span class="st-esg-card-desc st-esg-theater-random-description">${modeDescription}</span></div></details>`;
+  host.html(`<details class="st-esg-card st-esg-component-library-card st-esg-library-collapsible st-esg-theater-library-card" ${theaterLibraryOpen ? 'open' : ''}><summary class="st-esg-library-card-summary"><div class="st-esg-card-head"><div><div class="st-esg-card-title">小剧场库</div><div class="st-esg-card-desc">独立管理格式要求和剧情小剧场；启用状态可用于随机抽取。</div></div>${editButton}</div></summary><div class="st-esg-library-card-body">${editToolbar}${theaterRandomSettingsMarkup}<div class="st-esg-list-toolbar st-esg-component-list-toolbar"><input type="text" class="st-esg-search-input st-esg-theater-search-input text_pole" placeholder="搜索条目..." value="${escapeHtml(theaterSearchQuery)}"><select class="st-esg-filter-select st-esg-theater-filter-select text_pole"><option value="all" ${theaterFilterMode === 'all' ? 'selected' : ''}>全部</option><option value="enabled" ${theaterFilterMode === 'enabled' ? 'selected' : ''}>仅启用</option><option value="disabled" ${theaterFilterMode === 'disabled' ? 'selected' : ''}>仅禁用</option></select><span class="st-esg-theater-count"></span></div><div class="st-esg-theater-folders">${folderHtml}</div></div></details>`);
+
+  host.find('.st-esg-theater-library-card').on('toggle', function () { theaterLibraryOpen = this.open; });
+  host.find('.st-esg-theater-random-settings').on('toggle', function () { theaterRandomSettingsOpen = this.open; });
+  host.find('.st-esg-theater-random-mode').on('change', function () { settings.theaterRandomMode = normalizeTheaterRandomMode($(this).val()); saveSettings(); renderTheaterLibrary(); });
+  host.find('.st-esg-theater-random-count').on('change', function () { settings.theaterRandomCount = normalizeTheaterRandomCount($(this).val()); $(this).val(settings.theaterRandomCount); saveSettings(); });
+  host.find('.st-esg-theater-search-input').on('input', function () { theaterSearchQuery = String($(this).val() || ''); applyTheaterLibraryFilters(); });
+  host.find('.st-esg-theater-filter-select').on('change', function () { theaterFilterMode = String($(this).val() || 'all'); applyTheaterLibraryFilters(); });
+  host.find('.st-esg-theater-edit-toggle').on('click', (event) => { event.preventDefault(); event.stopPropagation(); theaterEditMode = true; renderTheaterLibrary(); });
+  host.find('.st-esg-theater-edit-exit').on('click', (event) => { event.preventDefault(); event.stopPropagation(); theaterEditMode = false; selectedTheaterIds.clear(); renderTheaterLibrary(); });
+  host.find('.st-esg-theater-select, .st-esg-theater-group-select').on('click', (event) => event.stopPropagation());
+  host.find('.st-esg-theater-select').on('change', function (event) { event.stopPropagation(); const id = textOf($(this).attr('data-component-id')); if ($(this).prop('checked')) selectedTheaterIds.add(id); else selectedTheaterIds.delete(id); applyTheaterLibraryFilters(); });
+  host.find('.st-esg-theater-group-select').on('change', function (event) { event.stopPropagation(); const ids = $(this).closest('.st-esg-theater-folder').find('.st-esg-theater-item').map((_, item) => textOf($(item).attr('data-component-id'))).get(); const allSelected = ids.length > 0 && ids.every((id) => selectedTheaterIds.has(id)); ids.forEach((id) => { if (allSelected) selectedTheaterIds.delete(id); else selectedTheaterIds.add(id); }); applyTheaterLibraryFilters(); });
+  host.find('.st-esg-theater-group-toggle-items').on('click', function (event) { event.preventDefault(); event.stopPropagation(); const ids = $(this).closest('.st-esg-theater-folder').find('.st-esg-theater-item').map((_, item) => textOf($(item).attr('data-component-id'))).get(); const groupItems = ids.map((id) => findTheaterItemById(id)).filter(Boolean); if (!groupItems.length) return; const allEnabled = groupItems.every((item) => item.enabled !== false); groupItems.forEach((item) => { item.enabled = !allEnabled; }); saveSettings(); renderTheaterLibrary(); });
+  host.find('.st-esg-theater-batch-delete').on('click', () => { if (!selectedTheaterIds.size || !targetWindow.confirm(`确认删除选中的 ${selectedTheaterIds.size} 个小剧场？此操作无法恢复。`)) return; settings.theaterComponents = settings.theaterComponents.filter((item) => !selectedTheaterIds.has(textOf(item?.id))); selectedTheaterIds.clear(); saveSettings(); renderComponentList(); notifyStatus('已删除选中的小剧场。'); });
+  host.find('.st-esg-theater-batch-move').on('click', async () => { if (!selectedTheaterIds.size) return; const groupsForMove = settings.theaterGroups.slice().sort((left, right) => Number(left.order) - Number(right.order)); const selected = await requestTextInputDialog({ title: '移动小剧场', label: '目标分组', value: DEFAULT_COMPONENT_GROUP_VALUE, options: [{ value: DEFAULT_COMPONENT_GROUP_VALUE, label: '默认分组' }, ...groupsForMove.map((group) => ({ value: group.id, label: group.name }))] }); if (!selected) return; [...selectedTheaterIds].forEach((id) => moveTheaterItemToGroup(id, selected === DEFAULT_COMPONENT_GROUP_VALUE ? '' : selected)); selectedTheaterIds.clear(); saveSettings(); renderComponentList(); });
+  host.find('.st-esg-theater-group-create').on('click', async (event) => { event.preventDefault(); event.stopPropagation(); const name = await requestTextInputDialog({ title: '新建小剧场分组', label: '分组名', placeholder: '输入分组名' }); if (!name) return; const order = settings.theaterGroups.reduce((max, group) => Math.max(max, Number(group.order) || 0), -1) + 1; settings.theaterGroups.push({ id: createNewTheaterGroupId(), name, enabled: true, order }); saveSettings(); renderComponentList(); });
+  host.find('.st-esg-theater-group-up, .st-esg-theater-group-down').on('click', function (event) { event.preventDefault(); event.stopPropagation(); if (moveTheaterGroupWithinLibrary($(this).attr('data-group-id'), $(this).hasClass('st-esg-theater-group-up') ? -1 : 1)) { saveSettings(); renderComponentList(); } });
+  host.find('.st-esg-theater-group-rename').on('click', async function (event) { event.preventDefault(); event.stopPropagation(); const group = settings.theaterGroups.find((item) => textOf(item?.id) === textOf($(this).attr('data-group-id'))); if (!group) return; const name = await requestTextInputDialog({ title: '重命名小剧场分组', label: '分组名', value: group.name, placeholder: '输入分组名' }); if (!name) return; group.name = name; saveSettings(); renderComponentList(); });
+  host.find('.st-esg-theater-group-delete').on('click', function (event) { event.preventDefault(); event.stopPropagation(); const groupId = textOf($(this).attr('data-group-id')); const group = settings.theaterGroups.find((item) => textOf(item?.id) === groupId); if (!group || !targetWindow.confirm(`确认删除分组“${group.name}”？组内小剧场将移到默认分组。`)) return; settings.theaterComponents.forEach((item) => { if (textOf(item.groupId) === groupId) item.groupId = ''; }); settings.theaterGroups = settings.theaterGroups.filter((item) => textOf(item?.id) !== groupId); saveSettings(); renderComponentList(); });
+  host.find('.st-esg-theater-group-enabled').on('click', (event) => event.stopPropagation()).on('change', function () { const group = settings.theaterGroups.find((item) => textOf(item?.id) === textOf($(this).attr('data-group-id'))); if (!group) return; group.enabled = Boolean($(this).prop('checked')); saveSettings(); renderTheaterLibrary(); });
+  host.find('.st-esg-theater-default-enabled').on('click', (event) => event.stopPropagation()).on('change', function () { settings.theaterDefaultGroupEnabled = Boolean($(this).prop('checked')); saveSettings(); renderTheaterLibrary(); });
+  host.find('.st-esg-theater-enabled').on('click', (event) => event.stopPropagation()).on('change', function () { const item = findTheaterItemById($(this).closest('.st-esg-theater-item').attr('data-component-id')); if (!item) return; item.enabled = Boolean($(this).prop('checked')); saveSettings(); renderTheaterLibrary(); });
+  host.find('.st-esg-theater-move-up, .st-esg-theater-move-down').on('click', function (event) { event.preventDefault(); event.stopPropagation(); if (moveTheaterItemWithinGroup($(this).attr('data-component-id'), $(this).hasClass('st-esg-theater-move-up') ? -1 : 1)) { saveSettings(); renderComponentList(); } });
+  host.find('.st-esg-theater-move-to').on('click', async function (event) { event.preventDefault(); event.stopPropagation(); const item = findTheaterItemById($(this).attr('data-component-id')); if (!item) return; const groupsForMove = settings.theaterGroups.slice().sort((left, right) => Number(left.order) - Number(right.order)); const selected = await requestTextInputDialog({ title: '移动小剧场', label: '目标分组', value: textOf(item.groupId) || DEFAULT_COMPONENT_GROUP_VALUE, options: [{ value: DEFAULT_COMPONENT_GROUP_VALUE, label: '默认分组' }, ...groupsForMove.map((group) => ({ value: group.id, label: group.name }))] }); if (!selected || !moveTheaterItemToGroup(item.id, selected === DEFAULT_COMPONENT_GROUP_VALUE ? '' : selected)) return; saveSettings(); renderComponentList(); });
+  host.find('.st-esg-theater-delete').on('click', function (event) { event.preventDefault(); event.stopPropagation(); const id = textOf($(this).attr('data-component-id')); const item = findTheaterItemById(id); if (!item || !targetWindow.confirm(`确认删除小剧场“${item.name || '未命名'}”？此操作无法恢复。`)) return; settings.theaterComponents = settings.theaterComponents.filter((candidate) => textOf(candidate?.id) !== id); selectedTheaterIds.delete(id); saveSettings(); renderComponentList(); });
+  host.find('.st-esg-theater-item').on('toggle', function () { if (!this.open) return; const preview = this.querySelector('.st-esg-component-preview'); if (!preview || preview.dataset.loaded === 'true') return; const item = findTheaterItemById($(this).attr('data-component-id')); if (!item) return; preview.innerHTML = renderTheaterPreview(item); preview.dataset.loaded = 'true'; });
+  host.off('.stEsgTheaterEditor');
+  host.on('click.stEsgTheaterEditor', '.st-esg-theater-name-input, .st-esg-theater-content', (event) => event.stopPropagation());
+  host.on('click.stEsgTheaterEditor', '.st-esg-theater-edit-confirm', function (event) { event.preventDefault(); event.stopPropagation(); const item = findTheaterItemById($(this).closest('.st-esg-theater-item').attr('data-component-id')); if (!item) return; const editor = $(this).closest('.st-esg-component-editor'); item.name = textOf(editor.find('.st-esg-theater-name-input').val()) || '未命名小剧场'; item.content = String(editor.find('.st-esg-theater-content').val() || ''); saveSettings(); notifyStatus('已保存小剧场内容。'); editor.closest('.st-esg-theater-item').find('.st-esg-component-name').first().text(item.name); applyTheaterLibraryFilters(); });
+  host.on('click.stEsgTheaterEditor', '.st-esg-theater-edit-cancel', function (event) { event.preventDefault(); event.stopPropagation(); const item = findTheaterItemById($(this).closest('.st-esg-theater-item').attr('data-component-id')); if (!item) return; const editor = $(this).closest('.st-esg-component-editor'); editor.find('.st-esg-theater-name-input').val(item.name || ''); editor.find('.st-esg-theater-content').val(item.content || ''); notifyStatus('已取消编辑。'); });
+  applyTheaterLibraryFilters();
+}
+
 function addComponent() {
   const name = textOf($t('#st-esg-component-name').val());
+  const targetLibrary = textOf($t('#st-esg-component-target-library').val()) || 'components';
+  if (targetLibrary === 'theater') {
+    const content = textOf($t('#st-esg-component-content').val());
+    if (!content) { setStatus('小剧场内容不能为空。'); return; }
+    settings.theaterComponents.push({ id: createNewTheaterId(), name: name || '未命名小剧场', content, enabled: true, groupId: '', sourceType: '手动' });
+    $t('#st-esg-component-name').val(''); $t('#st-esg-component-content').val('');
+    saveSettings(); renderComponentList(); setStatus('已添加到小剧场库。');
+    return;
+  }
   const scope = textOf($t('#st-esg-component-scope').val()) || COMPONENT_SCOPE_GLOBAL;
   const presetSchemeId = scope === COMPONENT_SCOPE_PRESET ? textOf($t('#st-esg-component-preset-scheme').val()) : '';
   const content = textOf($t('#st-esg-component-content').val());
@@ -2274,8 +2994,11 @@ function addComponent() {
 }
 
 function getImportTarget(sourceType = 'preset') {
+  const librarySelect = sourceType === 'worldbook' ? '#st-esg-worldbook-import-target-library' : '#st-esg-import-target-library';
+  const library = textOf($t(librarySelect).val()) || 'components';
   const scopeSelect = sourceType === 'worldbook' ? '#st-esg-worldbook-import-target-scope' : '#st-esg-import-target-scope';
   const scope = textOf($t(scopeSelect).val()) || COMPONENT_SCOPE_GLOBAL;
+  if (library === 'theater') return { library, scope: '', presetSchemeId: '', bindName: '' };
   const presetSchemeId = scope === COMPONENT_SCOPE_PRESET
     ? textOf($t(sourceType === 'worldbook' ? '#st-esg-worldbook-import-preset-scheme' : '#st-esg-import-preset-scheme').val())
     : '';
@@ -2284,7 +3007,7 @@ function getImportTarget(sourceType = 'preset') {
     return null;
   }
   const presetScheme = getPresetSchemeById(presetSchemeId);
-  return { scope, presetSchemeId, bindName: scope === COMPONENT_SCOPE_PRESET ? presetScheme.name : getComponentBindingName(scope, targetWindow, getContext()) };
+  return { library, scope, presetSchemeId, bindName: scope === COMPONENT_SCOPE_PRESET ? presetScheme.name : getComponentBindingName(scope, targetWindow, getContext()) };
 }
 
 function resetComponentEditMode() {
@@ -3191,7 +3914,7 @@ function importCheckedCandidates(sourceType) {
   if (!checked.length) { notifyStatus('请先勾选要导入的候选组件。', 'warning'); return; }
   const target = getImportTarget(sourceType);
   if (!target) { notifyStatus('请先选择导入目标。', 'warning'); return; }
-  const { scope: targetScope, presetSchemeId, bindName } = target;
+  const { library, scope: targetScope, presetSchemeId, bindName } = target;
   let added = 0;
   for (const checkbox of checked) {
     const row = $(checkbox).closest('.st-esg-import-item');
@@ -3199,7 +3922,8 @@ function importCheckedCandidates(sourceType) {
     const item = group?.items?.[Number(row.data('item-index'))];
     if (!item || getSourceType(item) !== getSourceType(sourceType)) continue;
     const importedComponent = { name: item.name, scope: targetScope, presetSchemeId, bindName, content: item.content, enabled: true, source: item.source, sourceType: item.scope, sourceOrder: item.sourceOrder, sourceUid: item.sourceUid, groupId: '' };
-    settings.components.push({ id: createNewComponentId(), ...importedComponent });
+    if (library === 'theater') settings.theaterComponents.push({ id: createNewTheaterId(), name: item.name, content: item.content, enabled: true, source: item.source, sourceType: item.scope, sourceOrder: item.sourceOrder, sourceUid: item.sourceUid, groupId: '' });
+    else settings.components.push({ id: createNewComponentId(), ...importedComponent });
     added += 1;
   }
   saveSettings(); renderComponentList(); renderImportCandidates(); notifyStatus(`已新增导入 ${added} 个组件。`);
@@ -3212,7 +3936,7 @@ function buildPluginPanelMarkup() {
 }
 
 function buildGenerationSettingsMarkup() {
-  return `<details class="st-esg-card st-esg-collapsible st-esg-generation-settings"><summary class="st-esg-collapsible-summary">生成设置</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-generate" type="checkbox" /><span>监听正文结束自动生成</span></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-inject" type="checkbox" /><span>生成结束以后自动注入</span></label><label id="st-esg-inject-mode-row" class="st-esg-generation-inject-mode">注入方式：<select id="st-esg-inject-mode" class="text_pole st-esg-select"><option value="replace">正文已有同名标签时直接覆盖</option><option value="append">始终追加到末尾</option></select></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-status-placeholder-enabled" type="checkbox" /><span>将 MVU 状态标签固定到正文末尾</span><em>检测正文或生成内容中的 &lt;StatusPlaceHolderImpl/&gt;，清理重复项并在最终文末保留一个。</em></label><div class="st-esg-card-desc">覆盖模式仅支持成对的尖括号标签（如 &lt;status&gt;…&lt;/status&gt;）。[status]、【状态】等格式无法识别，会自动改为追加。</div></div></details>`;
+  return `<details class="st-esg-card st-esg-collapsible st-esg-generation-settings"><summary class="st-esg-collapsible-summary">生成设置</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-generate" type="checkbox" /><span>监听正文结束自动生成</span></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-inject" type="checkbox" /><span>生成结束以后自动注入</span></label><label id="st-esg-inject-mode-row" class="st-esg-generation-inject-mode">注入方式：<select id="st-esg-inject-mode" class="text_pole st-esg-select"><option value="replace">正文已有同名标签时直接覆盖</option><option value="append">始终追加到末尾</option><option value="rollbackAppend">撤回本楼上次注入后追加</option><option value="rollbackReplace">撤回本楼上次注入后覆盖</option></select></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-status-placeholder-enabled" type="checkbox" /><span>将 MVU 状态标签固定到正文末尾</span><em>检测正文或生成内容中的 &lt;StatusPlaceHolderImpl/&gt;，清理重复项并在最终文末保留一个。</em></label><div class="st-esg-card-desc">覆盖模式仅支持成对的尖括号标签（如 &lt;status&gt;…&lt;/status&gt;）。[status]、【状态】等格式无法识别，会自动改为追加。</div></div></details>`;
 }
 
 function renderGenerationSettings() {
@@ -3257,13 +3981,24 @@ function renderPluginPanel() {
   const modeCard = workspace?.querySelector('#st-esg-mode')?.closest('.st-esg-card');
   modeCard?.replaceWith(...$(buildGenerationSettingsMarkup()).toArray());
   injectionCard?.remove();
+  workspace?.insertAdjacentHTML('beforeend', '<div class="st-esg-card st-esg-generation-log-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">本次生成日志</div><div class="st-esg-card-desc">每次开始生成时清空，只保留本次生成流程。</div></div></div><pre id="st-esg-generation-log" class="st-esg-generation-log">尚未开始生成</pre></div>');
   workspace?.querySelector('#st-esg-preview')?.closest('.st-esg-card')?.classList.add('st-esg-generation-content');
   const apiFields = dialog.querySelector('#st-esg-api-url')?.closest('.st-esg-grid');
+  const apiUrlLabel = dialog.querySelector('#st-esg-api-url')?.closest('label');
   const apiKeyLabel = dialog.querySelector('#st-esg-api-key')?.closest('label');
   const apiModelLabel = dialog.querySelector('#st-esg-api-model')?.closest('label');
   const apiTemperatureLabel = dialog.querySelector('#st-esg-temperature')?.closest('label');
   const apiMaxTokensLabel = dialog.querySelector('#st-esg-max-tokens')?.closest('label');
   apiFields?.classList.add('st-esg-api-fields');
+  apiUrlLabel?.classList.add('st-esg-api-custom-fields');
+  apiKeyLabel?.classList.add('st-esg-api-custom-fields');
+  apiModelLabel?.classList.add('st-esg-api-custom-fields');
+  dialog.querySelector('#st-esg-fetch-models')?.classList.add('st-esg-api-custom-fields');
+  dialog.querySelector('#st-esg-additional-parameters')?.classList.add('st-esg-api-custom-fields');
+  const apiBody = dialog.querySelector('#st-esg-api-url')?.closest('.st-esg-collapsible-body');
+  apiBody?.insertAdjacentHTML('afterbegin', `${renderSchemeManager('api')}<div class="st-esg-api-tabs"><button type="button" class="st-esg-api-tab" data-api-mode="custom">自定义</button><button type="button" class="st-esg-api-tab" data-api-mode="tavern">酒馆预设</button></div><div id="st-esg-api-tavern-panel" class="st-esg-api-mode-panel"><label>酒馆预设<select id="st-esg-tavern-profile" class="text_pole"></select></label><div class="st-esg-actions-row"><div id="st-esg-refresh-tavern-profiles" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-rotate"></i><span>刷新预设</span></div></div></div>`);
+  const apiSchemeManagers = apiBody?.querySelectorAll('.st-esg-scheme-group[data-scheme-type="api"]') || [];
+  if (apiSchemeManagers.length > 1) apiSchemeManagers[apiSchemeManagers.length - 1].remove();
   if (apiKeyLabel && apiModelLabel) apiFields?.insertBefore(apiKeyLabel, apiModelLabel);
   if (apiTemperatureLabel && apiMaxTokensLabel) apiFields?.insertBefore(apiTemperatureLabel, apiMaxTokensLabel);
   const temperatureInput = dialog.querySelector('#st-esg-temperature');
@@ -3271,8 +4006,9 @@ function renderPluginPanel() {
   temperatureInput?.setAttribute('step', 'any');
   const fetchModelsButton = dialog.querySelector('#st-esg-fetch-models');
   fetchModelsButton?.insertAdjacentHTML('afterend', '<div id="st-esg-additional-parameters" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-sliders"></i><span>附加参数</span></div>');
+  dialog.querySelector('#st-esg-additional-parameters')?.classList.add('st-esg-api-custom-fields');
   const apiModel = dialog.querySelector('#st-esg-api-model');
-  apiModel?.insertAdjacentHTML('afterend', '<select id="st-esg-api-model-picker" class="text_pole st-esg-api-model-picker" style="display:none;"></select><div id="st-esg-api-model-feedback" class="st-esg-api-model-feedback"></div>');
+  apiModel?.insertAdjacentHTML('afterend', '<select id="st-esg-api-model-picker" class="text_pole st-esg-api-model-picker st-esg-api-custom-fields" style="display:none;"></select><div id="st-esg-api-model-feedback" class="st-esg-model-feedback st-esg-api-custom-fields"></div>');
   const preview = dialog.querySelector('#st-esg-preview');
   preview?.closest('.st-esg-card')?.querySelector('.st-esg-card-title')?.classList.add('st-esg-generation-result-title');
   preview?.closest('.st-esg-card')?.querySelector('.st-esg-card-desc')?.classList.add('st-esg-generation-result-desc');
@@ -3464,6 +4200,7 @@ function bindPanelEvents() {
   $t('#st-esg-temperature').val(settings.temperature);
   $t('#st-esg-streaming-enabled').prop('checked', settings.streamingEnabled);
   $t('#st-esg-prompt-template-compat').prop('checked', settings.promptTemplateCompatEnabled);
+  renderApiModeUi();
   renderTagRuleManager('history');
   renderTagRuleManager('output');
   renderSourceModeUi();
@@ -3476,7 +4213,9 @@ function bindPanelEvents() {
   $t('.st-esg-tab').on('click', function () { switchTab(String($(this).data('tab'))); });
   $t('.st-esg-collapsible').on('toggle.stEsgLayout', () => { void $t('.st-esg-panel-body').get(0)?.scrollHeight; });
   $t('#st-esg-add-component').on('click', addComponent);
+  $t('#st-esg-component-target-library, #st-esg-import-target-library, #st-esg-worldbook-import-target-library').on('change', renderComponentLibraryTargetVisibility);
   $t('.st-esg-panel-body').off('change.stEsgPresetBinding').on('change.stEsgPresetBinding', '#st-esg-import-target-scope, #st-esg-worldbook-import-target-scope, #st-esg-component-scope', renderPresetBindingControls);
+  $t('.st-esg-panel-body').on('change.stEsgLibraryTarget', '#st-esg-import-target-library, #st-esg-worldbook-import-target-library', renderComponentLibraryTargetVisibility);
   $t('.st-esg-mode-radio[name="preset_source_mode"]').on('change', function () {
     if (!$(this).prop('checked')) return;
     void changeSourceMode('preset', String($(this).val()));
@@ -3598,6 +4337,20 @@ function bindPanelEvents() {
     saveSettings();
   });
   $t('#st-esg-api-url').on('input', function () { settings.apiUrl = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
+  $t('.st-esg-api-tab').on('click', function () {
+    settings.apiMode = String($(this).data('api-mode') || 'custom');
+    settings.useMainApi = false;
+    markSchemeDirty('api');
+    saveSettings();
+    renderApiModeUi();
+  });
+  $t('#st-esg-tavern-profile').on('change', function () {
+    settings.tavernProfile = String($(this).val() || '');
+    markSchemeDirty('api');
+    saveSettings();
+    setStatus(settings.tavernProfile ? '已选择酒馆预设' : '已取消选择酒馆预设');
+  });
+  $t('#st-esg-refresh-tavern-profiles').on('click', function () { refreshTavernProfiles(); });
   $t('#st-esg-api-key').on('input', function () { settings.apiKey = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
   $t('#st-esg-api-model').on('input', function () { settings.apiModel = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
   $t('#st-esg-api-model-picker').on('change', function () {
@@ -3684,10 +4437,15 @@ function init() {
   const context = getContext();
   registerPromptSourceCacheInvalidation(context);
   registerInjectionUndoInvalidation(context);
+  if (context.eventTypes.GENERATION_STARTED) context.eventSource.on(context.eventTypes.GENERATION_STARTED, handleGenerationStarted);
+  if (context.eventTypes.GENERATION_ENDED) context.eventSource.on(context.eventTypes.GENERATION_ENDED, handleGenerationEnded);
   if (context.eventTypes.MESSAGE_RECEIVED) context.eventSource.on(context.eventTypes.MESSAGE_RECEIVED, handleAssistantMessageReceived);
   if (context.eventTypes.CHARACTER_MESSAGE_RENDERED) context.eventSource.on(context.eventTypes.CHARACTER_MESSAGE_RENDERED, handleAssistantMessageRendered);
-  if (context.eventTypes.MESSAGE_SWIPED) context.eventSource.on(context.eventTypes.MESSAGE_SWIPED, () => invalidatePendingAutomaticGeneration({ abortActive: true }));
-  if (context.eventTypes.CHAT_CHANGED) context.eventSource.on(context.eventTypes.CHAT_CHANGED, () => invalidatePendingAutomaticGeneration({ abortActive: true }));
+  if (context.eventTypes.CHAT_CHANGED) context.eventSource.on(context.eventTypes.CHAT_CHANGED, () => {
+    invalidatePendingAutomaticGeneration({ abortActive: true });
+    automaticGenerationBaseline = null;
+    lastAutomaticTargetKey = '';
+  });
   console.log(`[${EXTENSION_ID}] 已加载，dialog top layer，UI 挂载文档：${targetWindow === window ? 'current' : 'parent'}`);
 }
 

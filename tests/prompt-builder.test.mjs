@@ -108,6 +108,16 @@ const messagesWithComponentPlaceholder = await buildExternalStatusbarMessages({
 
 assert.equal(messagesWithComponentPlaceholder.at(-1).content, 'Before\n<roleplay_options />\n\n<evil_guidance />\nAfter');
 
+const messagesWithTheaterComponents = await buildExternalStatusbarMessages({
+  targetWindow,
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: '{{external_components}}',
+  components: [{ content: '<normal />' }],
+  theaterComponents: [{ content: '<theater />' }],
+});
+assert.equal(messagesWithTheaterComponents.at(-1).content, '<normal />\n\n<theater />');
+
 const messagesWithTemplateRendering = await buildExternalStatusbarMessages({
   targetWindow: {},
   context,

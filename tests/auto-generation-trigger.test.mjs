@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import {
   captureAutomaticAssistantTarget,
-  isAutomaticAssistantTargetCurrent,
+  captureAutomaticGenerationBaseline,
+  getAutomaticAssistantTargetKey,
+  isAutomaticTargetAfterGenerationStart,
+  isAutomaticAssistantTargetAddressable,
   resolveAutomaticAssistantMessageIndex,
   resolveReadyAutomaticAssistantTarget,
 } from '../generation/auto-generation-trigger.js';
@@ -22,10 +25,10 @@ assert.deepEqual(
   { messageIndex: 1 },
   'the received event should capture only the floor because other listeners may still normalize its text',
 );
-assert.equal(
+assert.deepEqual(
   resolveReadyAutomaticAssistantTarget(pendingTarget, chat),
-  null,
-  'automatic work must wait until SillyTavern has initialized the active swipe',
+  { messageIndex: 1, messageText: 'Assistant reply', swipeId: null },
+  'missing swipe metadata and a later system message must not block the latest assistant reply',
 );
 
 const readyChat = [
@@ -38,19 +41,44 @@ assert.deepEqual(
   { messageIndex: 1, messageText: 'Assistant reply normalized', swipeId: 0 },
   'the stable target should use the finalized text instead of the temporary MESSAGE_RECEIVED text',
 );
-assert.equal(isAutomaticAssistantTargetCurrent(readyTarget, readyChat), true);
 assert.equal(
-  isAutomaticAssistantTargetCurrent(readyTarget, [
-    chat[0],
-    { ...assistant, mes: 'Another swipe', swipe_id: 1, swipes: ['Assistant reply normalized', 'Another swipe'] },
-  ]),
-  false,
-  'switching to another swipe must invalidate an in-flight result',
+  isAutomaticAssistantTargetAddressable(readyTarget, [chat[0], { ...assistant, mes: '同楼层被其他插件更新' }]),
+  true,
+  'a same-floor text update without swipe metadata should still allow automatic injection',
 );
 assert.equal(
-  isAutomaticAssistantTargetCurrent(readyTarget, [...readyChat, { ...assistant, mes: 'New floor', swipe_id: 0, swipes: ['New floor'] }]),
+  isAutomaticAssistantTargetAddressable(readyTarget, [
+    chat[0],
+    { ...assistant, mes: 'Another swipe', swipe_id: 1, swipes: ['Assistant reply normalized', 'Another swipe'] },
+    { is_user: false, is_system: true, mes: 'System metadata' },
+  ]),
+  true,
+  'switching swipe or appending system metadata must not make the latest assistant unaddressable',
+);
+const baseline = captureAutomaticGenerationBaseline(readyChat);
+assert.equal(
+  isAutomaticTargetAfterGenerationStart(readyTarget, baseline),
   false,
-  'a later floor must invalidate an in-flight result',
+  'an ended event without a new assistant or swipe must not retrigger the same reply',
+);
+const newSwipeTarget = resolveReadyAutomaticAssistantTarget(
+  { messageIndex: 1 },
+  [chat[0], { ...assistant, mes: 'Another swipe', swipe_id: 1, swipes: ['Assistant reply normalized', 'Another swipe'] }],
+);
+assert.equal(isAutomaticTargetAfterGenerationStart(newSwipeTarget, baseline), true);
+assert.notEqual(getAutomaticAssistantTargetKey(newSwipeTarget), getAutomaticAssistantTargetKey(readyTarget));
+assert.equal(
+  isAutomaticTargetAfterGenerationStart(
+    resolveReadyAutomaticAssistantTarget({ messageIndex: 2 }, [...readyChat, { is_user: false, is_system: false, mes: 'New reply', swipe_id: 0, swipes: ['New reply'] }]),
+    baseline,
+  ),
+  true,
+  'a newly appended assistant reply must be eligible after generation ended',
+);
+assert.equal(
+  isAutomaticAssistantTargetAddressable(readyTarget, [...readyChat, { ...assistant, mes: 'New floor', swipe_id: 0, swipes: ['New floor'] }]),
+  false,
+  'a later assistant floor must prevent automatic injection into the old floor',
 );
 
 for (const [messageId, messages] of [

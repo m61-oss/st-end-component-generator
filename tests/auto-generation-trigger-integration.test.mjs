@@ -15,9 +15,17 @@ const receivedHandler = source.slice(
 
 assert.match(
   source,
-  /captureAutomaticAssistantTarget,[\s\S]*?isAutomaticAssistantTargetCurrent,[\s\S]*?resolveReadyAutomaticAssistantTarget/,
+  /captureAutomaticAssistantTarget,[\s\S]*?isAutomaticAssistantTargetAddressable,[\s\S]*?resolveReadyAutomaticAssistantTarget/,
   'the assistant-message resolver should be imported',
 );
+assert.match(source, /function logAutomaticGenerationStage\(/, 'automatic generation should expose stage logging');
+assert.match(source, /function clearAutomaticGenerationLog\(/, 'a new generation should clear the visible stage log');
+assert.match(source, /id=["']st-esg-generation-log["']/, 'the generation page should contain a visible stage log');
+assert.match(source, /const VISIBLE_GENERATION_LOG_STAGES = new Set\(/, 'the page log should have an explicit user-facing stage allowlist');
+assert.match(source, /if \(!VISIBLE_GENERATION_LOG_STAGES\.has\(stage\)\) return;/, 'raw internal stages should stay out of the page log');
+assert.doesNotMatch(source, /VISIBLE_GENERATION_LOG_STAGES[\s\S]{0,500}'generation-started'/, 'raw Tavern generation-start events should not be user-facing');
+assert.doesNotMatch(source, /VISIBLE_GENERATION_LOG_STAGES[\s\S]{0,500}'message-rendered'/, 'assistant render internals should not be user-facing');
+assert.match(source, /logAutomaticGenerationStage\('api-start'/, 'automatic API start should be logged');
 assert.doesNotMatch(source, /createAutoGenerationTracker|autoGenerationTracker/, 'generation session state should be removed');
 assert.match(source, /function getAssistantMessageAtIndex\(chat, messageIndex\)/, 'an exact assistant-message resolver should exist');
 assert.match(
@@ -42,27 +50,28 @@ assert.doesNotMatch(
   /currentTarget\.messageText !== pendingTarget\.messageText/,
   'post-receive normalization by other extensions must not silently discard normal assistant replies',
 );
+assert.doesNotMatch(triggerHandlers, /messageElementReady/, 'DOM nodes must not gate automatic generation');
+assert.doesNotMatch(triggerHandlers, /#chat \.mes\[mesid=/, 'DOM selectors must not gate automatic generation');
 
 assert.match(
   source,
   /if \(context\.eventTypes\.MESSAGE_RECEIVED\) context\.eventSource\.on\(context\.eventTypes\.MESSAGE_RECEIVED, handleAssistantMessageReceived\);/,
   'only the semantic assistant-received event should drive automatic generation',
 );
-assert.match(
-  source,
-  /MESSAGE_SWIPED[\s\S]*?invalidatePendingAutomaticGeneration/,
-  'switching swipes should invalidate pending automatic work without starting generation',
-);
+assert.doesNotMatch(source, /eventTypes\.MESSAGE_SWIPED[\s\S]{0,180}invalidatePendingAutomaticGeneration/, 'switching swipes must not cancel automatic work');
+assert.doesNotMatch(receivedHandler, /invalidatePendingAutomaticGeneration\(\{ abortActive: true \}\)/, 'a newer assistant event must not abort an already running external generation');
+assert.doesNotMatch(generateFunction, /if \(entryType === 'automatic'\) logAutomaticGenerationStage\('api-start'/, 'automatic API start should not be logged twice');
+assert.doesNotMatch(generateFunction, /if \(entryType === 'automatic'\) logAutomaticGenerationStage\('api-returned'/, 'automatic API completion should not be logged twice');
+assert.match(triggerHandlers, /logAutomaticGenerationStage\('generation-skip', `等待最新 assistant 超时/, 'a readiness timeout should expose actionable diagnostics');
 
 assert.match(
   generateFunction,
   /async function generateStatusbar\(entryType = 'manual', targetMessageIndex = null, automaticTarget = null\)/,
   'generation should accept an exact target message index',
 );
-assert.match(
-  generateFunction,
-  /if \(automaticTarget && !isAutomaticAssistantTargetCurrent\(automaticTarget, getContext\(\)\.chat\)\)[\s\S]*?return '';/,
-  'an automatic result should be discarded when its floor or swipe changed while the API was running',
+assert.ok(
+  generateFunction.indexOf('applyGeneratedResult(result)') < generateFunction.indexOf('isAutomaticAssistantTargetAddressable(automaticTarget, getContext().chat)'),
+  'the generated result should always be retained before deciding whether automatic injection is still safe',
 );
 assert.match(
   generateFunction,
@@ -71,8 +80,8 @@ assert.match(
 );
 assert.match(
   generateFunction,
-  /if \(settings\.autoInject && result\) await injectGeneratedStatusbar\(latest\.index\);/,
-  'automatic injection should receive the same message index',
+  /if \(settings\.autoInject && result\) \{[\s\S]*?isAutomaticAssistantTargetAddressable\(automaticTarget, getContext\(\)\.chat\)[\s\S]*?await injectGeneratedStatusbar\(latest\.index\);/,
+  'only automatic injection should require the target to remain the latest assistant floor',
 );
 assert.match(
   source.slice(injectStart, handlerStart),

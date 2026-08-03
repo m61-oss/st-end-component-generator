@@ -44,6 +44,18 @@ assert.match(
   /st-esg-component-folder-title[\s\S]*?st-esg-component-folder-count[\s\S]*?\$\{control\}/,
   'folder counts should render before the enable control so every control shares a column',
 );
+assert.match(
+  indexSource,
+  /st-esg-component-group-content[\s\S]*?st-esg-component-group-items/,
+  'component groups should wrap their items in a dedicated container',
+);
+assert.match(indexSource, /st-esg-component-group-toggle-items/, 'component groups should expose a bulk item toggle');
+assert.match(
+  indexSource,
+  /st-esg-component-group-toggle-items[\s\S]*?groupItems\.every\(\(item\) => item\.enabled !== false\)[\s\S]*?saveSettings\(\);\s*renderComponentList\(\);/,
+  'component groups should toggle all member enabled states without changing the group gate',
+);
+assert.match(styleSource, /\.st-esg-component-group-content\s*\{/, 'component group controls should have a bordered container');
 
 const componentToggleHandler = indexSource.match(/\$t\('\.st-esg-component-enabled'\)\.on\('change', function \(\) \{[\s\S]*?\n  }\);/);
 assert.ok(componentToggleHandler, 'component enabled changes should have an event handler');
@@ -55,8 +67,8 @@ assert.match(
 
 assert.match(
   indexSource,
-  /const componentViewState = captureComponentLibraryViewState\(\);\s*const openFolderStateIds = componentViewState\.openFolders;/,
-  'component list rendering should retain expanded component-library state before a refresh',
+  /const componentViewState = captureComponentLibraryViewState\(\);\s*const currentLibraryOpen = list\.find\('\.st-esg-component-library-card'\)\.prop\('open'\);[\s\S]*?const openFolderStateIds = componentViewState\.openFolders;/,
+  'component list rendering should retain library and folder state before a refresh',
 );
 assert.match(
   indexSource,

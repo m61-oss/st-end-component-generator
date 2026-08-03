@@ -95,6 +95,9 @@ export function captureSchemeSnapshot(type, settings, groups = [], options = {})
   const isWorldbookGroup = options.isWorldbookGroup || ((group) => group?.scope === 'worldbook');
   if (type === 'api') {
     return {
+      apiMode: settings.apiMode || 'custom',
+      useMainApi: settings.useMainApi === true,
+      tavernProfile: settings.tavernProfile || '',
       apiUrl: settings.apiUrl || '',
       apiKey: settings.apiKey || '',
       apiModel: settings.apiModel || '',
