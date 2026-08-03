@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const indexSource = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+const styleSource = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+
+assert.match(indexSource, /关闭随机时只发送已启用的条目/);
+assert.match(indexSource, /从小剧场库中的全部条目随机抽取/);
+assert.match(indexSource, /placeholder="搜索条目\.\.\."/);
+assert.match(indexSource, /st-esg-theater-random-fields/);
+assert.match(styleSource, /\.st-esg-theater-random-fields \{[^}]*grid-template-columns: auto minmax\(0, 1fr\) auto minmax\(88px, 120px\)/s);
+
+console.log('theater-library UI tests passed');
