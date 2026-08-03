@@ -340,6 +340,15 @@ async function getYamlParser() {
   return await yamlParserPromise;
 }
 
+function getHostRequestHeaders() {
+  try {
+    const headers = getContext()?.getRequestHeaders?.();
+    return headers && typeof headers === 'object' ? headers : {};
+  } catch {
+    return {};
+  }
+}
+
 function getQuickReplyApi() {
   return targetWindow.quickReplyApi ?? globalThis.quickReplyApi;
 }
@@ -1608,14 +1617,25 @@ async function fetchApiModels() {
   $t('#st-esg-api-model-feedback').text('正在拉取模型列表...');
   setStatus('正在拉取模型列表……');
   try {
-    const additional = parseApiAdditionalParameters(settings, await getYamlParser());
-    const response = await fetch(modelsUrl, {
-      method: 'GET',
+    parseApiAdditionalParameters(settings, await getYamlParser());
+    const apiBaseUrl = modelsUrl.replace(/\/models$/i, '');
+    const customHeadersYaml = [
+      settings.apiKey ? `Authorization: ${JSON.stringify(`Bearer ${settings.apiKey}`)}` : '',
+      textOf(settings.additionalHeadersYaml),
+    ].filter(Boolean).join('\n');
+    const response = await fetch('/api/backends/chat-completions/status', {
+      method: 'POST',
       headers: {
+        ...getHostRequestHeaders(),
         'Content-Type': 'application/json',
-        ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
-        ...additional.additionalHeaders,
       },
+      body: JSON.stringify({
+        reverse_proxy: apiBaseUrl,
+        proxy_password: '',
+        chat_completion_source: 'custom',
+        custom_url: apiBaseUrl,
+        custom_include_headers: customHeadersYaml,
+      }),
     });
     if (!response.ok) throw new Error(`拉取模型失败：${response.status} ${(await response.text().catch(() => '')).slice(0, 160)}`);
     const models = extractModelIds(await response.json());

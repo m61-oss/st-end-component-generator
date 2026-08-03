@@ -55,8 +55,12 @@ assert.match(generateFunction, /clearGeneratedThinking\(\);[\s\S]*?callExternalA
 assert.match(source, /function clearGeneratedThinking\(\)[\s\S]*?thinkingPanel\?\.replaceChildren\(\);[\s\S]*?thinkingPanel\?\.classList\.add\('st-esg-hidden'\);/, 'clearing thinking should directly remove the stale details element from the mounted page');
 assert.match(source, /thinking\.toggleClass\('st-esg-hidden', Boolean\(error\) \|\| !lastGeneratedThinking\.length\);/, 'result-panel refreshes must keep an empty thinking container hidden');
 
-assert.match(modelFunction, /const additional = parseApiAdditionalParameters\(settings, await getYamlParser\(\)\);/, 'model fetching should validate saved YAML');
-assert.match(modelFunction, /headers:\s*\{[\s\S]*?\.\.\.additional\.additionalHeaders[\s\S]*?\}/, 'model fetching should apply custom request headers');
+assert.match(modelFunction, /parseApiAdditionalParameters\(settings, await getYamlParser\(\)\);/, 'model fetching should validate saved YAML');
+assert.match(modelFunction, /\/api\/backends\/chat-completions\/status/, 'model fetching should use Tavern backend status endpoint');
+assert.match(modelFunction, /method:\s*'POST'/, 'model fetching should POST the custom connection data to Tavern');
+assert.match(modelFunction, /custom_url:\s*[^,]+,[\s\S]*?custom_include_headers:/, 'model fetching should pass the custom URL and headers to Tavern');
+assert.match(modelFunction, /getHostRequestHeaders\(\)/, 'model fetching should include Tavern host request headers');
+assert.doesNotMatch(modelFunction, /fetch\(modelsUrl,\s*\{/, 'model fetching should not directly request the provider from the browser');
 assert.doesNotMatch(modelFunction, /additional\.additionalBody/, 'model-list GET requests should not apply custom body parameters');
 
 console.log('api-request-integration tests passed');
