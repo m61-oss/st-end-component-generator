@@ -29,6 +29,9 @@ assert.match(schemeSource, /apiMode: settings\.apiMode/, 'API schemes should sav
 assert.match(source, /settings\.apiMode = mode;[\s\S]*?settings\.useMainApi = mode === 'main';/, 'API mode rendering should normalize the legacy flag to the selected tab');
 assert.match(source, /st-esg-api-model-picker[^>]*st-esg-api-custom-fields/, 'the model picker should only be visible for custom API mode');
 assert.match(source, /Object\.entries\(rawProfiles\)/, 'Tavern profile refresh should support object-shaped profile registries');
+assert.match(source, /context\?\.extensionSettings\?\.connectionManager\?\.profiles/, 'Tavern profiles should be read from the host context store');
+assert.match(source, /includePreset: true, stream: false/, 'profile requests should use the selected Tavern preset');
+assert.match(source, /apiUrlLabel\?\.classList\.add\('st-esg-api-custom-fields'\)/, 'the API URL field should be hidden outside custom mode');
 assert.match(callFunction, /createStreamPreviewController\(/, 'streaming requests should use the lightweight preview controller');
 assert.match(callFunction, /streamPreview\.push\(fullText\);/, 'stream chunks should only enter the throttled preview path');
 assert.match(callFunction, /onPreview:\s*updateStreamedPreview/, 'each throttled stream preview update should resize and scroll through one lightweight callback');

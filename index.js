@@ -761,7 +761,7 @@ async function callExternalApi(latestMessage, signal) {
     const service = targetWindow?.SillyTavern?.ConnectionManagerRequestService;
     const profileId = textOf(settings.tavernProfile);
     if (!profileId || typeof service?.sendRequest !== 'function') throw new Error('未选择可用的酒馆预设。');
-    const response = await service.sendRequest(profileId, messages, numeric.maxTokens);
+    const response = await service.sendRequest(profileId, messages, numeric.maxTokens, { extractData: true, includePreset: true, stream: false, signal });
     const content = response?.result?.choices?.[0]?.message?.content ?? response?.content ?? '';
     if (typeof content !== 'string' || !content.trim()) throw markGenerationResponseError(new Error('酒馆预设 API 返回为空。'));
     return content.trim();
@@ -1738,7 +1738,8 @@ function renderApiModeUi() {
 }
 
 function refreshTavernProfiles() {
-  const rawProfiles = targetWindow?.SillyTavern?.extensionSettings?.connectionManager?.profiles || [];
+  const context = getContext();
+  const rawProfiles = context?.extensionSettings?.connectionManager?.profiles || [];
   const profiles = Array.isArray(rawProfiles)
     ? rawProfiles
     : Object.entries(rawProfiles).map(([id, profile]) => ({ ...(profile || {}), id: profile?.id || id }));
@@ -3527,17 +3528,21 @@ function renderPluginPanel() {
   workspace?.insertAdjacentHTML('beforeend', '<div class="st-esg-card st-esg-generation-log-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">本次生成日志</div><div class="st-esg-card-desc">每次开始生成时清空，只保留本次生成流程。</div></div></div><pre id="st-esg-generation-log" class="st-esg-generation-log">尚未开始生成</pre></div>');
   workspace?.querySelector('#st-esg-preview')?.closest('.st-esg-card')?.classList.add('st-esg-generation-content');
   const apiFields = dialog.querySelector('#st-esg-api-url')?.closest('.st-esg-grid');
+  const apiUrlLabel = dialog.querySelector('#st-esg-api-url')?.closest('label');
   const apiKeyLabel = dialog.querySelector('#st-esg-api-key')?.closest('label');
   const apiModelLabel = dialog.querySelector('#st-esg-api-model')?.closest('label');
   const apiTemperatureLabel = dialog.querySelector('#st-esg-temperature')?.closest('label');
   const apiMaxTokensLabel = dialog.querySelector('#st-esg-max-tokens')?.closest('label');
   apiFields?.classList.add('st-esg-api-fields');
+  apiUrlLabel?.classList.add('st-esg-api-custom-fields');
   apiKeyLabel?.classList.add('st-esg-api-custom-fields');
   apiModelLabel?.classList.add('st-esg-api-custom-fields');
   dialog.querySelector('#st-esg-fetch-models')?.classList.add('st-esg-api-custom-fields');
   dialog.querySelector('#st-esg-additional-parameters')?.classList.add('st-esg-api-custom-fields');
   const apiBody = dialog.querySelector('#st-esg-api-url')?.closest('.st-esg-collapsible-body');
-  apiBody?.insertAdjacentHTML('afterbegin', '<div class="st-esg-api-tabs"><button type="button" class="st-esg-api-tab" data-api-mode="main">酒馆主 API</button><button type="button" class="st-esg-api-tab" data-api-mode="custom">自定义</button><button type="button" class="st-esg-api-tab" data-api-mode="tavern">酒馆预设</button></div><div id="st-esg-api-main-panel" class="st-esg-api-mode-panel">使用酒馆当前正在使用的主 API，不需要填写地址和 Key。</div><div id="st-esg-api-tavern-panel" class="st-esg-api-mode-panel"><label>酒馆预设<select id="st-esg-tavern-profile" class="text_pole"></select></label><div class="st-esg-actions-row"><div id="st-esg-refresh-tavern-profiles" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-rotate"></i><span>刷新预设</span></div></div></div>');
+  apiBody?.insertAdjacentHTML('afterbegin', `${renderSchemeManager('api')}<div class="st-esg-api-tabs"><button type="button" class="st-esg-api-tab" data-api-mode="main">酒馆主 API</button><button type="button" class="st-esg-api-tab" data-api-mode="custom">自定义</button><button type="button" class="st-esg-api-tab" data-api-mode="tavern">酒馆预设</button></div><div id="st-esg-api-main-panel" class="st-esg-api-mode-panel">使用酒馆当前正在使用的主 API，不需要填写地址和 Key。</div><div id="st-esg-api-tavern-panel" class="st-esg-api-mode-panel"><label>酒馆预设<select id="st-esg-tavern-profile" class="text_pole"></select></label><div class="st-esg-actions-row"><div id="st-esg-refresh-tavern-profiles" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-rotate"></i><span>刷新预设</span></div></div></div>`);
+  const apiSchemeManagers = apiBody?.querySelectorAll('.st-esg-scheme-group[data-scheme-type="api"]') || [];
+  if (apiSchemeManagers.length > 1) apiSchemeManagers[apiSchemeManagers.length - 1].remove();
   if (apiKeyLabel && apiModelLabel) apiFields?.insertBefore(apiKeyLabel, apiModelLabel);
   if (apiTemperatureLabel && apiMaxTokensLabel) apiFields?.insertBefore(apiTemperatureLabel, apiMaxTokensLabel);
   const temperatureInput = dialog.querySelector('#st-esg-temperature');
