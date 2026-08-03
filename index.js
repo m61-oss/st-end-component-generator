@@ -399,8 +399,8 @@ function loadSettings() {
   if (typeof settings.autoGenerate !== 'boolean') settings.autoGenerate = settings.mode !== 'manual';
   if (typeof settings.promptTemplateCompatEnabled !== 'boolean') settings.promptTemplateCompatEnabled = false;
   if (typeof settings.autoInject !== 'boolean') settings.autoInject = settings.mode === 'autoInject';
-  settings.apiMode = ['main', 'custom', 'tavern'].includes(settings.apiMode) ? settings.apiMode : (settings.useMainApi ? 'main' : 'custom');
-  settings.useMainApi = settings.apiMode === 'main';
+  settings.apiMode = ['custom', 'tavern'].includes(settings.apiMode) ? settings.apiMode : 'custom';
+  settings.useMainApi = false;
   if (typeof settings.tavernProfile !== 'string') settings.tavernProfile = '';
   if (typeof settings.mvuReprocessOnInject !== 'boolean') settings.mvuReprocessOnInject = true;
   lastPromptLogText = textOf(settings.lastPromptLog);
@@ -733,35 +733,32 @@ function setGeneratingState(isGenerating) {
 }
 
 async function callExternalApi(latestMessage, signal) {
-  const apiUrl = (settings.apiMode || (settings.useMainApi ? 'main' : 'custom')) === 'custom'
+  const apiUrl = (settings.apiMode || 'custom') === 'custom'
     ? normalizeChatCompletionsUrl(settings.apiUrl)
     : 'https://tavern.internal';
-  const model = textOf(settings.apiModel) || (settings.apiMode === 'custom' ? '' : 'tavern');
-  const apiMode = settings.apiMode || (settings.useMainApi ? 'main' : 'custom');
+  const model = textOf(settings.apiModel) || (settings.apiMode === 'custom' ? '' : '酒馆预设');
+  const apiMode = ['custom', 'tavern'].includes(settings.apiMode) ? settings.apiMode : 'custom';
   if (!apiUrl || !model) throw new Error('请先在“API 设置”里填写 API 地址和模型名称。');
   const numeric = parseApiNumericSettings(settings);
   const additional = parseApiAdditionalParameters(settings, await getYamlParser());
   const builtMessages = await buildMessages(latestMessage);
   const messages = settings.compressSystemMessages ? mergeConsecutiveSystemMessages(builtMessages) : builtMessages;
-  if (apiMode === 'main' || apiMode === 'tavern') {
+  if (apiMode === 'tavern') {
     const numeric = parseApiNumericSettings(settings);
-    const promptLogApi = apiMode === 'main' ? '酒馆主 API' : `酒馆预设：${settings.tavernProfile || '未选择'}`;
+    const promptLogApi = `酒馆预设：${settings.tavernProfile || '未选择'}`;
     lastPromptLogText = createPromptLog({ apiUrl: promptLogApi, apiKey: '', model, maxTokens: String(numeric.maxTokens), temperature: String(numeric.temperature), messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics: lastRuntimeDiagnostics, compressSystemMessages: settings.compressSystemMessages });
     promptLogBuilding = false;
     settings.lastPromptLog = '';
     saveSettings();
     renderPromptLog();
-    if (apiMode === 'main') {
-      const generateRaw = targetWindow?.TavernHelper?.generateRaw;
-      if (typeof generateRaw !== 'function') throw new Error('当前酒馆不支持 TavernHelper.generateRaw。');
-      const response = await generateRaw({ ordered_prompts: messages, should_stream: Boolean(settings.streamingEnabled), max_tokens: numeric.maxTokens, temperature: numeric.temperature });
-      if (typeof response !== 'string' || !response.trim()) throw markGenerationResponseError(new Error('酒馆主 API 返回为空。'));
-      return response.trim();
-    }
-    const service = targetWindow?.SillyTavern?.ConnectionManagerRequestService;
-    const profileId = textOf(settings.tavernProfile);
+    const service = targetWindow?.SillyTavern?.ConnectionManagerRequestService || targetWindow?.ConnectionManagerRequestService;
+    const profiles = getTavernProfiles();
+    const requestedProfile = textOf(settings.tavernProfile);
+    const profile = profiles.find((item) => String(item?.id || '') === requestedProfile || String(item?.name || '') === requestedProfile);
+    const profileId = textOf(profile?.id || requestedProfile);
     if (!profileId || typeof service?.sendRequest !== 'function') throw new Error('未选择可用的酒馆预设。');
-    const response = await service.sendRequest(profileId, messages, numeric.maxTokens, { extractData: true, includePreset: true, stream: false, signal });
+    settings.tavernProfile = profileId;
+    const response = await service.sendRequest(profileId, messages, undefined, { extractData: true, includePreset: true, stream: false, signal });
     const content = response?.result?.choices?.[0]?.message?.content ?? response?.content ?? '';
     if (typeof content !== 'string' || !content.trim()) throw markGenerationResponseError(new Error('酒馆预设 API 返回为空。'));
     return content.trim();
@@ -868,9 +865,15 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   setGeneratingState(true);
   let result = '';
   try {
-    if (!settings.apiUrl || !settings.apiModel) {
+    const apiMode = settings.apiMode || 'custom';
+    if (apiMode === 'custom' && (!settings.apiUrl || !settings.apiModel)) {
       logAutomaticGenerationStage('generation-error', 'API address or model is missing');
       notifyStatus('请先在“API 配置”里填写 API 地址和模型名称。', 'warning');
+      return '';
+    }
+    if (apiMode === 'tavern' && !settings.tavernProfile) {
+      logAutomaticGenerationStage('generation-error', 'Tavern profile is missing');
+      notifyStatus('请先选择酒馆预设。', 'warning');
       return '';
     }
     logAutomaticGenerationStage('prompt-build-start');
@@ -1698,8 +1701,8 @@ async function prepareTavernWorldbookSchemeSnapshot() {
 
 function applyApiScheme(snapshot) {
   Object.assign(settings, {
-    apiMode: ['main', 'custom', 'tavern'].includes(snapshot.apiMode) ? snapshot.apiMode : (snapshot.useMainApi ? 'main' : 'custom'),
-    useMainApi: snapshot.apiMode === 'main' || snapshot.useMainApi === true,
+    apiMode: ['custom', 'tavern'].includes(snapshot.apiMode) ? snapshot.apiMode : 'custom',
+    useMainApi: false,
     tavernProfile: snapshot.tavernProfile || '',
     apiUrl: snapshot.apiUrl || '',
     apiKey: snapshot.apiKey || '',
@@ -1724,35 +1727,41 @@ function applyApiScheme(snapshot) {
 }
 
 function renderApiModeUi() {
-  const mode = ['main', 'custom', 'tavern'].includes(settings.apiMode)
+  const mode = ['custom', 'tavern'].includes(settings.apiMode)
     ? settings.apiMode
-    : (settings.useMainApi ? 'main' : 'custom');
+    : 'custom';
   settings.apiMode = mode;
-  settings.useMainApi = mode === 'main';
+  settings.useMainApi = false;
   $t('.st-esg-api-tab').each(function () { $(this).toggleClass('is-active', String($(this).data('api-mode')) === mode); });
   $t('.st-esg-api-mode-panel').addClass('st-esg-hidden');
   $t(`#st-esg-api-${mode}-panel`).removeClass('st-esg-hidden');
   $t('.st-esg-api-custom-fields').toggleClass('st-esg-hidden', mode !== 'custom');
-  $t('#st-esg-max-tokens, #st-esg-temperature, #st-esg-streaming-enabled').closest('label').removeClass('st-esg-hidden');
+  $t('#st-esg-streaming-enabled').closest('label').removeClass('st-esg-hidden');
+  $t('#st-esg-max-tokens, #st-esg-temperature').closest('label').toggleClass('st-esg-hidden', mode === 'tavern');
   if (mode === 'tavern') refreshTavernProfiles();
 }
 
-function refreshTavernProfiles() {
-  const context = getContext();
-  const rawProfiles = context?.extensionSettings?.connectionManager?.profiles || [];
+function getTavernProfiles() {
+  const rawProfiles = getContext()?.extensionSettings?.connectionManager?.profiles || [];
   const profiles = Array.isArray(rawProfiles)
     ? rawProfiles
     : Object.entries(rawProfiles).map(([id, profile]) => ({ ...(profile || {}), id: profile?.id || id }));
+  return profiles.filter((profile) => profile?.id);
+}
+
+function refreshTavernProfiles() {
+  const profiles = getTavernProfiles();
   const select = $t('#st-esg-tavern-profile');
   if (!select.length) return;
   select.empty().append('<option value="">请选择酒馆预设</option>');
-  profiles.filter((profile) => profile?.id).forEach((profile) => {
+  profiles.forEach((profile) => {
     select.append($('<option>').val(String(profile.id)).text(String(profile.name || profile.id)));
   });
   if (settings.tavernProfile && !profiles.some((profile) => String(profile?.id || '') === String(settings.tavernProfile))) {
     select.append($('<option>').val(String(settings.tavernProfile)).text(`当前方案（未找到：${settings.tavernProfile}）`));
   }
   select.val(settings.tavernProfile || '');
+  setStatus(`已刷新酒馆预设（${profiles.length} 个）`);
 }
 
 function applyTaskScheme(snapshot) {
@@ -3540,7 +3549,7 @@ function renderPluginPanel() {
   dialog.querySelector('#st-esg-fetch-models')?.classList.add('st-esg-api-custom-fields');
   dialog.querySelector('#st-esg-additional-parameters')?.classList.add('st-esg-api-custom-fields');
   const apiBody = dialog.querySelector('#st-esg-api-url')?.closest('.st-esg-collapsible-body');
-  apiBody?.insertAdjacentHTML('afterbegin', `${renderSchemeManager('api')}<div class="st-esg-api-tabs"><button type="button" class="st-esg-api-tab" data-api-mode="main">酒馆主 API</button><button type="button" class="st-esg-api-tab" data-api-mode="custom">自定义</button><button type="button" class="st-esg-api-tab" data-api-mode="tavern">酒馆预设</button></div><div id="st-esg-api-main-panel" class="st-esg-api-mode-panel">使用酒馆当前正在使用的主 API，不需要填写地址和 Key。</div><div id="st-esg-api-tavern-panel" class="st-esg-api-mode-panel"><label>酒馆预设<select id="st-esg-tavern-profile" class="text_pole"></select></label><div class="st-esg-actions-row"><div id="st-esg-refresh-tavern-profiles" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-rotate"></i><span>刷新预设</span></div></div></div>`);
+  apiBody?.insertAdjacentHTML('afterbegin', `${renderSchemeManager('api')}<div class="st-esg-api-tabs"><button type="button" class="st-esg-api-tab" data-api-mode="custom">自定义</button><button type="button" class="st-esg-api-tab" data-api-mode="tavern">酒馆预设</button></div><div id="st-esg-api-tavern-panel" class="st-esg-api-mode-panel"><label>酒馆预设<select id="st-esg-tavern-profile" class="text_pole"></select></label><div class="st-esg-actions-row"><div id="st-esg-refresh-tavern-profiles" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-rotate"></i><span>刷新预设</span></div></div></div>`);
   const apiSchemeManagers = apiBody?.querySelectorAll('.st-esg-scheme-group[data-scheme-type="api"]') || [];
   if (apiSchemeManagers.length > 1) apiSchemeManagers[apiSchemeManagers.length - 1].remove();
   if (apiKeyLabel && apiModelLabel) apiFields?.insertBefore(apiKeyLabel, apiModelLabel);
@@ -3880,12 +3889,17 @@ function bindPanelEvents() {
   $t('#st-esg-api-url').on('input', function () { settings.apiUrl = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
   $t('.st-esg-api-tab').on('click', function () {
     settings.apiMode = String($(this).data('api-mode') || 'custom');
-    settings.useMainApi = settings.apiMode === 'main';
+    settings.useMainApi = false;
     markSchemeDirty('api');
     saveSettings();
     renderApiModeUi();
   });
-  $t('#st-esg-tavern-profile').on('change', function () { settings.tavernProfile = String($(this).val() || ''); markSchemeDirty('api'); saveSettings(); });
+  $t('#st-esg-tavern-profile').on('change', function () {
+    settings.tavernProfile = String($(this).val() || '');
+    markSchemeDirty('api');
+    saveSettings();
+    setStatus(settings.tavernProfile ? '已选择酒馆预设' : '已取消选择酒馆预设');
+  });
   $t('#st-esg-refresh-tavern-profiles').on('click', function () { refreshTavernProfiles(); });
   $t('#st-esg-api-key').on('input', function () { settings.apiKey = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
   $t('#st-esg-api-model').on('input', function () { settings.apiModel = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
