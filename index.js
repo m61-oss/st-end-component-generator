@@ -392,6 +392,7 @@ function loadSettings() {
   if (!isFreshInstall && !Object.prototype.hasOwnProperty.call(storedSettings, 'replaceLastUserMessageWithTask')) settings.replaceLastUserMessageWithTask = false;
   settings.ballSize = normalizeFloatingBallSize(settings.ballSize);
   settings.ballOpacity = normalizeFloatingBallOpacity(settings.ballOpacity);
+  if (!['replace', 'append', 'rollbackAppend', 'rollbackReplace'].includes(settings.injectMode)) settings.injectMode = 'replace';
   try {
     const localValue = targetWindow.localStorage?.getItem(PROMPT_TEMPLATE_COMPAT_STORAGE_KEY);
     if (localValue === 'true' || localValue === 'false') settings.promptTemplateCompatEnabled = localValue === 'true';
@@ -897,12 +898,12 @@ async function callExternalApi(latestMessage, signal) {
   return content;
 }
 
-function injectStatusbar(message, text) {
+function injectStatusbar(message, text, mode = settings.injectMode) {
   const rawStatusbarText = settings.lastGeneratedStatusPlaceholderPresent
     ? `${text}\n${STATUS_PLACEHOLDER_TAG}`
     : text;
   message.mes = injectStatusbarText(message.mes, text, {
-    mode: settings.injectMode,
+    mode,
     normalizeStatusPlaceholder: settings.statusPlaceholderEnabled,
     rawStatusbarText,
   });
@@ -1024,12 +1025,38 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
       return;
     }
     const injectedText = cleanGeneratedText(text);
+    const rollbackMode = settings.injectMode === 'rollbackAppend' || settings.injectMode === 'rollbackReplace';
+    let effectiveMode = settings.injectMode === 'rollbackAppend' ? 'append' : settings.injectMode === 'rollbackReplace' ? 'replace' : settings.injectMode;
+    if (rollbackMode) {
+      const rollbackValidation = validateInjectionUndoSnapshot(latestInjectionUndoSnapshot, context.chat);
+      if (rollbackValidation.valid && rollbackValidation.message === latest.message) {
+        const rollbackSnapshot = latestInjectionUndoSnapshot;
+        logAutomaticGenerationStage('undo-restore', `message ${rollbackSnapshot.targetIndex}; reroll restore`);
+        latest.message.mes = rollbackSnapshot.originalText;
+        if (rollbackSnapshot.hadSwipe && rollbackSnapshot.swipeId !== null && Array.isArray(latest.message.swipes)) {
+          latest.message.swipes[rollbackSnapshot.swipeId] = rollbackSnapshot.originalSwipeText;
+        }
+        if (rollbackSnapshot.mvuReprocessed) {
+          try {
+            await reprocessMvuVariables(context, rollbackSnapshot.targetIndex);
+          } catch (error) {
+            console.warn(`[${EXTENSION_ID}] failed to reprocess MVU variables before reroll`, error);
+          }
+        }
+        latestInjectionUndoSnapshot = null;
+        refreshInjectionUndoState();
+      } else {
+        latestInjectionUndoSnapshot = null;
+        refreshInjectionUndoState();
+        logAutomaticGenerationStage('inject-rollback-fallback', 'no valid snapshot; using normal mode');
+      }
+    }
     const originalText = String(latest.message.mes ?? '');
     const swipeId = Number.isInteger(latest.message.swipe_id) ? latest.message.swipe_id : null;
     const hadSwipe = swipeId !== null && Array.isArray(latest.message.swipes);
     const originalSwipeText = hadSwipe ? String(latest.message.swipes[swipeId] ?? originalText) : '';
     logAutomaticGenerationStage('inject-snapshot', `message ${latest.index}; snapshot saved`);
-    injectStatusbar(latest.message, injectedText);
+    injectStatusbar(latest.message, injectedText, effectiveMode);
     if (Array.isArray(latest.message.swipes) && Number.isInteger(latest.message.swipe_id)) latest.message.swipes[latest.message.swipe_id] = latest.message.mes;
     let mvuReprocessed = false;
     if (settings.mvuReprocessOnInject && containsMvuUpdateVariable(injectedText)) {
@@ -3568,7 +3595,7 @@ function buildPluginPanelMarkup() {
 }
 
 function buildGenerationSettingsMarkup() {
-  return `<details class="st-esg-card st-esg-collapsible st-esg-generation-settings"><summary class="st-esg-collapsible-summary">生成设置</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-generate" type="checkbox" /><span>监听正文结束自动生成</span></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-inject" type="checkbox" /><span>生成结束以后自动注入</span></label><label id="st-esg-inject-mode-row" class="st-esg-generation-inject-mode">注入方式：<select id="st-esg-inject-mode" class="text_pole st-esg-select"><option value="replace">正文已有同名标签时直接覆盖</option><option value="append">始终追加到末尾</option></select></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-status-placeholder-enabled" type="checkbox" /><span>将 MVU 状态标签固定到正文末尾</span><em>检测正文或生成内容中的 &lt;StatusPlaceHolderImpl/&gt;，清理重复项并在最终文末保留一个。</em></label><div class="st-esg-card-desc">覆盖模式仅支持成对的尖括号标签（如 &lt;status&gt;…&lt;/status&gt;）。[status]、【状态】等格式无法识别，会自动改为追加。</div></div></details>`;
+  return `<details class="st-esg-card st-esg-collapsible st-esg-generation-settings"><summary class="st-esg-collapsible-summary">生成设置</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-generate" type="checkbox" /><span>监听正文结束自动生成</span></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-inject" type="checkbox" /><span>生成结束以后自动注入</span></label><label id="st-esg-inject-mode-row" class="st-esg-generation-inject-mode">注入方式：<select id="st-esg-inject-mode" class="text_pole st-esg-select"><option value="replace">正文已有同名标签时直接覆盖</option><option value="append">始终追加到末尾</option><option value="rollbackAppend">撤回本楼上次注入后追加</option><option value="rollbackReplace">撤回本楼上次注入后覆盖</option></select></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-status-placeholder-enabled" type="checkbox" /><span>将 MVU 状态标签固定到正文末尾</span><em>检测正文或生成内容中的 &lt;StatusPlaceHolderImpl/&gt;，清理重复项并在最终文末保留一个。</em></label><div class="st-esg-card-desc">覆盖模式仅支持成对的尖括号标签（如 &lt;status&gt;…&lt;/status&gt;）。[status]、【状态】等格式无法识别，会自动改为追加。</div></div></details>`;
 }
 
 function renderGenerationSettings() {
