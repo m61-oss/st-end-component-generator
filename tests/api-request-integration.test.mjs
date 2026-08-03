@@ -27,6 +27,7 @@ assert.match(source, /data-api-mode="custom"[\s\S]*?data-api-mode="tavern"/, 'AP
 assert.doesNotMatch(source, /data-api-mode="main"/, 'the plugin should not expose the Tavern main API mode');
 assert.match(schemeSource, /apiMode: settings\.apiMode/, 'API schemes should save the selected connection mode');
 assert.match(source, /settings\.apiMode = mode;[\s\S]*?settings\.useMainApi = false;/, 'API mode rendering should normalize the legacy flag to the selected tab');
+assert.match(source, /\$t\('#st-esg-prompt-template-compat'\)\.prop\('checked', settings\.promptTemplateCompatEnabled\);[\s\S]*?renderApiModeUi\(\);/, 'API mode UI should be synchronized during initial panel rendering');
 assert.match(source, /st-esg-api-model-picker[^>]*st-esg-api-custom-fields/, 'the model picker should only be visible for custom API mode');
 assert.match(source, /Object\.entries\(rawProfiles\)/, 'Tavern profile refresh should support object-shaped profile registries');
 assert.match(source, /getContext\(\)\?\.extensionSettings\?\.connectionManager\?\.profiles/, 'Tavern profiles should be read from the host context store');
