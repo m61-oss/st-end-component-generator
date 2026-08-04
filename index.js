@@ -40,7 +40,7 @@ import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.4';
 import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.4';
 import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.4';
 import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.4';
-import { createGenerationErrorRecord, isGenerationResponseError, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.4';
+import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.4';
 import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.4';
 import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.1.4';
 import {
@@ -1032,13 +1032,17 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   try {
     const apiMode = settings.apiMode || 'custom';
     if (apiMode === 'custom' && (!settings.apiUrl || !settings.apiModel)) {
-      logAutomaticGenerationStage('generation-error', 'API address or model is missing');
-      notifyStatus('请先在“API 配置”里填写 API 地址和模型名称。', 'warning');
+      const error = new Error('请先在“API 配置”里填写 API 地址和模型名称。');
+      logAutomaticGenerationStage('generation-error');
+      recordGenerationError('生成', error);
+      notifyStatus(error.message, 'warning');
       return '';
     }
     if (apiMode === 'tavern' && !settings.tavernProfile) {
-      logAutomaticGenerationStage('generation-error', 'Tavern profile is missing');
-      notifyStatus('请先选择酒馆预设。', 'warning');
+      const error = new Error('请先选择酒馆预设。');
+      logAutomaticGenerationStage('generation-error');
+      recordGenerationError('生成', error);
+      notifyStatus(error.message, 'warning');
       return '';
     }
     logAutomaticGenerationStage('prompt-build-start');
@@ -1047,7 +1051,6 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     logAutomaticGenerationStage('api-returned', result ? 'received content' : 'empty response');
   }
   catch (error) {
-    logAutomaticGenerationStage('generation-error', error?.message || 'generation failed');
     if (error?.name === 'AbortError') {
       const partialStreamText = String(error?.streamedText ?? '');
       if (partialStreamText.trim()) {
@@ -1055,10 +1058,9 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
         saveSettings();
       }
       notifyStatus('已停止生成。提示词查看器内容已保留。', 'warning');
-    } else if (isGenerationResponseError(error)) {
-      recordGenerationError('生成', error);
-      notifyStatus(error?.message || '生成失败。', 'error');
     } else {
+      logAutomaticGenerationStage('generation-error');
+      recordGenerationError('生成', error);
       notifyStatus(error?.message || '生成失败。', 'error');
     }
     return '';
@@ -1932,6 +1934,7 @@ function applyApiScheme(snapshot) {
   $t('#st-esg-prompt-template-compat').prop('checked', settings.promptTemplateCompatEnabled);
   renderModelOptions();
   renderApiModeUi();
+  refreshTavernProfiles({ notify: false });
 }
 
 function renderApiModeUi() {
@@ -1956,7 +1959,7 @@ function getTavernProfiles() {
   return profiles.filter((profile) => profile?.id);
 }
 
-function refreshTavernProfiles() {
+function refreshTavernProfiles({ notify = true } = {}) {
   const profiles = getTavernProfiles();
   const select = $t('#st-esg-tavern-profile');
   if (!select.length) return;
@@ -1968,7 +1971,7 @@ function refreshTavernProfiles() {
     select.append($('<option>').val(String(settings.tavernProfile)).text(`当前方案（未找到：${settings.tavernProfile}）`));
   }
   select.val(settings.tavernProfile || '');
-  setStatus(`已刷新酒馆预设（${profiles.length} 个）`);
+  if (notify) setStatus(`已刷新酒馆预设（${profiles.length} 个）`);
 }
 
 function applyTaskScheme(snapshot) {
@@ -4221,6 +4224,7 @@ function bindPanelEvents() {
   $t('#st-esg-streaming-enabled').prop('checked', settings.streamingEnabled);
   $t('#st-esg-prompt-template-compat').prop('checked', settings.promptTemplateCompatEnabled);
   renderApiModeUi();
+  refreshTavernProfiles({ notify: false });
   renderTagRuleManager('history');
   renderTagRuleManager('output');
   renderSourceModeUi();

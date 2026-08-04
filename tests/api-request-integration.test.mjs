@@ -49,11 +49,19 @@ assert.doesNotMatch(callFunction, /readOpenAiStream\([\s\S]*?switchTab\('workspa
 const generateStart = source.indexOf('async function generateStatusbar(');
 const generateEnd = source.indexOf('async function injectGeneratedStatusbar(', generateStart);
 const generateFunction = source.slice(generateStart, generateEnd);
+const applyApiStart = source.indexOf('function applyApiScheme(');
+const applyApiEnd = source.indexOf('function renderApiModeUi(', applyApiStart);
+const applyApiFunction = source.slice(applyApiStart, applyApiEnd);
 assert.doesNotMatch(generateFunction, /switchTab\('workspace'\)/, 'generation completion must not force the workspace tab');
 assert.match(generateFunction, /error\?\.name === 'AbortError'[\s\S]*?error\?\.streamedText[\s\S]*?applyGeneratedResult\(/, 'manual stop should retain and finalize the partial streamed text');
 assert.match(generateFunction, /clearGeneratedThinking\(\);[\s\S]*?callExternalApi\(/, 'starting a new generation should clear the previous thinking panel before the API call');
+assert.match(generateFunction, /recordGenerationError\('生成', error\);/, 'all non-abort generation failures should be shown in the error panel');
+assert.doesNotMatch(generateFunction, /logAutomaticGenerationStage\('generation-error',\s*error\?\.message/, 'provider error details should not be copied into the bottom generation log');
+assert.match(generateFunction, /apiMode === 'custom'[\s\S]*?logAutomaticGenerationStage\('generation-error'\);[\s\S]*?recordGenerationError\('生成', error\);/, 'missing custom API settings should use the error panel');
+assert.match(generateFunction, /apiMode === 'tavern'[\s\S]*?logAutomaticGenerationStage\('generation-error'\);[\s\S]*?recordGenerationError\('生成', error\);/, 'missing Tavern profile should use the error panel');
 assert.match(source, /function clearGeneratedThinking\(\)[\s\S]*?thinkingPanel\?\.replaceChildren\(\);[\s\S]*?thinkingPanel\?\.classList\.add\('st-esg-hidden'\);/, 'clearing thinking should directly remove the stale details element from the mounted page');
 assert.match(source, /thinking\.toggleClass\('st-esg-hidden', Boolean\(error\) \|\| !lastGeneratedThinking\.length\);/, 'result-panel refreshes must keep an empty thinking container hidden');
+assert.match(applyApiFunction, /renderApiModeUi\(\);[\s\S]*?refreshTavernProfiles\(\{\s*notify:\s*false\s*\}\);/, 'loading an API scheme should refresh and reselect its Tavern profile');
 
 assert.match(modelFunction, /parseApiAdditionalParameters\(settings, await getYamlParser\(\)\);/, 'model fetching should validate saved YAML');
 assert.match(modelFunction, /\/api\/backends\/chat-completions\/status/, 'model fetching should use Tavern backend status endpoint');
