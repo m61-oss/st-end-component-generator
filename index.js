@@ -58,6 +58,7 @@ import {
   captureAutomaticGenerationBaseline,
   getAutomaticAssistantTargetKey,
   isAutomaticAssistantTargetAddressable,
+  isAutomaticAssistantMessageTypeEligible,
   isAutomaticTargetAfterGenerationStart,
   resolveReadyAutomaticAssistantTarget,
 } from './generation/auto-generation-trigger.js?ver=0.1.4';
@@ -1279,6 +1280,15 @@ function invalidatePendingAutomaticGeneration({ abortActive = false } = {}) {
   if (abortActive && activeAutomaticTarget && generationAbortController) generationAbortController.abort();
 }
 
+function seedLastAutomaticTargetFromCurrentChat() {
+  const context = getContext();
+  const latest = getLatestAssistantMessage(context.chat);
+  const target = latest
+    ? resolveReadyAutomaticAssistantTarget({ messageIndex: latest.index }, context.chat)
+    : null;
+  lastAutomaticTargetKey = getAutomaticAssistantTargetKey(target);
+}
+
 function buildAutomaticGenerationWaitDiagnostics(target, chat) {
   const targetIndex = Number(target?.messageIndex);
   const targetMessage = Number.isInteger(targetIndex) ? chat?.[targetIndex] : null;
@@ -1319,6 +1329,10 @@ async function runDeferredAutomaticGeneration(pendingTarget, revision, attempt =
 async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt = 0) {
   const context = getContext();
   if (!settings.autoGenerate || revision !== automaticGenerationRevision) return;
+  if (!baseline) {
+    logAutomaticGenerationStage('generation-skip', '没有匹配的正文生成开始事件');
+    return;
+  }
   if (generationAbortController) {
     if (attempt < 20) {
       automaticGenerationEndTimer = targetWindow.setTimeout(() => {
@@ -1373,6 +1387,10 @@ function handleGenerationEnded() {
   logAutomaticGenerationStage('generation-ended', '等待 500ms 检查最终消息');
   const baseline = automaticGenerationBaseline;
   automaticGenerationBaseline = null;
+  if (!baseline) {
+    logAutomaticGenerationStage('generation-skip', '没有匹配的正文生成开始事件');
+    return;
+  }
   const revision = automaticGenerationRevision;
   if (automaticGenerationEndTimer !== null) targetWindow.clearTimeout(automaticGenerationEndTimer);
   automaticGenerationEndTimer = targetWindow.setTimeout(() => {
@@ -1381,9 +1399,10 @@ function handleGenerationEnded() {
   }, 500);
 }
 
-function handleAssistantMessageReceived(messageId) {
+function handleAssistantMessageReceived(messageId, messageType) {
   const context = getContext();
   if (!settings.autoGenerate) return;
+  if (!isAutomaticAssistantMessageTypeEligible(messageType)) return;
   const pendingTarget = captureAutomaticAssistantTarget(messageId, context.chat);
   if (!pendingTarget) return;
   clearAutomaticGenerationLog();
@@ -4470,7 +4489,7 @@ function init() {
   if (context.eventTypes.CHAT_CHANGED) context.eventSource.on(context.eventTypes.CHAT_CHANGED, () => {
     invalidatePendingAutomaticGeneration({ abortActive: true });
     automaticGenerationBaseline = null;
-    lastAutomaticTargetKey = '';
+    seedLastAutomaticTargetFromCurrentChat();
   });
   console.log(`[${EXTENSION_ID}] 已加载，dialog top layer，UI 挂载文档：${targetWindow === window ? 'current' : 'parent'}`);
 }

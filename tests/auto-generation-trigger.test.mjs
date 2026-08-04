@@ -5,6 +5,7 @@ import {
   getAutomaticAssistantTargetKey,
   isAutomaticTargetAfterGenerationStart,
   isAutomaticAssistantTargetAddressable,
+  isAutomaticAssistantMessageTypeEligible,
   resolveAutomaticAssistantMessageIndex,
   resolveReadyAutomaticAssistantTarget,
 } from '../generation/auto-generation-trigger.js';
@@ -25,6 +26,21 @@ assert.deepEqual(
   { messageIndex: 1 },
   'the received event should capture only the floor because other listeners may still normalize its text',
 );
+
+for (const messageType of ['first_message', 'command', 'extension', 'impersonate', 'quiet']) {
+  assert.equal(
+    isAutomaticAssistantMessageTypeEligible(messageType),
+    false,
+    `${messageType} messages are loaded or injected rather than newly generated body replies`,
+  );
+}
+for (const messageType of ['normal', 'swipe', 'continue', 'append', 'appendFinal', undefined]) {
+  assert.equal(
+    isAutomaticAssistantMessageTypeEligible(messageType),
+    true,
+    `${String(messageType)} should remain compatible with normal assistant generation`,
+  );
+}
 assert.deepEqual(
   resolveReadyAutomaticAssistantTarget(pendingTarget, chat),
   { messageIndex: 1, messageText: 'Assistant reply', swipeId: null },
@@ -56,6 +72,11 @@ assert.equal(
   'switching swipe or appending system metadata must not make the latest assistant unaddressable',
 );
 const baseline = captureAutomaticGenerationBaseline(readyChat);
+assert.equal(
+  isAutomaticTargetAfterGenerationStart(readyTarget, null),
+  false,
+  'a generation-ended event without a matching start baseline must not claim a loaded assistant reply',
+);
 assert.equal(
   isAutomaticTargetAfterGenerationStart(readyTarget, baseline),
   false,

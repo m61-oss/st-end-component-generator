@@ -23,6 +23,19 @@ export function captureAutomaticAssistantTarget(messageId, chat = []) {
   };
 }
 
+const NON_BODY_ASSISTANT_MESSAGE_TYPES = new Set([
+  'first_message',
+  'command',
+  'extension',
+  'impersonate',
+  'quiet',
+]);
+
+export function isAutomaticAssistantMessageTypeEligible(messageType) {
+  const normalizedType = String(messageType ?? '').trim().toLowerCase();
+  return !NON_BODY_ASSISTANT_MESSAGE_TYPES.has(normalizedType);
+}
+
 export function captureAutomaticGenerationBaseline(chat = []) {
   const messages = Array.isArray(chat) ? chat : [];
   let lastAssistantIndex = -1;
@@ -50,7 +63,7 @@ export function getAutomaticAssistantTargetKey(target) {
 
 export function isAutomaticTargetAfterGenerationStart(target, baseline) {
   if (!target || !Number.isInteger(target.messageIndex)) return false;
-  if (!baseline || typeof baseline !== 'object') return true;
+  if (!baseline || typeof baseline !== 'object') return false;
   if (target.messageIndex >= Number(baseline.chatLength || 0)) return true;
   if (target.messageIndex > Number(baseline.lastAssistantIndex ?? -1)) return true;
   if (target.messageIndex < Number(baseline.lastAssistantIndex ?? -1)) return false;

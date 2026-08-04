@@ -36,7 +36,7 @@ assert.match(
 
 assert.match(
   triggerHandlers,
-  /function handleAssistantMessageReceived\(messageId\) \{[\s\S]*?captureAutomaticAssistantTarget\(messageId, context\.chat\)[\s\S]*?pendingAutomaticTargets\.set[\s\S]*?\}[\s\S]*?function handleAssistantMessageRendered\(messageId\)[\s\S]*?targetWindow\.setTimeout[\s\S]*?runDeferredAutomaticGeneration/,
+  /function handleAssistantMessageReceived\(messageId, messageType\) \{[\s\S]*?isAutomaticAssistantMessageTypeEligible\(messageType\)[\s\S]*?captureAutomaticAssistantTarget\(messageId, context\.chat\)[\s\S]*?pendingAutomaticTargets\.set[\s\S]*?\}[\s\S]*?function handleAssistantMessageRendered\(messageId\)[\s\S]*?targetWindow\.setTimeout[\s\S]*?runDeferredAutomaticGeneration/,
   'a received assistant message should be queued and released after rendering without blocking SillyTavern',
 );
 assert.doesNotMatch(receivedHandler, /await generateStatusbar\('automatic'/, 'the MESSAGE_RECEIVED listener must not await external generation');
@@ -52,11 +52,21 @@ assert.doesNotMatch(
 );
 assert.doesNotMatch(triggerHandlers, /messageElementReady/, 'DOM nodes must not gate automatic generation');
 assert.doesNotMatch(triggerHandlers, /#chat \.mes\[mesid=/, 'DOM selectors must not gate automatic generation');
+assert.match(
+  triggerHandlers,
+  /if \(!baseline\) \{[\s\S]*?logAutomaticGenerationStage\('generation-skip'[\s\S]*?return;/,
+  'a generation-ended event without a matching start baseline must be ignored',
+);
 
 assert.match(
   source,
   /if \(context\.eventTypes\.MESSAGE_RECEIVED\) context\.eventSource\.on\(context\.eventTypes\.MESSAGE_RECEIVED, handleAssistantMessageReceived\);/,
   'only the semantic assistant-received event should drive automatic generation',
+);
+assert.match(
+  source,
+  /if \(context\.eventTypes\.CHAT_CHANGED\)[\s\S]*?seedLastAutomaticTargetFromCurrentChat\(\);/,
+  'chat changes should register the loaded latest assistant as existing content',
 );
 assert.doesNotMatch(source, /eventTypes\.MESSAGE_SWIPED[\s\S]{0,180}invalidatePendingAutomaticGeneration/, 'switching swipes must not cancel automatic work');
 assert.doesNotMatch(receivedHandler, /invalidatePendingAutomaticGeneration\(\{ abortActive: true \}\)/, 'a newer assistant event must not abort an already running external generation');
