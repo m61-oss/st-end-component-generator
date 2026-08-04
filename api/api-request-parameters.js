@@ -76,6 +76,14 @@ export function parseApiAdditionalParameters(settings, yamlParser) {
   };
 }
 
+export function serializeRequestHeadersYaml(headers) {
+  if (!isRecord(headers)) return '';
+  return Object.entries(headers)
+    .filter(([name, value]) => textOf(name) && value !== null && value !== undefined)
+    .map(([name, value]) => `${JSON.stringify(String(name))}: ${JSON.stringify(String(value))}`)
+    .join('\n');
+}
+
 export function buildApiRequestParts(baseBody, baseHeaders, parsed) {
   const body = { ...baseBody, ...(parsed?.additionalBody || {}) };
   for (const key of parsed?.excludedBodyKeys || []) delete body[key];

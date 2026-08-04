@@ -1,10 +1,25 @@
 import assert from 'node:assert/strict';
+import * as apiRequestParameters from '../api/api-request-parameters.js';
 import {
   ApiParameterValidationError,
   buildApiRequestParts,
   parseApiAdditionalParameters,
   parseApiNumericSettings,
 } from '../api/api-request-parameters.js';
+
+assert.equal(
+  typeof apiRequestParameters.serializeRequestHeadersYaml,
+  'function',
+  'Tavern backend headers should have a dedicated YAML serializer',
+);
+assert.equal(
+  apiRequestParameters.serializeRequestHeadersYaml({
+    Authorization: 'Bearer sk-test',
+    'X-Custom': 'value: with colon',
+  }),
+  '"Authorization": "Bearer sk-test"\n"X-Custom": "value: with colon"',
+  'header names and values should be safely serialized as YAML strings',
+);
 
 const yamlParser = {
   parse(source) {

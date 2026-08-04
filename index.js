@@ -66,6 +66,7 @@ import {
   buildApiRequestParts,
   parseApiAdditionalParameters,
   parseApiNumericSettings,
+  serializeRequestHeadersYaml,
 } from './api/api-request-parameters.js?ver=0.1.4';
 import {
   createPromptSourceCacheState,
@@ -884,8 +885,11 @@ async function callExternalApi(latestMessage, signal) {
     || targetWindow?.ChatCompletionService
     || getContext()?.ChatCompletionService;
   if (typeof tavernChatService?.processRequest === 'function') {
+    const customHeadersYaml = serializeRequestHeadersYaml({
+      ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
+      ...additional.additionalHeaders,
+    });
     const requestData = {
-      ...additional.additionalBody,
       stream: Boolean(settings.streamingEnabled),
       messages,
       model,
@@ -893,11 +897,9 @@ async function callExternalApi(latestMessage, signal) {
       max_tokens: numeric.maxTokens,
       temperature: numeric.temperature,
       custom_url: settings.apiUrl,
-      custom_include_headers: {
-        ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
-        ...additional.additionalHeaders,
-      },
-      custom_exclude_body: additional.excludedBody,
+      custom_include_headers: customHeadersYaml,
+      custom_include_body: settings.additionalBodyYaml,
+      custom_exclude_body: settings.excludedBodyYaml,
     };
     lastPromptLogText = createPromptLog({ apiUrl, apiKey: settings.apiKey, model, maxTokens: String(numeric.maxTokens), temperature: String(numeric.temperature), messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics: lastRuntimeDiagnostics, compressSystemMessages: settings.compressSystemMessages });
     promptLogBuilding = false;
@@ -1619,12 +1621,12 @@ async function fetchApiModels() {
   $t('#st-esg-api-model-feedback').text('正在拉取模型列表...');
   setStatus('正在拉取模型列表……');
   try {
-    parseApiAdditionalParameters(settings, await getYamlParser());
+    const additional = parseApiAdditionalParameters(settings, await getYamlParser());
     const apiBaseUrl = modelsUrl.replace(/\/models$/i, '');
-    const customHeadersYaml = [
-      settings.apiKey ? `Authorization: ${JSON.stringify(`Bearer ${settings.apiKey}`)}` : '',
-      textOf(settings.additionalHeadersYaml),
-    ].filter(Boolean).join('\n');
+    const customHeadersYaml = serializeRequestHeadersYaml({
+      ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
+      ...additional.additionalHeaders,
+    });
     const response = await fetch('/api/backends/chat-completions/status', {
       method: 'POST',
       headers: {

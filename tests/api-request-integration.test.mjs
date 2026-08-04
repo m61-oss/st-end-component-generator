@@ -12,13 +12,19 @@ const modelFunction = source.slice(modelStart, modelEnd);
 
 assert.doesNotMatch(source, /import \{ yaml \} from '\.\.\/\.\.\/\.\.\/\.\.\/lib\.js';/, 'the extension must not fail to load when a compatible frontend omits the named YAML export');
 assert.match(source, /async function getYamlParser\(\)[\s\S]*?import\('\.\.\/\.\.\/\.\.\/\.\.\/lib\.js'\)[\s\S]*?yamlModule\.yaml\s*\?\?\s*yamlModule\.default\?\.yaml/, 'the extension should resolve YAML dynamically and support the default library facade used by compatible frontends');
-assert.match(source, /import \{[\s\S]*?buildApiRequestParts,[\s\S]*?parseApiAdditionalParameters,[\s\S]*?parseApiNumericSettings,[\s\S]*?\} from '\.\/api\/api-request-parameters\.js\?ver=0\.1\.4';/, 'request parameter helpers should be imported');
+assert.match(source, /import \{[\s\S]*?buildApiRequestParts,[\s\S]*?parseApiAdditionalParameters,[\s\S]*?parseApiNumericSettings,[\s\S]*?serializeRequestHeadersYaml,[\s\S]*?\} from '\.\/api\/api-request-parameters\.js\?ver=0\.1\.4';/, 'request parameter helpers should be imported');
 
 assert.match(callFunction, /const numeric = parseApiNumericSettings\(settings\);/, 'generation should validate user-entered numeric settings');
 assert.match(callFunction, /ChatCompletionService/, 'custom API requests should use Tavern ChatCompletionService when available');
 assert.match(callFunction, /chat_completion_source: 'custom'/, 'custom API requests should identify the OpenAI-compatible source');
 assert.match(callFunction, /ConnectionManagerRequestService/, '酒馆预设 should use the connection manager service');
 assert.match(callFunction, /const additional = parseApiAdditionalParameters\(settings, await getYamlParser\(\)\);/, 'generation should validate saved YAML before requesting');
+assert.match(callFunction, /const customHeadersYaml = serializeRequestHeadersYaml\([\s\S]*?Authorization:[\s\S]*?additional\.additionalHeaders[\s\S]*?\);/, 'internal custom generation should serialize the plugin API key and additional headers for Tavern');
+assert.match(callFunction, /custom_include_headers:\s*customHeadersYaml/, 'internal custom generation should send Tavern a YAML header string');
+assert.doesNotMatch(callFunction, /custom_include_headers:\s*\{/, 'internal custom generation must not send a header object that Tavern silently ignores');
+assert.match(callFunction, /custom_include_body:\s*settings\.additionalBodyYaml/, 'internal custom generation should pass additional body YAML in Tavern native format');
+assert.match(callFunction, /custom_exclude_body:\s*settings\.excludedBodyYaml/, 'internal custom generation should pass excluded keys YAML in Tavern native format');
+assert.doesNotMatch(callFunction, /custom_exclude_body:\s*additional\.excludedBody/, 'internal custom generation must not read the nonexistent excludedBody field');
 assert.match(callFunction, /const \{ body, headers \} = buildApiRequestParts\(/, 'generation should merge additional body and headers centrally');
 assert.match(callFunction, /max_tokens:\s*numeric\.maxTokens,\s*temperature:\s*numeric\.temperature,/, 'generation should send actual input values');
 assert.match(callFunction, /maxTokens:\s*String\(numeric\.maxTokens\),\s*temperature:\s*String\(numeric\.temperature\),/, 'prompt logs should use actual input values');
@@ -67,6 +73,7 @@ assert.match(modelFunction, /parseApiAdditionalParameters\(settings, await getYa
 assert.match(modelFunction, /\/api\/backends\/chat-completions\/status/, 'model fetching should use Tavern backend status endpoint');
 assert.match(modelFunction, /method:\s*'POST'/, 'model fetching should POST the custom connection data to Tavern');
 assert.match(modelFunction, /custom_url:\s*[^,]+,[\s\S]*?custom_include_headers:/, 'model fetching should pass the custom URL and headers to Tavern');
+assert.match(modelFunction, /serializeRequestHeadersYaml\(/, 'model fetching should use the same Tavern header serialization as generation');
 assert.match(modelFunction, /getHostRequestHeaders\(\)/, 'model fetching should include Tavern host request headers');
 assert.doesNotMatch(modelFunction, /fetch\(modelsUrl,\s*\{/, 'model fetching should not directly request the provider from the browser');
 assert.doesNotMatch(modelFunction, /additional\.additionalBody/, 'model-list GET requests should not apply custom body parameters');
