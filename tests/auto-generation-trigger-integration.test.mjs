@@ -95,7 +95,7 @@ assert.match(
 );
 assert.match(
   source.slice(injectStart, handlerStart),
-  /async function injectGeneratedStatusbar\(targetMessageIndex = null\)[\s\S]*?const latest = targetMessageIndex === null[\s\S]*?\? getLatestAssistantMessage\(context\.chat\)[\s\S]*?: getAssistantMessageAtIndex\(context\.chat, targetMessageIndex\);/,
+  /async function injectGeneratedStatusbar\(targetMessageIndex = null\)[\s\S]*?let latest = targetMessageIndex === null[\s\S]*?\? getLatestAssistantMessage\(context\.chat\)[\s\S]*?: getAssistantMessageAtIndex\(context\.chat, targetMessageIndex\);[\s\S]*?await restoreLatestInjection\(\{ targetMessageIndex: latest\.index \}\);[\s\S]*?latest = targetMessageIndex === null[\s\S]*?: getAssistantMessageAtIndex\(context\.chat, targetMessageIndex\);/,
   'injection should resolve an explicit target while retaining manual fallback',
 );
 

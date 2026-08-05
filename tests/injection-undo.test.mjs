@@ -74,6 +74,8 @@ assert.equal(validateInjectionUndoSnapshot(null, createChat()).reason, 'missing-
 assert.notEqual(snapshot.originalText, snapshot.injectedText);
 assert.equal(snapshot.originalSwipeText, originalText);
 assert.equal(snapshot.injectedSwipeText, injectedText);
+assert.equal('promptBaseText' in snapshot, false, 'undo snapshots should only retain the actual pre-injection reply');
+assert.equal('promptBaseSwipeText' in snapshot, false);
 assert.equal(snapshot.mvuReprocessed, true);
 
 console.log('injection-undo tests passed');

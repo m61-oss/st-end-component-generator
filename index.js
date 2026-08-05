@@ -20,29 +20,30 @@ import {
   normalizeComponent,
   normalizeComponentIds,
   normalizeComponentScope,
-} from './sources/component-sources.js?ver=0.1.4';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.1.4';
-import { containsStatusPlaceholder, injectStatusbarText, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.1.4';
-import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.4';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.4';
-import { renderPromptTemplate } from './generation/template-compat.js?ver=0.1.4';
-import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.1.4';
-import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './generation/prompt-log.js?ver=0.1.4';
+} from './sources/component-sources.js?ver=0.1.5';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.1.5';
+import { containsStatusPlaceholder, injectStatusbarText, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.1.5';
+import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.5';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.5';
+import { renderPromptTemplate } from './generation/template-compat.js?ver=0.1.5';
+import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.1.5';
+import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './generation/prompt-log.js?ver=0.1.5';
 import {
   clearImportSelectionsForScope,
   collectSelectedPromptSourceItems,
   normalizePromptSourceType,
   resolveWorldbookSelection,
   syncPromptSelectionsFromGroups,
-} from './sources/source-selection.js?ver=0.1.4';
-import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hasEnabledWorldbookSource, hydrateTavernWorldbookSelections, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.4';
-import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.4';
-import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.4';
-import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.4';
-import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.4';
-import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.4';
-import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.4';
-import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.1.4';
+} from './sources/source-selection.js?ver=0.1.5';
+import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hasEnabledWorldbookSource, hydrateTavernWorldbookSelections, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.5';
+import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.5';
+import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.5';
+import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.5';
+import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.5';
+import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.5';
+import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.5';
+import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.1.5';
+import { loadGenerationHistory, recordGenerationResult } from './generation/generation-history.js?ver=0.1.5';
 import {
   THEATER_RANDOM_MODE_ALL,
   THEATER_RANDOM_MODE_ENABLED,
@@ -52,7 +53,7 @@ import {
   normalizeTheaterRandomCount,
   normalizeTheaterRandomMode,
   selectTheaterComponents,
-} from './sources/theater-library.js?ver=0.1.4';
+} from './sources/theater-library.js?ver=0.1.5';
 import {
   captureAutomaticAssistantTarget,
   captureAutomaticGenerationBaseline,
@@ -61,28 +62,29 @@ import {
   isAutomaticAssistantMessageTypeEligible,
   isAutomaticTargetAfterGenerationStart,
   resolveReadyAutomaticAssistantTarget,
-} from './generation/auto-generation-trigger.js?ver=0.1.4';
-import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.1.4';
+} from './generation/auto-generation-trigger.js?ver=0.1.5';
+import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.1.5';
 import {
   buildApiRequestParts,
   parseApiAdditionalParameters,
   parseApiNumericSettings,
   serializeRequestHeadersYaml,
-} from './api/api-request-parameters.js?ver=0.1.4';
+} from './api/api-request-parameters.js?ver=0.1.5';
 import {
   createPromptSourceCacheState,
   loadWorldbookSourceGroups,
   markPromptSourceStructureDirty,
   markWorldbookSourceDirty,
   takeDirtyWorldbookSources,
-} from './sources/prompt-source-cache.js?ver=0.1.4';
-import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from './settings/task-placement.js?ver=0.1.4';
-import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.1.4';
-import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.1.4';
+} from './sources/prompt-source-cache.js?ver=0.1.5';
+import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from './settings/task-placement.js?ver=0.1.5';
+import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.1.5';
+import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.1.5';
 
 const EXTENSION_ID = 'st-end-component-generator';
-const EXTENSION_VERSION = '0.1.4';
+const EXTENSION_VERSION = '0.1.5';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
+const GENERATION_HISTORY_STORAGE_KEY = `${EXTENSION_ID}.recentGenerationHistory`;
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLD_BOOK_FOLLOW_TAVERN = '__follow_tavern__';
@@ -209,6 +211,7 @@ let lastRuntimeDiagnostics = {};
 let lastPromptLogText = '';
 let promptLogBuilding = false;
 let lastGeneratedThinking = [];
+let recentGenerationHistory = [];
 let latestInjectionUndoSnapshot = null;
 let tavernSyncTimer = null;
 let lastTavernSourceSignature = '';
@@ -752,6 +755,51 @@ function clearGeneratedThinking() {
   thinkingPanel?.classList.add('st-esg-hidden');
 }
 
+function formatGenerationHistoryTime(value) {
+  const date = new Date(Number(value));
+  if (!Number.isFinite(date.getTime())) return '时间未知';
+  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function getGenerationHistoryStorage() {
+  try {
+    return targetWindow.localStorage;
+  } catch (_) {
+    return null;
+  }
+}
+
+function renderGenerationHistory() {
+  const list = $t('#st-esg-generation-history');
+  if (!list.length) return;
+  if (!recentGenerationHistory.length) {
+    list.html('<div class="st-esg-generation-history-empty">还没有成功生成的记录。</div>');
+    return;
+  }
+  list.html(recentGenerationHistory.map((entry) => `
+    <details class="st-esg-generation-history-entry" data-history-id="${escapeHtml(entry.id)}">
+      <summary><span>${escapeHtml(formatGenerationHistoryTime(entry.generatedAt))}</span><em>${entry.content.length} 字</em></summary>
+      <pre>${escapeHtml(entry.content)}</pre>
+      <div class="st-esg-actions-row"><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-load-generation-history" type="button" data-history-id="${escapeHtml(entry.id)}"><i class="fa-solid fa-arrow-up-from-bracket"></i><span>载入</span></button></div>
+    </details>
+  `).join(''));
+}
+
+function loadGenerationHistoryEntry(id) {
+  const entry = recentGenerationHistory.find((item) => item.id === String(id || ''));
+  if (!entry) return false;
+  settings.lastGenerated = entry.content;
+  settings.lastGeneratedStatusPlaceholderPresent = containsStatusPlaceholder(settings.lastGenerated);
+  settings.lastGenerationError = null;
+  clearGeneratedThinking();
+  $t('#st-esg-preview').val(settings.lastGenerated);
+  renderGenerationResultPanel();
+  resizeGeneratedPreview();
+  saveSettings();
+  notifyStatus('已载入最近生成记录。');
+  return true;
+}
+
 function applyGeneratedResult(rawText) {
   const result = extractConfiguredBlocks(rawText, settings.outputCleanupTags);
   settings.lastGenerated = result.body.trim();
@@ -1022,6 +1070,8 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     notifyStatus(error.message, 'warning');
     return '';
   }
+  const rollbackMode = settings.injectMode === 'rollbackAppend' || settings.injectMode === 'rollbackReplace';
+  if (rollbackMode) await restoreLatestInjection({ targetMessageIndex: latest.index });
   clearGeneratedThinking();
   const preview = $t('#st-esg-preview').get(0);
   if (preview) preview.scrollTop = preview.scrollHeight;
@@ -1079,6 +1129,8 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   }
   logAutomaticGenerationStage('result-apply', 'updating preview');
   applyGeneratedResult(result);
+  recentGenerationHistory = recordGenerationResult(getGenerationHistoryStorage(), GENERATION_HISTORY_STORAGE_KEY, settings.lastGenerated);
+  renderGenerationHistory();
   saveSettings();
   if (settings.autoInject && result) {
     if (automaticTarget && !isAutomaticAssistantTargetAddressable(automaticTarget, getContext().chat)) {
@@ -1094,9 +1146,9 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
 }
 
 async function injectGeneratedStatusbar(targetMessageIndex = null) {
-  const context = getContext();
+  let context = getContext();
   logAutomaticGenerationStage('inject-start', targetMessageIndex === null ? 'latest assistant' : `message ${targetMessageIndex}`);
-  const latest = targetMessageIndex === null
+  let latest = targetMessageIndex === null
     ? getLatestAssistantMessage(context.chat)
     : getAssistantMessageAtIndex(context.chat, targetMessageIndex);
   if (!latest) {
@@ -1113,30 +1165,14 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
     }
     const injectedText = cleanGeneratedText(text);
     const rollbackMode = settings.injectMode === 'rollbackAppend' || settings.injectMode === 'rollbackReplace';
-    let effectiveMode = settings.injectMode === 'rollbackAppend' ? 'append' : settings.injectMode === 'rollbackReplace' ? 'replace' : settings.injectMode;
+    const effectiveMode = settings.injectMode === 'rollbackAppend' ? 'append' : settings.injectMode === 'rollbackReplace' ? 'replace' : settings.injectMode;
     if (rollbackMode) {
-      const rollbackValidation = validateInjectionUndoSnapshot(latestInjectionUndoSnapshot, context.chat);
-      if (rollbackValidation.valid && rollbackValidation.message === latest.message) {
-        const rollbackSnapshot = latestInjectionUndoSnapshot;
-        logAutomaticGenerationStage('undo-restore', `message ${rollbackSnapshot.targetIndex}; reroll restore`);
-        latest.message.mes = rollbackSnapshot.originalText;
-        if (rollbackSnapshot.hadSwipe && rollbackSnapshot.swipeId !== null && Array.isArray(latest.message.swipes)) {
-          latest.message.swipes[rollbackSnapshot.swipeId] = rollbackSnapshot.originalSwipeText;
-        }
-        if (rollbackSnapshot.mvuReprocessed) {
-          try {
-            await reprocessMvuVariables(context, rollbackSnapshot.targetIndex);
-          } catch (error) {
-            console.warn(`[${EXTENSION_ID}] failed to reprocess MVU variables before reroll`, error);
-          }
-        }
-        latestInjectionUndoSnapshot = null;
-        refreshInjectionUndoState();
-      } else {
-        latestInjectionUndoSnapshot = null;
-        refreshInjectionUndoState();
-        logAutomaticGenerationStage('inject-rollback-fallback', 'no valid snapshot; using normal mode');
-      }
+      await restoreLatestInjection({ targetMessageIndex: latest.index });
+      context = getContext();
+      latest = targetMessageIndex === null
+        ? getLatestAssistantMessage(context.chat)
+        : getAssistantMessageAtIndex(context.chat, targetMessageIndex);
+      if (!latest) throw new Error('撤回后没有找到可注入的助手回复。');
     }
     const originalText = String(latest.message.mes ?? '');
     const swipeId = Number.isInteger(latest.message.swipe_id) ? latest.message.swipe_id : null;
@@ -1202,24 +1238,24 @@ function clearInjectionUndoSnapshot() {
   refreshInjectionUndoState();
 }
 
-async function undoLatestInjection() {
+async function restoreLatestInjection({ requireConfirmation = false, targetMessageIndex = null } = {}) {
   let context = getContext();
   logAutomaticGenerationStage('undo-start');
   let validation = refreshInjectionUndoState();
-  if (!validation.valid) {
+  if (!validation.valid || (targetMessageIndex !== null && latestInjectionUndoSnapshot?.targetIndex !== targetMessageIndex)) {
     logAutomaticGenerationStage('undo-skip', validation.reason || 'invalid snapshot');
-    notifyStatus('本次注入已不在最新楼层，或消息内容已经变化，无法安全撤回。', 'warning');
-    return;
+    if (requireConfirmation) notifyStatus('本次注入已不在最新楼层，或消息内容已经变化，无法安全撤回。', 'warning');
+    return false;
   }
-  if (!targetWindow.confirm('撤回本次注入？\n\n将把最新一条助手回复恢复到注入前的完整内容，本次注入结果会被移除。')) return;
+  if (requireConfirmation && !targetWindow.confirm('撤回本次注入？\n\n将把最新一条助手回复恢复到注入前的完整内容，本次注入结果会被移除。')) return false;
 
   context = getContext();
   validation = validateInjectionUndoSnapshot(latestInjectionUndoSnapshot, context.chat);
-  if (!validation.valid) {
+  if (!validation.valid || (targetMessageIndex !== null && latestInjectionUndoSnapshot?.targetIndex !== targetMessageIndex)) {
     logAutomaticGenerationStage('undo-skip', 'message changed during confirmation');
     clearInjectionUndoSnapshot();
-    notifyStatus('确认期间消息发生了变化，已取消撤回。', 'warning');
-    return;
+    if (requireConfirmation) notifyStatus('确认期间消息发生了变化，已取消撤回。', 'warning');
+    return false;
   }
 
   const snapshot = latestInjectionUndoSnapshot;
@@ -1248,12 +1284,17 @@ async function undoLatestInjection() {
   try {
     const saveResult = await context.saveChat();
     if (saveResult === false) throw new Error('聊天保存接口返回失败');
-    notifyStatus('已撤回本次注入，最新回复已恢复。');
+    if (requireConfirmation) notifyStatus('已撤回本次注入，最新回复已恢复。');
   } catch (saveError) {
     notifyStatus('已恢复注入前内容，但聊天保存失败，刷新后可能丢失。', 'warning');
     logAutomaticGenerationStage('undo-save-warning', 'restore complete, chat save failed');
   }
   logAutomaticGenerationStage('undo-finished', 'undo complete');
+  return true;
+}
+
+async function undoLatestInjection() {
+  await restoreLatestInjection({ requireConfirmation: true });
 }
 
 function registerInjectionUndoInvalidation(context) {
@@ -3327,7 +3368,7 @@ function syncPromptSelectionsFromLoadedGroups(groups = importGroups) {
   return promptGroups.reduce((sum, group) => sum + (group?.loaded && Array.isArray(group.items) ? group.items.length : 0), 0);
 }
 
-async function ensurePromptSourceItemsForGeneration() {
+async function ensurePromptSourceItemsForGeneration({ chat = null } = {}) {
   const currentSignature = getTavernSourceSignature();
   if (promptSourceCache.signature && currentSignature !== promptSourceCache.signature) {
     markPromptSourceStructureDirty(promptSourceCache);
@@ -3376,12 +3417,13 @@ async function ensurePromptSourceItemsForGeneration() {
     getSourceMode(type) === SOURCE_MODE_IMPORT ? getPromptSourceSnapshotItems(type) : []
   ));
   const context = getContext();
+  const promptChat = Array.isArray(chat) ? chat : context.chat;
   const itemsWithKeywordOverrides = [...sourceItems, ...snapshotItems].map((item) => {
     if (item?.scope !== SOURCE_WORLDBOOK || !item?.key || !Object.prototype.hasOwnProperty.call(settings.worldbookKeywordOverrides, item.key)) return item;
     return { ...item, worldbookKeys: splitWorldbookKeywords(settings.worldbookKeywordOverrides[item.key]) };
   });
   return filterWorldbookPromptItems(itemsWithKeywordOverrides, {
-    chat: context.chat,
+    chat: promptChat,
     scanDepth: getWorldbookScanDepth(),
     // The lamp must see the same history the model gets, so the cleanup rules are applied first.
     historyCleanupRules: settings.historyCleanupRules,
@@ -4006,9 +4048,10 @@ function renderPluginPanel() {
   dialog.id = 'st-esg-dialog';
   dialog.className = 'st-esg-dialog';
   dialog.innerHTML = buildPluginPanelMarkup();
+  dialog.querySelector('.st-esg-title-text')?.insertAdjacentHTML('beforeend', ` <span class="st-esg-version-badge">v${EXTENSION_VERSION}</span>`);
   dialog.querySelector('#st-esg-inject')?.insertAdjacentHTML('afterend', '<div id="st-esg-undo-injection" class="menu_button menu_button_icon st-esg-secondary-action st-esg-hidden" title="撤回本次注入"><i class="fa-solid fa-rotate-left"></i><span>撤回注入</span></div>');
   dialog.querySelector('#st-esg-status')?.remove();
-  dialog.querySelector('[data-tab="debug"] span')?.replaceChildren('提示词查看器');
+  dialog.querySelector('[data-tab="debug"] span')?.replaceChildren('调试信息');
   dialog.querySelector('[data-tab-panel="debug"] .st-esg-card-title')?.replaceChildren('提示词查看器');
   dialog.querySelector('[data-tab-panel="preset"] .st-esg-import-tools')?.replaceWith(...$(renderSourceModeControl('preset')).toArray());
   dialog.querySelector('[data-tab-panel="worldbook"] .st-esg-import-tools')?.replaceWith(...$(renderSourceModeControl('worldbook')).toArray());
@@ -4025,8 +4068,11 @@ function renderPluginPanel() {
   const modeCard = workspace?.querySelector('#st-esg-mode')?.closest('.st-esg-card');
   modeCard?.replaceWith(...$(buildGenerationSettingsMarkup()).toArray());
   injectionCard?.remove();
-  workspace?.insertAdjacentHTML('beforeend', '<div class="st-esg-card st-esg-generation-log-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">本次生成日志</div><div class="st-esg-card-desc">每次开始生成时清空，只保留本次生成流程。</div></div></div><pre id="st-esg-generation-log" class="st-esg-generation-log">尚未开始生成</pre></div>');
-  workspace?.querySelector('#st-esg-preview')?.closest('.st-esg-card')?.classList.add('st-esg-generation-content');
+  const debugPanel = dialog.querySelector('[data-tab-panel="debug"]');
+  debugPanel?.insertAdjacentHTML('afterbegin', '<div class="st-esg-card st-esg-generation-log-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">本次生成日志</div><div class="st-esg-card-desc">每次开始生成时清空，只保留本次生成流程。</div></div></div><pre id="st-esg-generation-log" class="st-esg-generation-log">尚未开始生成</pre></div>');
+  const generationContentCard = workspace?.querySelector('#st-esg-preview')?.closest('.st-esg-card');
+  generationContentCard?.classList.add('st-esg-generation-content');
+  generationContentCard?.insertAdjacentHTML('afterend', '<div class="st-esg-card st-esg-generation-history-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">最近生成记录</div><div class="st-esg-card-desc">保留最近三次成功生成；载入后可在上方预览框检查或编辑。</div></div></div><div id="st-esg-generation-history" class="st-esg-generation-history"></div></div>');
   const apiFields = dialog.querySelector('#st-esg-api-url')?.closest('.st-esg-grid');
   const apiUrlLabel = dialog.querySelector('#st-esg-api-url')?.closest('label');
   const apiKeyLabel = dialog.querySelector('#st-esg-api-key')?.closest('label');
@@ -4141,7 +4187,7 @@ function refreshHelpText() {
     ['[data-tab-panel="preset"] > .st-esg-card:nth-child(2) .st-esg-card-desc', '选择要查看和编辑的预设；编辑模式下的勾选与内容会保存到当前方案。'],
     ['[data-tab-panel="worldbook"] > .st-esg-card:nth-child(2) .st-esg-card-desc', '选择方案后查看当前世界书状态；编辑模式下可调整条目勾选、内容和蓝绿灯。'],
     ['[data-tab-panel="runtime"] .st-esg-card-desc', '分别处理聊天历史清理规则和生成结果中的思维链剥离规则。'],
-    ['[data-tab-panel="debug"] .st-esg-card-desc', '查看本次发送给外置 API 的消息分栏与概要信息。'],
+    ['[data-tab-panel="debug"] .st-esg-card-desc', '查看本次生成流程、注入结果，以及发送给外置 API 的完整消息。'],
     ['.st-esg-manual-component-card .st-esg-card-desc', '添加一个全局、预设方案或当前角色专属的组件。'],
   ];
   descriptions.forEach(([selector, text]) => $t(selector).text(text));
@@ -4174,7 +4220,7 @@ function bindPanelEvents() {
     '.st-esg-manual-component-card .st-esg-card-desc',
   ].join(', ')).remove();
   $t('.st-esg-card-title').filter(function () {
-    return ['生成任务指令', '预设', '世界书', '提示词日志', '提示词查看器', '手动添加组件'].includes(textOf($(this).text()));
+    return ['生成任务指令', '预设', '世界书', '提示词日志', '手动添加组件'].includes(textOf($(this).text()));
   }).each(function () {
     $(this).closest('.st-esg-card-head').remove();
   });
@@ -4232,6 +4278,7 @@ function bindPanelEvents() {
   $t('#st-esg-baibai-history-enabled').prop('checked', settings.baiBaiBookHistoryEnabled);
   $t('#st-esg-baibai-state-enabled').prop('checked', settings.baiBaiBookStateEnabled);
   $t('#st-esg-preview').val(settings.lastGenerated);
+  renderGenerationHistory();
   renderGeneratedThinking();
   renderGenerationResultPanel();
   resizeGeneratedPreview();
@@ -4440,6 +4487,9 @@ function bindPanelEvents() {
     }
   });
   $t('#st-esg-generate').on('click', () => generateStatusbar());
+  $t('#st-esg-generation-history').on('click', '.st-esg-load-generation-history', function () {
+    loadGenerationHistoryEntry($(this).attr('data-history-id'));
+  });
   $t('#st-esg-inject').on('click', () => injectGeneratedStatusbar());
   $t('#st-esg-undo-injection').on('click', () => undoLatestInjection());
   $t('#st-esg-generation-error').on('click', '#st-esg-show-generated-content', () => {
@@ -4475,6 +4525,7 @@ function loadStylesheet() {
 function init() {
   if (initialized) return;
   initialized = true;
+  recentGenerationHistory = loadGenerationHistory(getGenerationHistoryStorage(), GENERATION_HISTORY_STORAGE_KEY);
   loadSettings(); loadStylesheet(); mountUiWhenDocumentReady();
   updateQuickReplyShortcutActions();
   void syncQuickReplyShortcuts();
