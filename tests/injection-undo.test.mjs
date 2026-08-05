@@ -75,6 +75,8 @@ assert.equal(validateInjectionUndoSnapshot(null, createChat()).reason, 'missing-
 assert.notEqual(snapshot.originalText, snapshot.injectedText);
 assert.equal(snapshot.originalSwipeText, originalText);
 assert.equal(snapshot.injectedSwipeText, injectedText);
+assert.equal(snapshot.promptBaseText, originalText, 'an ordinary injection should use its pre-injection reply as the reroll prompt base');
+assert.equal(snapshot.promptBaseSwipeText, originalText);
 assert.equal(snapshot.mvuReprocessed, true);
 
 const promptOriginalText = '正文原文\n<thinking>旧思维链</thinking>';
@@ -118,5 +120,30 @@ assert.equal(
   false,
   'a rollback snapshot must not be applied to a different generation target',
 );
+
+const secondInjectedText = `${promptOriginalText}\n<status>第二版状态栏</status>`;
+const rerolledSnapshot = createInjectionUndoSnapshot({
+  targetIndex: 1,
+  chatLength: 2,
+  originalText: promptInjectedText,
+  injectedText: secondInjectedText,
+  swipeId: 0,
+  hadSwipe: true,
+  originalSwipeText: promptInjectedText,
+  injectedSwipeText: secondInjectedText,
+  promptBaseText: promptSnapshot.promptBaseText,
+  promptBaseSwipeText: promptSnapshot.promptBaseSwipeText,
+});
+const rerolledChat = createChat({ mes: secondInjectedText, swipes: [secondInjectedText] });
+const secondRollbackPromptView = createRollbackPromptView({
+  snapshot: rerolledSnapshot,
+  chat: rerolledChat,
+  injectMode: 'rollbackAppend',
+  targetIndex: 1,
+});
+
+assert.equal(rerolledSnapshot.originalText, promptInjectedText, 'undoing a reroll should restore the previous injected version');
+assert.equal(secondRollbackPromptView.message.mes, promptOriginalText, 'later rerolls must still build from the original clean prompt base');
+assert.equal(secondRollbackPromptView.message.swipes[0], promptOriginalText);
 
 console.log('injection-undo tests passed');

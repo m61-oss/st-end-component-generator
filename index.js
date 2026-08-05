@@ -1129,16 +1129,26 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
     const injectedText = cleanGeneratedText(text);
     const rollbackMode = settings.injectMode === 'rollbackAppend' || settings.injectMode === 'rollbackReplace';
     let effectiveMode = settings.injectMode === 'rollbackAppend' ? 'append' : settings.injectMode === 'rollbackReplace' ? 'replace' : settings.injectMode;
+    const originalText = String(latest.message.mes ?? '');
+    const swipeId = Number.isInteger(latest.message.swipe_id) ? latest.message.swipe_id : null;
+    const hadSwipe = swipeId !== null && Array.isArray(latest.message.swipes);
+    const originalSwipeText = hadSwipe ? String(latest.message.swipes[swipeId] ?? originalText) : '';
+    let promptBaseText = originalText;
+    let promptBaseSwipeText = originalSwipeText;
+    let rollbackReprocessedMvu = false;
     if (rollbackMode) {
       const rollbackValidation = validateInjectionUndoSnapshot(latestInjectionUndoSnapshot, context.chat);
       if (rollbackValidation.valid && rollbackValidation.message === latest.message) {
         const rollbackSnapshot = latestInjectionUndoSnapshot;
         logAutomaticGenerationStage('undo-restore', `message ${rollbackSnapshot.targetIndex}; reroll restore`);
-        latest.message.mes = rollbackSnapshot.originalText;
+        promptBaseText = rollbackSnapshot.promptBaseText === undefined ? rollbackSnapshot.originalText : rollbackSnapshot.promptBaseText;
+        promptBaseSwipeText = rollbackSnapshot.promptBaseSwipeText === undefined ? rollbackSnapshot.originalSwipeText : rollbackSnapshot.promptBaseSwipeText;
+        latest.message.mes = promptBaseText;
         if (rollbackSnapshot.hadSwipe && rollbackSnapshot.swipeId !== null && Array.isArray(latest.message.swipes)) {
-          latest.message.swipes[rollbackSnapshot.swipeId] = rollbackSnapshot.originalSwipeText;
+          latest.message.swipes[rollbackSnapshot.swipeId] = promptBaseSwipeText;
         }
         if (rollbackSnapshot.mvuReprocessed) {
+          rollbackReprocessedMvu = true;
           try {
             await reprocessMvuVariables(context, rollbackSnapshot.targetIndex);
           } catch (error) {
@@ -1153,10 +1163,6 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
         logAutomaticGenerationStage('inject-rollback-fallback', 'no valid snapshot; using normal mode');
       }
     }
-    const originalText = String(latest.message.mes ?? '');
-    const swipeId = Number.isInteger(latest.message.swipe_id) ? latest.message.swipe_id : null;
-    const hadSwipe = swipeId !== null && Array.isArray(latest.message.swipes);
-    const originalSwipeText = hadSwipe ? String(latest.message.swipes[swipeId] ?? originalText) : '';
     logAutomaticGenerationStage('inject-snapshot', `message ${latest.index}; snapshot saved`);
     injectStatusbar(latest.message, injectedText, effectiveMode);
     if (Array.isArray(latest.message.swipes) && Number.isInteger(latest.message.swipe_id)) latest.message.swipes[latest.message.swipe_id] = latest.message.mes;
@@ -1179,7 +1185,9 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
         hadSwipe,
         originalSwipeText,
         injectedSwipeText: hadSwipe ? String(latest.message.swipes[swipeId] ?? latest.message.mes) : '',
-        mvuReprocessed,
+        promptBaseText,
+        promptBaseSwipeText,
+        mvuReprocessed: rollbackReprocessedMvu || mvuReprocessed,
       })
       : null;
     refreshInjectionUndoState();

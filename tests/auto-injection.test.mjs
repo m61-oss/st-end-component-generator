@@ -57,6 +57,11 @@ assert.match(
   /const originalText = String\(latest\.message\.mes \?\? ''\);[\s\S]*?injectStatusbar\(latest\.message, injectedText, effectiveMode\);[\s\S]*?createInjectionUndoSnapshot\(\{[\s\S]*?targetIndex: latest\.index,[\s\S]*?chatLength: context\.chat\.length,[\s\S]*?originalText,[\s\S]*?injectedText: latest\.message\.mes,/,
   'injection should retain the full before and after message text for exact restoration',
 );
+assert.match(
+  injectFunction,
+  /const originalText = String\(latest\.message\.mes \?\? ''\);[\s\S]*?if \(rollbackMode\)[\s\S]*?promptBaseText = rollbackSnapshot\.promptBaseText[\s\S]*?latest\.message\.mes = promptBaseText;[\s\S]*?createInjectionUndoSnapshot\(\{[\s\S]*?originalText,[\s\S]*?promptBaseText,[\s\S]*?promptBaseSwipeText,/,
+  'reroll injection should snapshot the previous injected version before restoring the separate clean prompt base',
+);
 assert.match(source, /rollbackAppend[\s\S]*?rollbackReplace/, 'injection settings should expose both rollback modes');
 assert.match(injectFunction, /no valid snapshot; using normal mode/, 'rollback modes should fall back to normal injection when no snapshot exists');
 assert.match(
