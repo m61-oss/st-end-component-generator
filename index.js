@@ -23,7 +23,7 @@ import {
 } from './sources/component-sources.js?ver=0.1.4';
 import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.1.4';
 import { containsStatusPlaceholder, injectStatusbarText, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.1.4';
-import { createInjectionUndoSnapshot, createRollbackPromptView, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.4';
+import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.4';
 import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.4';
 import { renderPromptTemplate } from './generation/template-compat.js?ver=0.1.4';
 import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.1.4';
@@ -37,7 +37,7 @@ import {
 } from './sources/source-selection.js?ver=0.1.4';
 import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hasEnabledWorldbookSource, hydrateTavernWorldbookSelections, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.4';
 import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.4';
-import { extractConfiguredBlocks, stripConfiguredBlocks, stripHistoryBlocksByRules } from './injection/tag-rules.js?ver=0.1.4';
+import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.4';
 import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.4';
 import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.4';
 import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.4';
@@ -766,31 +766,16 @@ function applyGeneratedResult(rawText) {
   return settings.lastGenerated;
 }
 
-async function buildMessages(latestMessage, targetMessageIndex = null) {
-  const liveContext = getContext();
-  const rollbackPromptView = createRollbackPromptView({
-    snapshot: latestInjectionUndoSnapshot,
-    chat: liveContext.chat,
-    injectMode: settings.injectMode,
-    targetIndex: targetMessageIndex,
-  });
-  const context = rollbackPromptView.applied
-    ? Object.assign(Object.create(liveContext), { chat: rollbackPromptView.chat })
-    : liveContext;
-  const cleanedRollbackChat = rollbackPromptView.applied
-    ? stripHistoryBlocksByRules(rollbackPromptView.chat, settings.historyCleanupRules)
-    : null;
-  const promptLatestMessage = rollbackPromptView.applied
-    ? (cleanedRollbackChat?.[rollbackPromptView.targetIndex] || rollbackPromptView.message)
-    : latestMessage;
+async function buildMessages(latestMessage) {
+  const context = getContext();
   const components = getEnabledComponents();
   const theaterComponents = getEnabledTheaterComponents();
-  const promptSourceItems = await ensurePromptSourceItemsForGeneration({ chat: context.chat });
+  const promptSourceItems = await ensurePromptSourceItemsForGeneration();
   const templateStats = { enabled: Boolean(settings.promptTemplateCompatEnabled), renderCount: 0, changedCount: 0 };
   const messages = await buildExternalStatusbarMessages({
     targetWindow,
     context,
-    latestMessage: promptLatestMessage,
+    latestMessage,
     taskPrompt: settings.taskPrompt,
     components,
     theaterComponents,
@@ -837,7 +822,7 @@ function setGeneratingState(isGenerating) {
   button.find('span').text(isGenerating ? '停止生成' : '生成文尾组件');
 }
 
-async function callExternalApi(latestMessage, signal, targetMessageIndex = null) {
+async function callExternalApi(latestMessage, signal) {
   const apiUrl = (settings.apiMode || 'custom') === 'custom'
     ? normalizeChatCompletionsUrl(settings.apiUrl)
     : 'https://tavern.internal';
@@ -846,7 +831,7 @@ async function callExternalApi(latestMessage, signal, targetMessageIndex = null)
   if (!apiUrl || !model) throw new Error('请先在“API 设置”里填写 API 地址和模型名称。');
   const numeric = parseApiNumericSettings(settings);
   const additional = parseApiAdditionalParameters(settings, await getYamlParser());
-  const builtMessages = await buildMessages(latestMessage, targetMessageIndex);
+  const builtMessages = await buildMessages(latestMessage);
   const messages = settings.compressSystemMessages ? mergeConsecutiveSystemMessages(builtMessages) : builtMessages;
   if (apiMode === 'tavern') {
     const numeric = parseApiNumericSettings(settings);
@@ -1037,6 +1022,8 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     notifyStatus(error.message, 'warning');
     return '';
   }
+  const rollbackMode = settings.injectMode === 'rollbackAppend' || settings.injectMode === 'rollbackReplace';
+  if (rollbackMode) await restoreLatestInjection({ targetMessageIndex: latest.index });
   clearGeneratedThinking();
   const preview = $t('#st-esg-preview').get(0);
   if (preview) preview.scrollTop = preview.scrollHeight;
@@ -1065,7 +1052,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     }
     logAutomaticGenerationStage('prompt-build-start');
     beginPromptLogBuild();
-    result = await callExternalApi(latest.message, generationAbortController.signal, latest.index);
+    result = await callExternalApi(latest.message, generationAbortController.signal);
     logAutomaticGenerationStage('api-returned', result ? 'received content' : 'empty response');
   }
   catch (error) {
@@ -1109,9 +1096,9 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
 }
 
 async function injectGeneratedStatusbar(targetMessageIndex = null) {
-  const context = getContext();
+  let context = getContext();
   logAutomaticGenerationStage('inject-start', targetMessageIndex === null ? 'latest assistant' : `message ${targetMessageIndex}`);
-  const latest = targetMessageIndex === null
+  let latest = targetMessageIndex === null
     ? getLatestAssistantMessage(context.chat)
     : getAssistantMessageAtIndex(context.chat, targetMessageIndex);
   if (!latest) {
@@ -1128,41 +1115,19 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
     }
     const injectedText = cleanGeneratedText(text);
     const rollbackMode = settings.injectMode === 'rollbackAppend' || settings.injectMode === 'rollbackReplace';
-    let effectiveMode = settings.injectMode === 'rollbackAppend' ? 'append' : settings.injectMode === 'rollbackReplace' ? 'replace' : settings.injectMode;
+    const effectiveMode = settings.injectMode === 'rollbackAppend' ? 'append' : settings.injectMode === 'rollbackReplace' ? 'replace' : settings.injectMode;
+    if (rollbackMode) {
+      await restoreLatestInjection({ targetMessageIndex: latest.index });
+      context = getContext();
+      latest = targetMessageIndex === null
+        ? getLatestAssistantMessage(context.chat)
+        : getAssistantMessageAtIndex(context.chat, targetMessageIndex);
+      if (!latest) throw new Error('撤回后没有找到可注入的助手回复。');
+    }
     const originalText = String(latest.message.mes ?? '');
     const swipeId = Number.isInteger(latest.message.swipe_id) ? latest.message.swipe_id : null;
     const hadSwipe = swipeId !== null && Array.isArray(latest.message.swipes);
     const originalSwipeText = hadSwipe ? String(latest.message.swipes[swipeId] ?? originalText) : '';
-    let promptBaseText = originalText;
-    let promptBaseSwipeText = originalSwipeText;
-    let rollbackReprocessedMvu = false;
-    if (rollbackMode) {
-      const rollbackValidation = validateInjectionUndoSnapshot(latestInjectionUndoSnapshot, context.chat);
-      if (rollbackValidation.valid && rollbackValidation.message === latest.message) {
-        const rollbackSnapshot = latestInjectionUndoSnapshot;
-        logAutomaticGenerationStage('undo-restore', `message ${rollbackSnapshot.targetIndex}; reroll restore`);
-        promptBaseText = rollbackSnapshot.promptBaseText === undefined ? rollbackSnapshot.originalText : rollbackSnapshot.promptBaseText;
-        promptBaseSwipeText = rollbackSnapshot.promptBaseSwipeText === undefined ? rollbackSnapshot.originalSwipeText : rollbackSnapshot.promptBaseSwipeText;
-        latest.message.mes = promptBaseText;
-        if (rollbackSnapshot.hadSwipe && rollbackSnapshot.swipeId !== null && Array.isArray(latest.message.swipes)) {
-          latest.message.swipes[rollbackSnapshot.swipeId] = promptBaseSwipeText;
-        }
-        if (rollbackSnapshot.mvuReprocessed) {
-          rollbackReprocessedMvu = true;
-          try {
-            await reprocessMvuVariables(context, rollbackSnapshot.targetIndex);
-          } catch (error) {
-            console.warn(`[${EXTENSION_ID}] failed to reprocess MVU variables before reroll`, error);
-          }
-        }
-        latestInjectionUndoSnapshot = null;
-        refreshInjectionUndoState();
-      } else {
-        latestInjectionUndoSnapshot = null;
-        refreshInjectionUndoState();
-        logAutomaticGenerationStage('inject-rollback-fallback', 'no valid snapshot; using normal mode');
-      }
-    }
     logAutomaticGenerationStage('inject-snapshot', `message ${latest.index}; snapshot saved`);
     injectStatusbar(latest.message, injectedText, effectiveMode);
     if (Array.isArray(latest.message.swipes) && Number.isInteger(latest.message.swipe_id)) latest.message.swipes[latest.message.swipe_id] = latest.message.mes;
@@ -1185,9 +1150,7 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
         hadSwipe,
         originalSwipeText,
         injectedSwipeText: hadSwipe ? String(latest.message.swipes[swipeId] ?? latest.message.mes) : '',
-        promptBaseText,
-        promptBaseSwipeText,
-        mvuReprocessed: rollbackReprocessedMvu || mvuReprocessed,
+        mvuReprocessed,
       })
       : null;
     refreshInjectionUndoState();
@@ -1225,24 +1188,24 @@ function clearInjectionUndoSnapshot() {
   refreshInjectionUndoState();
 }
 
-async function undoLatestInjection() {
+async function restoreLatestInjection({ requireConfirmation = false, targetMessageIndex = null } = {}) {
   let context = getContext();
   logAutomaticGenerationStage('undo-start');
   let validation = refreshInjectionUndoState();
-  if (!validation.valid) {
+  if (!validation.valid || (targetMessageIndex !== null && latestInjectionUndoSnapshot?.targetIndex !== targetMessageIndex)) {
     logAutomaticGenerationStage('undo-skip', validation.reason || 'invalid snapshot');
-    notifyStatus('本次注入已不在最新楼层，或消息内容已经变化，无法安全撤回。', 'warning');
-    return;
+    if (requireConfirmation) notifyStatus('本次注入已不在最新楼层，或消息内容已经变化，无法安全撤回。', 'warning');
+    return false;
   }
-  if (!targetWindow.confirm('撤回本次注入？\n\n将把最新一条助手回复恢复到注入前的完整内容，本次注入结果会被移除。')) return;
+  if (requireConfirmation && !targetWindow.confirm('撤回本次注入？\n\n将把最新一条助手回复恢复到注入前的完整内容，本次注入结果会被移除。')) return false;
 
   context = getContext();
   validation = validateInjectionUndoSnapshot(latestInjectionUndoSnapshot, context.chat);
-  if (!validation.valid) {
+  if (!validation.valid || (targetMessageIndex !== null && latestInjectionUndoSnapshot?.targetIndex !== targetMessageIndex)) {
     logAutomaticGenerationStage('undo-skip', 'message changed during confirmation');
     clearInjectionUndoSnapshot();
-    notifyStatus('确认期间消息发生了变化，已取消撤回。', 'warning');
-    return;
+    if (requireConfirmation) notifyStatus('确认期间消息发生了变化，已取消撤回。', 'warning');
+    return false;
   }
 
   const snapshot = latestInjectionUndoSnapshot;
@@ -1271,12 +1234,17 @@ async function undoLatestInjection() {
   try {
     const saveResult = await context.saveChat();
     if (saveResult === false) throw new Error('聊天保存接口返回失败');
-    notifyStatus('已撤回本次注入，最新回复已恢复。');
+    if (requireConfirmation) notifyStatus('已撤回本次注入，最新回复已恢复。');
   } catch (saveError) {
     notifyStatus('已恢复注入前内容，但聊天保存失败，刷新后可能丢失。', 'warning');
     logAutomaticGenerationStage('undo-save-warning', 'restore complete, chat save failed');
   }
   logAutomaticGenerationStage('undo-finished', 'undo complete');
+  return true;
+}
+
+async function undoLatestInjection() {
+  await restoreLatestInjection({ requireConfirmation: true });
 }
 
 function registerInjectionUndoInvalidation(context) {

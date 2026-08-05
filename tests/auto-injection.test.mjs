@@ -35,19 +35,20 @@ assert.match(
 );
 assert.match(
   source,
-  /import \{ createInjectionUndoSnapshot, createRollbackPromptView, validateInjectionUndoSnapshot \} from '\.\/injection\/injection-undo\.js\?ver=0\.1\.4';/,
+  /import \{ createInjectionUndoSnapshot, validateInjectionUndoSnapshot \} from '\.\/injection\/injection-undo\.js\?ver=0\.1\.4';/,
   'injection undo should use the tested strict snapshot validator',
 );
 assert.match(
   source,
-  /async function buildMessages\(latestMessage, targetMessageIndex = null\)[\s\S]*?createRollbackPromptView\(\{[\s\S]*?snapshot: latestInjectionUndoSnapshot,[\s\S]*?injectMode: settings\.injectMode,[\s\S]*?targetIndex: targetMessageIndex,[\s\S]*?stripHistoryBlocksByRules\(rollbackPromptView\.chat, settings\.historyCleanupRules\)[\s\S]*?ensurePromptSourceItemsForGeneration\(\{ chat: context\.chat \}\)[\s\S]*?latestMessage: promptLatestMessage,/,
-  'rollback modes should build the prompt and green-light scan from a virtual pre-injection chat view',
+  /async function buildMessages\(latestMessage\) \{[\s\S]*?const context = getContext\(\);[\s\S]*?ensurePromptSourceItemsForGeneration\(\);[\s\S]*?latestMessage,/,
+  'prompt construction should use the live chat after any pre-generation rollback',
 );
 assert.match(
-  source,
-  /const builtMessages = await buildMessages\(latestMessage, targetMessageIndex\);/,
-  'the external request should identify the exact assistant target when selecting a rollback prompt snapshot',
+  generateFunction,
+  /const rollbackMode = settings\.injectMode === 'rollbackAppend' \|\| settings\.injectMode === 'rollbackReplace';[\s\S]*?await restoreLatestInjection\(\{ targetMessageIndex: latest\.index \}\);[\s\S]*?result = await callExternalApi\(latest\.message, generationAbortController\.signal\);/,
+  'rollback modes should restore the previous injection before building and sending the new generation request',
 );
+assert.doesNotMatch(source, /createRollbackPromptView|promptBaseText|promptBaseSwipeText/, 'no long-lived prompt-only snapshot should remain');
 assert.match(source, /let latestInjectionUndoSnapshot = null;/, 'only one latest injection snapshot should be retained');
 assert.match(source, /logAutomaticGenerationStage\('inject-start'/, 'injection should log its start');
 assert.match(source, /logAutomaticGenerationStage\('undo-start'/, 'undo should log its start');
@@ -57,16 +58,11 @@ assert.match(
   /const originalText = String\(latest\.message\.mes \?\? ''\);[\s\S]*?injectStatusbar\(latest\.message, injectedText, effectiveMode\);[\s\S]*?createInjectionUndoSnapshot\(\{[\s\S]*?targetIndex: latest\.index,[\s\S]*?chatLength: context\.chat\.length,[\s\S]*?originalText,[\s\S]*?injectedText: latest\.message\.mes,/,
   'injection should retain the full before and after message text for exact restoration',
 );
-assert.match(
-  injectFunction,
-  /const originalText = String\(latest\.message\.mes \?\? ''\);[\s\S]*?if \(rollbackMode\)[\s\S]*?promptBaseText = rollbackSnapshot\.promptBaseText[\s\S]*?latest\.message\.mes = promptBaseText;[\s\S]*?createInjectionUndoSnapshot\(\{[\s\S]*?originalText,[\s\S]*?promptBaseText,[\s\S]*?promptBaseSwipeText,/,
-  'reroll injection should snapshot the previous injected version before restoring the separate clean prompt base',
-);
 assert.match(source, /rollbackAppend[\s\S]*?rollbackReplace/, 'injection settings should expose both rollback modes');
-assert.match(injectFunction, /no valid snapshot; using normal mode/, 'rollback modes should fall back to normal injection when no snapshot exists');
+assert.match(injectFunction, /if \(rollbackMode\) \{[\s\S]*?await restoreLatestInjection\(\{ targetMessageIndex: latest\.index \}\);[\s\S]*?const originalText = String\(latest\.message\.mes \?\? ''\);[\s\S]*?injectStatusbar\(latest\.message, injectedText, effectiveMode\);/, 'rollback injection should continue normally when there is no snapshot to restore');
 assert.match(
   source,
-  /async function undoLatestInjection\(\)[\s\S]*?targetWindow\.confirm\('撤回本次注入？\\n\\n将把最新一条助手回复恢复到注入前的完整内容，本次注入结果会被移除。'\)[\s\S]*?message\.mes = snapshot\.originalText;[\s\S]*?message\.swipes\[snapshot\.swipeId\] = snapshot\.originalSwipeText;[\s\S]*?context\.updateMessageBlock\(snapshot\.targetIndex, message\);[\s\S]*?await context\.saveChat\(\);/,
+  /async function restoreLatestInjection\(\{ requireConfirmation = false, targetMessageIndex = null \} = \{\}\)[\s\S]*?requireConfirmation && !targetWindow\.confirm\('撤回本次注入？\\n\\n将把最新一条助手回复恢复到注入前的完整内容，本次注入结果会被移除。'\)[\s\S]*?message\.mes = snapshot\.originalText;[\s\S]*?message\.swipes\[snapshot\.swipeId\] = snapshot\.originalSwipeText;[\s\S]*?context\.updateMessageBlock\(snapshot\.targetIndex, message\);[\s\S]*?await context\.saveChat\(\);[\s\S]*?async function undoLatestInjection\(\) \{[\s\S]*?restoreLatestInjection\(\{ requireConfirmation: true \}\);/,
   'undo should confirm and restore the exact message and active swipe through Tavern lifecycle APIs',
 );
 assert.match(

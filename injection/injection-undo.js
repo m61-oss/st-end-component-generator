@@ -14,8 +14,6 @@ export function createInjectionUndoSnapshot({
   hadSwipe = false,
   originalSwipeText = '',
   injectedSwipeText = '',
-  promptBaseText = undefined,
-  promptBaseSwipeText = undefined,
   mvuReprocessed = false,
 } = {}) {
   return {
@@ -27,8 +25,6 @@ export function createInjectionUndoSnapshot({
     hadSwipe: Boolean(hadSwipe),
     originalSwipeText: text(originalSwipeText),
     injectedSwipeText: text(injectedSwipeText),
-    promptBaseText: text(promptBaseText === undefined ? originalText : promptBaseText),
-    promptBaseSwipeText: text(promptBaseSwipeText === undefined ? originalSwipeText : promptBaseSwipeText),
     mvuReprocessed: Boolean(mvuReprocessed),
   };
 }
@@ -56,39 +52,4 @@ export function validateInjectionUndoSnapshot(snapshot, chat = []) {
     return { valid: false, reason: 'swipe-content-changed', message };
   }
   return { valid: true, reason: '', message };
-}
-
-export function createRollbackPromptView({
-  snapshot,
-  chat = [],
-  injectMode = '',
-  targetIndex = null,
-} = {}) {
-  const fallback = {
-    applied: false,
-    chat,
-    message: Array.isArray(chat) ? (chat[targetIndex] || null) : null,
-    targetIndex,
-  };
-  if (!['rollbackAppend', 'rollbackReplace'].includes(injectMode)) return fallback;
-  if (!snapshot || Number(targetIndex) !== snapshot.targetIndex) return fallback;
-
-  const validation = validateInjectionUndoSnapshot(snapshot, chat);
-  if (!validation.valid) return fallback;
-
-  const promptBaseText = snapshot.promptBaseText === undefined ? snapshot.originalText : snapshot.promptBaseText;
-  const promptBaseSwipeText = snapshot.promptBaseSwipeText === undefined ? snapshot.originalSwipeText : snapshot.promptBaseSwipeText;
-  const message = { ...validation.message, mes: promptBaseText };
-  if (snapshot.hadSwipe && Array.isArray(validation.message.swipes) && snapshot.swipeId !== null) {
-    message.swipes = [...validation.message.swipes];
-    message.swipes[snapshot.swipeId] = promptBaseSwipeText;
-  }
-  const promptChat = [...chat];
-  promptChat[snapshot.targetIndex] = message;
-  return {
-    applied: true,
-    chat: promptChat,
-    message,
-    targetIndex: snapshot.targetIndex,
-  };
 }
