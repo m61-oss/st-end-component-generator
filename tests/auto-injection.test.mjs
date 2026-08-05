@@ -35,8 +35,18 @@ assert.match(
 );
 assert.match(
   source,
-  /import \{ createInjectionUndoSnapshot, validateInjectionUndoSnapshot \} from '\.\/injection\/injection-undo\.js\?ver=0\.1\.4';/,
+  /import \{ createInjectionUndoSnapshot, createRollbackPromptView, validateInjectionUndoSnapshot \} from '\.\/injection\/injection-undo\.js\?ver=0\.1\.4';/,
   'injection undo should use the tested strict snapshot validator',
+);
+assert.match(
+  source,
+  /async function buildMessages\(latestMessage, targetMessageIndex = null\)[\s\S]*?createRollbackPromptView\(\{[\s\S]*?snapshot: latestInjectionUndoSnapshot,[\s\S]*?injectMode: settings\.injectMode,[\s\S]*?targetIndex: targetMessageIndex,[\s\S]*?stripHistoryBlocksByRules\(rollbackPromptView\.chat, settings\.historyCleanupRules\)[\s\S]*?ensurePromptSourceItemsForGeneration\(\{ chat: context\.chat \}\)[\s\S]*?latestMessage: promptLatestMessage,/,
+  'rollback modes should build the prompt and green-light scan from a virtual pre-injection chat view',
+);
+assert.match(
+  source,
+  /const builtMessages = await buildMessages\(latestMessage, targetMessageIndex\);/,
+  'the external request should identify the exact assistant target when selecting a rollback prompt snapshot',
 );
 assert.match(source, /let latestInjectionUndoSnapshot = null;/, 'only one latest injection snapshot should be retained');
 assert.match(source, /logAutomaticGenerationStage\('inject-start'/, 'injection should log its start');

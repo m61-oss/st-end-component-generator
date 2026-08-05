@@ -53,3 +53,36 @@ export function validateInjectionUndoSnapshot(snapshot, chat = []) {
   }
   return { valid: true, reason: '', message };
 }
+
+export function createRollbackPromptView({
+  snapshot,
+  chat = [],
+  injectMode = '',
+  targetIndex = null,
+} = {}) {
+  const fallback = {
+    applied: false,
+    chat,
+    message: Array.isArray(chat) ? (chat[targetIndex] || null) : null,
+    targetIndex,
+  };
+  if (!['rollbackAppend', 'rollbackReplace'].includes(injectMode)) return fallback;
+  if (!snapshot || Number(targetIndex) !== snapshot.targetIndex) return fallback;
+
+  const validation = validateInjectionUndoSnapshot(snapshot, chat);
+  if (!validation.valid) return fallback;
+
+  const message = { ...validation.message, mes: snapshot.originalText };
+  if (snapshot.hadSwipe && Array.isArray(validation.message.swipes) && snapshot.swipeId !== null) {
+    message.swipes = [...validation.message.swipes];
+    message.swipes[snapshot.swipeId] = snapshot.originalSwipeText;
+  }
+  const promptChat = [...chat];
+  promptChat[snapshot.targetIndex] = message;
+  return {
+    applied: true,
+    chat: promptChat,
+    message,
+    targetIndex: snapshot.targetIndex,
+  };
+}

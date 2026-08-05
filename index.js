@@ -23,7 +23,7 @@ import {
 } from './sources/component-sources.js?ver=0.1.4';
 import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.1.4';
 import { containsStatusPlaceholder, injectStatusbarText, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.1.4';
-import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.4';
+import { createInjectionUndoSnapshot, createRollbackPromptView, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.4';
 import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.4';
 import { renderPromptTemplate } from './generation/template-compat.js?ver=0.1.4';
 import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.1.4';
@@ -37,7 +37,7 @@ import {
 } from './sources/source-selection.js?ver=0.1.4';
 import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hasEnabledWorldbookSource, hydrateTavernWorldbookSelections, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.4';
 import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.4';
-import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.4';
+import { extractConfiguredBlocks, stripConfiguredBlocks, stripHistoryBlocksByRules } from './injection/tag-rules.js?ver=0.1.4';
 import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.4';
 import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.4';
 import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.4';
@@ -766,16 +766,31 @@ function applyGeneratedResult(rawText) {
   return settings.lastGenerated;
 }
 
-async function buildMessages(latestMessage) {
-  const context = getContext();
+async function buildMessages(latestMessage, targetMessageIndex = null) {
+  const liveContext = getContext();
+  const rollbackPromptView = createRollbackPromptView({
+    snapshot: latestInjectionUndoSnapshot,
+    chat: liveContext.chat,
+    injectMode: settings.injectMode,
+    targetIndex: targetMessageIndex,
+  });
+  const context = rollbackPromptView.applied
+    ? Object.assign(Object.create(liveContext), { chat: rollbackPromptView.chat })
+    : liveContext;
+  const cleanedRollbackChat = rollbackPromptView.applied
+    ? stripHistoryBlocksByRules(rollbackPromptView.chat, settings.historyCleanupRules)
+    : null;
+  const promptLatestMessage = rollbackPromptView.applied
+    ? (cleanedRollbackChat?.[rollbackPromptView.targetIndex] || rollbackPromptView.message)
+    : latestMessage;
   const components = getEnabledComponents();
   const theaterComponents = getEnabledTheaterComponents();
-  const promptSourceItems = await ensurePromptSourceItemsForGeneration();
+  const promptSourceItems = await ensurePromptSourceItemsForGeneration({ chat: context.chat });
   const templateStats = { enabled: Boolean(settings.promptTemplateCompatEnabled), renderCount: 0, changedCount: 0 };
   const messages = await buildExternalStatusbarMessages({
     targetWindow,
     context,
-    latestMessage,
+    latestMessage: promptLatestMessage,
     taskPrompt: settings.taskPrompt,
     components,
     theaterComponents,
@@ -822,7 +837,7 @@ function setGeneratingState(isGenerating) {
   button.find('span').text(isGenerating ? '停止生成' : '生成文尾组件');
 }
 
-async function callExternalApi(latestMessage, signal) {
+async function callExternalApi(latestMessage, signal, targetMessageIndex = null) {
   const apiUrl = (settings.apiMode || 'custom') === 'custom'
     ? normalizeChatCompletionsUrl(settings.apiUrl)
     : 'https://tavern.internal';
@@ -831,7 +846,7 @@ async function callExternalApi(latestMessage, signal) {
   if (!apiUrl || !model) throw new Error('请先在“API 设置”里填写 API 地址和模型名称。');
   const numeric = parseApiNumericSettings(settings);
   const additional = parseApiAdditionalParameters(settings, await getYamlParser());
-  const builtMessages = await buildMessages(latestMessage);
+  const builtMessages = await buildMessages(latestMessage, targetMessageIndex);
   const messages = settings.compressSystemMessages ? mergeConsecutiveSystemMessages(builtMessages) : builtMessages;
   if (apiMode === 'tavern') {
     const numeric = parseApiNumericSettings(settings);
@@ -1050,7 +1065,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     }
     logAutomaticGenerationStage('prompt-build-start');
     beginPromptLogBuild();
-    result = await callExternalApi(latest.message, generationAbortController.signal);
+    result = await callExternalApi(latest.message, generationAbortController.signal, latest.index);
     logAutomaticGenerationStage('api-returned', result ? 'received content' : 'empty response');
   }
   catch (error) {
@@ -3327,7 +3342,7 @@ function syncPromptSelectionsFromLoadedGroups(groups = importGroups) {
   return promptGroups.reduce((sum, group) => sum + (group?.loaded && Array.isArray(group.items) ? group.items.length : 0), 0);
 }
 
-async function ensurePromptSourceItemsForGeneration() {
+async function ensurePromptSourceItemsForGeneration({ chat = null } = {}) {
   const currentSignature = getTavernSourceSignature();
   if (promptSourceCache.signature && currentSignature !== promptSourceCache.signature) {
     markPromptSourceStructureDirty(promptSourceCache);
@@ -3376,12 +3391,13 @@ async function ensurePromptSourceItemsForGeneration() {
     getSourceMode(type) === SOURCE_MODE_IMPORT ? getPromptSourceSnapshotItems(type) : []
   ));
   const context = getContext();
+  const promptChat = Array.isArray(chat) ? chat : context.chat;
   const itemsWithKeywordOverrides = [...sourceItems, ...snapshotItems].map((item) => {
     if (item?.scope !== SOURCE_WORLDBOOK || !item?.key || !Object.prototype.hasOwnProperty.call(settings.worldbookKeywordOverrides, item.key)) return item;
     return { ...item, worldbookKeys: splitWorldbookKeywords(settings.worldbookKeywordOverrides[item.key]) };
   });
   return filterWorldbookPromptItems(itemsWithKeywordOverrides, {
-    chat: context.chat,
+    chat: promptChat,
     scanDepth: getWorldbookScanDepth(),
     // The lamp must see the same history the model gets, so the cleanup rules are applied first.
     historyCleanupRules: settings.historyCleanupRules,

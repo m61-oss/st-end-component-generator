@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from '../injection/injection-undo.js';
+import { createInjectionUndoSnapshot, createRollbackPromptView, validateInjectionUndoSnapshot } from '../injection/injection-undo.js';
+import { stripHistoryBlocksByRules } from '../injection/tag-rules.js';
 
 const originalText = '正文\n<status>旧状态</status>';
 const injectedText = '正文\n<status>新状态</status>';
@@ -75,5 +76,47 @@ assert.notEqual(snapshot.originalText, snapshot.injectedText);
 assert.equal(snapshot.originalSwipeText, originalText);
 assert.equal(snapshot.injectedSwipeText, injectedText);
 assert.equal(snapshot.mvuReprocessed, true);
+
+const promptOriginalText = '正文原文\n<thinking>旧思维链</thinking>';
+const promptInjectedText = `${promptOriginalText}\n<status>错误状态栏</status>`;
+const promptSnapshot = createInjectionUndoSnapshot({
+  targetIndex: 1,
+  chatLength: 2,
+  originalText: promptOriginalText,
+  injectedText: promptInjectedText,
+  swipeId: 0,
+  hadSwipe: true,
+  originalSwipeText: promptOriginalText,
+  injectedSwipeText: promptInjectedText,
+});
+const promptChat = createChat({ mes: promptInjectedText, swipes: [promptInjectedText] });
+const rollbackPromptView = createRollbackPromptView({
+  snapshot: promptSnapshot,
+  chat: promptChat,
+  injectMode: 'rollbackAppend',
+  targetIndex: 1,
+});
+
+assert.equal(rollbackPromptView.applied, true, 'rollback injection modes should build prompts from the pre-injection reply');
+assert.notEqual(rollbackPromptView.chat, promptChat, 'the prompt view must not mutate the live chat array');
+assert.notEqual(rollbackPromptView.message, promptChat[1], 'the prompt view must clone the target assistant message');
+assert.equal(rollbackPromptView.message.mes, promptOriginalText);
+assert.equal(rollbackPromptView.message.swipes[0], promptOriginalText);
+assert.equal(promptChat[1].mes, promptInjectedText, 'the live injected reply must remain untouched while generation is pending');
+
+const cleanedPromptChat = stripHistoryBlocksByRules(rollbackPromptView.chat, [{ rule: 'thinking', keep: 0 }]);
+assert.equal(cleanedPromptChat[1].mes.trim(), '正文原文', 'the virtual pre-injection reply must still pass through history tag cleanup');
+assert.doesNotMatch(cleanedPromptChat[1].mes, /错误状态栏|旧思维链/);
+
+assert.equal(
+  createRollbackPromptView({ snapshot: promptSnapshot, chat: promptChat, injectMode: 'append', targetIndex: 1 }).applied,
+  false,
+  'ordinary append and replace modes should keep using the current injected reply',
+);
+assert.equal(
+  createRollbackPromptView({ snapshot: promptSnapshot, chat: promptChat, injectMode: 'rollbackReplace', targetIndex: 0 }).applied,
+  false,
+  'a rollback snapshot must not be applied to a different generation target',
+);
 
 console.log('injection-undo tests passed');
