@@ -43,6 +43,7 @@ import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.4';
 import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.4';
 import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.4';
 import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.1.4';
+import { loadGenerationHistory, recordGenerationResult } from './generation/generation-history.js?ver=0.1.4';
 import {
   THEATER_RANDOM_MODE_ALL,
   THEATER_RANDOM_MODE_ENABLED,
@@ -83,6 +84,7 @@ import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ve
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.1.4';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
+const GENERATION_HISTORY_STORAGE_KEY = `${EXTENSION_ID}.recentGenerationHistory`;
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLD_BOOK_FOLLOW_TAVERN = '__follow_tavern__';
@@ -209,6 +211,7 @@ let lastRuntimeDiagnostics = {};
 let lastPromptLogText = '';
 let promptLogBuilding = false;
 let lastGeneratedThinking = [];
+let recentGenerationHistory = [];
 let latestInjectionUndoSnapshot = null;
 let tavernSyncTimer = null;
 let lastTavernSourceSignature = '';
@@ -752,6 +755,51 @@ function clearGeneratedThinking() {
   thinkingPanel?.classList.add('st-esg-hidden');
 }
 
+function formatGenerationHistoryTime(value) {
+  const date = new Date(Number(value));
+  if (!Number.isFinite(date.getTime())) return '时间未知';
+  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function getGenerationHistoryStorage() {
+  try {
+    return targetWindow.localStorage;
+  } catch (_) {
+    return null;
+  }
+}
+
+function renderGenerationHistory() {
+  const list = $t('#st-esg-generation-history');
+  if (!list.length) return;
+  if (!recentGenerationHistory.length) {
+    list.html('<div class="st-esg-generation-history-empty">还没有成功生成的记录。</div>');
+    return;
+  }
+  list.html(recentGenerationHistory.map((entry) => `
+    <details class="st-esg-generation-history-entry" data-history-id="${escapeHtml(entry.id)}">
+      <summary><span>${escapeHtml(formatGenerationHistoryTime(entry.generatedAt))}</span><em>${entry.content.length} 字</em></summary>
+      <pre>${escapeHtml(entry.content)}</pre>
+      <div class="st-esg-actions-row"><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-load-generation-history" type="button" data-history-id="${escapeHtml(entry.id)}"><i class="fa-solid fa-arrow-up-from-bracket"></i><span>载入</span></button></div>
+    </details>
+  `).join(''));
+}
+
+function loadGenerationHistoryEntry(id) {
+  const entry = recentGenerationHistory.find((item) => item.id === String(id || ''));
+  if (!entry) return false;
+  settings.lastGenerated = entry.content;
+  settings.lastGeneratedStatusPlaceholderPresent = containsStatusPlaceholder(settings.lastGenerated);
+  settings.lastGenerationError = null;
+  clearGeneratedThinking();
+  $t('#st-esg-preview').val(settings.lastGenerated);
+  renderGenerationResultPanel();
+  resizeGeneratedPreview();
+  saveSettings();
+  notifyStatus('已载入最近生成记录。');
+  return true;
+}
+
 function applyGeneratedResult(rawText) {
   const result = extractConfiguredBlocks(rawText, settings.outputCleanupTags);
   settings.lastGenerated = result.body.trim();
@@ -1081,6 +1129,8 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   }
   logAutomaticGenerationStage('result-apply', 'updating preview');
   applyGeneratedResult(result);
+  recentGenerationHistory = recordGenerationResult(getGenerationHistoryStorage(), GENERATION_HISTORY_STORAGE_KEY, settings.lastGenerated);
+  renderGenerationHistory();
   saveSettings();
   if (settings.autoInject && result) {
     if (automaticTarget && !isAutomaticAssistantTargetAddressable(automaticTarget, getContext().chat)) {
@@ -3998,9 +4048,10 @@ function renderPluginPanel() {
   dialog.id = 'st-esg-dialog';
   dialog.className = 'st-esg-dialog';
   dialog.innerHTML = buildPluginPanelMarkup();
+  dialog.querySelector('.st-esg-title-text')?.insertAdjacentHTML('beforeend', ` <span class="st-esg-version-badge">v${EXTENSION_VERSION}</span>`);
   dialog.querySelector('#st-esg-inject')?.insertAdjacentHTML('afterend', '<div id="st-esg-undo-injection" class="menu_button menu_button_icon st-esg-secondary-action st-esg-hidden" title="撤回本次注入"><i class="fa-solid fa-rotate-left"></i><span>撤回注入</span></div>');
   dialog.querySelector('#st-esg-status')?.remove();
-  dialog.querySelector('[data-tab="debug"] span')?.replaceChildren('提示词查看器');
+  dialog.querySelector('[data-tab="debug"] span')?.replaceChildren('调试信息');
   dialog.querySelector('[data-tab-panel="debug"] .st-esg-card-title')?.replaceChildren('提示词查看器');
   dialog.querySelector('[data-tab-panel="preset"] .st-esg-import-tools')?.replaceWith(...$(renderSourceModeControl('preset')).toArray());
   dialog.querySelector('[data-tab-panel="worldbook"] .st-esg-import-tools')?.replaceWith(...$(renderSourceModeControl('worldbook')).toArray());
@@ -4017,8 +4068,11 @@ function renderPluginPanel() {
   const modeCard = workspace?.querySelector('#st-esg-mode')?.closest('.st-esg-card');
   modeCard?.replaceWith(...$(buildGenerationSettingsMarkup()).toArray());
   injectionCard?.remove();
-  workspace?.insertAdjacentHTML('beforeend', '<div class="st-esg-card st-esg-generation-log-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">本次生成日志</div><div class="st-esg-card-desc">每次开始生成时清空，只保留本次生成流程。</div></div></div><pre id="st-esg-generation-log" class="st-esg-generation-log">尚未开始生成</pre></div>');
-  workspace?.querySelector('#st-esg-preview')?.closest('.st-esg-card')?.classList.add('st-esg-generation-content');
+  const debugPanel = dialog.querySelector('[data-tab-panel="debug"]');
+  debugPanel?.insertAdjacentHTML('afterbegin', '<div class="st-esg-card st-esg-generation-log-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">本次生成日志</div><div class="st-esg-card-desc">每次开始生成时清空，只保留本次生成流程。</div></div></div><pre id="st-esg-generation-log" class="st-esg-generation-log">尚未开始生成</pre></div>');
+  const generationContentCard = workspace?.querySelector('#st-esg-preview')?.closest('.st-esg-card');
+  generationContentCard?.classList.add('st-esg-generation-content');
+  generationContentCard?.insertAdjacentHTML('afterend', '<div class="st-esg-card st-esg-generation-history-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">最近生成记录</div><div class="st-esg-card-desc">保留最近三次成功生成；载入后可在上方预览框检查或编辑。</div></div></div><div id="st-esg-generation-history" class="st-esg-generation-history"></div></div>');
   const apiFields = dialog.querySelector('#st-esg-api-url')?.closest('.st-esg-grid');
   const apiUrlLabel = dialog.querySelector('#st-esg-api-url')?.closest('label');
   const apiKeyLabel = dialog.querySelector('#st-esg-api-key')?.closest('label');
@@ -4133,7 +4187,7 @@ function refreshHelpText() {
     ['[data-tab-panel="preset"] > .st-esg-card:nth-child(2) .st-esg-card-desc', '选择要查看和编辑的预设；编辑模式下的勾选与内容会保存到当前方案。'],
     ['[data-tab-panel="worldbook"] > .st-esg-card:nth-child(2) .st-esg-card-desc', '选择方案后查看当前世界书状态；编辑模式下可调整条目勾选、内容和蓝绿灯。'],
     ['[data-tab-panel="runtime"] .st-esg-card-desc', '分别处理聊天历史清理规则和生成结果中的思维链剥离规则。'],
-    ['[data-tab-panel="debug"] .st-esg-card-desc', '查看本次发送给外置 API 的消息分栏与概要信息。'],
+    ['[data-tab-panel="debug"] .st-esg-card-desc', '查看本次生成流程、注入结果，以及发送给外置 API 的完整消息。'],
     ['.st-esg-manual-component-card .st-esg-card-desc', '添加一个全局、预设方案或当前角色专属的组件。'],
   ];
   descriptions.forEach(([selector, text]) => $t(selector).text(text));
@@ -4166,7 +4220,7 @@ function bindPanelEvents() {
     '.st-esg-manual-component-card .st-esg-card-desc',
   ].join(', ')).remove();
   $t('.st-esg-card-title').filter(function () {
-    return ['生成任务指令', '预设', '世界书', '提示词日志', '提示词查看器', '手动添加组件'].includes(textOf($(this).text()));
+    return ['生成任务指令', '预设', '世界书', '提示词日志', '手动添加组件'].includes(textOf($(this).text()));
   }).each(function () {
     $(this).closest('.st-esg-card-head').remove();
   });
@@ -4224,6 +4278,7 @@ function bindPanelEvents() {
   $t('#st-esg-baibai-history-enabled').prop('checked', settings.baiBaiBookHistoryEnabled);
   $t('#st-esg-baibai-state-enabled').prop('checked', settings.baiBaiBookStateEnabled);
   $t('#st-esg-preview').val(settings.lastGenerated);
+  renderGenerationHistory();
   renderGeneratedThinking();
   renderGenerationResultPanel();
   resizeGeneratedPreview();
@@ -4432,6 +4487,9 @@ function bindPanelEvents() {
     }
   });
   $t('#st-esg-generate').on('click', () => generateStatusbar());
+  $t('#st-esg-generation-history').on('click', '.st-esg-load-generation-history', function () {
+    loadGenerationHistoryEntry($(this).attr('data-history-id'));
+  });
   $t('#st-esg-inject').on('click', () => injectGeneratedStatusbar());
   $t('#st-esg-undo-injection').on('click', () => undoLatestInjection());
   $t('#st-esg-generation-error').on('click', '#st-esg-show-generated-content', () => {
@@ -4467,6 +4525,7 @@ function loadStylesheet() {
 function init() {
   if (initialized) return;
   initialized = true;
+  recentGenerationHistory = loadGenerationHistory(getGenerationHistoryStorage(), GENERATION_HISTORY_STORAGE_KEY);
   loadSettings(); loadStylesheet(); mountUiWhenDocumentReady();
   updateQuickReplyShortcutActions();
   void syncQuickReplyShortcuts();
