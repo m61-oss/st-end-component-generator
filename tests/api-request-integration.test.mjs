@@ -12,7 +12,7 @@ const modelFunction = source.slice(modelStart, modelEnd);
 
 assert.doesNotMatch(source, /import \{ yaml \} from '\.\.\/\.\.\/\.\.\/\.\.\/lib\.js';/, 'the extension must not fail to load when a compatible frontend omits the named YAML export');
 assert.match(source, /async function getYamlParser\(\)[\s\S]*?import\('\.\.\/\.\.\/\.\.\/\.\.\/lib\.js'\)[\s\S]*?yamlModule\.yaml\s*\?\?\s*yamlModule\.default\?\.yaml/, 'the extension should resolve YAML dynamically and support the default library facade used by compatible frontends');
-assert.match(source, /import \{[\s\S]*?buildApiRequestParts,[\s\S]*?parseApiAdditionalParameters,[\s\S]*?parseApiNumericSettings,[\s\S]*?serializeRequestHeadersYaml,[\s\S]*?\} from '\.\/api\/api-request-parameters\.js\?ver=0\.1\.4';/, 'request parameter helpers should be imported');
+assert.match(source, /import \{[\s\S]*?buildApiRequestParts,[\s\S]*?parseApiAdditionalParameters,[\s\S]*?parseApiNumericSettings,[\s\S]*?serializeRequestHeadersYaml,[\s\S]*?\} from '\.\/api\/api-request-parameters\.js\?ver=0\.1\.5';/, 'request parameter helpers should be imported');
 
 assert.match(callFunction, /const numeric = parseApiNumericSettings\(settings\);/, 'generation should validate user-entered numeric settings');
 assert.match(callFunction, /ChatCompletionService/, 'custom API requests should use Tavern ChatCompletionService when available');

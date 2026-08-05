@@ -3,7 +3,7 @@ import fs from 'node:fs';
 
 const source = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 
-assert.match(source, /from '\.\/sources\/prompt-source-cache\.js\?ver=0\.1\.4'/);
+assert.match(source, /from '\.\/sources\/prompt-source-cache\.js\?ver=0\.1\.5'/);
 assert.match(source, /const promptSourceCache = createPromptSourceCacheState\(\)/);
 
 const ensureFunction = source.slice(
