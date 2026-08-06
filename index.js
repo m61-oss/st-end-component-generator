@@ -3432,7 +3432,9 @@ async function ensurePromptSourceItemsForGeneration({ chat = null } = {}) {
   return filterWorldbookPromptItems(itemsWithKeywordOverrides, {
     chat: promptChat,
     scanDepth: getWorldbookScanDepth(),
-    // The lamp must see the same history the model gets, so the cleanup rules are applied first.
+    historyRangeMode: settings.historyRangeMode,
+    recentMessageCount: settings.recentMessageCount,
+    // The lamp must see the same history range and cleanup result the model gets.
     historyCleanupRules: settings.historyCleanupRules,
     activationModeForItem: isFollowingTavernWorldbook() ? (item) => item?.activationMode : getWorldbookActivationMode,
     substituteKeyword: (keyword) => typeof context?.substituteParams === 'function'

@@ -1,12 +1,7 @@
 import { stripHistoryBlocksByRules } from '../injection/tag-rules.js';
-
-const IGNORE_SYMBOL = Symbol.for('ignore');
+import { CHAT_HISTORY_RANGE_VISIBLE, selectChatHistoryMessages } from '../generation/chat-history-range.js';
 
 const textOf = (value) => String(value ?? '').trim();
-
-function isVisibleChatMessage(item) {
-  return Boolean(item) && item.is_system !== true && !item?.extra?.[IGNORE_SYMBOL];
-}
 
 function isEscapedAt(value, index) {
   let slashCount = 0;
@@ -91,13 +86,20 @@ export function normalizeWorldbookActivationMode(value, fallback = 'green') {
   return textOf(value).toLowerCase() === 'blue' ? 'blue' : textOf(value).toLowerCase() === 'green' ? 'green' : fallback;
 }
 
-// Green-light keywords are scanned against the history the model will actually receive, so the
-// history cleanup rules run first. Scanning the raw text would let a keyword that only survives
-// inside a stripped block activate an entry whose trigger never reaches the prompt.
-export function getWorldbookScanText(chat, depth = 2, { historyCleanupRules = [] } = {}) {
+// Green-light keywords are scanned against the same range the model will receive. Range selection
+// happens before cleanup, so an old message outside the plugin range cannot activate an entry.
+// Cleanup still runs before matching, so text removed from a retained block cannot activate one.
+export function getWorldbookScanText(chat, depth = 2, {
+  historyCleanupRules = [],
+  historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE,
+  recentMessageCount = 10,
+} = {}) {
   const limit = Math.max(0, Number.isFinite(Number(depth)) ? Math.floor(Number(depth)) : 2);
-  const visible = (Array.isArray(chat) ? chat : []).filter(isVisibleChatMessage);
-  return stripHistoryBlocksByRules(visible, historyCleanupRules)
+  const selectedHistory = selectChatHistoryMessages(chat, {
+    mode: historyRangeMode,
+    recentMessageCount,
+  });
+  return stripHistoryBlocksByRules(selectedHistory, historyCleanupRules)
     .slice(-limit)
     .reverse()
     .map((item) => textOf(item?.mes))
@@ -124,8 +126,20 @@ export function isWorldbookEntryActivated(entry, { scanText = '', depth = 2, act
   });
 }
 
-export function filterWorldbookPromptItems(items, { chat = [], scanDepth = 2, activationModeForItem = null, historyCleanupRules = [], substituteKeyword = null } = {}) {
-  const scanText = getWorldbookScanText(chat, scanDepth, { historyCleanupRules });
+export function filterWorldbookPromptItems(items, {
+  chat = [],
+  scanDepth = 2,
+  activationModeForItem = null,
+  historyCleanupRules = [],
+  historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE,
+  recentMessageCount = 10,
+  substituteKeyword = null,
+} = {}) {
+  const scanText = getWorldbookScanText(chat, scanDepth, {
+    historyCleanupRules,
+    historyRangeMode,
+    recentMessageCount,
+  });
   return (Array.isArray(items) ? items : []).filter((item) => {
     if (textOf(item?.scope) !== '世界书') return true;
     const activationMode = typeof activationModeForItem === 'function' ? activationModeForItem(item) : item?.activationMode;

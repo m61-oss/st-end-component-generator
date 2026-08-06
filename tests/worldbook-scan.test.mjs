@@ -148,3 +148,26 @@ assert.equal(
 );
 
 console.log('worldbook-scan native keyword tests passed');
+
+// The plugin-level recent-message range is also the upper bound for green-light scans.
+// Recent mode intentionally keeps a native-hidden message when it falls inside the range.
+const recentRangeChat = [
+  { is_user: true, mes: '旧消息中的后台角色关键词' },
+  { is_user: false, mes: '最近一条但被酒馆隐藏', extra: { [Symbol.for('ignore')]: true } },
+  { is_user: true, mes: '最新正文' },
+];
+assert.equal(
+  getWorldbookScanText(recentRangeChat, 10, { historyRangeMode: 'recent', recentMessageCount: 2 }),
+  '最新正文\n最近一条但被酒馆隐藏',
+  'recent mode should scan only the selected range and keep hidden messages inside that range',
+);
+assert.equal(
+  filterWorldbookPromptItems(
+    [{ scope: '\u4e16\u754c\u4e66', activationMode: 'green', key: ['旧消息中的后台角色关键词'] }],
+    { chat: recentRangeChat, scanDepth: 10, historyRangeMode: 'recent', recentMessageCount: 2 },
+  ).length,
+  0,
+  'messages outside the recent range must not activate a green-light entry',
+);
+
+console.log('worldbook-scan history-range tests passed');
