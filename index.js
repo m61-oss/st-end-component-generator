@@ -4160,9 +4160,9 @@ function renderPluginPanel() {
   const tagCard = tagTextarea?.closest('.st-esg-card');
   const tagGrid = tagCard?.querySelector('.st-esg-grid');
   if (tagCard) {
-    const historyRangeCard = targetDoc.createElement('div');
-    historyRangeCard.className = 'st-esg-card st-esg-history-range-card';
-    historyRangeCard.innerHTML = '<div class="st-esg-card-head"><div><div class="st-esg-card-title">聊天记录范围</div><div class="st-esg-card-desc">决定发送给外置 API 的聊天历史范围；最近消息模式不检查酒馆的隐藏状态。</div></div></div><div class="st-esg-history-range-options"><label class="st-esg-radio-row"><input id="st-esg-history-range-mode-visible" name="st-esg-history-range-mode" type="radio" value="visible" /><span>读取未隐藏消息</span><em>发送所有未被酒馆隐藏的聊天消息。</em></label><label class="st-esg-radio-row"><input id="st-esg-history-range-mode-recent" name="st-esg-history-range-mode" type="radio" value="recent" /><span>仅保留最近消息</span><em class="st-esg-history-range-recent-input"><span>最近</span><input id="st-esg-recent-message-count" class="text_pole" type="number" min="1" step="1" value="10" /><span>条</span><span class="st-esg-history-range-recent-note">隐藏消息也会计入。</span></em></label></div>';
+    const historyRangeCard = targetDoc.createElement('details');
+    historyRangeCard.className = 'st-esg-card st-esg-collapsible st-esg-history-range-card';
+    historyRangeCard.innerHTML = '<summary class="st-esg-collapsible-summary">聊天记录范围</summary><div class="st-esg-collapsible-body"><div class="st-esg-history-range-options"><label class="st-esg-radio-row"><input id="st-esg-history-range-mode-visible" name="st-esg-history-range-mode" type="radio" value="visible" /><span>读取未隐藏消息</span><em>发送所有未被酒馆隐藏的聊天消息。</em></label><label class="st-esg-radio-row"><input id="st-esg-history-range-mode-recent" name="st-esg-history-range-mode" type="radio" value="recent" /><span>仅保留最近消息</span><em class="st-esg-history-range-recent-input"><span>最近</span><input id="st-esg-recent-message-count" class="text_pole" type="number" min="1" step="1" value="10" /><span>条</span><span class="st-esg-history-range-recent-note">隐藏消息也会计入。</span></em></label></div></div>';
     tagCard.parentNode?.insertBefore(historyRangeCard, tagCard);
   }
   if (tagCard && tagGrid) {
