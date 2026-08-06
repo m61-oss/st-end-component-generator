@@ -1094,3 +1094,33 @@ assert.deepEqual(messagesWithDuplicatePresetSources.map((message) => message.con
   'Assistant turn',
   'Append controls only.',
 ]);
+
+const rangedContext = {
+  ...context,
+  chat: [
+    { is_user: true, mes: 'old message' },
+    { is_user: false, mes: 'hidden old message', extra: { [Symbol.for('ignore')]: true } },
+    { is_user: false, mes: 'recent assistant' },
+    { is_user: true, mes: 'hidden recent user' },
+    { is_user: false, mes: 'latest <thinking>remove this block</thinking>reply' },
+  ],
+};
+
+const recentRangeMessages = await buildExternalStatusbarMessages({
+  targetWindow: {},
+  context: rangedContext,
+  latestMessage: { mes: 'latest' },
+  taskPrompt: 'Task',
+  components: [],
+  historyRangeMode: 'recent',
+  recentMessageCount: 3,
+  historyCleanupTags: [{ rule: 'thinking', keep: 0 }],
+});
+const recentRangeContents = recentRangeMessages.map((message) => message.content);
+assert.ok(recentRangeContents.includes('recent assistant'));
+assert.ok(recentRangeContents.includes('hidden recent user'));
+assert.ok(recentRangeContents.includes('latest reply'));
+assert.ok(!recentRangeContents.some((content) => content.includes('old message')));
+assert.ok(!recentRangeContents.some((content) => content.includes('remove this block')));
+
+console.log('prompt-builder chat history range tests passed');

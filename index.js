@@ -25,6 +25,7 @@ import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from
 import { containsStatusPlaceholder, injectStatusbarText, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.1.5';
 import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.5';
 import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.5';
+import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.1.5';
 import { renderPromptTemplate } from './generation/template-compat.js?ver=0.1.5';
 import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.1.5';
 import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './generation/prompt-log.js?ver=0.1.5';
@@ -134,6 +135,8 @@ const DEFAULT_SETTINGS = {
   mvuReprocessOnInject: true,
   historyCleanupTags: '',
   historyCleanupRules: [],
+  historyRangeMode: CHAT_HISTORY_RANGE_VISIBLE,
+  recentMessageCount: 10,
   outputCleanupTags: '',
   lastGenerated: '',
   lastGeneratedStatusPlaceholderPresent: false,
@@ -458,6 +461,8 @@ function loadSettings() {
   settings.useMainApi = false;
   if (typeof settings.tavernProfile !== 'string') settings.tavernProfile = '';
   if (typeof settings.mvuReprocessOnInject !== 'boolean') settings.mvuReprocessOnInject = true;
+  settings.historyRangeMode = normalizeChatHistoryRangeMode(settings.historyRangeMode);
+  settings.recentMessageCount = normalizeRecentMessageCount(settings.recentMessageCount);
   lastPromptLogText = textOf(settings.lastPromptLog);
   lastGeneratedThinking = Array.isArray(settings.lastGeneratedThinking) ? settings.lastGeneratedThinking.map((item) => String(item || '')).filter(Boolean) : [];
   settings.lastPromptLog = '';
@@ -830,6 +835,8 @@ async function buildMessages(latestMessage) {
     promptSourceItems,
     worldbookSourceControlled: getSourceMode('worldbook') === SOURCE_MODE_PROMPT || getPromptSourceSnapshotItems('worldbook').length > 0,
     historyCleanupTags: settings.historyCleanupRules,
+    historyRangeMode: settings.historyRangeMode,
+    recentMessageCount: settings.recentMessageCount,
     substituteParams: context.substituteParams,
     taskPlacement: { enabled: settings.taskPlacementEnabled, afterSourceId: settings.taskPlacementAfterSourceId },
     replaceLastUserMessageWithTask: settings.replaceLastUserMessageWithTask,
@@ -4025,6 +4032,16 @@ function buildGenerationSettingsMarkup() {
   return `<details class="st-esg-card st-esg-collapsible st-esg-generation-settings"><summary class="st-esg-collapsible-summary">生成设置</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-generate" type="checkbox" /><span>监听正文结束自动生成</span></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-inject" type="checkbox" /><span>生成结束以后自动注入</span></label><label id="st-esg-inject-mode-row" class="st-esg-generation-inject-mode">注入方式：<select id="st-esg-inject-mode" class="text_pole st-esg-select"><option value="replace">正文已有同名标签时直接覆盖</option><option value="append">始终追加到末尾</option><option value="rollbackAppend">撤回本楼上次注入后追加</option><option value="rollbackReplace">撤回本楼上次注入后覆盖</option></select></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-status-placeholder-enabled" type="checkbox" /><span>将 MVU 状态标签固定到正文末尾</span><em>检测正文或生成内容中的 &lt;StatusPlaceHolderImpl/&gt;，清理重复项并在最终文末保留一个。</em></label><div class="st-esg-card-desc">覆盖模式仅支持成对的尖括号标签（如 &lt;status&gt;…&lt;/status&gt;）。[status]、【状态】等格式无法识别，会自动改为追加。</div></div></details>`;
 }
 
+function renderHistoryRangeUi() {
+  const mode = normalizeChatHistoryRangeMode(settings.historyRangeMode);
+  settings.historyRangeMode = mode;
+  const count = normalizeRecentMessageCount(settings.recentMessageCount);
+  settings.recentMessageCount = count;
+  $t('input[name="st-esg-history-range-mode"]').prop('checked', false);
+  $t(`#st-esg-history-range-mode-${mode}`).prop('checked', true);
+  $t('#st-esg-recent-message-count').val(count).prop('disabled', mode !== CHAT_HISTORY_RANGE_RECENT);
+}
+
 function renderGenerationSettings() {
   const settingsBody = targetDoc.querySelector('.st-esg-generation-settings .st-esg-collapsible-body');
   const statusPlaceholderSetting = settingsBody?.querySelector('#st-esg-status-placeholder-enabled')?.closest('label');
@@ -4108,6 +4125,12 @@ function renderPluginPanel() {
   const tagTextarea = dialog.querySelector('#st-esg-history-cleanup-tags');
   const tagCard = tagTextarea?.closest('.st-esg-card');
   const tagGrid = tagCard?.querySelector('.st-esg-grid');
+  if (tagCard) {
+    const historyRangeCard = targetDoc.createElement('div');
+    historyRangeCard.className = 'st-esg-card st-esg-history-range-card';
+    historyRangeCard.innerHTML = '<div class="st-esg-card-head"><div><div class="st-esg-card-title">聊天记录范围</div><div class="st-esg-card-desc">决定发送给外置 API 的聊天历史范围；最近消息模式不检查酒馆的隐藏状态。</div></div></div><div class="st-esg-history-range-options"><label class="st-esg-radio-row"><input id="st-esg-history-range-mode-visible" name="st-esg-history-range-mode" type="radio" value="visible" /><span>读取未隐藏消息</span><em>发送所有未被酒馆隐藏的聊天消息。</em></label><label class="st-esg-radio-row"><input id="st-esg-history-range-mode-recent" name="st-esg-history-range-mode" type="radio" value="recent" /><span>仅保留最近消息</span><em class="st-esg-history-range-recent-input">最近 <input id="st-esg-recent-message-count" class="text_pole" type="number" min="1" step="1" value="10" /> 条；隐藏消息也会计入。</em></label></div>';
+    tagCard.parentNode?.insertBefore(historyRangeCard, tagCard);
+  }
   if (tagCard && tagGrid) {
     const tagDetails = targetDoc.createElement('details');
     tagDetails.className = 'st-esg-card st-esg-collapsible st-esg-tag-cleanup-settings';
@@ -4271,6 +4294,7 @@ function bindPanelEvents() {
   $t('#st-esg-qr-generate-enabled').prop('checked', settings.qrGenerateEnabled);
   $t('#st-esg-qr-inject-enabled').prop('checked', settings.qrInjectEnabled);
   renderGenerationSettings();
+  renderHistoryRangeUi();
   $t('#st-esg-task').val(settings.taskPrompt);
   $t('#st-esg-task-placement-enabled').prop('checked', settings.taskPlacementEnabled);
   $t('#st-esg-replace-last-user-message').prop('checked', settings.replaceLastUserMessageWithTask);
@@ -4378,6 +4402,17 @@ function bindPanelEvents() {
     settings.autoInject = Boolean($(this).prop('checked'));
     saveSettings();
     renderGenerationSettings();
+  });
+  $t('input[name="st-esg-history-range-mode"]').on('change', function () {
+    if (!$(this).prop('checked')) return;
+    settings.historyRangeMode = normalizeChatHistoryRangeMode(String($(this).val()));
+    saveSettings();
+    renderHistoryRangeUi();
+  });
+  $t('#st-esg-recent-message-count').on('input', function () {
+    settings.recentMessageCount = normalizeRecentMessageCount($(this).val());
+    saveSettings();
+    renderHistoryRangeUi();
   });
   $t('#st-esg-status-placeholder-enabled').on('change', function () {
     settings.statusPlaceholderEnabled = Boolean($(this).prop('checked'));
