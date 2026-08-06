@@ -218,7 +218,7 @@ assert.match(styleSource, /#st-esg-ball \{[^}]*var\(--esg-bg-card, #/s, 'floatin
 assert.match(indexSource, /const ball = targetDoc\.createElement\('div'\);/, 'floating balls should use a neutral target-document element like the working GGD floating control');
 assert.match(indexSource, /targetDoc\.getElementById\('st-esg-ball-visible'\)\?\.addEventListener\('change'/, 'the floating-ball setting should bind directly in the target document');
 assert.match(indexSource, /event\.pointerType === 'mouse' && event\.button !== 0/, 'floating ball dragging should preserve touch input');
-assert.match(styleSource, /#st-esg-ball \{[^}]*z-index:\s*2147483646 !important/s, 'floating balls should use the working mobile control\'s top page layer');
+assert.match(styleSource, /#st-esg-ball \{[^}]*z-index:\s*8999 !important/s, 'floating balls should stay below Tavern and other extension overlays');
 assert.match(styleSource, /#st-esg-ball \{[^}]*touch-action:\s*none/s, 'floating balls should preserve touch dragging on mobile');
 assert.match(styleSource, /#st-esg-ball \{[^}]*border:\s*1px solid var\(--esg-text-main, #E0E0E0\)[^}]*cursor:\s*grab[^}]*box-shadow:\s*var\(--esg-shadow/s, 'floating balls should retain this extension\'s visual style');
 assert.match(indexSource, /id="st-esg-ball-visible"[^>]*\/><span>悬浮球<\/span>/, 'the floating ball toggle should be labelled 悬浮球');

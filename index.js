@@ -2312,8 +2312,8 @@ function togglePanel(forceOpen) {
     renderComponentList();
     closeSillyTavernOverlays();
     targetDoc.body.appendChild(dialog);
-    if (typeof dialog.showModal === 'function') {
-      if (!dialog.open) dialog.showModal();
+    if (typeof dialog.show === 'function') {
+      if (!dialog.open) dialog.show();
     } else {
       dialog.setAttribute('open', '');
     }
@@ -2383,38 +2383,54 @@ function renderFloatingBall() {
   applyFloatingBallPosition(ball);
   ball.classList.toggle('st-esg-ball-under-panel', Boolean(getDialog()?.open));
   targetDoc.body.appendChild(ball);
-  let dragging = false, moved = false, startX = 0, startY = 0, originLeft = 0, originTop = 0;
+  let dragging = false, moved = false, suppressClick = false, activePointerId = null, startX = 0, startY = 0, originLeft = 0, originTop = 0;
   const onMove = (event) => {
-    if (!dragging) return;
+    if (!dragging || event.pointerId !== activePointerId) return;
     const dx = event.clientX - startX, dy = event.clientY - startY;
-    if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+    if (Math.hypot(dx, dy) > 6) moved = true;
     ball.style.left = `${clamp(originLeft + dx, 0, targetWindow.innerWidth - getFloatingBallSize())}px`;
     ball.style.top = `${clamp(originTop + dy, 0, targetWindow.innerHeight - getFloatingBallSize())}px`;
   };
-  const onUp = () => {
-    if (!dragging) return;
+  const onUp = (event) => {
+    if (!dragging || event.pointerId !== activePointerId) return;
+    const cancelled = event.type === 'pointercancel';
     dragging = false;
     targetWindow.removeEventListener('pointermove', onMove);
     targetWindow.removeEventListener('pointerup', onUp);
+    targetWindow.removeEventListener('pointercancel', onUp);
+    if (activePointerId !== null && ball.hasPointerCapture?.(activePointerId)) ball.releasePointerCapture(activePointerId);
+    activePointerId = null;
     const left = Number.parseFloat(ball.style.left);
     const top = Number.parseFloat(ball.style.top);
     settings.ballX = Number.isFinite(left) ? left : 16;
     settings.ballY = Number.isFinite(top) ? top : 16;
     saveSettings();
-    if (!moved) {
+    if (moved) {
+      suppressClick = true;
+      targetWindow.setTimeout(() => { suppressClick = false; }, 300);
+    } else if (!cancelled) {
       suppressNextClickAfterFloatingBallOpen();
       togglePanel(true);
     }
   };
   ball.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
-    event.preventDefault(); dragging = true; moved = false;
+    event.preventDefault(); event.stopPropagation(); dragging = true; moved = false; suppressClick = false; activePointerId = event.pointerId;
     startX = event.clientX; startY = event.clientY;
     const left = Number.parseFloat(ball.style.left);
     const top = Number.parseFloat(ball.style.top);
     originLeft = Number.isFinite(left) ? left : 16;
     originTop = Number.isFinite(top) ? top : 16;
-    targetWindow.addEventListener('pointermove', onMove); targetWindow.addEventListener('pointerup', onUp);
+    ball.setPointerCapture?.(event.pointerId);
+    targetWindow.addEventListener('pointermove', onMove);
+    targetWindow.addEventListener('pointerup', onUp);
+    targetWindow.addEventListener('pointercancel', onUp);
+  });
+  ball.addEventListener('click', (event) => {
+    if (!suppressClick) return;
+    event.preventDefault();
+    event.stopPropagation();
+    suppressClick = false;
   });
 }
 
@@ -4044,6 +4060,14 @@ function renderHistoryRangeUi() {
   $t('#st-esg-recent-message-count').val(count).prop('disabled', mode !== CHAT_HISTORY_RANGE_RECENT);
 }
 
+function commitRecentMessageCountInput(input) {
+  const raw = String($(input).val() ?? '').trim();
+  const count = normalizeRecentMessageCount(raw || 10);
+  settings.recentMessageCount = count;
+  $(input).val(count);
+  saveSettings();
+}
+
 function renderGenerationSettings() {
   const settingsBody = targetDoc.querySelector('.st-esg-generation-settings .st-esg-collapsible-body');
   const statusPlaceholderSetting = settingsBody?.querySelector('#st-esg-status-placeholder-enabled')?.closest('label');
@@ -4130,7 +4154,7 @@ function renderPluginPanel() {
   if (tagCard) {
     const historyRangeCard = targetDoc.createElement('div');
     historyRangeCard.className = 'st-esg-card st-esg-history-range-card';
-    historyRangeCard.innerHTML = '<div class="st-esg-card-head"><div><div class="st-esg-card-title">聊天记录范围</div><div class="st-esg-card-desc">决定发送给外置 API 的聊天历史范围；最近消息模式不检查酒馆的隐藏状态。</div></div></div><div class="st-esg-history-range-options"><label class="st-esg-radio-row"><input id="st-esg-history-range-mode-visible" name="st-esg-history-range-mode" type="radio" value="visible" /><span>读取未隐藏消息</span><em>发送所有未被酒馆隐藏的聊天消息。</em></label><label class="st-esg-radio-row"><input id="st-esg-history-range-mode-recent" name="st-esg-history-range-mode" type="radio" value="recent" /><span>仅保留最近消息</span><em class="st-esg-history-range-recent-input">最近 <input id="st-esg-recent-message-count" class="text_pole" type="number" min="1" step="1" value="10" /> 条；隐藏消息也会计入。</em></label></div>';
+    historyRangeCard.innerHTML = '<div class="st-esg-card-head"><div><div class="st-esg-card-title">聊天记录范围</div><div class="st-esg-card-desc">决定发送给外置 API 的聊天历史范围；最近消息模式不检查酒馆的隐藏状态。</div></div></div><div class="st-esg-history-range-options"><label class="st-esg-radio-row"><input id="st-esg-history-range-mode-visible" name="st-esg-history-range-mode" type="radio" value="visible" /><span>读取未隐藏消息</span><em>发送所有未被酒馆隐藏的聊天消息。</em></label><label class="st-esg-radio-row"><input id="st-esg-history-range-mode-recent" name="st-esg-history-range-mode" type="radio" value="recent" /><span>仅保留最近消息</span><em class="st-esg-history-range-recent-input"><span>最近</span><input id="st-esg-recent-message-count" class="text_pole" type="number" min="1" step="1" value="10" /><span>条</span><span class="st-esg-history-range-recent-note">隐藏消息也会计入。</span></em></label></div>';
     tagCard.parentNode?.insertBefore(historyRangeCard, tagCard);
   }
   if (tagCard && tagGrid) {
@@ -4183,6 +4207,11 @@ function renderPluginPanel() {
   dialog.querySelector('#st-esg-close')?.insertAdjacentHTML('beforebegin', '<div id="st-esg-theme-toggle" class="st-esg-header-btn" title="切换主题"><i class="fa-solid fa-moon"></i></div>');
   targetDoc.body.appendChild(dialog);
   dialog.addEventListener('cancel', (event) => { event.preventDefault(); togglePanel(false); });
+  dialog.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || event.target.closest?.('dialog') !== dialog) return;
+    event.preventDefault();
+    togglePanel(false);
+  });
   dialog.addEventListener('close', () => {
     resetComponentEditMode();
     resetComponentLibraryFilters();
@@ -4412,9 +4441,14 @@ function bindPanelEvents() {
     renderHistoryRangeUi();
   });
   $t('#st-esg-recent-message-count').on('input', function () {
-    settings.recentMessageCount = normalizeRecentMessageCount($(this).val());
+    const raw = String($(this).val() ?? '').trim();
+    if (!raw) return;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return;
+    settings.recentMessageCount = Math.max(1, Math.floor(parsed));
     saveSettings();
-    renderHistoryRangeUi();
+  }).on('change blur', function () {
+    commitRecentMessageCountInput(this);
   });
   $t('#st-esg-status-placeholder-enabled').on('change', function () {
     settings.statusPlaceholderEnabled = Boolean($(this).prop('checked'));
