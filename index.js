@@ -225,6 +225,7 @@ let componentFilterMode = 'all';
 let componentEditMode = false;
 let selectedComponentIds = new Set();
 let componentLibraryOpen = true;
+let componentLibraryContextKey = '';
 let theaterSearchQuery = '';
 let theaterFilterMode = 'all';
 let theaterEditMode = false;
@@ -2267,6 +2268,8 @@ async function handleSchemeAction(type, action) {
 function switchTab(tabName) {
   const aliases = { sources: 'preset', api: 'runtime', output: 'workspace' };
   const nextTab = aliases[tabName] || tabName || 'workspace';
+  const nextTabButton = $t(`.st-esg-tab[data-tab="${nextTab}"]`);
+  if (settings.activeTab === nextTab && nextTabButton.hasClass('active')) return;
   const leavingComponentLibrary = nextTab !== 'components';
   const shouldRefreshComponentLibrary = leavingComponentLibrary
     && (componentEditMode || componentSearchQuery || componentFilterMode !== 'all');
@@ -2309,7 +2312,8 @@ function togglePanel(forceOpen) {
   if (shouldOpen) {
     resetComponentEditMode();
     resetComponentLibraryFilters();
-    renderComponentList();
+    const componentList = targetDoc.getElementById('st-esg-component-list');
+    if (!componentList?.children.length || componentLibraryContextKey !== getComponentLibraryContextKey()) renderComponentList();
     closeSillyTavernOverlays();
     targetDoc.body.appendChild(dialog);
     if (typeof dialog.show === 'function') {
@@ -2317,7 +2321,7 @@ function togglePanel(forceOpen) {
     } else {
       dialog.setAttribute('open', '');
     }
-    scanImportCandidates().catch(() => {});
+    if (!importGroups.length || promptSourceCache.structureDirty) scanImportCandidates().catch(() => {});
     if (settings.activeTab === 'workspace') scheduleGeneratedPreviewResize();
   } else if (dialog.open && typeof dialog.close === 'function') {
     resetComponentEditMode();
@@ -2487,6 +2491,11 @@ function applyFloatingBallPosition(ball) {
   }
 }
 
+function getComponentLibraryContextKey() {
+  const context = getContext();
+  return `${textOf(getActiveSchemeId('preset'))}::${textOf(getCurrentCharacterNameSafe(context))}`;
+}
+
 function componentMatchesLibraryFilter(item) {
   const query = componentSearchQuery.trim().toLocaleLowerCase();
   const searchableText = `${item.name || ''}\n${item.content || ''}`.toLocaleLowerCase();
@@ -2525,6 +2534,7 @@ function renderComponentList() {
   ensureComponentLibraryEnhancements();
   const list = $t('#st-esg-component-list');
   if (!list.length) return;
+  componentLibraryContextKey = getComponentLibraryContextKey();
   pruneSelectedComponentIds();
   const componentViewState = captureComponentLibraryViewState();
   const currentLibraryOpen = list.find('.st-esg-component-library-card').prop('open');
@@ -2534,7 +2544,6 @@ function renderComponentList() {
   const editButton = componentEditMode ? '' : '<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-edit-toggle" type="button"><i class="fa-solid fa-pen-to-square"></i><span>编辑</span></button>';
   const editToolbar = componentEditMode ? '<div class="st-esg-component-edit-toolbar"><span class="st-esg-component-edit-selection-count">未选择项目</span><span class="st-esg-component-batch-actions"><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-batch-move" type="button" title="移动到分组" aria-label="移动到分组" disabled><i class="fa-solid fa-folder-open"></i><span>移动到</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger st-esg-component-batch-delete" type="button" title="删除选中组件" aria-label="删除选中组件" disabled><i class="fa-solid fa-trash"></i><span>删除</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-edit-exit" type="button" title="退出编辑" aria-label="退出编辑"><i class="fa-solid fa-check"></i><span>退出</span></button></span></div>' : '';
   const wrapLibrary = (content) => `<details class="st-esg-card st-esg-component-library-card st-esg-library-collapsible" ${componentLibraryOpen ? 'open' : ''}><summary class="st-esg-library-card-summary"><div class="st-esg-card-head"><div><div class="st-esg-card-title">组件库</div></div>${editButton}</div></summary><div class="st-esg-library-card-body">${editToolbar}${renderComponentListToolbar()}${content}</div></details>`;
-  settings.components = settings.components.map((item) => normalizeComponent(item, targetWindow, getContext()));
   const sections = [
     { scope: COMPONENT_SCOPE_GLOBAL, title: '全局组件', desc: '启用后始终参与文尾组件生成。' },
     { scope: COMPONENT_SCOPE_PRESET, title: '预设组件', desc: '仅当前已绑定预设方案时参与生成；未保存方案不会显示预设组件。' },
@@ -2588,7 +2597,6 @@ function renderComponentList() {
   list.find('.st-esg-component-section').eq(1).find('.st-esg-import-group-title').after(`<small class="st-esg-component-section-context">当前预设：${escapeHtml(currentPresetSchemeName)}</small>`);
   const currentCharacterName = getCurrentCharacterNameSafe(getContext()) || '未选择角色';
   list.find('.st-esg-component-section').eq(2).find('.st-esg-import-group-title').after(`<small class="st-esg-component-section-context">当前角色：${escapeHtml(currentCharacterName)}</small>`);
-  saveSettings();
   list.find('.st-esg-component-library-card').on('toggle', function () { componentLibraryOpen = this.open; });
   list.find('.st-esg-component-edit-toggle').on('click', (event) => {
     event.preventDefault();
