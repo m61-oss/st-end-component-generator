@@ -35,7 +35,7 @@ assert.match(
 );
 assert.match(
   source,
-  /import \{ createInjectionUndoSnapshot, validateInjectionUndoSnapshot \} from '\.\/injection\/injection-undo\.js\?ver=0\.1\.5';/,
+  /import \{ createInjectionUndoSnapshot, validateInjectionUndoSnapshot \} from '\.\/injection\/injection-undo\.js\?ver=0\.1\.6';/,
   'injection undo should use the tested strict snapshot validator',
 );
 assert.match(

@@ -9,7 +9,7 @@ const loadStart = source.indexOf('function loadGenerationHistoryEntry(');
 const loadEnd = source.indexOf('\nfunction ', loadStart + 10);
 const loadFunction = source.slice(loadStart, loadEnd);
 
-assert.match(source, /import \{ loadGenerationHistory, recordGenerationResult \} from '\.\/generation\/generation-history\.js\?ver=0\.1\.5';/);
+assert.match(source, /import \{ loadGenerationHistory, recordGenerationResult \} from '\.\/generation\/generation-history\.js\?ver=0\.1\.6';/);
 assert.match(source, /const GENERATION_HISTORY_STORAGE_KEY = `\$\{EXTENSION_ID\}\.recentGenerationHistory`;/);
 assert.match(source, /最近生成记录/);
 assert.match(source, /id="st-esg-generation-history"/);
