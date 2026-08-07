@@ -4300,7 +4300,6 @@ function refreshHelpText() {
     ['[data-tab-panel="task"] .st-esg-card-desc', '编辑发送给模型的任务指令；组件占位符会在发送前替换为当前启用的组件内容。'],
     ['[data-tab-panel="preset"] > .st-esg-card:nth-child(2) .st-esg-card-desc', '选择要查看和编辑的预设；编辑模式下的勾选与内容会保存到当前方案。'],
     ['[data-tab-panel="worldbook"] > .st-esg-card:nth-child(2) .st-esg-card-desc', '选择方案后查看当前世界书状态；编辑模式下可调整条目勾选、内容和蓝绿灯。'],
-    ['[data-tab-panel="runtime"] .st-esg-card-desc', '分别处理聊天历史清理规则和生成结果中的思维链剥离规则。'],
     ['[data-tab-panel="debug"] .st-esg-card-desc', '查看本次生成流程、注入结果，以及发送给外置 API 的完整消息。'],
     ['.st-esg-manual-component-card .st-esg-card-desc', '添加一个全局、预设方案或当前角色专属的组件。'],
   ];
