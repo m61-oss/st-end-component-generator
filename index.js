@@ -28,7 +28,7 @@ import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from '
 import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.1.6';
 import { renderPromptTemplate } from './generation/template-compat.js?ver=0.1.6';
 import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.1.6';
-import { applyAnimaWorldbookOverrides, captureAnimaWorldbookEntries, filterAnimaWorldbookEntries, mergeAnimaWorldbookSnapshots, readLatestAnimaStatus } from './sources/anima-memory.js?ver=0.1.6';
+import { applyAnimaWorldbookOverrides, captureAnimaWorldbookEntries, captureAnimaWorldbookUntil, filterAnimaWorldbookEntries, mergeAnimaWorldbookSnapshots, readLatestAnimaStatus } from './sources/anima-memory.js?ver=0.1.6';
 import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './generation/prompt-log.js?ver=0.1.6';
 import {
   clearImportSelectionsForScope,
@@ -92,6 +92,7 @@ const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLD_BOOK_FOLLOW_TAVERN = '__follow_tavern__';
 const DEFAULT_COMPONENT_GROUP_VALUE = '__default_group__';
+const ANIMA_WORLD_BOOK_CAPTURE_RETRY_DELAY_MS = 100;
 const MAX_OUTPUT_TOKENS = 65535;
 const FLOATING_BALL_MIN_SIZE = 28;
 const FLOATING_BALL_MAX_SIZE = 72;
@@ -224,6 +225,7 @@ let recentGenerationHistory = [];
 let latestInjectionUndoSnapshot = null;
 let animaWorldbookSnapshotPromise = null;
 let animaWorldbookSnapshot = [];
+let animaWorldbookCaptureRun = null;
 let tavernSyncTimer = null;
 let lastTavernSourceSignature = '';
 let listSearchQuery = '';
@@ -629,37 +631,56 @@ function isAnimaStatusVariableEnabled() {
   return settings.memorySource === 'anima' && settings.animaStatusVariableEnabled === true;
 }
 
+function stopAnimaWorldbookCapture() {
+  if (animaWorldbookCaptureRun) animaWorldbookCaptureRun.active = false;
+  animaWorldbookCaptureRun = null;
+}
+
 function clearAnimaWorldbookSnapshot() {
   animaWorldbookSnapshotPromise = null;
   animaWorldbookSnapshot = [];
+  stopAnimaWorldbookCapture();
 }
 
 function captureAnimaWorldbookSnapshot() {
-  if (!isAnimaMemoryEnabled()) {
-    clearAnimaWorldbookSnapshot();
-    return Promise.resolve([]);
+  if (!isAnimaWorldbookEnabled()) {
+    stopAnimaWorldbookCapture();
+    return Promise.resolve({ entries: [], found: false });
   }
-  const promise = captureAnimaWorldbookEntries(targetWindow);
-  animaWorldbookSnapshotPromise = promise;
-  promise.then((entries) => {
-    if (animaWorldbookSnapshotPromise === promise) {
-      animaWorldbookSnapshot = mergeAnimaWorldbookSnapshots(animaWorldbookSnapshot, entries);
+
+  stopAnimaWorldbookCapture();
+  const run = { active: true };
+  animaWorldbookCaptureRun = run;
+  const promise = captureAnimaWorldbookUntil({
+    read: () => captureAnimaWorldbookEntries(targetWindow),
+    isActive: () => run.active && isAnimaWorldbookEnabled(),
+    wait: () => new Promise((resolve) => targetWindow.setTimeout(resolve, ANIMA_WORLD_BOOK_CAPTURE_RETRY_DELAY_MS)),
+  }).then((result) => {
+    if (animaWorldbookSnapshotPromise === promise && result?.found) {
+      animaWorldbookSnapshot = mergeAnimaWorldbookSnapshots(animaWorldbookSnapshot, result.entries);
     }
-    return entries;
+    if (animaWorldbookCaptureRun === run) {
+      run.active = false;
+      animaWorldbookCaptureRun = null;
+    }
+    return result;
   }).catch(() => {
-    if (animaWorldbookSnapshotPromise === promise) animaWorldbookSnapshotPromise = null;
+    if (animaWorldbookCaptureRun === run) animaWorldbookCaptureRun = null;
+    return { entries: [], found: false };
   });
+  animaWorldbookSnapshotPromise = promise;
   return promise;
 }
 
 async function getAnimaWorldbookSnapshotForPrompt() {
   if (!isAnimaMemoryEnabled()) return [];
-  if (animaWorldbookSnapshotPromise) {
-    try {
-      await animaWorldbookSnapshotPromise;
-    } catch (_) {}
+  if (isAnimaWorldbookEnabled()) {
+    if (animaWorldbookSnapshotPromise) {
+      try {
+        await animaWorldbookSnapshotPromise;
+      } catch (_) {}
+    }
   }
-  if (!animaWorldbookSnapshotPromise) await captureAnimaWorldbookSnapshot();
   return filterAnimaWorldbookEntries(animaWorldbookSnapshot, {
     includeWorldbook: isAnimaWorldbookEnabled(),
     includeStatus: isAnimaStatusVariableEnabled(),
@@ -1545,7 +1566,8 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
 }
 
 function handleGenerationStarted() {
-  if (isAnimaMemoryEnabled()) void captureAnimaWorldbookSnapshot();
+  if (isAnimaWorldbookEnabled()) void captureAnimaWorldbookSnapshot();
+  else stopAnimaWorldbookCapture();
   if (!settings.autoGenerate || generationAbortController) return;
   automaticGenerationLogActive = false;
   logAutomaticGenerationStage('generation-started');
@@ -1554,6 +1576,7 @@ function handleGenerationStarted() {
 }
 
 function handleGenerationEnded() {
+  stopAnimaWorldbookCapture();
   if (!settings.autoGenerate || generationAbortController) return;
   if (!automaticGenerationLogActive) clearAutomaticGenerationLog();
   logAutomaticGenerationStage('generation-ended', '等待 500ms 检查最终消息');
@@ -1569,6 +1592,10 @@ function handleGenerationEnded() {
     automaticGenerationEndTimer = null;
     void runGenerationEndedAutomaticGeneration(baseline, revision);
   }, 500);
+}
+
+function handleGenerationStopped() {
+  stopAnimaWorldbookCapture();
 }
 
 function handleAssistantMessageReceived(messageId, messageType) {
@@ -4361,7 +4388,7 @@ function renderPluginPanel() {
     const legacyMemorySection = promptSettings.querySelector('.st-esg-prompt-settings-section');
     const memorySettings = targetDoc.createElement('details');
     memorySettings.className = 'st-esg-card st-esg-collapsible st-esg-memory-settings';
-    memorySettings.innerHTML = '<summary class="st-esg-collapsible-summary">记忆设置</summary><div class="st-esg-collapsible-body"><div class="st-esg-memory-source-options"><label class="st-esg-radio-row"><input id="st-esg-memory-source-baibai" type="radio" name="st-esg-memory-source" value="baibai" /><span>柏宝书</span></label><label class="st-esg-radio-row"><input id="st-esg-memory-source-anima" type="radio" name="st-esg-memory-source" value="anima" /><span>Anima</span></label><label class="st-esg-radio-row"><input id="st-esg-memory-source-none" type="radio" name="st-esg-memory-source" value="none" /><span>无</span></label></div><div id="st-esg-baibai-memory-options" class="st-esg-memory-source-panel"></div><div id="st-esg-anima-memory-options" class="st-esg-memory-source-panel"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-anima-worldbook-enabled" type="checkbox" /><span>读取 Anima 世界书</span><em>读取现有的聊天记忆和知识容器；只在捕获到新内容时更新快照，重 roll 不会清空。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-anima-status-enabled" type="checkbox" /><span>读取 Anima 状态变量</span><em>实时读取最近可用的 anima_data；当前楼层没有时会向前回溯，不会创建缺失的 [anima_status] 条目。</em></label></div></div>';
+    memorySettings.innerHTML = '<summary class="st-esg-collapsible-summary">记忆设置</summary><div class="st-esg-collapsible-body"><div class="st-esg-memory-source-options"><label class="st-esg-radio-row"><input id="st-esg-memory-source-baibai" type="radio" name="st-esg-memory-source" value="baibai" /><span>柏宝书</span></label><label class="st-esg-radio-row"><input id="st-esg-memory-source-anima" type="radio" name="st-esg-memory-source" value="anima" /><span>Anima</span></label><label class="st-esg-radio-row"><input id="st-esg-memory-source-none" type="radio" name="st-esg-memory-source" value="none" /><span>无</span></label></div><div id="st-esg-baibai-memory-options" class="st-esg-memory-source-panel"></div><div id="st-esg-anima-memory-options" class="st-esg-memory-source-panel"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-anima-worldbook-enabled" type="checkbox" /><span>读取 Anima 世界书</span><em>抓取 Anima 最新召回切片并覆盖快照。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-anima-status-enabled" type="checkbox" /><span>读取 Anima 状态变量</span><em>实时读取最近可用的 anima_data；当前楼层没有时会向前回溯。</em></label></div></div>';
     const baibaiOptions = memorySettings.querySelector('#st-esg-baibai-memory-options');
     legacyMemorySection?.querySelectorAll('label').forEach((label) => baibaiOptions.appendChild(label));
     legacyMemorySection?.remove();
@@ -4798,6 +4825,7 @@ function init() {
   registerInjectionUndoInvalidation(context);
   if (context.eventTypes.GENERATION_STARTED) context.eventSource.on(context.eventTypes.GENERATION_STARTED, handleGenerationStarted);
   if (context.eventTypes.GENERATION_ENDED) context.eventSource.on(context.eventTypes.GENERATION_ENDED, handleGenerationEnded);
+  if (context.eventTypes.GENERATION_STOPPED) context.eventSource.on(context.eventTypes.GENERATION_STOPPED, handleGenerationStopped);
   if (context.eventTypes.MESSAGE_RECEIVED) context.eventSource.on(context.eventTypes.MESSAGE_RECEIVED, handleAssistantMessageReceived);
   if (context.eventTypes.CHARACTER_MESSAGE_RENDERED) context.eventSource.on(context.eventTypes.CHARACTER_MESSAGE_RENDERED, handleAssistantMessageRendered);
   if (context.eventTypes.CHAT_CHANGED) context.eventSource.on(context.eventTypes.CHAT_CHANGED, () => {

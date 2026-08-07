@@ -53,6 +53,38 @@ export async function captureAnimaWorldbookEntries(targetWindow) {
     .filter((entry) => Boolean(getAnimaEntryKind(entry)));
 }
 
+export function hasUsableAnimaWorldbookContent(entries) {
+  return (Array.isArray(entries) ? entries : []).some((entry) => {
+    const kind = getAnimaEntryKind(entry);
+    return kind !== 'status' && Boolean(textOf(entry?.content));
+  });
+}
+
+/**
+ * Keep reading the two Anima recall containers while the body generation is active.
+ * An empty read is not a valid snapshot and must not stop a later attempt.
+ */
+export async function captureAnimaWorldbookUntil({
+  read,
+  isActive = () => true,
+  wait = async () => {},
+} = {}) {
+  let entries = [];
+  while (isActive()) {
+    try {
+      entries = await read();
+    } catch (_) {
+      entries = [];
+    }
+    if (hasUsableAnimaWorldbookContent(entries)) {
+      return { entries, found: true };
+    }
+    if (!isActive()) break;
+    await wait();
+  }
+  return { entries, found: false };
+}
+
 function cloneAnimaEntry(entry) {
   return {
     ...entry,

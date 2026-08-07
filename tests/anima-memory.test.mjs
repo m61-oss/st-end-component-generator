@@ -3,6 +3,7 @@ import {
   ANIMA_ENTRY_NAMES,
   applyAnimaWorldbookOverrides,
   captureAnimaWorldbookEntries,
+  captureAnimaWorldbookUntil,
   filterAnimaWorldbookEntries,
   getAnimaEntryKind,
   mergeAnimaWorldbookSnapshots,
@@ -30,6 +31,35 @@ const captured = await captureAnimaWorldbookEntries({
 });
 assert.equal(captured.length, 2, 'capture keeps existing Anima entries, including empty content');
 assert.equal(captured[1].content, '');
+
+let retryReads = 0;
+const retryResult = await captureAnimaWorldbookUntil({
+  read: async () => {
+    retryReads += 1;
+    return retryReads < 3
+      ? [{ name: '[ANIMA_Chat_History_Container]', content: '' }]
+      : [{ name: '[ANIMA_Chat_History_Container]', content: 'latest recall slice' }];
+  },
+  isActive: () => true,
+  wait: async () => {},
+});
+assert.equal(retryReads, 3, 'capture retries until a non-empty Anima recall slice is available');
+assert.equal(retryResult.found, true);
+assert.equal(retryResult.entries[0].content, 'latest recall slice');
+
+let stoppedReads = 0;
+let captureActive = true;
+const stoppedResult = await captureAnimaWorldbookUntil({
+  read: async () => {
+    stoppedReads += 1;
+    captureActive = false;
+    return [{ name: '[ANIMA_Knowledge_Container]', content: '' }];
+  },
+  isActive: () => captureActive,
+  wait: async () => { throw new Error('must not wait after generation ends'); },
+});
+assert.equal(stoppedReads, 1, 'capture stops when the body generation has ended');
+assert.equal(stoppedResult.found, false);
 
 const mergedSnapshot = mergeAnimaWorldbookSnapshots([
   { name: '[ANIMA_Chat_History_Container]', content: 'old history' },
