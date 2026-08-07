@@ -19,6 +19,7 @@ test('retry count is normalized to a bounded non-negative integer', () => {
 test('transient HTTP and transport errors are retryable', () => {
   assert.equal(classifyApiError(Object.assign(new Error('service unavailable'), { status: 503 })).retryable, true);
   assert.equal(classifyApiError(Object.assign(new Error('rate limited'), { status: 429 })).retryable, true);
+  assert.equal(classifyApiError(new Error('Got response status 502')).retryable, true);
   assert.equal(classifyApiError(new Error('socket hang up')).retryable, true);
   assert.equal(classifyApiError(new Error('Failed to fetch')).retryable, true);
   assert.equal(classifyApiError(new Error('API 返回为空。')).retryable, true);

@@ -56,6 +56,11 @@ function getNumericStatus(error) {
     const status = Number(value);
     if (Number.isInteger(status) && status >= 100 && status <= 599) return status;
   }
+  const statusMatch = collectErrorText(error).match(/\b(?:status(?:\s+code)?|http(?:\s+status)?|code)\s*[:=]?\s*(\d{3})\b/i);
+  if (statusMatch) {
+    const status = Number(statusMatch[1]);
+    if (status >= 100 && status <= 599) return status;
+  }
   return null;
 }
 
