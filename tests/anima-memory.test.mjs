@@ -3,7 +3,9 @@ import {
   ANIMA_ENTRY_NAMES,
   applyAnimaWorldbookOverrides,
   captureAnimaWorldbookEntries,
+  filterAnimaWorldbookEntries,
   getAnimaEntryKind,
+  mergeAnimaWorldbookSnapshots,
   readLatestAnimaStatus,
   replaceAnimaStatusMacros,
 } from '../sources/anima-memory.js';
@@ -28,6 +30,34 @@ const captured = await captureAnimaWorldbookEntries({
 });
 assert.equal(captured.length, 2, 'capture keeps existing Anima entries, including empty content');
 assert.equal(captured[1].content, '');
+
+const mergedSnapshot = mergeAnimaWorldbookSnapshots([
+  { name: '[ANIMA_Chat_History_Container]', content: 'old history' },
+  { name: '[ANIMA_Knowledge_Container]', content: 'old knowledge' },
+], [
+  { name: '[ANIMA_Chat_History_Container]', content: '' },
+  { name: '[ANIMA_Knowledge_Container]', content: 'new knowledge' },
+]);
+assert.equal(mergedSnapshot[0].content, 'old history', 'an empty capture cannot erase a previous worldbook snapshot');
+assert.equal(mergedSnapshot[1].content, 'new knowledge');
+
+assert.deepEqual(
+  filterAnimaWorldbookEntries([
+    { name: '[anima_status]', content: 'status' },
+    { name: '[ANIMA_Chat_History_Container]', content: 'history' },
+    { name: '[ANIMA_Knowledge_Container]', content: 'knowledge' },
+  ], { includeWorldbook: true, includeStatus: false }).map((entry) => getAnimaEntryKind(entry)),
+  ['history', 'knowledge'],
+  'worldbook-only mode excludes the status placeholder',
+);
+assert.deepEqual(
+  filterAnimaWorldbookEntries([
+    { name: '[anima_status]', content: 'status' },
+    { name: '[ANIMA_Chat_History_Container]', content: 'history' },
+  ], { includeWorldbook: false, includeStatus: true }).map((entry) => getAnimaEntryKind(entry)),
+  ['status'],
+  'status-only mode keeps the existing status placeholder',
+);
 
 const overridden = applyAnimaWorldbookOverrides([
   { name: '[ANIMA_Chat_History_Container]', content: '' },
@@ -70,13 +100,32 @@ const latestStatus = readLatestAnimaStatus({
 });
 assert.deepEqual(latestStatus, { data: { mood: 'calm' }, messageId: 'latest', messageIndex: 0 });
 
+const userLatestStatus = readLatestAnimaStatus({
+  targetWindow: {
+    TavernHelper: {
+      getVariables: ({ message_id }) => message_id === 'latest'
+        ? { anima_data: { mood: 'stale-user-data' } }
+        : message_id === 0
+          ? { anima_data: { mood: 'previous-assistant' } }
+          : {},
+    },
+  },
+  chat: [
+    { is_user: false, mes: 'assistant with status' },
+    { is_user: true, mes: 'latest user' },
+  ],
+});
+assert.deepEqual(userLatestStatus, { data: { mood: 'previous-assistant' }, messageId: 0, messageIndex: 0 }, 'latest user variables must not override the latest assistant state');
+
 const replaced = replaceAnimaStatusMacros(
-  'A={{status}} B={{ANIMA_BASE_STATUS::protagonist.hp}} C={{format_message_variable::anima_data.mood}}',
+  'A={{status}} B={{ANIMA_BASE_STATUS::protagonist.hp}} C={{format_message_variable::anima_data}} D={{get_message_variable::anima_data}}',
   status.data,
 );
-assert.match(replaced, /A=\{[\s\S]*protagonist[\s\S]*hp[\s\S]*42/);
+assert.match(replaced, /A=[\s\S]*protagonist:/);
+assert.doesNotMatch(replaced.split('B=')[0], /\"protagonist\"/);
 assert.match(replaced, /B=42/);
-assert.match(replaced, /C=tense/);
+assert.match(replaced, /C=[\s\S]*mood: tense/);
+assert.match(replaced, /D=\{[\s\S]*\"mood\"[\s\S]*tense/);
 assert.equal(replaceAnimaStatusMacros('{{status}}', null), '{{status}}', 'disabled/missing status leaves the macro untouched');
 
 console.log('anima-memory tests passed');

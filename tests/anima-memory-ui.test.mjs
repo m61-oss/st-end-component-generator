@@ -6,7 +6,9 @@ assert.match(source, /记忆设置/);
 assert.match(source, /st-esg-memory-source-baibai/);
 assert.match(source, /st-esg-memory-source-anima/);
 assert.match(source, /st-esg-memory-source-none/);
-assert.match(source, /st-esg-anima-memory-enabled/);
+assert.match(source, /st-esg-anima-worldbook-enabled/);
+assert.match(source, /st-esg-anima-status-enabled/);
+assert.doesNotMatch(source, /st-esg-anima-memory-enabled/);
 assert.match(source, /提示词语法/);
 
 const scrollStart = source.indexOf('function scrollWorldbookCardIntoView');

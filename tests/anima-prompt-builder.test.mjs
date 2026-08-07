@@ -19,7 +19,7 @@ const messages = await buildExternalStatusbarMessages({
   targetWindow,
   context,
   latestMessage: { mes: 'latest' },
-  taskPrompt: 'task {{ANIMA_BASE_STATUS::mood}} {{external_components}}',
+  taskPrompt: 'task {{ANIMA_BASE_STATUS::mood}} {{status}} {{external_components}}',
   components: [{ content: 'component {{status::hp}}' }],
   theaterComponents: [],
   promptSourceItems: [{ scope: 'preset', name: 'status prompt', content: 'prompt={{status::mood}}', role: 'system' }],
@@ -30,7 +30,9 @@ const messages = await buildExternalStatusbarMessages({
 
 const prompt = messages.map((message) => message.content).join('\n');
 assert.match(prompt, /prompt=tense/);
-assert.match(prompt, /task tense component 42/);
+assert.match(prompt, /task tense[\s\S]*mood: tense[\s\S]*component 42/);
+assert.match(prompt, /mood: tense/);
+assert.doesNotMatch(prompt, /\"mood\"/);
 assert.doesNotMatch(prompt, /ANIMA_BASE_STATUS|\{\{status/);
 
 console.log('Anima prompt-builder tests passed');
