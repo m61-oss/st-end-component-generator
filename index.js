@@ -38,6 +38,7 @@ import {
 } from './sources/source-selection.js?ver=0.1.6';
 import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hasEnabledWorldbookSource, hydrateTavernWorldbookSelections, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.6';
 import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.6';
+import { normalizeApiRetryCount, withApiRetries } from './api/api-retry.js?ver=0.1.6';
 import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.6';
 import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.6';
 import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.6';
@@ -129,6 +130,7 @@ const DEFAULT_SETTINGS = {
   excludedBodyYaml: '',
   additionalHeadersYaml: '',
   streamingEnabled: false,
+  apiRetryCount: 0,
   promptTemplateCompatEnabled: false,
   injectMode: 'replace',
   statusPlaceholderEnabled: false,
@@ -244,6 +246,7 @@ const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
 const VISIBLE_GENERATION_LOG_STAGES = new Set([
   'api-start',
+  'api-retry',
   'api-returned',
   'generation-error',
   'generation-skip',
@@ -262,6 +265,7 @@ const VISIBLE_GENERATION_LOG_STAGES = new Set([
 
 function logAutomaticGenerationStage(stage, details = '') {
   const stageLabels = {
+    'api-retry': '请求失败，准备重试',
     'generation-start': '开始生成',
     'target-ready': '找到目标回复',
     'api-start': '开始调用外置 API',
@@ -334,6 +338,20 @@ function clearAutomaticGenerationLog() {
   automaticGenerationLogActive = true;
   const logElement = targetDoc.getElementById('st-esg-generation-log');
   if (logElement) logElement.textContent = '';
+}
+
+async function runConfiguredApiRequest(operation, signal) {
+  const maxRetries = normalizeApiRetryCount(settings.apiRetryCount);
+  return withApiRetries(operation, {
+    maxRetries,
+    signal,
+    onRetry: ({ retryNumber, delayMs, classification }) => {
+      const seconds = Math.max(0, Math.ceil(delayMs / 1000));
+      logAutomaticGenerationStage('api-retry', `第 ${retryNumber}/${maxRetries} 次，${seconds} 秒后重试（${classification.reason}）`);
+      notifyStatus(`API 请求失败，将在 ${seconds} 秒后重试（${retryNumber}/${maxRetries}）`, 'warning');
+      updateStreamedPreview('');
+    },
+  });
 }
 
 async function getYamlParser() {
@@ -507,6 +525,7 @@ function loadSettings() {
     if (![SOURCE_MODE_PROMPT, SOURCE_MODE_IMPORT].includes(settings.sourceModes[type])) settings.sourceModes[type] = settings.sourceMode;
   }
   settings.streamingEnabled = Boolean(settings.streamingEnabled);
+  settings.apiRetryCount = normalizeApiRetryCount(settings.apiRetryCount);
   if (!['dark', 'light'].includes(settings.theme)) settings.theme = 'dark';
   if (settings.historyCleanupTags === undefined) settings.historyCleanupTags = String(settings.cleanupTags || '');
   if (!Array.isArray(storedSettings.historyCleanupRules)) {
@@ -878,7 +897,7 @@ function setGeneratingState(isGenerating) {
   button.find('span').text(isGenerating ? '停止生成' : '生成文尾组件');
 }
 
-async function callExternalApi(latestMessage, signal) {
+async function buildExternalApiRequestContext(latestMessage) {
   const apiUrl = (settings.apiMode || 'custom') === 'custom'
     ? normalizeChatCompletionsUrl(settings.apiUrl)
     : 'https://tavern.internal';
@@ -889,6 +908,19 @@ async function callExternalApi(latestMessage, signal) {
   const additional = parseApiAdditionalParameters(settings, await getYamlParser());
   const builtMessages = await buildMessages(latestMessage);
   const messages = settings.compressSystemMessages ? mergeConsecutiveSystemMessages(builtMessages) : builtMessages;
+  return { apiUrl, model, apiMode, numeric, additional, messages };
+}
+
+async function callExternalApi(latestMessage, signal) {
+  const requestContext = await buildExternalApiRequestContext(latestMessage);
+  return runConfiguredApiRequest(
+    () => callExternalApiOnce(requestContext, signal),
+    signal,
+  );
+}
+
+async function callExternalApiOnce(requestContext, signal) {
+  const { apiUrl, model, apiMode, numeric, additional, messages } = requestContext;
   if (apiMode === 'tavern') {
     const numeric = parseApiNumericSettings(settings);
     const promptLogApi = `酒馆预设：${settings.tavernProfile || '未选择'}`;
@@ -1017,7 +1049,7 @@ async function callExternalApi(latestMessage, signal) {
     headers,
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw markGenerationResponseError(new Error(`API 请求失败：${response.status} ${(await response.text().catch(() => '')).slice(0, 160)}`));
+  if (!response.ok) throw createApiHttpError(response, await response.text().catch(() => ''));
   if (streamingEnabled) {
     const streamPreview = createStreamPreviewController({
       intervalMs: 80,
@@ -1042,6 +1074,19 @@ async function callExternalApi(latestMessage, signal) {
   const content = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text || '';
   if (!content.trim()) throw markGenerationResponseError(new Error('API 返回为空。'));
   return content;
+}
+
+function createApiHttpError(response, body = '') {
+  const error = markGenerationResponseError(new Error(`API 请求失败：${response?.status || '未知'} ${String(body || '').slice(0, 160)}`));
+  const status = Number(response?.status);
+  if (Number.isInteger(status)) {
+    error.status = status;
+    error.statusCode = status;
+    error.responseStatus = status;
+  }
+  const retryAfter = typeof response?.headers?.get === 'function' ? response.headers.get('retry-after') : null;
+  if (retryAfter != null) error.retryAfter = retryAfter;
+  return error;
 }
 
 function injectStatusbar(message, text, mode = settings.injectMode) {
@@ -1741,6 +1786,10 @@ function renderSchemeManager(type) {
   return `<div class="st-esg-scheme-group" data-scheme-type="${type}"><label class="st-esg-scheme-picker"><span>方案：</span><select id="st-esg-${type}-scheme" class="text_pole st-esg-scheme-select" data-scheme-type="${type}"></select></label><div class="st-esg-scheme-actions"><button class="st-esg-icon-btn st-esg-load-scheme" type="button" title="载入方案" aria-label="载入方案" data-scheme-type="${type}"><i class="fa-solid fa-download"></i></button><button class="st-esg-icon-btn st-esg-save-scheme-new" type="button" title="另存方案" aria-label="另存方案" data-scheme-type="${type}"><i class="fa-solid fa-plus"></i></button><button class="st-esg-icon-btn st-esg-overwrite-scheme" type="button" title="覆盖方案" aria-label="覆盖方案" data-scheme-type="${type}"><i class="fa-solid fa-file-pen"></i></button><button class="st-esg-icon-btn st-esg-delete-scheme st-esg-icon-danger" type="button" title="删除方案" aria-label="删除方案" data-scheme-type="${type}"><i class="fa-solid fa-trash"></i></button></div></div>`;
 }
 
+function renderApiRetrySettings() {
+  return '<div class="st-esg-api-retry-settings"><label>失败重试次数<input id="st-esg-api-retry-count" class="text_pole" type="number" min="0" max="10" step="1" inputmode="numeric" /></label><div class="st-esg-card-desc">填 0 表示关闭自动重试；仅对临时网络错误和服务端错误重试。</div></div>';
+}
+
 function getSchemeList(type) {
   const config = SCHEME_CONFIG[type];
   return config ? normalizeSchemeList(settings[config.listKey]) : [];
@@ -1994,6 +2043,7 @@ function applyApiScheme(snapshot) {
     excludedBodyYaml: snapshot.excludedBodyYaml || '',
     additionalHeadersYaml: snapshot.additionalHeadersYaml || '',
     streamingEnabled: Boolean(snapshot.streamingEnabled),
+    apiRetryCount: normalizeApiRetryCount(snapshot.apiRetryCount),
   });
   $t('#st-esg-api-url').val(settings.apiUrl);
   $t('#st-esg-api-key').val(settings.apiKey);
@@ -2001,6 +2051,7 @@ function applyApiScheme(snapshot) {
   $t('#st-esg-max-tokens').val(settings.maxTokens);
   $t('#st-esg-temperature').val(settings.temperature);
   $t('#st-esg-streaming-enabled').prop('checked', settings.streamingEnabled);
+  $t('#st-esg-api-retry-count').val(settings.apiRetryCount);
   $t('#st-esg-prompt-template-compat').prop('checked', settings.promptTemplateCompatEnabled);
   renderModelOptions();
   renderApiModeUi();
@@ -4138,6 +4189,7 @@ function renderPluginPanel() {
   dialog.querySelector('#st-esg-additional-parameters')?.classList.add('st-esg-api-custom-fields');
   const apiBody = dialog.querySelector('#st-esg-api-url')?.closest('.st-esg-collapsible-body');
   apiBody?.insertAdjacentHTML('afterbegin', `${renderSchemeManager('api')}<div class="st-esg-api-tabs"><button type="button" class="st-esg-api-tab" data-api-mode="custom">自定义</button><button type="button" class="st-esg-api-tab" data-api-mode="tavern">酒馆预设</button></div><div id="st-esg-api-tavern-panel" class="st-esg-api-mode-panel"><label>酒馆预设<select id="st-esg-tavern-profile" class="text_pole"></select></label><div class="st-esg-actions-row"><div id="st-esg-refresh-tavern-profiles" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-rotate"></i><span>刷新预设</span></div></div></div>`);
+  apiBody?.querySelector('.st-esg-scheme-group[data-scheme-type="api"]')?.insertAdjacentHTML('beforebegin', renderApiRetrySettings());
   const apiSchemeManagers = apiBody?.querySelectorAll('.st-esg-scheme-group[data-scheme-type="api"]') || [];
   if (apiSchemeManagers.length > 1) apiSchemeManagers[apiSchemeManagers.length - 1].remove();
   if (apiKeyLabel && apiModelLabel) apiFields?.insertBefore(apiKeyLabel, apiModelLabel);
@@ -4353,6 +4405,7 @@ function bindPanelEvents() {
   $t('#st-esg-max-tokens').val(settings.maxTokens);
   $t('#st-esg-temperature').val(settings.temperature);
   $t('#st-esg-streaming-enabled').prop('checked', settings.streamingEnabled);
+  $t('#st-esg-api-retry-count').val(settings.apiRetryCount);
   $t('#st-esg-prompt-template-compat').prop('checked', settings.promptTemplateCompatEnabled);
   renderApiModeUi();
   refreshTavernProfiles({ notify: false });
@@ -4539,6 +4592,8 @@ function bindPanelEvents() {
   $t('#st-esg-max-tokens').on('input', function () { settings.maxTokens = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
   $t('#st-esg-temperature').on('input', function () { settings.temperature = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
   $t('#st-esg-streaming-enabled').on('change', function () { settings.streamingEnabled = Boolean($(this).prop('checked')); markSchemeDirty('api'); saveSettings(); });
+  $t('#st-esg-api-retry-count').on('input', function () { settings.apiRetryCount = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
+  $t('#st-esg-api-retry-count').on('change blur', function () { settings.apiRetryCount = normalizeApiRetryCount($(this).val()); $(this).val(settings.apiRetryCount); markSchemeDirty('api'); saveSettings(); });
   $t('#st-esg-prompt-template-compat').on('change', function () { settings.promptTemplateCompatEnabled = Boolean($(this).prop('checked')); saveSettings(); });
   $t('#st-esg-inject-mode').on('change', function () { settings.injectMode = String($(this).val()); saveSettings(); });
   ['history', 'output'].forEach((type) => {

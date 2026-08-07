@@ -327,6 +327,10 @@ select.st-esg-scheme-select {
 .st-esg-api-tab { flex: 1; min-width: 0; padding: 7px 8px; border: 1px solid var(--esg-border); border-radius: 7px; background: var(--esg-bg-input); color: var(--esg-text-muted); cursor: pointer; }
 .st-esg-api-tab.is-active { border-color: var(--esg-accent); background: var(--esg-accent); color: var(--esg-on-accent); }
 .st-esg-api-mode-panel { margin-bottom: 10px; padding: 8px; border: 1px solid var(--esg-border); border-radius: 7px; color: var(--esg-text-muted); font-size: 12px; }
+.st-esg-api-retry-settings { display: flex; align-items: end; gap: 8px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--esg-border); }
+.st-esg-api-retry-settings label { display: grid; gap: 5px; min-width: 0; color: var(--esg-text-main); font-size: 12px; }
+#st-esg-dialog #st-esg-api-retry-count { width: 72px; min-width: 72px; max-width: 72px; text-align: center; }
+.st-esg-api-retry-settings .st-esg-card-desc { margin: 0 0 3px; }
 .st-esg-generation-log { min-height: 72px; max-height: 180px; margin: 0; padding: 8px; overflow: auto; border: 1px solid var(--esg-border); border-radius: 8px; background: var(--esg-bg-input); color: var(--esg-text-muted); font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace); font-size: 11px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
 .st-esg-version-badge { display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 6px; border: 1px solid var(--esg-border); border-radius: 999px; color: var(--esg-text-muted); font-size: 10px; font-weight: 500; line-height: 1.4; vertical-align: middle; }
 .st-esg-generation-history { display: grid; gap: 7px; }

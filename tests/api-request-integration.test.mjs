@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 const schemeSource = readFileSync(new URL('../settings/scheme-utils.js', import.meta.url), 'utf8');
-const callStart = source.indexOf('async function callExternalApi(');
+const callStart = source.indexOf('async function buildExternalApiRequestContext(');
 const callEnd = source.indexOf('function injectStatusbar(', callStart);
 const modelStart = source.indexOf('async function fetchApiModels()');
 const modelEnd = source.indexOf('const SCHEME_CONFIG', modelStart);
@@ -19,6 +19,9 @@ assert.match(callFunction, /ChatCompletionService/, 'custom API requests should 
 assert.match(callFunction, /chat_completion_source: 'custom'/, 'custom API requests should identify the OpenAI-compatible source');
 assert.match(callFunction, /ConnectionManagerRequestService/, '酒馆预设 should use the connection manager service');
 assert.match(callFunction, /const additional = parseApiAdditionalParameters\(settings, await getYamlParser\(\)\);/, 'generation should validate saved YAML before requesting');
+assert.match(source, /apiRetryCount: 0/, 'API settings should default automatic retries to disabled');
+assert.match(source, /st-esg-api-retry-count/, 'API settings should expose a retry count input above the scheme manager');
+assert.match(source, /runConfiguredApiRequest\([\s\S]*?callExternalApiOnce\(requestContext, signal\)/, 'retries should reuse the already-built API request context');
 assert.match(callFunction, /const customHeadersYaml = serializeRequestHeadersYaml\([\s\S]*?Authorization:[\s\S]*?additional\.additionalHeaders[\s\S]*?\);/, 'internal custom generation should serialize the plugin API key and additional headers for Tavern');
 assert.match(callFunction, /custom_include_headers:\s*customHeadersYaml/, 'internal custom generation should send Tavern a YAML header string');
 assert.doesNotMatch(callFunction, /custom_include_headers:\s*\{/, 'internal custom generation must not send a header object that Tavern silently ignores');

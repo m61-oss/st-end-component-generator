@@ -20,6 +20,7 @@ const settings = {
   excludedBodyYaml: '- frequency_penalty',
   additionalHeadersYaml: 'X-Test: yes',
   streamingEnabled: true,
+  apiRetryCount: 3,
   taskPrompt: 'Task text',
   activeSourcePreset: 'Ako Preset',
   sourceModes: { preset: 'prompt', worldbook: 'import' },
@@ -67,6 +68,7 @@ assert.deepEqual(apiSnapshot, {
   excludedBodyYaml: '- frequency_penalty',
   additionalHeadersYaml: 'X-Test: yes',
   streamingEnabled: true,
+  apiRetryCount: 3,
 });
 
 assert.deepEqual(captureSchemeSnapshot('task', settings, groups).taskPrompt, 'Task text');

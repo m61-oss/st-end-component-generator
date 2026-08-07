@@ -108,6 +108,7 @@ export function captureSchemeSnapshot(type, settings, groups = [], options = {})
       excludedBodyYaml: settings.excludedBodyYaml || '',
       additionalHeadersYaml: settings.additionalHeadersYaml || '',
       streamingEnabled: Boolean(settings.streamingEnabled),
+      apiRetryCount: Number.isFinite(Number(settings.apiRetryCount)) ? Math.min(10, Math.max(0, Math.floor(Number(settings.apiRetryCount)))) : 0,
     };
   }
   if (type === 'task') return { taskPrompt: settings.taskPrompt || '' };
