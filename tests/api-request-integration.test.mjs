@@ -21,6 +21,8 @@ assert.match(callFunction, /ConnectionManagerRequestService/, '酒馆预设 shou
 assert.match(callFunction, /const additional = parseApiAdditionalParameters\(settings, await getYamlParser\(\)\);/, 'generation should validate saved YAML before requesting');
 assert.match(source, /apiRetryCount: 0/, 'API settings should default automatic retries to disabled');
 assert.match(source, /st-esg-api-retry-count/, 'API settings should expose a retry count input above the scheme manager');
+assert.match(source, /失败重试次数：.*为0时关闭自动重试/, 'retry settings should keep the label, input and zero-value hint on one line');
+assert.match(source, /【文尾组件生成器】失败自动重试中\.\.\./, 'retry attempts should show a popup with the retry progress');
 assert.doesNotMatch(source, /\[data-tab-panel="runtime"\] \.st-esg-card-desc/, 'runtime help text must not overwrite unrelated API descriptions');
 assert.match(source, /runConfiguredApiRequest\([\s\S]*?callExternalApiOnce\(requestContext, signal\)/, 'retries should reuse the already-built API request context');
 assert.match(callFunction, /const customHeadersYaml = serializeRequestHeadersYaml\([\s\S]*?Authorization:[\s\S]*?additional\.additionalHeaders[\s\S]*?\);/, 'internal custom generation should serialize the plugin API key and additional headers for Tavern');

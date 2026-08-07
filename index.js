@@ -348,7 +348,7 @@ async function runConfiguredApiRequest(operation, signal) {
     onRetry: ({ retryNumber, delayMs, classification }) => {
       const seconds = Math.max(0, Math.ceil(delayMs / 1000));
       logAutomaticGenerationStage('api-retry', `第 ${retryNumber}/${maxRetries} 次，${seconds} 秒后重试（${classification.reason}）`);
-      notifyStatus(`API 请求失败，将在 ${seconds} 秒后重试（${retryNumber}/${maxRetries}）`, 'warning');
+      notifyStatus(`【文尾组件生成器】失败自动重试中...（${retryNumber}/${maxRetries}）`, 'warning');
       updateStreamedPreview('');
     },
   });
@@ -1787,7 +1787,7 @@ function renderSchemeManager(type) {
 }
 
 function renderApiRetrySettings() {
-  return '<div class="st-esg-api-retry-settings"><label>失败重试次数<input id="st-esg-api-retry-count" class="text_pole" type="number" min="0" max="10" step="1" inputmode="numeric" /></label><div class="st-esg-card-desc">填 0 表示关闭自动重试；仅对临时网络错误和服务端错误重试。</div></div>';
+  return '<div class="st-esg-api-retry-settings"><div class="st-esg-api-retry-row"><span>失败重试次数：</span><input id="st-esg-api-retry-count" class="text_pole" type="number" min="0" max="10" step="1" inputmode="numeric" value="0" /><span>（为0时关闭自动重试）</span></div><div class="st-esg-api-retry-note">仅对临时网络错误、服务端错误和空响应进行重试；鉴权、配额、模型不存在等错误不会重试。</div></div>';
 }
 
 function getSchemeList(type) {
