@@ -4,15 +4,27 @@ export const COMPONENT_SCOPE_GLOBAL = '全局';
 export const COMPONENT_SCOPE_PRESET = '预设';
 export const COMPONENT_SCOPE_CHARACTER = '角色';
 
+import { getAnimaEntryKind } from './anima-memory.js';
+
 const textOf = (value) => String(value ?? '').trim();
 
 export function addImportCandidate(candidates, group, source, scope, name, content, enabled = true, metadata = {}) {
   const clean = textOf(content);
-  if (!clean && !textOf(metadata?.markerType)) return;
+  const allowEmpty = metadata?.allowEmpty === true || scope === SOURCE_WORLDBOOK;
+  if (!clean && !textOf(metadata?.markerType) && !allowEmpty) return;
   const cleanName = textOf(name) || '未命名条目';
-  const key = `${group}::${source}::${scope}::${cleanName}::${clean.slice(0, 200)}`;
+  const emptyUidSuffix = !clean && allowEmpty && metadata?.sourceUid !== undefined
+    ? `::${String(metadata.sourceUid)}`
+    : '';
+  const key = `${group}::${source}::${scope}::${cleanName}::${clean.slice(0, 200)}${emptyUidSuffix}`;
+  const animaEntryKind = scope === SOURCE_WORLDBOOK ? getAnimaEntryKind({ name: cleanName }) : '';
+  const candidateMetadata = {
+    ...metadata,
+    ...(allowEmpty ? { allowEmpty: true } : {}),
+    ...(animaEntryKind ? { animaEntryKind } : {}),
+  };
   if (!candidates.some((item) => item.key === key)) {
-    candidates.push({ key, group, source, scope, name: cleanName, content: clean, enabled: enabled !== false, ...metadata });
+    candidates.push({ key, group, source, scope, name: cleanName, content: clean, enabled: enabled !== false, ...candidateMetadata });
   }
 }
 

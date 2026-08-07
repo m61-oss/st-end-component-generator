@@ -341,6 +341,9 @@ select.st-esg-scheme-select {
 .st-esg-generation-history-entry > pre { max-height: 180px; margin: 0 8px; padding: 8px; overflow: auto; border: 1px solid var(--esg-border); border-radius: 7px; color: var(--esg-text-main); font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace); font-size: 11px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
 .st-esg-generation-history-entry > .st-esg-actions-row { margin: 7px 8px 8px; }
 .st-esg-history-range-options { display: grid; gap: 8px; }
+.st-esg-memory-source-options,
+.st-esg-memory-source-panel { display: grid; gap: 6px; }
+.st-esg-memory-source-options { margin-bottom: 8px; }
 .st-esg-radio-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 8px; align-items: center; padding: 8px 9px; border: 1px solid var(--esg-border); border-radius: 8px; background: var(--esg-bg-input); }
 .st-esg-radio-row > input { grid-row: span 2; margin: 0; }
 .st-esg-radio-row > span { color: var(--esg-text-main); }
