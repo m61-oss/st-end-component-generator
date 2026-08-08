@@ -43,6 +43,7 @@ import { normalizeApiRetryCount, withApiRetries } from './api/api-retry.js?ver=0
 import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.6';
 import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.6';
 import { getWorldbookGenerationIssue, getWorldbookRawName, reconcileWorldbookEntryRecords, removeWorldbookEntryRecord, removeWorldbookSourceRecords } from './sources/worldbook-identity.js?ver=0.1.6';
+import { migratePresetPromptSourceSnapshot, reconcilePresetEntryRecords, reconcilePresetSchemeRecords } from './sources/preset-identity.js?ver=0.1.6';
 import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.6';
 import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.6';
 import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.6';
@@ -2315,6 +2316,7 @@ async function applyPresetScheme(snapshot) {
   Object.assign(settings.promptSelections, snapshot.promptSelections || {});
   Object.assign(settings.importSelections, snapshot.importSelections || {});
   Object.assign(settings.sourceContentOverrides, snapshot.sourceContentOverrides || {});
+  reconcileLoadedPresetGroups(importGroups);
   $t('#st-esg-replace-last-user-message').prop('checked', settings.replaceLastUserMessageWithTask);
   $t('#st-esg-omit-original-user-messages').prop('checked', settings.omitOriginalUserMessages);
   renderImportCandidates();
@@ -3614,6 +3616,46 @@ function getWorldbookRecordStores() {
   };
 }
 
+function getPresetRecordStores(source = settings) {
+  return {
+    promptSelections: source?.promptSelections,
+    importSelections: source?.importSelections,
+    sourceContentOverrides: source?.sourceContentOverrides,
+  };
+}
+
+function migrateBrowserPresetPromptSnapshot(source, items) {
+  void promptSourceSnapshotReady.then(async () => {
+    const migration = migratePresetPromptSourceSnapshot(promptSourceSnapshots.preset, source, items);
+    if (!migration.changed) return;
+    promptSourceSnapshots.preset = migration.snapshot;
+    if (promptSourceSnapshotStore) await promptSourceSnapshotStore.set('preset', migration.snapshot);
+  }).catch((error) => {
+    console.warn(`[${EXTENSION_ID}] 无法迁移浏览器中的预设提示词快照`, error);
+  });
+}
+
+function reconcileLoadedPresetGroups(groups) {
+  const presetGroups = (Array.isArray(groups) ? groups : [])
+    .filter((group) => group?.scope === SOURCE_PRESET && group.loaded === true && Array.isArray(group.items));
+  let changed = false;
+  for (const group of presetGroups) {
+    migrateBrowserPresetPromptSnapshot(group.source, group.items);
+    const current = reconcilePresetEntryRecords(getPresetRecordStores(), group.source, group.items);
+    if (current.changed) {
+      Object.assign(settings, current.stores);
+      settings.taskPlacementAfterSourceId = current.keyMap[settings.taskPlacementAfterSourceId]
+        || settings.taskPlacementAfterSourceId;
+      changed = true;
+    }
+    const schemeMigration = reconcilePresetSchemeRecords(settings.presetSchemes, group.source, group.items);
+    settings.presetSchemes = schemeMigration.schemes;
+    if (schemeMigration.changed) changed = true;
+  }
+  if (changed) saveSettings();
+  return changed;
+}
+
 function reconcileLoadedWorldbookGroup(group, items = group?.items, { authoritative = false } = {}) {
   if (!group || group.scope !== SOURCE_WORLDBOOK || (!authoritative && group.loaded !== true) || !Array.isArray(items)) {
     return { changed: false, staleEnabledCount: 0, unmatchedRecords: [] };
@@ -4156,6 +4198,7 @@ async function scanImportCandidates({ explicitPresetName = '' } = {}) {
       };
     }),
   ];
+  const presetMigrationChanged = reconcileLoadedPresetGroups(importGroups);
   const syncedCount = syncPromptSelectionsFromLoadedGroups(importGroups);
   activeWorldbookGroupIndex = null;
   importCandidates = importGroups.flatMap((group) => group.items || []);
@@ -4168,6 +4211,7 @@ async function scanImportCandidates({ explicitPresetName = '' } = {}) {
   setStatus(getSourceMode('preset') === SOURCE_MODE_PROMPT || getSourceMode('worldbook') === SOURCE_MODE_PROMPT
     ? `已同步 ${syncedCount} 个已加载条目的酒馆勾选状态。世界书会在进入详情页时同步。`
     : `已列出 ${importGroups.length} 个来源。世界书会在进入详情页时加载。`);
+  if (presetMigrationChanged) console.info(`[${EXTENSION_ID}] 已将可匹配的预设条目记录迁移为 ID 键。`);
 }
 
 async function loadImportGroup(groupIndex) {

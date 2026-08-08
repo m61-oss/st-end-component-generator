@@ -6,6 +6,7 @@ export const COMPONENT_SCOPE_CHARACTER = '角色';
 
 import { getAnimaEntryKind } from './anima-memory.js';
 import { createWorldbookEntryKey, getWorldbookRawName } from './worldbook-identity.js';
+import { createPresetEntryKey } from './preset-identity.js';
 
 const textOf = (value) => String(value ?? '').trim();
 
@@ -21,7 +22,17 @@ export function addImportCandidate(candidates, group, source, scope, name, conte
   const stableWorldbookKey = scope === SOURCE_WORLDBOOK
     ? createWorldbookEntryKey(source, metadata?.sourceUid)
     : '';
-  const key = stableWorldbookKey || legacyKey;
+  const stablePresetKey = scope === SOURCE_PRESET
+    ? createPresetEntryKey(source, metadata?.sourceUid)
+    : '';
+  const stableKey = stableWorldbookKey || stablePresetKey;
+  const identityConflicts = stableKey ? candidates.filter((item) => (
+    item.scope === scope
+    && item.source === source
+    && String(item.sourceUid ?? '') === String(metadata?.sourceUid ?? '')
+  )) : [];
+  identityConflicts.forEach((item) => { item.key = item.legacyKey || item.key; });
+  const key = identityConflicts.length ? legacyKey : stableKey || legacyKey;
   const animaEntryKind = scope === SOURCE_WORLDBOOK ? getAnimaEntryKind({ name: cleanName }) : '';
   const candidateMetadata = {
     ...metadata,
@@ -29,7 +40,7 @@ export function addImportCandidate(candidates, group, source, scope, name, conte
     ...(animaEntryKind ? { animaEntryKind } : {}),
   };
   if (!candidates.some((item) => item.key === key)) {
-    candidates.push({ key, legacyKey: stableWorldbookKey ? legacyKey : '', group, source, scope, name: cleanName, content: clean, enabled: enabled !== false, ...candidateMetadata });
+    candidates.push({ key, legacyKey: stableKey ? legacyKey : '', group, source, scope, name: cleanName, content: clean, enabled: enabled !== false, ...candidateMetadata });
   }
 }
 
