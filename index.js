@@ -81,6 +81,12 @@ import {
   markWorldbookSourceDirty,
   takeDirtyWorldbookSources,
 } from './sources/prompt-source-cache.js?ver=0.1.6';
+import {
+  assertPromptSourceSnapshotsAvailable,
+  createIndexedDbPromptSourceSnapshotStore,
+  loadAndMigratePromptSourceSnapshots,
+  normalizePromptSourceSnapshot,
+} from './sources/prompt-source-snapshot-storage.js?ver=0.1.6';
 import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from './settings/task-placement.js?ver=0.1.6';
 import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.1.6';
 import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.1.6';
@@ -172,7 +178,6 @@ const DEFAULT_SETTINGS = {
   activeSourcePreset: '',
   sourceMode: SOURCE_MODE_PROMPT,
   sourceModes: { preset: SOURCE_MODE_PROMPT, worldbook: SOURCE_MODE_PROMPT },
-  promptSourceSnapshots: { preset: null, worldbook: null },
   promptSelections: {},
   importSelections: {},
   sourceContentOverrides: {},
@@ -225,6 +230,9 @@ let lastPromptLogText = '';
 let promptLogBuilding = false;
 let lastGeneratedThinking = [];
 let recentGenerationHistory = [];
+let promptSourceSnapshots = { preset: null, worldbook: null };
+let promptSourceSnapshotStore = null;
+let promptSourceSnapshotReady = Promise.resolve();
 let latestInjectionUndoSnapshot = null;
 let animaWorldbookSnapshotPromise = null;
 let animaWorldbookSnapshot = [];
@@ -521,10 +529,6 @@ function loadSettings() {
   settings.worldbookSchemes = normalizeSchemeList(settings.worldbookSchemes);
   if (!settings.promptSelections || typeof settings.promptSelections !== 'object') settings.promptSelections = {};
   if (!settings.importSelections || typeof settings.importSelections !== 'object') settings.importSelections = {};
-  if (!settings.promptSourceSnapshots || typeof settings.promptSourceSnapshots !== 'object') settings.promptSourceSnapshots = {};
-  for (const type of ['preset', 'worldbook']) {
-    if (!Array.isArray(settings.promptSourceSnapshots[type]?.items)) settings.promptSourceSnapshots[type] = null;
-  }
   if (!settings.sourceContentOverrides || typeof settings.sourceContentOverrides !== 'object') settings.sourceContentOverrides = {};
   if (!settings.worldbookActivationOverrides || typeof settings.worldbookActivationOverrides !== 'object') settings.worldbookActivationOverrides = {};
   if (!settings.worldbookKeywordOverrides || typeof settings.worldbookKeywordOverrides !== 'object') settings.worldbookKeywordOverrides = {};
@@ -622,6 +626,54 @@ function saveSettings() {
     targetWindow.localStorage?.setItem(PROMPT_TEMPLATE_COMPAT_STORAGE_KEY, String(Boolean(settings.promptTemplateCompatEnabled)));
   } catch (_) {}
   getContext().saveSettingsDebounced();
+}
+
+function initializePromptSourceSnapshotStorage() {
+  const legacySnapshots = settings.promptSourceSnapshots && typeof settings.promptSourceSnapshots === 'object'
+    ? settings.promptSourceSnapshots
+    : {};
+  promptSourceSnapshots = {
+    preset: normalizePromptSourceSnapshot(legacySnapshots.preset),
+    worldbook: normalizePromptSourceSnapshot(legacySnapshots.worldbook),
+  };
+  try {
+    promptSourceSnapshotStore = createIndexedDbPromptSourceSnapshotStore(targetWindow.indexedDB);
+  } catch (error) {
+    console.warn(`[${EXTENSION_ID}] 无法初始化浏览器提示词快照存储`, error);
+    return;
+  }
+  promptSourceSnapshotReady = loadAndMigratePromptSourceSnapshots(promptSourceSnapshotStore, legacySnapshots, {
+    sourceModes: settings.sourceModes,
+  })
+    .then((snapshots) => {
+      promptSourceSnapshots = snapshots;
+      delete settings.promptSourceSnapshots;
+      delete getSettingsStore().promptSourceSnapshots;
+      saveSettings();
+    })
+    .catch((error) => {
+      console.warn(`[${EXTENSION_ID}] 无法读取或迁移浏览器提示词快照`, error);
+    });
+}
+
+async function savePromptSourceSnapshot(type, snapshot) {
+  const sourceType = getSourceType(type);
+  await promptSourceSnapshotReady;
+  if (!promptSourceSnapshotStore) throw new Error('当前浏览器无法保存提示词快照。');
+  await promptSourceSnapshotStore.set(sourceType, snapshot);
+  promptSourceSnapshots[sourceType] = normalizePromptSourceSnapshot(snapshot);
+}
+
+async function clearPromptSourceSnapshot(type) {
+  const sourceType = getSourceType(type);
+  await promptSourceSnapshotReady;
+  promptSourceSnapshots[sourceType] = null;
+  if (!promptSourceSnapshotStore) return;
+  try {
+    await promptSourceSnapshotStore.remove(sourceType);
+  } catch (error) {
+    console.warn(`[${EXTENSION_ID}] 无法删除浏览器提示词快照`, error);
+  }
 }
 
 function isAnimaMemoryEnabled() {
@@ -2247,6 +2299,7 @@ function applyTaskScheme(snapshot) {
 
 async function applyPresetScheme(snapshot) {
   setSourceMode('preset', snapshot.sourceMode);
+  if (getSourceMode('preset') === SOURCE_MODE_PROMPT) await clearPromptSourceSnapshot('preset');
   renderSourceModeUi();
   settings.activeSourcePreset = textOf(snapshot.activeSourcePreset);
   settings.taskPlacementEnabled = Boolean(snapshot.taskPlacementEnabled);
@@ -2270,6 +2323,7 @@ async function applyPresetScheme(snapshot) {
 
 async function applyWorldbookScheme(snapshot) {
   setSourceMode('worldbook', snapshot.sourceMode);
+  if (getSourceMode('worldbook') === SOURCE_MODE_PROMPT) await clearPromptSourceSnapshot('worldbook');
   renderSourceModeUi();
   settings.worldbookDraftSources = getWorldbookSchemeSourceNames(snapshot);
   settings.promptSelections = clearImportSelectionsForScope(settings.promptSelections, SOURCE_WORLDBOOK);
@@ -3477,7 +3531,7 @@ function setSourceMode(type, mode) {
 }
 
 function getPromptSourceSnapshotItems(type) {
-  const snapshot = settings.promptSourceSnapshots?.[getSourceType(type)];
+  const snapshot = promptSourceSnapshots?.[getSourceType(type)];
   return Array.isArray(snapshot?.items) ? snapshot.items : [];
 }
 
@@ -3490,19 +3544,26 @@ function clearImportSelections(type) {
 async function capturePromptSourceSnapshot(type) {
   const sourceType = getSourceType(type);
   const items = await ensurePromptSourceItemsForGeneration({ refreshSources: false });
-  settings.promptSourceSnapshots[sourceType] = {
+  const snapshot = {
     items: items.filter((item) => getSourceType(item) === sourceType),
   };
+  await savePromptSourceSnapshot(sourceType, snapshot);
 }
 
 async function changeSourceMode(type, mode) {
   const sourceType = getSourceType(type);
   const nextMode = mode === SOURCE_MODE_IMPORT ? SOURCE_MODE_IMPORT : SOURCE_MODE_PROMPT;
   if (nextMode === SOURCE_MODE_IMPORT && getSourceMode(sourceType) !== SOURCE_MODE_IMPORT) {
-    await capturePromptSourceSnapshot(sourceType);
+    try {
+      await capturePromptSourceSnapshot(sourceType);
+    } catch (error) {
+      notifyStatus(error?.message || '无法建立提示词快照。', 'error');
+      renderSourceModeUi();
+      return;
+    }
     clearImportSelections(sourceType);
   }
-  if (nextMode === SOURCE_MODE_PROMPT) settings.promptSourceSnapshots[sourceType] = null;
+  if (nextMode === SOURCE_MODE_PROMPT) await clearPromptSourceSnapshot(sourceType);
   setSourceMode(sourceType, nextMode);
   saveSettings();
   renderSourceModeUi();
@@ -3645,6 +3706,8 @@ function syncPromptSelectionsFromLoadedGroups(groups = importGroups) {
 }
 
 async function ensurePromptSourceItemsForGeneration({ chat = null, animaWorldbookEntries = [] } = {}) {
+  await promptSourceSnapshotReady;
+  assertPromptSourceSnapshotsAvailable(settings.sourceModes, promptSourceSnapshots);
   const currentSignature = getTavernSourceSignature();
   if (promptSourceCache.signature && currentSignature !== promptSourceCache.signature) {
     markPromptSourceStructureDirty(promptSourceCache);
@@ -4989,7 +5052,7 @@ function init() {
   if (initialized) return;
   initialized = true;
   recentGenerationHistory = loadGenerationHistory(getGenerationHistoryStorage(), GENERATION_HISTORY_STORAGE_KEY);
-  loadSettings(); loadStylesheet(); mountUiWhenDocumentReady();
+  loadSettings(); initializePromptSourceSnapshotStorage(); loadStylesheet(); mountUiWhenDocumentReady();
   updateQuickReplyShortcutActions();
   void syncQuickReplyShortcuts();
   startTavernDefaultSync();
