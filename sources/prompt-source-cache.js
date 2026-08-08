@@ -1,4 +1,4 @@
-const textOf = (value) => String(value ?? '').trim();
+import { getWorldbookRawName } from './worldbook-identity.js';
 
 export function createPromptSourceCacheState() {
   return {
@@ -14,8 +14,8 @@ export function markPromptSourceStructureDirty(state) {
 }
 
 export function markWorldbookSourceDirty(state, worldbookName) {
-  const name = textOf(worldbookName);
-  if (!name) {
+  const name = getWorldbookRawName(worldbookName);
+  if (!name.trim()) {
     markPromptSourceStructureDirty(state);
     return;
   }

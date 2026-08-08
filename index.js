@@ -20,32 +20,35 @@ import {
   normalizeComponent,
   normalizeComponentIds,
   normalizeComponentScope,
-} from './sources/component-sources.js?ver=0.1.6';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.1.6';
-import { containsStatusPlaceholder, injectStatusbarText, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.1.6';
-import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.6';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.6';
-import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.1.6';
-import { renderPromptTemplate } from './generation/template-compat.js?ver=0.1.6';
-import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.1.6';
-import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './generation/prompt-log.js?ver=0.1.6';
+} from './sources/component-sources.js?ver=0.1.7';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.1.7';
+import { containsStatusPlaceholder, injectStatusbarText, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.1.7';
+import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.7';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.7';
+import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.1.7';
+import { renderPromptTemplate } from './generation/template-compat.js?ver=0.1.7';
+import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.1.7';
+import { applyAnimaWorldbookOverrides, captureAnimaWorldbookEntries, captureAnimaWorldbookUntil, filterAnimaWorldbookEntries, getAnimaChatId, mergeAnimaWorldbookSnapshots, readLatestAnimaStatus, shouldClearAnimaSnapshotForChat } from './sources/anima-memory.js?ver=0.1.7';
+import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './generation/prompt-log.js?ver=0.1.7';
 import {
   clearImportSelectionsForScope,
   collectSelectedPromptSourceItems,
   normalizePromptSourceType,
   resolveWorldbookSelection,
   syncPromptSelectionsFromGroups,
-} from './sources/source-selection.js?ver=0.1.6';
-import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hasEnabledWorldbookSource, hydrateTavernWorldbookSelections, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.6';
-import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.6';
-import { normalizeApiRetryCount, withApiRetries } from './api/api-retry.js?ver=0.1.6';
-import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.6';
-import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.6';
-import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.6';
-import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.6';
-import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.6';
-import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.1.6';
-import { loadGenerationHistory, recordGenerationResult } from './generation/generation-history.js?ver=0.1.6';
+} from './sources/source-selection.js?ver=0.1.7';
+import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hasEnabledWorldbookSource, hydrateTavernWorldbookSelections, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.7';
+import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.7';
+import { normalizeApiRetryCount, withApiRetries } from './api/api-retry.js?ver=0.1.7';
+import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.7';
+import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.7';
+import { getWorldbookGenerationIssue, getWorldbookRawName, reconcileWorldbookEntryRecords, removeWorldbookEntryRecord, removeWorldbookSourceRecords } from './sources/worldbook-identity.js?ver=0.1.7';
+import { migratePresetPromptSourceSnapshot, reconcilePresetEntryRecords, reconcilePresetSchemeRecords } from './sources/preset-identity.js?ver=0.1.7';
+import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.7';
+import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.7';
+import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.7';
+import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.1.7';
+import { loadGenerationHistory, recordGenerationResult } from './generation/generation-history.js?ver=0.1.7';
 import {
   THEATER_RANDOM_MODE_ALL,
   THEATER_RANDOM_MODE_ENABLED,
@@ -55,7 +58,7 @@ import {
   normalizeTheaterRandomCount,
   normalizeTheaterRandomMode,
   selectTheaterComponents,
-} from './sources/theater-library.js?ver=0.1.6';
+} from './sources/theater-library.js?ver=0.1.7';
 import {
   captureAutomaticAssistantTarget,
   captureAutomaticGenerationBaseline,
@@ -64,33 +67,40 @@ import {
   isAutomaticAssistantMessageTypeEligible,
   isAutomaticTargetAfterGenerationStart,
   resolveReadyAutomaticAssistantTarget,
-} from './generation/auto-generation-trigger.js?ver=0.1.6';
-import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.1.6';
+} from './generation/auto-generation-trigger.js?ver=0.1.7';
+import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.1.7';
 import {
   buildApiRequestParts,
   parseApiAdditionalParameters,
   parseApiNumericSettings,
   serializeRequestHeadersYaml,
-} from './api/api-request-parameters.js?ver=0.1.6';
+} from './api/api-request-parameters.js?ver=0.1.7';
 import {
   createPromptSourceCacheState,
   loadWorldbookSourceGroups,
   markPromptSourceStructureDirty,
   markWorldbookSourceDirty,
   takeDirtyWorldbookSources,
-} from './sources/prompt-source-cache.js?ver=0.1.6';
-import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from './settings/task-placement.js?ver=0.1.6';
-import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.1.6';
-import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.1.6';
+} from './sources/prompt-source-cache.js?ver=0.1.7';
+import {
+  assertPromptSourceSnapshotsAvailable,
+  createIndexedDbPromptSourceSnapshotStore,
+  loadAndMigratePromptSourceSnapshots,
+  normalizePromptSourceSnapshot,
+} from './sources/prompt-source-snapshot-storage.js?ver=0.1.7';
+import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from './settings/task-placement.js?ver=0.1.7';
+import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.1.7';
+import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.1.7';
 
 const EXTENSION_ID = 'st-end-component-generator';
-const EXTENSION_VERSION = '0.1.6';
+const EXTENSION_VERSION = '0.1.7';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
 const GENERATION_HISTORY_STORAGE_KEY = `${EXTENSION_ID}.recentGenerationHistory`;
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLD_BOOK_FOLLOW_TAVERN = '__follow_tavern__';
 const DEFAULT_COMPONENT_GROUP_VALUE = '__default_group__';
+const ANIMA_WORLD_BOOK_CAPTURE_RETRY_DELAY_MS = 100;
 const MAX_OUTPUT_TOKENS = 65535;
 const FLOATING_BALL_MIN_SIZE = 28;
 const FLOATING_BALL_MAX_SIZE = 72;
@@ -103,6 +113,7 @@ const WORLDBOOK_CATEGORY_ORDER = [
   ['character', '角色世界书'],
   ['chat', '聊天世界书'],
   ['plugin', '插件启用'],
+  ['failed', '读取失败'],
   ['inactive', '未启用世界书'],
 ];
 
@@ -152,6 +163,10 @@ const DEFAULT_SETTINGS = {
   omitOriginalUserMessages: false,
   baiBaiBookHistoryEnabled: false,
   baiBaiBookStateEnabled: false,
+  memorySource: 'none',
+  animaWorldbookEnabled: false,
+  animaStatusVariableEnabled: false,
+  animaStatusAfterMessageEnabled: false,
   ballX: null,
   ballY: null,
   ballPositionVersion: 2,
@@ -164,7 +179,6 @@ const DEFAULT_SETTINGS = {
   activeSourcePreset: '',
   sourceMode: SOURCE_MODE_PROMPT,
   sourceModes: { preset: SOURCE_MODE_PROMPT, worldbook: SOURCE_MODE_PROMPT },
-  promptSourceSnapshots: { preset: null, worldbook: null },
   promptSelections: {},
   importSelections: {},
   sourceContentOverrides: {},
@@ -217,7 +231,14 @@ let lastPromptLogText = '';
 let promptLogBuilding = false;
 let lastGeneratedThinking = [];
 let recentGenerationHistory = [];
+let promptSourceSnapshots = { preset: null, worldbook: null };
+let promptSourceSnapshotStore = null;
+let promptSourceSnapshotReady = Promise.resolve();
 let latestInjectionUndoSnapshot = null;
+let animaWorldbookSnapshotPromise = null;
+let animaWorldbookSnapshot = [];
+let animaWorldbookSnapshotChatId = '';
+let animaWorldbookCaptureRun = null;
 let tavernSyncTimer = null;
 let lastTavernSourceSignature = '';
 let listSearchQuery = '';
@@ -509,16 +530,12 @@ function loadSettings() {
   settings.worldbookSchemes = normalizeSchemeList(settings.worldbookSchemes);
   if (!settings.promptSelections || typeof settings.promptSelections !== 'object') settings.promptSelections = {};
   if (!settings.importSelections || typeof settings.importSelections !== 'object') settings.importSelections = {};
-  if (!settings.promptSourceSnapshots || typeof settings.promptSourceSnapshots !== 'object') settings.promptSourceSnapshots = {};
-  for (const type of ['preset', 'worldbook']) {
-    if (!Array.isArray(settings.promptSourceSnapshots[type]?.items)) settings.promptSourceSnapshots[type] = null;
-  }
   if (!settings.sourceContentOverrides || typeof settings.sourceContentOverrides !== 'object') settings.sourceContentOverrides = {};
   if (!settings.worldbookActivationOverrides || typeof settings.worldbookActivationOverrides !== 'object') settings.worldbookActivationOverrides = {};
   if (!settings.worldbookKeywordOverrides || typeof settings.worldbookKeywordOverrides !== 'object') settings.worldbookKeywordOverrides = {};
   settings.worldbookDraftSources = [...new Set((Array.isArray(settings.worldbookDraftSources) ? settings.worldbookDraftSources : [])
-    .map(textOf)
-    .filter(Boolean))];
+    .map(getWorldbookRawName)
+    .filter((name) => name.trim()))];
   if (![SOURCE_MODE_PROMPT, SOURCE_MODE_IMPORT].includes(settings.sourceMode)) settings.sourceMode = SOURCE_MODE_PROMPT;
   if (!settings.sourceModes || typeof settings.sourceModes !== 'object') settings.sourceModes = {};
   for (const type of ['preset', 'worldbook']) {
@@ -567,6 +584,16 @@ function loadSettings() {
   settings.omitOriginalUserMessages = Boolean(settings.omitOriginalUserMessages);
   settings.baiBaiBookHistoryEnabled = Boolean(settings.baiBaiBookHistoryEnabled);
   settings.baiBaiBookStateEnabled = Boolean(settings.baiBaiBookStateEnabled);
+  if (!Object.prototype.hasOwnProperty.call(storedSettings, 'memorySource')) {
+    settings.memorySource = settings.baiBaiBookHistoryEnabled || settings.baiBaiBookStateEnabled ? 'baibai' : 'none';
+  }
+  if (!['baibai', 'anima', 'none'].includes(settings.memorySource)) settings.memorySource = 'none';
+  const legacyAnimaEnabled = Boolean(storedSettings.animaMemoryEnabled);
+  if (!Object.prototype.hasOwnProperty.call(storedSettings, 'animaWorldbookEnabled')) settings.animaWorldbookEnabled = legacyAnimaEnabled;
+  if (!Object.prototype.hasOwnProperty.call(storedSettings, 'animaStatusVariableEnabled')) settings.animaStatusVariableEnabled = legacyAnimaEnabled;
+  settings.animaWorldbookEnabled = Boolean(settings.animaWorldbookEnabled);
+  settings.animaStatusVariableEnabled = Boolean(settings.animaStatusVariableEnabled);
+  settings.animaStatusAfterMessageEnabled = Boolean(settings.animaStatusAfterMessageEnabled);
   settings.qrGenerateEnabled = Boolean(settings.qrGenerateEnabled);
   settings.qrInjectEnabled = Boolean(settings.qrInjectEnabled);
   if (settings.ballPositionVersion !== 2) {
@@ -600,6 +627,139 @@ function saveSettings() {
     targetWindow.localStorage?.setItem(PROMPT_TEMPLATE_COMPAT_STORAGE_KEY, String(Boolean(settings.promptTemplateCompatEnabled)));
   } catch (_) {}
   getContext().saveSettingsDebounced();
+}
+
+function initializePromptSourceSnapshotStorage() {
+  const legacySnapshots = settings.promptSourceSnapshots && typeof settings.promptSourceSnapshots === 'object'
+    ? settings.promptSourceSnapshots
+    : {};
+  promptSourceSnapshots = {
+    preset: normalizePromptSourceSnapshot(legacySnapshots.preset),
+    worldbook: normalizePromptSourceSnapshot(legacySnapshots.worldbook),
+  };
+  try {
+    promptSourceSnapshotStore = createIndexedDbPromptSourceSnapshotStore(targetWindow.indexedDB);
+  } catch (error) {
+    console.warn(`[${EXTENSION_ID}] 无法初始化浏览器提示词快照存储`, error);
+    return;
+  }
+  promptSourceSnapshotReady = loadAndMigratePromptSourceSnapshots(promptSourceSnapshotStore, legacySnapshots, {
+    sourceModes: settings.sourceModes,
+  })
+    .then((snapshots) => {
+      promptSourceSnapshots = snapshots;
+      delete settings.promptSourceSnapshots;
+      delete getSettingsStore().promptSourceSnapshots;
+      saveSettings();
+    })
+    .catch((error) => {
+      console.warn(`[${EXTENSION_ID}] 无法读取或迁移浏览器提示词快照`, error);
+    });
+}
+
+async function savePromptSourceSnapshot(type, snapshot) {
+  const sourceType = getSourceType(type);
+  await promptSourceSnapshotReady;
+  if (!promptSourceSnapshotStore) throw new Error('当前浏览器无法保存提示词快照。');
+  await promptSourceSnapshotStore.set(sourceType, snapshot);
+  promptSourceSnapshots[sourceType] = normalizePromptSourceSnapshot(snapshot);
+}
+
+async function clearPromptSourceSnapshot(type) {
+  const sourceType = getSourceType(type);
+  await promptSourceSnapshotReady;
+  promptSourceSnapshots[sourceType] = null;
+  if (!promptSourceSnapshotStore) return;
+  try {
+    await promptSourceSnapshotStore.remove(sourceType);
+  } catch (error) {
+    console.warn(`[${EXTENSION_ID}] 无法删除浏览器提示词快照`, error);
+  }
+}
+
+function isAnimaMemoryEnabled() {
+  return settings.memorySource === 'anima' && (settings.animaWorldbookEnabled || settings.animaStatusVariableEnabled);
+}
+
+function isAnimaWorldbookEnabled() {
+  return settings.memorySource === 'anima' && settings.animaWorldbookEnabled === true;
+}
+
+function isAnimaStatusVariableEnabled() {
+  return settings.memorySource === 'anima' && settings.animaStatusVariableEnabled === true;
+}
+
+function stopAnimaWorldbookCapture() {
+  if (animaWorldbookCaptureRun) animaWorldbookCaptureRun.active = false;
+  animaWorldbookCaptureRun = null;
+  animaWorldbookSnapshotPromise = null;
+}
+
+function getCurrentAnimaChatId() {
+  return getAnimaChatId(getContext());
+}
+
+function clearAnimaWorldbookSnapshot() {
+  animaWorldbookSnapshotPromise = null;
+  animaWorldbookSnapshot = [];
+  animaWorldbookSnapshotChatId = '';
+  stopAnimaWorldbookCapture();
+}
+
+function captureAnimaWorldbookSnapshot() {
+  if (!isAnimaWorldbookEnabled()) {
+    stopAnimaWorldbookCapture();
+    return Promise.resolve({ entries: [], found: false });
+  }
+
+  const currentChatId = getCurrentAnimaChatId();
+  if (shouldClearAnimaSnapshotForChat(animaWorldbookSnapshotChatId, currentChatId)) {
+    clearAnimaWorldbookSnapshot();
+  }
+  if (currentChatId) animaWorldbookSnapshotChatId = currentChatId;
+
+  stopAnimaWorldbookCapture();
+  const run = { active: true };
+  animaWorldbookCaptureRun = run;
+  const promise = captureAnimaWorldbookUntil({
+    read: () => captureAnimaWorldbookEntries(targetWindow),
+    isActive: () => run.active && isAnimaWorldbookEnabled(),
+    wait: () => new Promise((resolve) => targetWindow.setTimeout(resolve, ANIMA_WORLD_BOOK_CAPTURE_RETRY_DELAY_MS)),
+  }).then((result) => {
+    if (animaWorldbookSnapshotPromise === promise && result?.found) {
+      animaWorldbookSnapshot = mergeAnimaWorldbookSnapshots(animaWorldbookSnapshot, result.entries);
+    }
+    if (animaWorldbookCaptureRun === run) {
+      run.active = false;
+      animaWorldbookCaptureRun = null;
+    }
+    return result;
+  }).catch(() => {
+    if (animaWorldbookCaptureRun === run) animaWorldbookCaptureRun = null;
+    return { entries: [], found: false };
+  });
+  animaWorldbookSnapshotPromise = promise;
+  return promise;
+}
+
+async function getAnimaWorldbookSnapshotForPrompt() {
+  if (!isAnimaMemoryEnabled()) return [];
+  if (isAnimaWorldbookEnabled()) {
+    if (animaWorldbookSnapshotPromise && !animaWorldbookCaptureRun?.active) {
+      try {
+        await animaWorldbookSnapshotPromise;
+      } catch (_) {}
+    }
+  }
+  return filterAnimaWorldbookEntries(animaWorldbookSnapshot, {
+    includeWorldbook: isAnimaWorldbookEnabled(),
+    includeStatus: isAnimaStatusVariableEnabled(),
+  });
+}
+
+function getAnimaStatusSnapshotForPrompt(context) {
+  if (!isAnimaStatusVariableEnabled()) return null;
+  return readLatestAnimaStatus({ targetWindow, chat: context?.chat }) || null;
 }
 
 function getLatestAssistantMessage(chat) {
@@ -843,7 +1003,16 @@ async function buildMessages(latestMessage) {
   const context = getContext();
   const components = getEnabledComponents();
   const theaterComponents = getEnabledTheaterComponents();
-  const promptSourceItems = await ensurePromptSourceItemsForGeneration();
+  const animaEnabled = isAnimaMemoryEnabled();
+  const animaWorldbookEntries = animaEnabled ? await getAnimaWorldbookSnapshotForPrompt() : [];
+  const animaStatusSnapshot = getAnimaStatusSnapshotForPrompt(context);
+  const animaStatus = animaStatusSnapshot?.data || null;
+  const animaStatusMessageIndex = settings.animaStatusAfterMessageEnabled
+    ? animaStatusSnapshot?.messageIndex ?? null
+    : null;
+  const promptSourceItems = animaEnabled
+    ? await ensurePromptSourceItemsForGeneration({ animaWorldbookEntries })
+    : await ensurePromptSourceItemsForGeneration();
   const templateStats = { enabled: Boolean(settings.promptTemplateCompatEnabled), renderCount: 0, changedCount: 0 };
   const messages = await buildExternalStatusbarMessages({
     targetWindow,
@@ -862,13 +1031,17 @@ async function buildMessages(latestMessage) {
     replaceLastUserMessageWithTask: settings.replaceLastUserMessageWithTask,
     omitOriginalUserMessages: settings.omitOriginalUserMessages,
     renderTemplate: null,
-    baiBaiBook: {
+    animaStatus,
+    animaStatusMessageIndex,
+    animaWorldbookEntries,
+    animaYaml: targetWindow?.jsyaml || targetWindow?.yaml || null,
+    baiBaiBook: settings.memorySource === 'baibai' ? {
       api: getBaiBaiBookApi(targetWindow),
       context,
       substituteParams: context.substituteParams,
       includeHistory: settings.baiBaiBookHistoryEnabled,
       includeState: settings.baiBaiBookStateEnabled,
-    },
+    } : null,
   });
   if (settings.promptTemplateCompatEnabled) {
     for (const message of messages) {
@@ -1130,6 +1303,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   if (preview) preview.scrollTop = preview.scrollHeight;
   notifyStatus('正在生成文尾组件……', 'info');
   generationAbortController = new AbortController();
+  stopAnimaWorldbookCapture();
   if (entryType === 'automatic') activeAutomaticTarget = automaticTarget;
   logAutomaticGenerationStage('target-ready', `message ${latest.index}`);
   logAutomaticGenerationStage('api-start', `楼层 ${latest.index}`);
@@ -1468,7 +1642,13 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
 }
 
 function handleGenerationStarted() {
-  if (!settings.autoGenerate || generationAbortController) return;
+  if (generationAbortController) {
+    stopAnimaWorldbookCapture();
+    return;
+  }
+  if (isAnimaWorldbookEnabled()) void captureAnimaWorldbookSnapshot();
+  else stopAnimaWorldbookCapture();
+  if (!settings.autoGenerate) return;
   automaticGenerationLogActive = false;
   logAutomaticGenerationStage('generation-started');
   invalidatePendingAutomaticGeneration();
@@ -1476,6 +1656,7 @@ function handleGenerationStarted() {
 }
 
 function handleGenerationEnded() {
+  stopAnimaWorldbookCapture();
   if (!settings.autoGenerate || generationAbortController) return;
   if (!automaticGenerationLogActive) clearAutomaticGenerationLog();
   logAutomaticGenerationStage('generation-ended', '等待 500ms 检查最终消息');
@@ -1491,6 +1672,10 @@ function handleGenerationEnded() {
     automaticGenerationEndTimer = null;
     void runGenerationEndedAutomaticGeneration(baseline, revision);
   }, 500);
+}
+
+function handleGenerationStopped() {
+  stopAnimaWorldbookCapture();
 }
 
 function handleAssistantMessageReceived(messageId, messageType) {
@@ -2072,6 +2257,19 @@ function renderApiModeUi() {
   $t('#st-esg-max-tokens, #st-esg-temperature').closest('label').toggleClass('st-esg-hidden', mode === 'tavern');
 }
 
+function renderMemorySettingsUi() {
+  const mode = ['baibai', 'anima', 'none'].includes(settings.memorySource) ? settings.memorySource : 'none';
+  settings.memorySource = mode;
+  $t('input[name="st-esg-memory-source"]').prop('checked', false);
+  $t(`input[name="st-esg-memory-source"][value="${mode}"]`).prop('checked', true);
+  $t('#st-esg-baibai-memory-options').toggleClass('st-esg-hidden', mode !== 'baibai');
+  $t('#st-esg-anima-memory-options').toggleClass('st-esg-hidden', mode !== 'anima');
+  $t('#st-esg-anima-worldbook-enabled').prop('checked', settings.animaWorldbookEnabled === true);
+  $t('#st-esg-anima-status-enabled').prop('checked', settings.animaStatusVariableEnabled === true);
+  $t('#st-esg-anima-status-after-message-option').toggleClass('st-esg-hidden', settings.animaStatusVariableEnabled !== true);
+  $t('#st-esg-anima-status-after-message-enabled').prop('checked', settings.animaStatusAfterMessageEnabled === true);
+}
+
 function getTavernProfiles() {
   const rawProfiles = getContext()?.extensionSettings?.connectionManager?.profiles || [];
   const profiles = Array.isArray(rawProfiles)
@@ -2102,6 +2300,7 @@ function applyTaskScheme(snapshot) {
 
 async function applyPresetScheme(snapshot) {
   setSourceMode('preset', snapshot.sourceMode);
+  if (getSourceMode('preset') === SOURCE_MODE_PROMPT) await clearPromptSourceSnapshot('preset');
   renderSourceModeUi();
   settings.activeSourcePreset = textOf(snapshot.activeSourcePreset);
   settings.taskPlacementEnabled = Boolean(snapshot.taskPlacementEnabled);
@@ -2117,6 +2316,7 @@ async function applyPresetScheme(snapshot) {
   Object.assign(settings.promptSelections, snapshot.promptSelections || {});
   Object.assign(settings.importSelections, snapshot.importSelections || {});
   Object.assign(settings.sourceContentOverrides, snapshot.sourceContentOverrides || {});
+  reconcileLoadedPresetGroups(importGroups);
   $t('#st-esg-replace-last-user-message').prop('checked', settings.replaceLastUserMessageWithTask);
   $t('#st-esg-omit-original-user-messages').prop('checked', settings.omitOriginalUserMessages);
   renderImportCandidates();
@@ -2125,6 +2325,7 @@ async function applyPresetScheme(snapshot) {
 
 async function applyWorldbookScheme(snapshot) {
   setSourceMode('worldbook', snapshot.sourceMode);
+  if (getSourceMode('worldbook') === SOURCE_MODE_PROMPT) await clearPromptSourceSnapshot('worldbook');
   renderSourceModeUi();
   settings.worldbookDraftSources = getWorldbookSchemeSourceNames(snapshot);
   settings.promptSelections = clearImportSelectionsForScope(settings.promptSelections, SOURCE_WORLDBOOK);
@@ -2171,8 +2372,8 @@ function getTavernSourceSignature() {
 
 function invalidateWorldbookSourceCache(worldbookName) {
   markWorldbookSourceDirty(promptSourceCache, worldbookName);
-  const name = textOf(worldbookName);
-  if (!name) return;
+  const name = getWorldbookRawName(worldbookName);
+  if (!name.trim()) return;
   importGroups
     .filter((group) => group?.scope === SOURCE_WORLDBOOK && group.source === name)
     .forEach((group) => {
@@ -2298,8 +2499,8 @@ async function handleSchemeAction(type, action) {
     if (type === 'worldbook' && selectedId === WORLD_BOOK_FOLLOW_TAVERN) {
       if (!targetWindow.confirm('确认载入世界书酒馆默认？当前未保存的修改将丢失。')) return;
       setSelectedSchemeId(type, selectedId);
-      await applyFollowTavernWorldbook();
       markSchemeClean(type, selectedId);
+      await applyFollowTavernWorldbook();
       saveSettings();
       renderSchemeOptions(type);
       notifyStatus('已载入世界书酒馆默认。');
@@ -3332,7 +3533,7 @@ function setSourceMode(type, mode) {
 }
 
 function getPromptSourceSnapshotItems(type) {
-  const snapshot = settings.promptSourceSnapshots?.[getSourceType(type)];
+  const snapshot = promptSourceSnapshots?.[getSourceType(type)];
   return Array.isArray(snapshot?.items) ? snapshot.items : [];
 }
 
@@ -3345,19 +3546,26 @@ function clearImportSelections(type) {
 async function capturePromptSourceSnapshot(type) {
   const sourceType = getSourceType(type);
   const items = await ensurePromptSourceItemsForGeneration({ refreshSources: false });
-  settings.promptSourceSnapshots[sourceType] = {
+  const snapshot = {
     items: items.filter((item) => getSourceType(item) === sourceType),
   };
+  await savePromptSourceSnapshot(sourceType, snapshot);
 }
 
 async function changeSourceMode(type, mode) {
   const sourceType = getSourceType(type);
   const nextMode = mode === SOURCE_MODE_IMPORT ? SOURCE_MODE_IMPORT : SOURCE_MODE_PROMPT;
   if (nextMode === SOURCE_MODE_IMPORT && getSourceMode(sourceType) !== SOURCE_MODE_IMPORT) {
-    await capturePromptSourceSnapshot(sourceType);
+    try {
+      await capturePromptSourceSnapshot(sourceType);
+    } catch (error) {
+      notifyStatus(error?.message || '无法建立提示词快照。', 'error');
+      renderSourceModeUi();
+      return;
+    }
     clearImportSelections(sourceType);
   }
-  if (nextMode === SOURCE_MODE_PROMPT) settings.promptSourceSnapshots[sourceType] = null;
+  if (nextMode === SOURCE_MODE_PROMPT) await clearPromptSourceSnapshot(sourceType);
   setSourceMode(sourceType, nextMode);
   saveSettings();
   renderSourceModeUi();
@@ -3370,7 +3578,7 @@ function getSourceSelectionStore(item) {
 }
 
 function hasWorldbookDraftSource(source) {
-  return settings.worldbookDraftSources.includes(textOf(source));
+  return settings.worldbookDraftSources.includes(getWorldbookRawName(source));
 }
 
 // A book is treated as enabled by the plugin when the current scheme lists it. A tavern-default
@@ -3385,8 +3593,8 @@ function isWorldbookSourceEnabledByPlugin(group) {
 }
 
 function rememberWorldbookDraftSource(source) {
-  const name = textOf(source);
-  if (!name || hasWorldbookDraftSource(name)) return;
+  const name = getWorldbookRawName(source);
+  if (!name.trim() || hasWorldbookDraftSource(name)) return;
   settings.worldbookDraftSources.push(name);
 }
 
@@ -3394,8 +3602,97 @@ function captureWorldbookDraftSources() {
   if (!isFollowingTavernWorldbook()) return;
   settings.worldbookDraftSources = [...new Set(importGroups
     .filter((group) => group?.scope === SOURCE_WORLDBOOK && group.category !== 'inactive')
-    .map((group) => textOf(group.source))
-    .filter(Boolean))];
+    .map((group) => getWorldbookRawName(group.source))
+    .filter((name) => name.trim()))];
+}
+
+function getWorldbookRecordStores() {
+  return {
+    promptSelections: settings.promptSelections,
+    importSelections: settings.importSelections,
+    sourceContentOverrides: settings.sourceContentOverrides,
+    worldbookActivationOverrides: settings.worldbookActivationOverrides,
+    worldbookKeywordOverrides: settings.worldbookKeywordOverrides,
+  };
+}
+
+function getPresetRecordStores(source = settings) {
+  return {
+    promptSelections: source?.promptSelections,
+    importSelections: source?.importSelections,
+    sourceContentOverrides: source?.sourceContentOverrides,
+  };
+}
+
+function migrateBrowserPresetPromptSnapshot(source, items) {
+  void promptSourceSnapshotReady.then(async () => {
+    const migration = migratePresetPromptSourceSnapshot(promptSourceSnapshots.preset, source, items);
+    if (!migration.changed) return;
+    promptSourceSnapshots.preset = migration.snapshot;
+    if (promptSourceSnapshotStore) await promptSourceSnapshotStore.set('preset', migration.snapshot);
+  }).catch((error) => {
+    console.warn(`[${EXTENSION_ID}] 无法迁移浏览器中的预设提示词快照`, error);
+  });
+}
+
+function reconcileLoadedPresetGroups(groups) {
+  const presetGroups = (Array.isArray(groups) ? groups : [])
+    .filter((group) => group?.scope === SOURCE_PRESET && group.loaded === true && Array.isArray(group.items));
+  let changed = false;
+  for (const group of presetGroups) {
+    migrateBrowserPresetPromptSnapshot(group.source, group.items);
+    const current = reconcilePresetEntryRecords(getPresetRecordStores(), group.source, group.items);
+    if (current.changed) {
+      Object.assign(settings, current.stores);
+      settings.taskPlacementAfterSourceId = current.keyMap[settings.taskPlacementAfterSourceId]
+        || settings.taskPlacementAfterSourceId;
+      changed = true;
+    }
+    const schemeMigration = reconcilePresetSchemeRecords(settings.presetSchemes, group.source, group.items);
+    settings.presetSchemes = schemeMigration.schemes;
+    if (schemeMigration.changed) changed = true;
+  }
+  if (changed) saveSettings();
+  return changed;
+}
+
+function reconcileLoadedWorldbookGroup(group, items = group?.items, { authoritative = false } = {}) {
+  if (!group || group.scope !== SOURCE_WORLDBOOK || (!authoritative && group.loaded !== true) || !Array.isArray(items)) {
+    return { changed: false, staleEnabledCount: 0, unmatchedRecords: [] };
+  }
+  const result = reconcileWorldbookEntryRecords(getWorldbookRecordStores(), group.source, items);
+  Object.assign(settings, result.stores);
+  group.staleEnabledCount = result.staleEnabledCount;
+  group.unmatchedWorldbookRecords = result.unmatchedRecords;
+  if (result.changed) saveSettings();
+  return result;
+}
+
+function removeEmptyWorldbookSchemeSource(group, enabledCount, migration = {}) {
+  if (isFollowingTavernWorldbook()
+    || Number(enabledCount) > 0
+    || Number(migration?.staleEnabledCount || 0) > 0
+    || !hasWorldbookDraftSource(group?.source)) return false;
+  const source = getWorldbookRawName(group.source);
+  settings.worldbookDraftSources = settings.worldbookDraftSources.filter((name) => getWorldbookRawName(name) !== source);
+  const removed = removeWorldbookSourceRecords(getWorldbookRecordStores(), source);
+  Object.assign(settings, removed.stores);
+  saveSettings();
+  return true;
+}
+
+function persistCurrentWorldbookSchemeMigration() {
+  const schemeId = getActiveSchemeId('worldbook');
+  if (!schemeId
+    || schemeId === WORLD_BOOK_FOLLOW_TAVERN
+    || schemeId !== getSelectedSchemeId('worldbook')
+    || settings.dirtySchemeTypes?.worldbook) return false;
+  const list = getSchemeList('worldbook');
+  const scheme = findScheme(list, schemeId);
+  if (!scheme) return false;
+  setSchemeList('worldbook', saveScheme(list, scheme.name, currentSchemeSnapshot('worldbook'), schemeId));
+  saveSettings();
+  return true;
 }
 
 function getSourceSelection(item) {
@@ -3450,7 +3747,9 @@ function syncPromptSelectionsFromLoadedGroups(groups = importGroups) {
   return promptGroups.reduce((sum, group) => sum + (group?.loaded && Array.isArray(group.items) ? group.items.length : 0), 0);
 }
 
-async function ensurePromptSourceItemsForGeneration({ chat = null } = {}) {
+async function ensurePromptSourceItemsForGeneration({ chat = null, animaWorldbookEntries = [] } = {}) {
+  await promptSourceSnapshotReady;
+  assertPromptSourceSnapshotsAvailable(settings.sourceModes, promptSourceSnapshots);
   const currentSignature = getTavernSourceSignature();
   if (promptSourceCache.signature && currentSignature !== promptSourceCache.signature) {
     markPromptSourceStructureDirty(promptSourceCache);
@@ -3466,13 +3765,16 @@ async function ensurePromptSourceItemsForGeneration({ chat = null } = {}) {
     });
   const activeWorldbookGroups = importGroups.filter((group) => getSourceMode(group) === SOURCE_MODE_PROMPT
     && group?.scope === SOURCE_WORLDBOOK
-    && (isFollowingTavernWorldbook() ? group.category !== 'inactive' : hasWorldbookDraftSource(group.source))
+    && (isFollowingTavernWorldbook() ? group.category !== 'inactive' : isWorldbookSourceEnabledByPlugin(group))
     && !group.loaded
     && !group.loading);
   await loadWorldbookSourceGroups(
     activeWorldbookGroups,
     (worldbookName) => collectWorldbookImportCandidates(targetWindow, worldbookName),
   );
+  activeWorldbookGroups.forEach((group) => reconcileLoadedWorldbookGroup(group));
+  const worldbookIssue = getWorldbookGenerationIssue(activeWorldbookGroups);
+  if (worldbookIssue) throw new Error(worldbookIssue);
   syncPromptSelectionsFromLoadedGroups(activeWorldbookGroups);
   importCandidates = importGroups.flatMap((group) => group.items || []);
   renderImportCandidates({ renderPreset: false });
@@ -3500,7 +3802,10 @@ async function ensurePromptSourceItemsForGeneration({ chat = null } = {}) {
   ));
   const context = getContext();
   const promptChat = Array.isArray(chat) ? chat : context.chat;
-  const itemsWithKeywordOverrides = [...sourceItems, ...snapshotItems].map((item) => {
+  // Keep selection, activation lamps, and scheme overrides authoritative. Only after
+  // that normal pipeline is complete do we replace the content of existing Anima entries.
+  const selectedItemsWithAnima = applyAnimaWorldbookOverrides([...sourceItems, ...snapshotItems], animaWorldbookEntries);
+  const itemsWithKeywordOverrides = selectedItemsWithAnima.map((item) => {
     if (item?.scope !== SOURCE_WORLDBOOK || !item?.key || !Object.prototype.hasOwnProperty.call(settings.worldbookKeywordOverrides, item.key)) return item;
     return { ...item, worldbookKeys: splitWorldbookKeywords(settings.worldbookKeywordOverrides[item.key]) };
   });
@@ -3730,9 +4035,16 @@ function applyListFilters() {
 
 function scrollWorldbookCardIntoView() {
   const worldbookBox = targetDoc.getElementById('st-esg-worldbook-candidates');
-  const card = worldbookBox?.closest?.('.st-esg-card');
-  if (!card) return;
-  targetWindow.requestAnimationFrame(() => card.scrollIntoView({ block: 'start', inline: 'nearest' }));
+  const panelBody = worldbookBox?.closest?.('.st-esg-panel-body');
+  if (!panelBody) return;
+  targetWindow.requestAnimationFrame(() => {
+    const activeDetail = worldbookBox.querySelector('.st-esg-worldbook-detail');
+    if (!activeDetail || typeof panelBody.getBoundingClientRect !== 'function') return;
+    const bodyRect = panelBody.getBoundingClientRect();
+    const detailRect = activeDetail.getBoundingClientRect();
+    const delta = detailRect.top - bodyRect.top;
+    if (Math.abs(delta) > 1) panelBody.scrollTop += delta;
+  });
 }
 
 async function openWorldbookDetail(groupIndex) {
@@ -3760,18 +4072,22 @@ function renderSourcePresetSelect() {
 
 function getSelectedGlobalWorldbookNamesFromDom() {
   const selectedLabels = $t('#world_info option:selected')
-    .map((_, option) => textOf($(option).text()))
+    .map((_, option) => getWorldbookRawName($(option).text()))
     .get()
-    .filter(Boolean);
+    .filter((name) => name.trim());
   if (selectedLabels.length) return selectedLabels;
   const value = $t('#world_info').val() || [];
-  return (Array.isArray(value) ? value : [value]).map(textOf).filter(Boolean);
+  return (Array.isArray(value) ? value : [value])
+    .map(getWorldbookRawName)
+    .filter((name) => name.trim());
 }
 
 function getWorldbookCountText(group) {
+  if (group?.loadFailed || group?.error || group?.missingFromTavern) return '点击查看';
   const total = Number(group?.entryCount);
   if (!Number.isFinite(total)) return '统计中';
-  return `${Number(group?.pluginEnabledCount || 0)}/${total}`;
+  const unmatchedCount = Number(group?.staleEnabledCount || 0);
+  return `${Number(group?.pluginEnabledCount || 0)}/${total}${unmatchedCount > 0 ? ` · ${unmatchedCount}条未匹配` : ''}`;
 }
 
 function updateWorldbookCountLabel(group) {
@@ -3787,6 +4103,9 @@ function updateWorldbookCountLabel(group) {
     pluginEnabledCount: Number(group.pluginEnabledCount || 0),
     followingTavern: isFollowingTavernWorldbook(),
     schemeEnabled: !isFollowingTavernWorldbook() && isWorldbookSourceEnabledByPlugin(group),
+    entriesResolved: Boolean(group.entriesResolved),
+    loadFailed: Boolean(group.loadFailed || group.error || group.missingFromTavern),
+    unmatchedEnabledCount: Number(group.staleEnabledCount || 0),
   });
   if (textOf(row.closest('.st-esg-import-category').data('category')) !== expectedCategory) {
     renderImportCandidates({ renderPreset: false });
@@ -3802,13 +4121,24 @@ async function startBackgroundWorldbookCounts() {
     try {
       const items = await readWorldbookItemsForGroup(group);
       if (revision !== worldbookCountRevision || group.loaded) continue;
+      group.error = '';
+      group.loadFailed = false;
+      group.entriesResolved = true;
+      const migration = reconcileLoadedWorldbookGroup(group, items, { authoritative: true });
       group.entryCount = items.length;
       group.pluginEnabledCount = items.filter((item) => getSourceSelection({ ...item, worldbookCategory: group.category })).length;
+      const removedEmptySource = removeEmptyWorldbookSchemeSource(group, group.pluginEnabledCount, migration);
+      if ((migration.changed || removedEmptySource) && migration.staleEnabledCount === 0) {
+        persistCurrentWorldbookSchemeMigration();
+      }
       updateWorldbookCountLabel(group);
-    } catch (_) {
+    } catch (error) {
       if (revision === worldbookCountRevision) {
-        group.entryCount = 0;
-        group.pluginEnabledCount = 0;
+        group.error = error?.message || '读取世界书失败。';
+        group.loadFailed = true;
+        group.entriesResolved = false;
+        delete group.entryCount;
+        delete group.pluginEnabledCount;
         updateWorldbookCountLabel(group);
       }
     }
@@ -3850,20 +4180,25 @@ async function scanImportCandidates({ explicitPresetName = '' } = {}) {
     targetWindow,
     context,
     selectedWorldNames,
-    explicitWorldbookNames: null,
+    explicitWorldbookNames: followingTavernWorldbook ? null : settings.worldbookDraftSources,
   });
   importGroups = [
     ...collectPresetImportGroups({ targetWindow, context, presetName: settings.activeSourcePreset }),
     ...worldbookGroups.map((group) => {
-      const cached = cachedWorldbookGroups.get(group.source);
+      const cached = group.missingFromTavern ? null : cachedWorldbookGroups.get(group.source);
       return {
         ...group,
+        ...(group.missingFromTavern ? {
+          loadFailed: true,
+          error: `未找到世界书“${group.source}”。它可能已被改名、删除，或方案保存的名称与酒馆实际名称不一致。`,
+        } : {}),
         ...(cached?.loaded ? { loaded: true, items: cached.items, error: cached.error } : {}),
         ...(Array.isArray(cached?.backgroundItems) ? { backgroundItems: cached.backgroundItems } : {}),
         ...(cached?.backgroundItemsPromise ? { backgroundItemsPromise: cached.backgroundItemsPromise } : {}),
       };
     }),
   ];
+  const presetMigrationChanged = reconcileLoadedPresetGroups(importGroups);
   const syncedCount = syncPromptSelectionsFromLoadedGroups(importGroups);
   activeWorldbookGroupIndex = null;
   importCandidates = importGroups.flatMap((group) => group.items || []);
@@ -3876,6 +4211,7 @@ async function scanImportCandidates({ explicitPresetName = '' } = {}) {
   setStatus(getSourceMode('preset') === SOURCE_MODE_PROMPT || getSourceMode('worldbook') === SOURCE_MODE_PROMPT
     ? `已同步 ${syncedCount} 个已加载条目的酒馆勾选状态。世界书会在进入详情页时同步。`
     : `已列出 ${importGroups.length} 个来源。世界书会在进入详情页时加载。`);
+  if (presetMigrationChanged) console.info(`[${EXTENSION_ID}] 已将可匹配的预设条目记录迁移为 ID 键。`);
 }
 
 async function loadImportGroup(groupIndex) {
@@ -3888,10 +4224,17 @@ async function loadImportGroup(groupIndex) {
   try {
     group.items = await readWorldbookItemsForGroup(group);
     group.loaded = true;
+    group.error = '';
+    group.loadFailed = false;
+    group.entriesResolved = true;
+    group.entryCount = group.items.length;
+    reconcileLoadedWorldbookGroup(group);
     syncPromptSelectionsFromLoadedGroups([group]);
     setStatus(`已加载 ${group.source}：${group.items.length} 个条目。`);
   } catch (error) {
     group.error = error?.message || '加载失败';
+    group.loadFailed = true;
+    group.entriesResolved = false;
     setStatus(`加载 ${group.source} 失败。`);
   } finally {
     group.loading = false;
@@ -3925,6 +4268,9 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
       pluginEnabledCount: currentEnabledCount,
       followingTavern: isFollowingTavernWorldbook(),
       schemeEnabled: !isFollowingTavernWorldbook() && isWorldbookSourceEnabledByPlugin(group),
+      entriesResolved: Boolean(group.entriesResolved || group.loaded),
+      loadFailed: Boolean(group.loadFailed || group.error || group.missingFromTavern),
+      unmatchedEnabledCount: Number(group.staleEnabledCount || 0),
     });
     if (!worldbookCategories.has(category)) worldbookCategories.set(category, { categoryLabel: group.categoryLabel || '世界书', groups: [] });
     worldbookCategories.get(category).groups.push(group);
@@ -3961,12 +4307,24 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     return `<details class="st-esg-import-group" data-group-index="${group.groupIndex}" ${shouldOpen ? 'open' : ''}><summary class="st-esg-import-group-head"><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loaded ? `${group.items.length} 个可导入条目` : '未加载，点开读取'}</div></div></summary><div class="st-esg-import-group-list">${groupBody(group)}</div></details>`;
   };
   const renderWorldbookRow = (group) => {
+    const unmatchedCount = Number(group.staleEnabledCount || 0);
     const count = group.loaded
-      ? `${group.items.filter((item) => getSourceSelection(item)).length}/${group.items.length}`
+      ? `${group.items.filter((item) => getSourceSelection(item)).length}/${group.items.length}${unmatchedCount > 0 ? ` · ${unmatchedCount}条未匹配` : ''}`
       : getWorldbookCountText(group);
     return `<button class="st-esg-worldbook-row" type="button" data-group-index="${group.groupIndex}"><span>${escapeHtml(group.group)}</span><em>${count}</em><i class="fa-solid fa-chevron-right"></i></button>`;
   };
-  const renderWorldbookDetail = (group) => `<div class="st-esg-worldbook-detail" data-group-index="${group.groupIndex}"><div class="st-esg-detail-head"><button class="menu_button st-esg-back-worldbooks" type="button" title="返回世界书列表" aria-label="返回世界书列表"><i class="fa-solid fa-arrow-left"></i></button><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loading ? '正在加载条目...' : group.loaded ? `${group.items.length} 个可导入条目` : '准备加载这本世界书'}</div></div>${group.loaded ? '<button class="menu_button st-esg-import-detail-toggle" type="button">全选条目</button>' : ''}</div><div class="st-esg-import-group-list">${renderListToolbar()}${groupBody(group)}</div></div>`;
+  const renderUnmatchedWorldbookRecords = (group) => {
+    const records = Array.isArray(group.unmatchedWorldbookRecords) ? group.unmatchedWorldbookRecords : [];
+    if (!records.length) return '';
+    return `<div class="st-esg-unmatched-worldbook"><div class="st-esg-unmatched-worldbook-head"><div class="st-esg-import-group-title">未匹配的旧方案条目</div><div class="st-esg-card-desc">这些记录没有匹配上当前 UID。酒馆当前的 UID 条目仍正常显示在上方；请先重新勾选正确条目，再删除旧记录。</div></div>${records.map((record) => `<div class="st-esg-unmatched-worldbook-row"><div class="st-esg-unmatched-worldbook-copy"><div><strong>${escapeHtml(record.name || '旧方案条目')}</strong><em>未匹配上 UID</em></div>${record.contentPreview ? `<p>${escapeHtml(record.contentPreview)}</p>` : ''}</div><button class="menu_button st-esg-remove-unmatched-worldbook-record" type="button" data-group-index="${group.groupIndex}" data-record-key="${escapeHtml(record.key)}"><i class="fa-solid fa-trash"></i><span>删除该条记录</span></button></div>`).join('')}</div>`;
+  };
+  const renderWorldbookDetail = (group) => {
+    const failed = Boolean(group.error || group.loadFailed || group.missingFromTavern);
+    const failureBody = failed
+      ? `<div class="st-esg-worldbook-failure"><div class="st-esg-import-group-title">无法读取这本世界书</div><div class="st-esg-card-desc">${escapeHtml(group.error || '酒馆没有返回这本世界书的条目。')}</div><div class="st-esg-card-desc">可能原因：世界书已被改名或删除；名称首尾含有空格或不可见字符；酒馆返回的名称与实际文件名不一致。</div><button class="menu_button st-esg-remove-worldbook-record" type="button" data-group-index="${group.groupIndex}"><i class="fa-solid fa-trash"></i><span>删除这条世界书记录</span></button></div>`
+      : `${renderUnmatchedWorldbookRecords(group)}${renderListToolbar()}${groupBody(group)}`;
+    return `<div class="st-esg-worldbook-detail" data-group-index="${group.groupIndex}"><div class="st-esg-detail-head"><button class="menu_button st-esg-back-worldbooks" type="button" title="返回世界书列表" aria-label="返回世界书列表"><i class="fa-solid fa-arrow-left"></i></button><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loading ? '正在加载条目...' : failed ? '读取失败' : group.loaded ? `${group.items.length} 个可导入条目` : '准备加载这本世界书'}</div></div>${group.loaded && !failed ? '<button class="menu_button st-esg-import-detail-toggle" type="button">全选条目</button>' : ''}</div><div class="st-esg-import-group-list">${failureBody}</div></div>`;
+  };
   const detailGroup = activeWorldbookGroupIndex === null ? null : groupsWithIndex.find((group) => group.groupIndex === activeWorldbookGroupIndex && group.scope === SOURCE_WORLDBOOK);
   const worldbookSection = detailGroup
     ? renderWorldbookDetail(detailGroup)
@@ -3982,6 +4340,40 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
   });
   if (renderWorldbook) $t('.st-esg-worldbook-row').on('click', function () { openWorldbookDetail(Number($(this).data('group-index'))); });
   if (renderWorldbook) $t('.st-esg-back-worldbooks').on('click', backToWorldbookList);
+  if (renderWorldbook) $t('.st-esg-remove-worldbook-record').on('click', async function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const group = importGroups[Number($(this).data('group-index'))];
+    if (!group || !targetWindow.confirm(`确认删除世界书记录“${group.source}”？\n\n只会从当前插件方案中移除记录，不会删除酒馆里的世界书文件。`)) return;
+    const source = getWorldbookRawName(group.source);
+    settings.worldbookDraftSources = settings.worldbookDraftSources.filter((name) => getWorldbookRawName(name) !== source);
+    const removed = removeWorldbookSourceRecords(getWorldbookRecordStores(), source);
+    Object.assign(settings, removed.stores);
+    markSchemeDirty('worldbook');
+    saveSettings();
+    activeWorldbookGroupIndex = null;
+    await scanImportCandidates();
+    setStatus(`已移除世界书记录“${source}”。请覆盖保存当前方案以永久保存这次修改。`);
+  });
+  if (renderWorldbook) $t('.st-esg-remove-unmatched-worldbook-record').on('click', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const group = importGroups[Number($(this).data('group-index'))];
+    const key = String($(this).attr('data-record-key') || '');
+    const record = group?.unmatchedWorldbookRecords?.find((item) => item.key === key);
+    if (!group || !record || !targetWindow.confirm(`确认删除旧方案条目记录“${record.name || '未命名'}”？\n\n只会删除插件方案中的未匹配记录，不会删除酒馆世界书条目。`)) return;
+    const removed = removeWorldbookEntryRecord(getWorldbookRecordStores(), key);
+    Object.assign(settings, removed.stores);
+    group.unmatchedWorldbookRecords = group.unmatchedWorldbookRecords.filter((item) => item.key !== key);
+    group.staleEnabledCount = group.unmatchedWorldbookRecords.filter((item) => item.enabled).length;
+    removeEmptyWorldbookSchemeSource(group, group.loaded
+      ? group.items.filter((item) => getSourceSelection(item)).length
+      : group.pluginEnabledCount, { staleEnabledCount: group.staleEnabledCount });
+    markSchemeDirty('worldbook');
+    saveSettings();
+    renderImportCandidates({ renderPreset: false });
+    setStatus('已删除未匹配的旧方案条目记录。请覆盖保存当前方案。');
+  });
   $t('.st-esg-import-check').off('.stEsgSource');
   $t('.st-esg-import-check').on('click.stEsgSource', (event) => event.stopPropagation());
   $t('.st-esg-import-check').on('change.stEsgSource', function () {
@@ -4258,6 +4650,26 @@ function renderPluginPanel() {
     promptBody.appendChild(templateSection);
     if (baiBaiDetails) baiBaiDetails.replaceWith(promptSettings);
     else runtimePanel.appendChild(promptSettings);
+
+    const legacyMemorySection = promptSettings.querySelector('.st-esg-prompt-settings-section');
+    const memorySettings = targetDoc.createElement('details');
+    memorySettings.className = 'st-esg-card st-esg-collapsible st-esg-memory-settings';
+    memorySettings.innerHTML = '<summary class="st-esg-collapsible-summary">记忆设置</summary><div class="st-esg-collapsible-body"><div class="st-esg-memory-source-options"><label class="st-esg-radio-row"><input id="st-esg-memory-source-baibai" type="radio" name="st-esg-memory-source" value="baibai" /><span>柏宝书</span></label><label class="st-esg-radio-row"><input id="st-esg-memory-source-anima" type="radio" name="st-esg-memory-source" value="anima" /><span>Anima</span></label><label class="st-esg-radio-row"><input id="st-esg-memory-source-none" type="radio" name="st-esg-memory-source" value="none" /><span>无</span></label></div><div id="st-esg-baibai-memory-options" class="st-esg-memory-source-panel"></div><div id="st-esg-anima-memory-options" class="st-esg-memory-source-panel"><div class="st-esg-card-desc">使用 Anima 记忆前，请先在插件当前的世界书方案中启用 Anima 聊天世界书。</div><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-anima-worldbook-enabled" type="checkbox" /><span>读取 Anima 世界书</span><em>抓取 Anima 最新召回切片并覆盖快照。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-anima-status-enabled" type="checkbox" /><span>读取 Anima 状态变量</span><em>实时读取最近可用的 anima_data；当前楼层没有时会向前回溯。</em></label></div></div>';
+    const animaStatusLabel = memorySettings.querySelector('#st-esg-anima-status-enabled')?.closest('label');
+    if (animaStatusLabel && !memorySettings.querySelector('#st-esg-anima-status-after-message-option')) {
+      const afterMessageLabel = targetDoc.createElement('label');
+      afterMessageLabel.id = 'st-esg-anima-status-after-message-option';
+      // 最新楼层的状态变量尚未更新时出现顺序错误
+      afterMessageLabel.className = 'st-esg-checkbox st-esg-log-option';
+      afterMessageLabel.innerHTML = '<input id="st-esg-anima-status-after-message-enabled" type="checkbox" /><span>\u72b6\u6001\u53d8\u91cf\u63d2\u5165\u5bf9\u5e94\u697c\u5c42\u540e\u9762</span><em>\u5f00\u542f\u540e\uff0c\u5c06 Anima \u72b6\u6001\u53d8\u91cf\u63d2\u5165\u5b83\u6240\u5c5e\u7684 assistant \u697c\u5c42\u540e\uff0c\u907f\u514d\u6700\u65b0\u697c\u5c42\u7684\u72b6\u6001\u53d8\u91cf\u5c1a\u672a\u66f4\u65b0\u65f6\u51fa\u73b0\u987a\u5e8f\u9519\u8bef\u3002</em>';
+      animaStatusLabel.insertAdjacentElement('afterend', afterMessageLabel);
+    }
+    const baibaiOptions = memorySettings.querySelector('#st-esg-baibai-memory-options');
+    legacyMemorySection?.querySelectorAll('label').forEach((label) => baibaiOptions.appendChild(label));
+    legacyMemorySection?.remove();
+    promptSettings.querySelector('summary').textContent = '提示词语法';
+    promptSettings.querySelector('.st-esg-prompt-settings-section-title').textContent = '提示词语法';
+    runtimePanel.insertBefore(memorySettings, promptSettings);
   }
   ['task', 'preset', 'worldbook'].forEach((tab) => {
     const scheme = dialog.querySelector(`[data-tab-panel="${tab}"] > .st-esg-card > .st-esg-scheme-group`);
@@ -4391,6 +4803,8 @@ function bindPanelEvents() {
   $t('#st-esg-omit-original-user-messages').prop('checked', settings.omitOriginalUserMessages);
   $t('#st-esg-baibai-history-enabled').prop('checked', settings.baiBaiBookHistoryEnabled);
   $t('#st-esg-baibai-state-enabled').prop('checked', settings.baiBaiBookStateEnabled);
+  $t('#st-esg-anima-worldbook-enabled').prop('checked', settings.animaWorldbookEnabled);
+  $t('#st-esg-anima-status-enabled').prop('checked', settings.animaStatusVariableEnabled);
   $t('#st-esg-preview').val(settings.lastGenerated);
   renderGenerationHistory();
   renderGeneratedThinking();
@@ -4407,6 +4821,7 @@ function bindPanelEvents() {
   $t('#st-esg-api-retry-count').val(settings.apiRetryCount);
   $t('#st-esg-prompt-template-compat').prop('checked', settings.promptTemplateCompatEnabled);
   renderApiModeUi();
+  renderMemorySettingsUi();
   refreshTavernProfiles({ notify: false });
   renderTagRuleManager('history');
   renderTagRuleManager('output');
@@ -4546,6 +4961,28 @@ function bindPanelEvents() {
   });
   $t('#st-esg-baibai-history-enabled').on('change', function () { settings.baiBaiBookHistoryEnabled = Boolean($(this).prop('checked')); saveSettings(); });
   $t('#st-esg-baibai-state-enabled').on('change', function () { settings.baiBaiBookStateEnabled = Boolean($(this).prop('checked')); saveSettings(); });
+  $t('input[name="st-esg-memory-source"]').on('change', function () {
+    if (!$(this).prop('checked')) return;
+    settings.memorySource = ['baibai', 'anima', 'none'].includes(String($(this).val())) ? String($(this).val()) : 'none';
+    if (settings.memorySource !== 'anima') clearAnimaWorldbookSnapshot();
+    renderMemorySettingsUi();
+    saveSettings();
+  });
+  $t('#st-esg-anima-worldbook-enabled').on('change', function () {
+    settings.animaWorldbookEnabled = Boolean($(this).prop('checked'));
+    if (!settings.animaWorldbookEnabled && !settings.animaStatusVariableEnabled) clearAnimaWorldbookSnapshot();
+    saveSettings();
+  });
+  $t('#st-esg-anima-status-enabled').on('change', function () {
+    settings.animaStatusVariableEnabled = Boolean($(this).prop('checked'));
+    if (!settings.animaWorldbookEnabled && !settings.animaStatusVariableEnabled) clearAnimaWorldbookSnapshot();
+    renderMemorySettingsUi();
+    saveSettings();
+  });
+  $t('#st-esg-anima-status-after-message-enabled').on('change', function () {
+    settings.animaStatusAfterMessageEnabled = Boolean($(this).prop('checked'));
+    saveSettings();
+  });
   $t('#st-esg-reset-task').on('click', function () {
     settings.taskPrompt = DEFAULT_SETTINGS.taskPrompt;
     $t('#st-esg-task').val(settings.taskPrompt);
@@ -4659,7 +5096,7 @@ function init() {
   if (initialized) return;
   initialized = true;
   recentGenerationHistory = loadGenerationHistory(getGenerationHistoryStorage(), GENERATION_HISTORY_STORAGE_KEY);
-  loadSettings(); loadStylesheet(); mountUiWhenDocumentReady();
+  loadSettings(); initializePromptSourceSnapshotStorage(); loadStylesheet(); mountUiWhenDocumentReady();
   updateQuickReplyShortcutActions();
   void syncQuickReplyShortcuts();
   startTavernDefaultSync();
@@ -4668,11 +5105,17 @@ function init() {
   registerInjectionUndoInvalidation(context);
   if (context.eventTypes.GENERATION_STARTED) context.eventSource.on(context.eventTypes.GENERATION_STARTED, handleGenerationStarted);
   if (context.eventTypes.GENERATION_ENDED) context.eventSource.on(context.eventTypes.GENERATION_ENDED, handleGenerationEnded);
+  if (context.eventTypes.GENERATION_STOPPED) context.eventSource.on(context.eventTypes.GENERATION_STOPPED, handleGenerationStopped);
   if (context.eventTypes.MESSAGE_RECEIVED) context.eventSource.on(context.eventTypes.MESSAGE_RECEIVED, handleAssistantMessageReceived);
   if (context.eventTypes.CHARACTER_MESSAGE_RENDERED) context.eventSource.on(context.eventTypes.CHARACTER_MESSAGE_RENDERED, handleAssistantMessageRendered);
   if (context.eventTypes.CHAT_CHANGED) context.eventSource.on(context.eventTypes.CHAT_CHANGED, () => {
     invalidatePendingAutomaticGeneration({ abortActive: true });
     automaticGenerationBaseline = null;
+    const currentChatId = getCurrentAnimaChatId();
+    if (shouldClearAnimaSnapshotForChat(animaWorldbookSnapshotChatId, currentChatId)) {
+      clearAnimaWorldbookSnapshot();
+    }
+    if (currentChatId) animaWorldbookSnapshotChatId = currentChatId;
     seedLastAutomaticTargetFromCurrentChat();
   });
   console.log(`[${EXTENSION_ID}] 已加载，dialog top layer，UI 挂载文档：${targetWindow === window ? 'current' : 'parent'}`);

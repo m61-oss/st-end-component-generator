@@ -51,7 +51,7 @@ export function collectSelectedPromptSourceItems(groups, promptSelections = {}, 
     for (const item of group.items) {
       if (!item?.key) continue;
       const sourceItem = withOverride(item);
-      if (!String(sourceItem?.content ?? '').trim() && !String(sourceItem?.markerType ?? '').trim()) continue;
+      if (!String(sourceItem?.content ?? '').trim() && !String(sourceItem?.markerType ?? '').trim() && sourceItem?.allowEmpty !== true) continue;
       if (item?.locked) {
         if (item.enabled !== false) selected.push(sourceItem);
         continue;

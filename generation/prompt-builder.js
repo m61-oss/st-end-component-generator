@@ -1,4 +1,5 @@
 import { buildBaiBaiBookInjections } from '../sources/baibai-book.js';
+import { applyAnimaWorldbookOverrides, getAnimaEntryKind, replaceAnimaStatusMacros } from '../sources/anima-memory.js';
 import { stripHistoryBlocksByRules } from '../injection/tag-rules.js';
 import { CHAT_HISTORY_RANGE_VISIBLE, selectChatHistoryMessages } from './chat-history-range.js';
 
@@ -12,11 +13,17 @@ function getRecentChatText(chat, { includeUserMessages = true, historyCleanupTag
 }
 
 function getRecentChatMessages(chat, { historyCleanupTags = '', historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE, recentMessageCount = 10 } = {}) {
-  return stripHistoryBlocksByRules(selectChatHistoryMessages(chat, { mode: historyRangeMode, recentMessageCount }), historyCleanupTags)
+  const sourceChat = Array.isArray(chat) ? chat : [];
+  const selectedMessages = selectChatHistoryMessages(sourceChat, { mode: historyRangeMode, recentMessageCount })
+    .map((item) => ({ ...item, __stEsgSourceMessageIndex: sourceChat.indexOf(item) }));
+  return stripHistoryBlocksByRules(selectedMessages, historyCleanupTags)
     .map((item) => ({
       role: item?.is_user ? 'user' : 'assistant',
       content: textOf(item?.mes),
       originalUserMessage: Boolean(item?.is_user),
+      sourceMessageIndex: Number.isInteger(item?.__stEsgSourceMessageIndex)
+        ? item.__stEsgSourceMessageIndex
+        : sourceChat.indexOf(item),
     }))
     .filter((message) => textOf(message.content));
 }
@@ -97,6 +104,45 @@ function applyInChatInjections(chatMessages, injections = [], depthReferenceMess
   }
 
   return workingMessages.reverse().filter((message) => !message?._depthReferenceOnly);
+}
+
+function normalizeMessageIndex(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0 ? number : null;
+}
+
+function insertAnchoredInjections(messages, injections = []) {
+  const groups = new Map();
+  const fallback = [];
+  for (const injection of Array.isArray(injections) ? injections : []) {
+    const content = textOf(injection?.content);
+    if (!content) continue;
+    const messageIndex = normalizeMessageIndex(injection?.messageIndex);
+    const message = {
+      role: normalizeRole(injection?.role),
+      content,
+      injected: true,
+      animaStatusInjection: true,
+    };
+    if (messageIndex === null) {
+      fallback.push(message);
+      continue;
+    }
+    if (!groups.has(messageIndex)) groups.set(messageIndex, []);
+    groups.get(messageIndex).push(message);
+  }
+
+  const result = Array.isArray(messages) ? messages : [];
+  for (const [messageIndex, anchoredMessages] of groups.entries()) {
+    const targetIndex = result.findIndex((message) => message?.sourceMessageIndex === messageIndex);
+    if (targetIndex >= 0) result.splice(targetIndex + 1, 0, ...anchoredMessages);
+    else fallback.push(...anchoredMessages);
+  }
+  if (fallback.length) {
+    const lastAssistantIndex = result.findLastIndex((message) => message?.role === 'assistant');
+    result.splice(lastAssistantIndex >= 0 ? lastAssistantIndex + 1 : result.length, 0, ...fallback);
+  }
+  return result;
 }
 
 function getCharacterName(context) {
@@ -278,7 +324,7 @@ function getLastUserMessage(context) {
   return '';
 }
 
-function replaceMacros(content, { context, latestMessage, lastUserMessageOverride = '', includeUserMessages = true, historyCleanupTags = '', historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE, recentMessageCount = 10 }) {
+function replaceMacros(content, { context, latestMessage, lastUserMessageOverride = '', includeUserMessages = true, historyCleanupTags = '', historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE, recentMessageCount = 10, animaStatus = null, animaYaml = null }) {
   const chatHistory = getRecentChatText(context?.chat, { includeUserMessages, historyCleanupTags, historyRangeMode, recentMessageCount });
   const charName = getCharacterName(context);
   const userName = getUserName(context);
@@ -296,7 +342,8 @@ function replaceMacros(content, { context, latestMessage, lastUserMessageOverrid
     '{{scenario}}': context?.characters?.[context?.characterId ?? context?.this_chid]?.scenario || context?.characters?.[context?.characterId ?? context?.this_chid]?.data?.scenario || '',
     '{{personality}}': context?.characters?.[context?.characterId ?? context?.this_chid]?.personality || context?.characters?.[context?.characterId ?? context?.this_chid]?.data?.personality || '',
   };
-  return Object.entries(replacements).reduce((text, [key, value]) => text.split(key).join(String(value ?? '')), String(content || ''));
+  const replaced = Object.entries(replacements).reduce((text, [key, value]) => text.split(key).join(String(value ?? '')), String(content || ''));
+  return replaceAnimaStatusMacros(replaced, animaStatus, { yamlLibrary: animaYaml });
 }
 
 function normalizeRole(role) {
@@ -358,8 +405,9 @@ async function loadWorldbookEntries(targetWindow, name) {
 
 function isWorldbookEntryEnabled(entry) {
   if (!entry) return false;
+  if (typeof entry.disable === 'boolean') return !entry.disable;
   if (typeof entry.enabled === 'boolean') return entry.enabled;
-  return entry.disable !== true;
+  return true;
 }
 
 function getWorldbookInsertionBucket(entry) {
@@ -399,13 +447,14 @@ function stringifyWorldbookPosition(position) {
   return textOf(position);
 }
 
-async function collectRuntimeWorldbookInserts(targetWindow, substituteParams) {
-  const buckets = { before: [], after: [], anTop: [], anBottom: [], atDepth: [], emTop: [], emBottom: [], outlet: [], debug: [] };
+async function collectRuntimeWorldbookInserts(targetWindow, substituteParams, { animaWorldbookEntries = [], animaStatus = null, animaStatusMessageIndex = null, animaYaml = null } = {}) {
+  const buckets = createEmptyWorldbookInserts();
   for (const name of getActiveWorldbookNames(targetWindow)) {
-    const entries = await loadWorldbookEntries(targetWindow, name);
+    const entries = applyAnimaWorldbookOverrides(await loadWorldbookEntries(targetWindow, name), animaWorldbookEntries);
     for (const entry of entries) {
       if (!isWorldbookEntryEnabled(entry)) continue;
-      const content = textOf(applySubstituteParams(entry?.content, substituteParams));
+      const entryKind = getAnimaEntryKind(entry);
+      const content = textOf(applySubstituteParams(replaceAnimaStatusMacros(entry?.content, animaStatus, { yamlLibrary: animaYaml }), substituteParams));
       if (!content) continue;
       const bucket = getWorldbookInsertionBucket(entry);
       const role = getWorldbookEntryRole(entry);
@@ -421,6 +470,10 @@ async function collectRuntimeWorldbookInserts(targetWindow, substituteParams) {
         order,
         contentPreview: content.slice(0, 80),
       });
+      if (entryKind === 'status' && normalizeMessageIndex(animaStatusMessageIndex) !== null) {
+        buckets.animaStatus.push({ role, content, messageIndex: normalizeMessageIndex(animaStatusMessageIndex), source: 'animaStatus' });
+        continue;
+      }
       if (bucket === 'atDepth') {
         buckets.atDepth.push({
           role,
@@ -440,18 +493,23 @@ async function collectRuntimeWorldbookInserts(targetWindow, substituteParams) {
 }
 
 function createEmptyWorldbookInserts() {
-  return { before: [], after: [], anTop: [], anBottom: [], atDepth: [], emTop: [], emBottom: [], outlet: [], debug: [] };
+  return { before: [], after: [], anTop: [], anBottom: [], atDepth: [], emTop: [], emBottom: [], outlet: [], animaStatus: [], debug: [] };
 }
 
-function collectPromptSourceWorldbookInserts(items = [], substituteParams) {
+function collectPromptSourceWorldbookInserts(items = [], substituteParams, animaStatus = null, animaYaml = null, animaStatusMessageIndex = null) {
   const buckets = createEmptyWorldbookInserts();
   for (const item of Array.isArray(items) ? items : []) {
     if (!isWorldbookSourceItem(item)) continue;
+    const itemKind = getAnimaEntryKind(item);
     const hasPlacementMetadata = ['worldbookPosition', 'worldbookDepth', 'worldbookRole', 'worldbookOrder']
       .some((key) => Object.prototype.hasOwnProperty.call(item, key));
-    if (!hasPlacementMetadata) continue;
-    const content = textOf(applySubstituteParams(item?.content, substituteParams));
+    const content = textOf(applySubstituteParams(replaceAnimaStatusMacros(item?.content, animaStatus, { yamlLibrary: animaYaml }), substituteParams));
     if (!content) continue;
+    if (itemKind === 'status' && normalizeMessageIndex(animaStatusMessageIndex) !== null) {
+      buckets.animaStatus.push({ role: getWorldbookEntryRole(item), content, messageIndex: normalizeMessageIndex(animaStatusMessageIndex), source: 'animaStatus' });
+      continue;
+    }
+    if (!hasPlacementMetadata) continue;
     const entry = {
       position: item.worldbookPosition,
       depth: item.worldbookDepth,
@@ -551,13 +609,14 @@ function isWorldInfoMarker(markerType) {
   return ['worldInfoBefore', 'worldInfoAfter'].includes(textOf(markerType));
 }
 
-function buildChatHistoryMessages(context, { includeUserMessages = true, historyCleanupTags = '', historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE, recentMessageCount = 10, inChatInjections = [], depthReferenceMessages = [] } = {}) {
+function buildChatHistoryMessages(context, { includeUserMessages = true, historyCleanupTags = '', historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE, recentMessageCount = 10, inChatInjections = [], depthReferenceMessages = [], anchoredInjections = [] } = {}) {
   const chatMessages = getRecentChatMessages(context?.chat, { historyCleanupTags, historyRangeMode, recentMessageCount });
   const messages = applyInChatInjections(chatMessages, inChatInjections, depthReferenceMessages);
-  return includeUserMessages ? messages : messages.filter((message) => !message?.originalUserMessage);
+  const filteredMessages = includeUserMessages ? messages : messages.filter((message) => !message?.originalUserMessage);
+  return insertAnchoredInjections(filteredMessages, anchoredInjections);
 }
 
-function buildPromptSourceMessages(promptSourceItems, { context, latestMessage, substituteParams, lastUserMessageOverride = '', includeUserMessages = true, historyCleanupTags = '', historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE, recentMessageCount = 10, inChatInjections = [], depthReferenceMessages = [], worldbooks = null, worldbookSourceControlled = false }) {
+function buildPromptSourceMessages(promptSourceItems, { context, latestMessage, substituteParams, lastUserMessageOverride = '', includeUserMessages = true, historyCleanupTags = '', historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE, recentMessageCount = 10, inChatInjections = [], depthReferenceMessages = [], anchoredInjections = [], worldbooks = null, worldbookSourceControlled = false, animaStatus = null, animaStatusMessageIndex = null, animaYaml = null }) {
   const items = Array.isArray(promptSourceItems) ? promptSourceItems : [];
   const worldbookItems = items.filter(isWorldbookSourceItem);
   const hasWorldInfoMarker = items.some((item) => isWorldInfoMarker(item?.markerType));
@@ -578,7 +637,8 @@ function buildPromptSourceMessages(promptSourceItems, { context, latestMessage, 
         if (worldbookInserted) continue;
         worldbookInserted = true;
         for (const worldbookItem of worldbookItems) {
-          const content = textOf(applySubstituteParams(worldbookItem?.content, substituteParams));
+          if (getAnimaEntryKind(worldbookItem) === 'status' && normalizeMessageIndex(animaStatusMessageIndex) !== null) continue;
+          const content = textOf(applySubstituteParams(replaceAnimaStatusMacros(worldbookItem?.content, animaStatus, { yamlLibrary: animaYaml }), substituteParams));
           if (content) messages.push({ role: normalizeRole(worldbookItem?.role), content, sourceItemId: getPromptSourceItemId(worldbookItem) });
         }
       } else {
@@ -588,7 +648,7 @@ function buildPromptSourceMessages(promptSourceItems, { context, latestMessage, 
     }
 
     if (markerType === 'chatHistory') {
-      messages.push(...buildChatHistoryMessages(context, { includeUserMessages, historyCleanupTags, historyRangeMode, recentMessageCount, inChatInjections, depthReferenceMessages }).map((message) => ({
+      messages.push(...buildChatHistoryMessages(context, { includeUserMessages, historyCleanupTags, historyRangeMode, recentMessageCount, inChatInjections, depthReferenceMessages, anchoredInjections }).map((message) => ({
         ...message,
         sourceItemId,
         sourceMarkerType: markerType,
@@ -597,7 +657,7 @@ function buildPromptSourceMessages(promptSourceItems, { context, latestMessage, 
     }
 
     const runtimeMarkerContent = getRuntimeMarkerContent(markerType, context, worldbooks);
-    const rawContent = runtimeMarkerContent || replaceMacros(item?.content, { context, latestMessage, lastUserMessageOverride, includeUserMessages, historyCleanupTags, historyRangeMode, recentMessageCount });
+    const rawContent = runtimeMarkerContent || replaceMacros(item?.content, { context, latestMessage, lastUserMessageOverride, includeUserMessages, historyCleanupTags, historyRangeMode, recentMessageCount, animaStatus, animaYaml });
     const content = textOf(applySubstituteParams(rawContent, substituteParams));
     if (content) messages.push({ role: normalizeRole(item?.role), content, sourceItemId });
   }
@@ -605,7 +665,7 @@ function buildPromptSourceMessages(promptSourceItems, { context, latestMessage, 
   return messages;
 }
 
-function buildPresetPromptSourceItems(preset, { context, latestMessage, substituteParams, lastUserMessageOverride = '', includeUserMessages = true, historyCleanupTags = '', historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE, recentMessageCount = 10 }) {
+function buildPresetPromptSourceItems(preset, { context, latestMessage, substituteParams, lastUserMessageOverride = '', includeUserMessages = true, historyCleanupTags = '', historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE, recentMessageCount = 10, animaStatus = null, animaYaml = null }) {
   return getOrderedEnabledPrompts(preset).map((prompt) => {
     const identifier = getPromptIdentifier(prompt);
     const markerType = getNativePresetMarkerType(prompt);
@@ -617,7 +677,7 @@ function buildPresetPromptSourceItems(preset, { context, latestMessage, substitu
       role: prompt?.role,
       markerType,
       locked: Boolean(markerType),
-      content: markerType ? '' : applySubstituteParams(replaceMacros(prompt?.content, { context, latestMessage, lastUserMessageOverride, includeUserMessages, historyCleanupTags, historyRangeMode, recentMessageCount }), substituteParams),
+      content: markerType ? '' : applySubstituteParams(replaceMacros(prompt?.content, { context, latestMessage, lastUserMessageOverride, includeUserMessages, historyCleanupTags, historyRangeMode, recentMessageCount, animaStatus, animaYaml }), substituteParams),
     };
   });
 }
@@ -677,23 +737,23 @@ function mergeMissingPresetMarkers(promptSourceItems, preset, options) {
   return merged;
 }
 
-function buildComponentText(components, substituteParams) {
+function buildComponentText(components, substituteParams, animaStatus = null, animaYaml = null) {
   return (Array.isArray(components) ? components : [])
-    .map((item) => applySubstituteParams(item.content || '', substituteParams))
+    .map((item) => applySubstituteParams(replaceAnimaStatusMacros(item.content || '', animaStatus, { yamlLibrary: animaYaml }), substituteParams))
     .filter(textOf)
     .join('\n\n');
 }
 
 const EXTERNAL_COMPONENTS_PLACEHOLDER = '{{external_components}}';
 
-async function buildPluginTaskMessage({ taskPrompt, components, theaterComponents, substituteParams, renderTemplate }) {
-  const task = applySubstituteParams(taskPrompt, substituteParams);
+async function buildPluginTaskMessage({ taskPrompt, components, theaterComponents, substituteParams, renderTemplate, animaStatus = null, animaYaml = null }) {
+  const task = applySubstituteParams(replaceAnimaStatusMacros(taskPrompt, animaStatus, { yamlLibrary: animaYaml }), substituteParams);
   const allComponents = [
     ...(Array.isArray(components) ? components : []),
     ...(Array.isArray(theaterComponents) ? theaterComponents : []),
   ];
   const expandedTask = task.includes(EXTERNAL_COMPONENTS_PLACEHOLDER)
-    ? task.split(EXTERNAL_COMPONENTS_PLACEHOLDER).join(buildComponentText(allComponents, substituteParams))
+    ? task.split(EXTERNAL_COMPONENTS_PLACEHOLDER).join(buildComponentText(allComponents, substituteParams, animaStatus, animaYaml))
     : task;
   return renderTemplate ? await renderTemplate(expandedTask) : expandedTask;
 }
@@ -717,16 +777,18 @@ function stripInternalMessageFields(messages) {
     delete message.sourceMarkerType;
     delete message.injected;
     delete message.originalUserMessage;
+    delete message.sourceMessageIndex;
+    delete message.animaStatusInjection;
   });
   return messages;
 }
 
-export async function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, theaterComponents, promptSourceItems, worldbookSourceControlled = false, historyCleanupTags = '', historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE, recentMessageCount = 10, substituteParams, taskPlacement, replaceLastUserMessageWithTask = false, omitOriginalUserMessages = false, baiBaiBook = null, renderTemplate = null }) {
+export async function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, theaterComponents, promptSourceItems, worldbookSourceControlled = false, historyCleanupTags = '', historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE, recentMessageCount = 10, substituteParams, taskPlacement, replaceLastUserMessageWithTask = false, omitOriginalUserMessages = false, baiBaiBook = null, animaStatus = null, animaStatusMessageIndex = null, animaWorldbookEntries = [], animaYaml = null, renderTemplate = null }) {
   const hasSelectedPromptSources = Array.isArray(promptSourceItems) && promptSourceItems.length > 0;
   const preset = getCurrentPreset(targetWindow, context);
   const worldbooks = worldbookSourceControlled
-    ? collectPromptSourceWorldbookInserts(promptSourceItems, substituteParams)
-    : await collectRuntimeWorldbookInserts(targetWindow, substituteParams);
+    ? collectPromptSourceWorldbookInserts(promptSourceItems, substituteParams, animaStatus, animaYaml, animaStatusMessageIndex)
+    : await collectRuntimeWorldbookInserts(targetWindow, substituteParams, { animaWorldbookEntries, animaStatus, animaStatusMessageIndex, animaYaml });
   const authorNoteInjection = buildAuthorNoteInChatInjection(targetWindow, context, worldbooks);
   const baiBaiBookInjections = buildBaiBaiBookInjections(baiBaiBook || {});
   const inChatInjections = [
@@ -734,7 +796,8 @@ export async function buildExternalStatusbarMessages({ targetWindow, context, la
     ...worldbooks.atDepth,
     ...baiBaiBookInjections,
   ];
-  const taskContent = await buildPluginTaskMessage({ taskPrompt, components, theaterComponents, substituteParams, renderTemplate });
+  const anchoredInjections = worldbooks.animaStatus || [];
+  const taskContent = await buildPluginTaskMessage({ taskPrompt, components, theaterComponents, substituteParams, renderTemplate, animaStatus, animaYaml });
   const depthReferenceMessages = taskPlacement?.enabled
     ? [{ role: 'user', content: taskContent, _depthReferenceOnly: true }]
     : [];
@@ -742,13 +805,14 @@ export async function buildExternalStatusbarMessages({ targetWindow, context, la
   const lastUserMessageOverride = replaceLastUserMessageWithTask ? taskContent : '';
   const selectedPromptSourceItems = dedupePromptSourceItems(promptSourceItems);
   const sourceItems = hasSelectedPromptSources
-    ? mergeMissingPresetMarkers(selectedPromptSourceItems, preset, { context, latestMessage, substituteParams, lastUserMessageOverride, includeUserMessages, historyCleanupTags, historyRangeMode, recentMessageCount })
-    : buildPresetPromptSourceItems(preset, { context, latestMessage, substituteParams, lastUserMessageOverride, includeUserMessages, historyCleanupTags, historyRangeMode, recentMessageCount });
+    ? mergeMissingPresetMarkers(selectedPromptSourceItems, preset, { context, latestMessage, substituteParams, lastUserMessageOverride, includeUserMessages, historyCleanupTags, historyRangeMode, recentMessageCount, animaStatus, animaYaml })
+    : buildPresetPromptSourceItems(preset, { context, latestMessage, substituteParams, lastUserMessageOverride, includeUserMessages, historyCleanupTags, historyRangeMode, recentMessageCount, animaStatus, animaYaml });
   const activePromptSourceItems = dedupePromptSourceItems(sourceItems);
   const hasWorldInfoMarker = activePromptSourceItems.some((item) => isWorldInfoMarker(item?.markerType));
   const positionedWorldbookKeys = new Set(worldbooks.debug.map((item) => textOf(item.uid)).filter(Boolean));
   const promptSourceItemsForBuild = worldbookSourceControlled
     ? activePromptSourceItems.filter((item) => {
+      if (normalizeMessageIndex(animaStatusMessageIndex) !== null && getAnimaEntryKind(item) === 'status') return false;
       if (!isWorldbookSourceItem(item)) return true;
       const itemKey = textOf(item?.sourceUid ?? item?.key);
       const hasPlacementMetadata = ['worldbookPosition', 'worldbookDepth', 'worldbookRole', 'worldbookOrder']
@@ -756,11 +820,11 @@ export async function buildExternalStatusbarMessages({ targetWindow, context, la
       return !(hasPlacementMetadata && positionedWorldbookKeys.has(itemKey) && (hasWorldInfoMarker || worldbooks.atDepth.some((injection) => injection.content === textOf(item?.content))));
     })
     : activePromptSourceItems;
-  const promptMessages = buildPromptSourceMessages(promptSourceItemsForBuild, { context, latestMessage, substituteParams, lastUserMessageOverride, includeUserMessages, historyCleanupTags, historyRangeMode, recentMessageCount, inChatInjections, depthReferenceMessages, worldbooks, worldbookSourceControlled });
+  const promptMessages = buildPromptSourceMessages(promptSourceItemsForBuild, { context, latestMessage, substituteParams, lastUserMessageOverride, includeUserMessages, historyCleanupTags, historyRangeMode, recentMessageCount, inChatInjections, depthReferenceMessages, anchoredInjections, worldbooks, worldbookSourceControlled, animaStatus, animaStatusMessageIndex, animaYaml });
   const hasChatHistoryMarker = promptSourceItemsForBuild.some((item) => textOf(item?.markerType) === 'chatHistory');
   const messages = [
     ...promptMessages,
-    ...(!hasSelectedPromptSources && !hasChatHistoryMarker ? buildChatHistoryMessages(context, { includeUserMessages, historyCleanupTags, historyRangeMode, recentMessageCount, inChatInjections, depthReferenceMessages }) : []),
+    ...(!hasSelectedPromptSources && !hasChatHistoryMarker ? buildChatHistoryMessages(context, { includeUserMessages, historyCleanupTags, historyRangeMode, recentMessageCount, inChatInjections, depthReferenceMessages, anchoredInjections }) : []),
   ];
   messages.promptSourceItems = promptSourceItemsForBuild;
   messages.runtimeInsertions = applyRuntimeTemplateInsertions(messages, { context, worldbooks });
