@@ -1,5 +1,25 @@
 const textOf = (value) => String(value ?? '').trim();
 
+/**
+ * Return the current normal-chat identifier exposed by Tavern's extension
+ * context. The helper is deliberately kept independent from group-chat
+ * metadata so callers can decide whether that mode is supported.
+ */
+export function getAnimaChatId(context = null) {
+  let current = null;
+  try {
+    if (typeof context?.getCurrentChatId === 'function') current = context.getCurrentChatId();
+  } catch (_) {}
+  if (current === null || current === undefined || current === '') current = context?.chatId;
+  return textOf(current);
+}
+
+export function shouldClearAnimaSnapshotForChat(previousChatId, currentChatId) {
+  const previous = textOf(previousChatId);
+  const current = textOf(currentChatId);
+  return Boolean(previous && current && previous !== current);
+}
+
 export const ANIMA_ENTRY_NAMES = [
   '[anima_status]',
   '[ANIMA_Chat_History_Container]',

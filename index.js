@@ -28,7 +28,7 @@ import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from '
 import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.1.6';
 import { renderPromptTemplate } from './generation/template-compat.js?ver=0.1.6';
 import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.1.6';
-import { applyAnimaWorldbookOverrides, captureAnimaWorldbookEntries, captureAnimaWorldbookUntil, filterAnimaWorldbookEntries, mergeAnimaWorldbookSnapshots, readLatestAnimaStatus } from './sources/anima-memory.js?ver=0.1.6';
+import { applyAnimaWorldbookOverrides, captureAnimaWorldbookEntries, captureAnimaWorldbookUntil, filterAnimaWorldbookEntries, getAnimaChatId, mergeAnimaWorldbookSnapshots, readLatestAnimaStatus, shouldClearAnimaSnapshotForChat } from './sources/anima-memory.js?ver=0.1.6';
 import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './generation/prompt-log.js?ver=0.1.6';
 import {
   clearImportSelectionsForScope,
@@ -225,6 +225,7 @@ let recentGenerationHistory = [];
 let latestInjectionUndoSnapshot = null;
 let animaWorldbookSnapshotPromise = null;
 let animaWorldbookSnapshot = [];
+let animaWorldbookSnapshotChatId = '';
 let animaWorldbookCaptureRun = null;
 let tavernSyncTimer = null;
 let lastTavernSourceSignature = '';
@@ -636,9 +637,14 @@ function stopAnimaWorldbookCapture() {
   animaWorldbookCaptureRun = null;
 }
 
+function getCurrentAnimaChatId() {
+  return getAnimaChatId(getContext());
+}
+
 function clearAnimaWorldbookSnapshot() {
   animaWorldbookSnapshotPromise = null;
   animaWorldbookSnapshot = [];
+  animaWorldbookSnapshotChatId = '';
   stopAnimaWorldbookCapture();
 }
 
@@ -647,6 +653,12 @@ function captureAnimaWorldbookSnapshot() {
     stopAnimaWorldbookCapture();
     return Promise.resolve({ entries: [], found: false });
   }
+
+  const currentChatId = getCurrentAnimaChatId();
+  if (shouldClearAnimaSnapshotForChat(animaWorldbookSnapshotChatId, currentChatId)) {
+    clearAnimaWorldbookSnapshot();
+  }
+  if (currentChatId) animaWorldbookSnapshotChatId = currentChatId;
 
   stopAnimaWorldbookCapture();
   const run = { active: true };
@@ -4831,7 +4843,11 @@ function init() {
   if (context.eventTypes.CHAT_CHANGED) context.eventSource.on(context.eventTypes.CHAT_CHANGED, () => {
     invalidatePendingAutomaticGeneration({ abortActive: true });
     automaticGenerationBaseline = null;
-    clearAnimaWorldbookSnapshot();
+    const currentChatId = getCurrentAnimaChatId();
+    if (shouldClearAnimaSnapshotForChat(animaWorldbookSnapshotChatId, currentChatId)) {
+      clearAnimaWorldbookSnapshot();
+    }
+    if (currentChatId) animaWorldbookSnapshotChatId = currentChatId;
     seedLastAutomaticTargetFromCurrentChat();
   });
   console.log(`[${EXTENSION_ID}] 已加载，dialog top layer，UI 挂载文档：${targetWindow === window ? 'current' : 'parent'}`);

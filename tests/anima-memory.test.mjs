@@ -5,11 +5,20 @@ import {
   captureAnimaWorldbookEntries,
   captureAnimaWorldbookUntil,
   filterAnimaWorldbookEntries,
+  getAnimaChatId,
   getAnimaEntryKind,
   mergeAnimaWorldbookSnapshots,
   readLatestAnimaStatus,
   replaceAnimaStatusMacros,
+  shouldClearAnimaSnapshotForChat,
 } from '../sources/anima-memory.js';
+
+assert.equal(getAnimaChatId({ chatId: 'chat-fallback' }), 'chat-fallback');
+assert.equal(getAnimaChatId({ chatId: 'chat-fallback', getCurrentChatId: () => 'chat-current' }), 'chat-current');
+assert.equal(getAnimaChatId({ chatId: 'chat-fallback', getCurrentChatId: () => { throw new Error('not ready'); } }), 'chat-fallback');
+assert.equal(shouldClearAnimaSnapshotForChat('chat-a', 'chat-a'), false, 'same chat keeps the Anima snapshot');
+assert.equal(shouldClearAnimaSnapshotForChat('chat-a', 'chat-b'), true, 'switching chats clears the Anima snapshot');
+assert.equal(shouldClearAnimaSnapshotForChat('chat-a', ''), false, 'an unavailable current chat id must not clear a snapshot');
 
 assert.deepEqual(ANIMA_ENTRY_NAMES, [
   '[anima_status]',
