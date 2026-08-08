@@ -1,4 +1,5 @@
 const textOf = (value) => String(value ?? '').trim();
+const rawTextOf = (value) => String(value ?? '');
 
 /**
  * Return the current normal-chat identifier exposed by Tavern's extension
@@ -53,7 +54,7 @@ async function getChatWorldbookName(targetWindow) {
   const helper = targetWindow?.TavernHelper;
   if (typeof helper?.getChatWorldbookName !== 'function') return '';
   try {
-    return textOf(await helper.getChatWorldbookName('current'));
+    return rawTextOf(await helper.getChatWorldbookName('current'));
   } catch (_) {
     return '';
   }

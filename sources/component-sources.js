@@ -5,6 +5,7 @@ export const COMPONENT_SCOPE_PRESET = '预设';
 export const COMPONENT_SCOPE_CHARACTER = '角色';
 
 import { getAnimaEntryKind } from './anima-memory.js';
+import { createWorldbookEntryKey, getWorldbookRawName } from './worldbook-identity.js';
 
 const textOf = (value) => String(value ?? '').trim();
 
@@ -16,7 +17,11 @@ export function addImportCandidate(candidates, group, source, scope, name, conte
   const emptyUidSuffix = !clean && allowEmpty && metadata?.sourceUid !== undefined
     ? `::${String(metadata.sourceUid)}`
     : '';
-  const key = `${group}::${source}::${scope}::${cleanName}::${clean.slice(0, 200)}${emptyUidSuffix}`;
+  const legacyKey = `${group}::${source}::${scope}::${cleanName}::${clean.slice(0, 200)}${emptyUidSuffix}`;
+  const stableWorldbookKey = scope === SOURCE_WORLDBOOK
+    ? createWorldbookEntryKey(source, metadata?.sourceUid)
+    : '';
+  const key = stableWorldbookKey || legacyKey;
   const animaEntryKind = scope === SOURCE_WORLDBOOK ? getAnimaEntryKind({ name: cleanName }) : '';
   const candidateMetadata = {
     ...metadata,
@@ -24,7 +29,7 @@ export function addImportCandidate(candidates, group, source, scope, name, conte
     ...(animaEntryKind ? { animaEntryKind } : {}),
   };
   if (!candidates.some((item) => item.key === key)) {
-    candidates.push({ key, group, source, scope, name: cleanName, content: clean, enabled: enabled !== false, ...candidateMetadata });
+    candidates.push({ key, legacyKey: stableWorldbookKey ? legacyKey : '', group, source, scope, name: cleanName, content: clean, enabled: enabled !== false, ...candidateMetadata });
   }
 }
 
@@ -407,31 +412,34 @@ export function getWorldbookGroupsSafe(targetWindow, context, selectedWorldNames
     else if (Array.isArray(targetWindow?.world_names)) allNames = targetWindow.world_names;
   } catch (_) {}
   const hasExplicitWorldbookNames = Array.isArray(explicitWorldbookNames);
+  const rawName = (value) => getWorldbookRawName(value);
+  const nonEmptyRawName = (value) => rawName(value).trim() ? rawName(value) : '';
   const explicit = [...new Set((hasExplicitWorldbookNames ? explicitWorldbookNames : [explicitWorldbookNames])
-    .map(textOf)
+    .map(nonEmptyRawName)
     .filter(Boolean))];
-  if (hasExplicitWorldbookNames) {
-    // Saved schemes are static snapshots. Do not read the current character/chat assignments here.
-    return explicit.map((name) => ({ name, category: 'plugin', categoryLabel: '插件启用' }));
-  }
   try { globalNames = targetWindow?.TavernHelper?.getGlobalWorldbookNames?.() || []; } catch (_) {}
   try {
     const charBooks = targetWindow?.TavernHelper?.getCharWorldbookNames?.('current') || {};
     charNames = [charBooks.primary, ...(charBooks.additional || [])].filter(Boolean);
   } catch (_) {}
   try { chatName = targetWindow?.TavernHelper?.getChatWorldbookName?.('current') || ''; } catch (_) {}
-  const allNameSet = new Set(allNames.map(textOf).filter(Boolean));
+  const allNameSet = new Set(allNames.map(nonEmptyRawName).filter(Boolean));
   const selected = (Array.isArray(selectedWorldNames) ? selectedWorldNames : [selectedWorldNames])
-    .map(textOf)
+    .map(nonEmptyRawName)
     .filter(Boolean)
     .filter((name) => !allNameSet.size || allNameSet.has(name));
   const groups = [];
   const seen = new Set();
-  const add = (name, category, categoryLabel) => {
-    const clean = textOf(name);
-    if (!clean || seen.has(clean)) return;
+  const add = (name, category, categoryLabel, metadata = {}) => {
+    const clean = nonEmptyRawName(name);
+    if (!clean) return;
+    if (seen.has(clean)) {
+      const existing = groups.find((item) => item.name === clean);
+      if (existing && metadata.schemeSource) existing.schemeSource = true;
+      return;
+    }
     seen.add(clean);
-    groups.push({ name: clean, category, categoryLabel });
+    groups.push({ name: clean, category, categoryLabel, ...metadata });
   };
   // Always record Tavern's own assignment. It stays the grouping for books that the plugin also
   // enables; whether it is used at all is decided by getWorldbookImportDisplayCategory.
@@ -439,6 +447,10 @@ export function getWorldbookGroupsSafe(targetWindow, context, selectedWorldNames
   charNames.forEach((name) => add(name, 'character', '角色世界书'));
   add(chatName, 'chat', '聊天世界书');
   allNames.forEach((name) => add(name, 'inactive', '未启用世界书'));
+  explicit.forEach((name) => add(name, 'plugin', '插件启用', {
+    schemeSource: true,
+    missingFromTavern: allNameSet.size > 0 && !allNameSet.has(name),
+  }));
   return groups;
 }
 
@@ -453,50 +465,68 @@ export function getWorldbookImportDisplayCategory(worldbook, {
   pluginEnabledCount = 0,
   followingTavern = false,
   schemeEnabled = false,
+  entriesResolved = false,
+  loadFailed = false,
 } = {}) {
+  if (loadFailed) return 'failed';
   const category = textOf(worldbook?.category) || 'inactive';
   if (followingTavern) return category;
+  if (entriesResolved) return Number(pluginEnabledCount) > 0 ? (category === 'inactive' ? 'plugin' : category) : 'inactive';
   if (!schemeEnabled && Number(pluginEnabledCount) <= 0) return 'inactive';
   return category === 'inactive' ? 'plugin' : category;
 }
 
 export async function getWbEntriesSafe(targetWindow, name) {
+  const rawName = getWorldbookRawName(name);
+  let availableNames = null;
+  try {
+    if (typeof targetWindow?.TavernHelper?.getWorldbookNames === 'function') {
+      availableNames = targetWindow.TavernHelper.getWorldbookNames() || [];
+    } else if (Array.isArray(targetWindow?.world_names)) {
+      availableNames = targetWindow.world_names;
+    }
+  } catch (_) {}
+  if (Array.isArray(availableNames) && availableNames.length > 0 && !availableNames.some((item) => getWorldbookRawName(item) === rawName)) {
+    throw new Error(`未找到世界书“${rawName}”。它可能已被改名、删除，或方案保存的名称与酒馆实际名称不一致。`);
+  }
+  let lastError = null;
   try {
     if (typeof targetWindow?.SillyTavern?.loadWorldInfo === 'function') {
-      const wb = await targetWindow.SillyTavern.loadWorldInfo(name);
+      const wb = await targetWindow.SillyTavern.loadWorldInfo(rawName);
       if (wb) {
         const entries = wb.entries || wb;
         return Array.isArray(entries) ? entries : Object.values(entries);
       }
     }
-  } catch (_) {}
+  } catch (error) { lastError = error; }
   try {
     if (typeof targetWindow?.TavernHelper?.getWorldbook === 'function') {
-      const wb = await targetWindow.TavernHelper.getWorldbook(name);
+      const wb = await targetWindow.TavernHelper.getWorldbook(rawName);
       if (wb) return Array.isArray(wb) ? wb : Object.values(wb);
     }
-  } catch (_) {}
+  } catch (error) { lastError = error; }
   try {
     if (typeof targetWindow?.getWorldbook === 'function') {
-      const wb = await targetWindow.getWorldbook(name);
+      const wb = await targetWindow.getWorldbook(rawName);
       if (wb) return Array.isArray(wb) ? wb : Object.values(wb);
     }
-  } catch (_) {}
+  } catch (error) { lastError = error; }
   try {
     const csrf = targetWindow?.document?.querySelector?.('meta[name="csrf-token"]')?.getAttribute('content') || targetWindow?.token || '';
     const res = await targetWindow.fetch('/api/worldinfo/get', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name: rawName }),
     });
     if (res.ok) {
       const data = await res.json();
       if (data.entries) return Object.values(data.entries);
-      if (data[name]?.entries) return Object.values(data[name].entries);
+      if (data[rawName]?.entries) return Object.values(data[rawName].entries);
       return Array.isArray(data) ? data : Object.values(data);
     }
-  } catch (_) {}
-  return [];
+    lastError = new Error(`酒馆世界书接口返回 ${res.status}`);
+  } catch (error) { lastError = error; }
+  throw new Error(lastError?.message || `读取世界书“${rawName}”失败。`);
 }
 
 export function getWorldbookEntryName(entry) {
@@ -631,6 +661,8 @@ export function collectWorldbookImportGroups({ targetWindow, context, selectedWo
     source: worldbook.name,
     category: worldbook.category,
     categoryLabel: worldbook.categoryLabel,
+    schemeSource: worldbook.schemeSource === true,
+    missingFromTavern: worldbook.missingFromTavern === true,
     loaded: false,
     loading: false,
     items: [],

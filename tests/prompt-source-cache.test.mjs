@@ -23,7 +23,7 @@ markWorldbookSourceDirty(state, 'Book A');
 markWorldbookSourceDirty(state, ' Book A ');
 markWorldbookSourceDirty(state, 'Book B');
 assert.equal(state.structureDirty, false);
-assert.deepEqual(takeDirtyWorldbookSources(state), ['Book A', 'Book B']);
+assert.deepEqual(takeDirtyWorldbookSources(state), ['Book A', ' Book A ', 'Book B']);
 assert.deepEqual(takeDirtyWorldbookSources(state), []);
 
 markWorldbookSourceDirty(state, '');

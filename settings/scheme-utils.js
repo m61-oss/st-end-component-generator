@@ -1,5 +1,11 @@
 export const SCHEME_TYPES = ['api', 'task', 'preset', 'worldbook'];
 
+import {
+  getWorldbookEntryKeyPrefix as getStableWorldbookEntryKeyPrefix,
+  getWorldbookRawName,
+  isWorldbookEntryKeyForSource,
+} from '../sources/worldbook-identity.js';
+
 const textOf = (value) => String(value ?? '').trim();
 const clone = (value) => JSON.parse(JSON.stringify(value ?? {}));
 
@@ -28,8 +34,7 @@ function pickByKeys(source, keys) {
 }
 
 export function getWorldbookEntryKeyPrefix(source) {
-  const name = textOf(source);
-  return name ? `世界书：${name}::${name}::世界书::` : '';
+  return getStableWorldbookEntryKeyPrefix(source);
 }
 
 function collectStoredWorldbookKeys(stores, source) {
@@ -38,7 +43,7 @@ function collectStoredWorldbookKeys(stores, source) {
   const keys = new Set();
   for (const store of stores) {
     for (const key of Object.keys(store && typeof store === 'object' ? store : {})) {
-      if (key.startsWith(prefix)) keys.add(key);
+      if (isWorldbookEntryKeyForSource(key, source)) keys.add(key);
     }
   }
   return [...keys];
@@ -48,7 +53,7 @@ export function hasEnabledWorldbookSource(selections, source) {
   const prefix = getWorldbookEntryKeyPrefix(source);
   if (!prefix) return false;
   return Object.entries(selections && typeof selections === 'object' ? selections : {})
-    .some(([key, value]) => key.startsWith(prefix) && value !== false);
+    .some(([key, value]) => isWorldbookEntryKeyForSource(key, source) && value !== false);
 }
 
 export async function hydrateTavernWorldbookSelections(groups, selections = {}, loadItems = async () => []) {
@@ -76,8 +81,8 @@ function hasSelectedWorldbookItem(group, selections) {
 
 export function getWorldbookSchemeSourceNames(snapshot = {}) {
   const sourceNames = [...new Set((Array.isArray(snapshot?.worldbookSources) ? snapshot.worldbookSources : [])
-    .map(textOf)
-    .filter(Boolean))];
+    .map(getWorldbookRawName)
+    .filter((name) => name.trim()))];
   const selectionSources = new Set();
   for (const store of [snapshot?.promptSelections, snapshot?.importSelections]) {
     for (const [key, value] of Object.entries(store && typeof store === 'object' ? store : {})) {
@@ -132,12 +137,12 @@ export function captureSchemeSnapshot(type, settings, groups = [], options = {})
       ? settings.importSelections
       : settings.promptSelections;
     const configuredSources = new Set((Array.isArray(settings.worldbookDraftSources) ? settings.worldbookDraftSources : [])
-      .map(textOf)
-      .filter(Boolean));
+      .map(getWorldbookRawName)
+      .filter((name) => name.trim()));
     // A dirty or saved scheme keeps its own source list. Tavern default has no draft list,
     // so retain the native active books until the user makes a change.
     const savedWorldbookGroups = configuredSources.size
-      ? worldbookGroups.filter((group) => configuredSources.has(textOf(group.source)))
+      ? worldbookGroups.filter((group) => configuredSources.has(getWorldbookRawName(group.source)))
       : worldbookGroups.filter((group) => (
         textOf(group?.category) !== 'inactive' || hasSelectedWorldbookItem(group, sourceSelections)
       ));
@@ -159,7 +164,7 @@ export function captureSchemeSnapshot(type, settings, groups = [], options = {})
       }
     }
     return {
-      worldbookSources: [...new Set(savedWorldbookGroups.map((group) => textOf(group.source)).filter(Boolean))],
+      worldbookSources: [...new Set(savedWorldbookGroups.map((group) => getWorldbookRawName(group.source)).filter((name) => name.trim()))],
       sourceMode: settings.sourceModes?.worldbook || settings.sourceMode || 'prompt',
       promptSelections: pickByKeys(settings.promptSelections, keys),
       importSelections: pickByKeys(settings.importSelections, keys),

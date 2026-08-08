@@ -176,7 +176,7 @@ assert.deepEqual(
   'tavern assignment is recorded regardless of the active scheme',
 );
 
-// A saved scheme snapshot is static: it lists exactly its own books, as plugin-enabled.
+// A saved scheme keeps its own sources while still listing the Tavern library.
 const schemeScopedGroups = collectWorldbookImportGroups({
   targetWindow,
   context,
@@ -185,10 +185,10 @@ const schemeScopedGroups = collectWorldbookImportGroups({
 });
 assert.deepEqual(
   schemeScopedGroups.map((group) => group.source),
-  ['未启用世界书'],
-  'scheme snapshot decides the book list, not the current window',
+  ['状态栏世界书', '角色绑定世界书', '聊天绑定世界书', '未启用世界书'],
+  'scheme sources and current Tavern books must remain visible together',
 );
-assert.deepEqual(schemeScopedGroups.map((group) => group.category), ['plugin']);
+assert.deepEqual(schemeScopedGroups.map((group) => group.category), ['global', 'character', 'chat', 'inactive']);
 
 const inUsePresetGroups = collectPresetImportGroups({
   targetWindow: {
@@ -427,12 +427,16 @@ const savedSchemeWorldbooks = collectWorldbookImportGroups({
   context: {},
   explicitWorldbookNames: ['Saved Scheme Book'],
 });
-assert.deepEqual(savedSchemeWorldbooks.map((group) => [group.source, group.category]), [['Saved Scheme Book', 'plugin']]);
+assert.deepEqual(savedSchemeWorldbooks.map((group) => [group.source, group.category]), [
+  ['Current Character Book', 'inactive'],
+  ['Saved Scheme Book', 'inactive'],
+]);
+assert.equal(savedSchemeWorldbooks.find((group) => group.source === 'Saved Scheme Book')?.schemeSource, true);
 assert.deepEqual(collectWorldbookImportGroups({
   targetWindow: { TavernHelper: { getWorldbookNames: () => ['Current Character Book'] } },
   context: {},
   explicitWorldbookNames: [],
-}), []);
+}).map((group) => group.source), ['Current Character Book']);
 
 const lazyWorldbookItems = await collectWorldbookImportCandidates(targetWindow, '状态栏世界书');
 assert.equal(worldbookReadCount, 1);
@@ -592,3 +596,61 @@ assert.deepEqual(migratedLegacyGroups.components.map((item) => item.name), ['Man
 const repeatedMigration = migrateLegacyComponentGroups(migratedLegacyGroups.components, migratedLegacyGroups.componentGroups, {}, { randomUUID: () => 'unexpected' });
 assert.deepEqual(repeatedMigration.componentGroups, migratedLegacyGroups.componentGroups);
 assert.deepEqual(repeatedMigration.components, migratedLegacyGroups.components);
+
+const whitespaceWorldbookWindow = {
+  TavernHelper: {
+    getWorldbookNames: () => ['她眼中的潮汐 '],
+    getGlobalWorldbookNames: () => ['她眼中的潮汐 '],
+    getCharWorldbookNames: () => ({}),
+    getChatWorldbookName: () => '',
+    getWorldbook: (name) => {
+      assert.equal(name, '她眼中的潮汐 ', 'the raw worldbook identifier must reach Tavern unchanged');
+      return [{ uid: 42, name: '规则', content: '初始内容', enabled: true }];
+    },
+  },
+};
+assert.deepEqual(getWorldbookNamesSafe(whitespaceWorldbookWindow, {}), ['她眼中的潮汐 ']);
+const whitespaceCandidates = await collectWorldbookImportCandidates(whitespaceWorldbookWindow, '她眼中的潮汐 ');
+assert.equal(whitespaceCandidates.length, 1);
+const changedContentCandidates = await collectWorldbookImportCandidates({
+  TavernHelper: {
+    ...whitespaceWorldbookWindow.TavernHelper,
+    getWorldbook: () => [{ uid: 42, name: '规则已改名', content: '修改后的内容', enabled: true }],
+  },
+}, '她眼中的潮汐 ');
+assert.equal(
+  whitespaceCandidates[0].key,
+  changedContentCandidates[0].key,
+  'worldbook entry identity must survive name and content edits when UID is unchanged',
+);
+
+await assert.rejects(
+  collectWorldbookImportCandidates({
+    TavernHelper: {
+      getWorldbookNames: () => ['真实存在的世界书'],
+      getWorldbook: () => [],
+    },
+  }, '方案里的旧名称'),
+  /未找到世界书“方案里的旧名称”/,
+  'a missing saved source must be a read failure instead of a successful empty worldbook',
+);
+
+assert.equal(
+  getWorldbookImportDisplayCategory({ category: 'inactive' }, {
+    pluginEnabledCount: 0,
+    followingTavern: false,
+    schemeEnabled: true,
+    entriesResolved: true,
+  }),
+  'inactive',
+  'a resolved 0/y count must outrank stale scheme keys',
+);
+assert.equal(
+  getWorldbookImportDisplayCategory({ category: 'inactive' }, {
+    followingTavern: false,
+    schemeEnabled: true,
+    loadFailed: true,
+  }),
+  'failed',
+  'failed sources must have their own category',
+);

@@ -150,7 +150,7 @@ assert.deepEqual(loadedWorldbookSnapshot.sourceContentOverrides, {}, 'loaded sou
 
 assert.equal(typeof schemeUtils.getWorldbookEntryKeyPrefix, 'function');
 assert.equal(typeof schemeUtils.hasEnabledWorldbookSource, 'function');
-assert.equal(schemeUtils.getWorldbookEntryKeyPrefix(' Lazy Book '), '世界书：Lazy Book::Lazy Book::世界书::');
+assert.equal(schemeUtils.getWorldbookEntryKeyPrefix(' Lazy Book '), 'worldbook-v2::%20Lazy%20Book%20::世界书::');
 assert.equal(schemeUtils.hasEnabledWorldbookSource({ [lazyBookEntry]: true }, 'Lazy Book'), true);
 assert.equal(schemeUtils.hasEnabledWorldbookSource({ [lazyBookEntry]: false }, 'Lazy Book'), false);
 assert.equal(schemeUtils.hasEnabledWorldbookSource({ [lazyBookEntry]: true }, 'Other Book'), false);

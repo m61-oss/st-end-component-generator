@@ -32,7 +32,7 @@ assert.match(scanFunction, /cachedWorldbookGroups/);
 assert.match(scanFunction, /promptSourceCache\.dirtyWorldbooks\.has\(group\.source\)/);
 assert.match(scanFunction, /promptSourceCache\.structureDirty = false/);
 assert.match(scanFunction, /promptSourceCache\.signature = getTavernSourceSignature\(\)/);
-assert.match(scanFunction, /explicitWorldbookNames: null/);
+assert.match(scanFunction, /explicitWorldbookNames: followingTavernWorldbook \? null : settings\.worldbookDraftSources/);
 assert.doesNotMatch(scanFunction, /collectWorldbookImportCounts\(/);
 
 assert.match(source, /function invalidateWorldbookSourceCache\(worldbookName\)/);

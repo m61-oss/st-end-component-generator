@@ -335,14 +335,17 @@ const worldbookScanFunction = indexSource.slice(
 );
 assert.match(
   worldbookScanFunction,
-  /collectWorldbookImportGroups\(\{[\s\S]*?selectedWorldNames,[\s\S]*?explicitWorldbookNames: null,[\s\S]*?\}\)/,
-  'the worldbook directory should always be built from Tavern\'s complete catalog rather than only saved-scheme sources',
+  /collectWorldbookImportGroups\(\{[\s\S]*?selectedWorldNames,[\s\S]*?explicitWorldbookNames: followingTavernWorldbook \? null : settings\.worldbookDraftSources,[\s\S]*?\}\)/,
+  'the worldbook directory should combine Tavern\'s complete catalog with saved-scheme sources so missing records remain visible',
 );
 assert.doesNotMatch(
   worldbookScanFunction,
   /collectWorldbookImportCounts\(/,
   'opening the directory must not eagerly load every worldbook merely to show counts',
 );
+assert.match(indexSource, /\['failed', '读取失败'\]/, 'failed worldbooks should have their own category');
+assert.match(indexSource, /return '点击查看'/, 'failed rows should invite the user to open the failure detail');
+assert.match(indexSource, /删除这条世界书记录/, 'failure detail should let the user remove the stale scheme record');
 
 // Placement while a scheme is active is decided by the plugin selection, not by re-grouping the
 // directory. A tavern-default scheme that was only just edited has no captured source list yet, so

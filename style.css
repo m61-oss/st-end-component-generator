@@ -474,6 +474,8 @@ select.st-esg-scheme-select {
 .st-esg-worldbook-row:last-child { border-bottom: 0; }
 .st-esg-worldbook-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 720; }
 .st-esg-worldbook-row em { color: var(--esg-text-muted); font-style: normal; font-size: 11px; }
+.st-esg-worldbook-failure { display: grid; gap: 9px; padding: 10px; border: 1px solid rgba(255, 69, 58, .35); border-radius: 9px; background: rgba(255, 69, 58, .06); }
+.st-esg-worldbook-failure .st-esg-remove-worldbook-record { justify-self: start; }
 .st-esg-worldbook-detail { border: 1px solid var(--esg-border); border-radius: 8px; background: var(--esg-bg-card); overflow: visible; }
 .st-esg-detail-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--esg-border); background: transparent; }
 .st-esg-back-worldbooks,

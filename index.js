@@ -42,6 +42,7 @@ import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.6';
 import { normalizeApiRetryCount, withApiRetries } from './api/api-retry.js?ver=0.1.6';
 import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.6';
 import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.6';
+import { getWorldbookGenerationIssue, getWorldbookRawName, reconcileWorldbookEntryRecords, removeWorldbookSourceRecords } from './sources/worldbook-identity.js?ver=0.1.6';
 import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.6';
 import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.6';
 import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.6';
@@ -105,6 +106,7 @@ const WORLDBOOK_CATEGORY_ORDER = [
   ['character', '角色世界书'],
   ['chat', '聊天世界书'],
   ['plugin', '插件启用'],
+  ['failed', '读取失败'],
   ['inactive', '未启用世界书'],
 ];
 
@@ -527,8 +529,8 @@ function loadSettings() {
   if (!settings.worldbookActivationOverrides || typeof settings.worldbookActivationOverrides !== 'object') settings.worldbookActivationOverrides = {};
   if (!settings.worldbookKeywordOverrides || typeof settings.worldbookKeywordOverrides !== 'object') settings.worldbookKeywordOverrides = {};
   settings.worldbookDraftSources = [...new Set((Array.isArray(settings.worldbookDraftSources) ? settings.worldbookDraftSources : [])
-    .map(textOf)
-    .filter(Boolean))];
+    .map(getWorldbookRawName)
+    .filter((name) => name.trim()))];
   if (![SOURCE_MODE_PROMPT, SOURCE_MODE_IMPORT].includes(settings.sourceMode)) settings.sourceMode = SOURCE_MODE_PROMPT;
   if (!settings.sourceModes || typeof settings.sourceModes !== 'object') settings.sourceModes = {};
   for (const type of ['preset', 'worldbook']) {
@@ -2314,8 +2316,8 @@ function getTavernSourceSignature() {
 
 function invalidateWorldbookSourceCache(worldbookName) {
   markWorldbookSourceDirty(promptSourceCache, worldbookName);
-  const name = textOf(worldbookName);
-  if (!name) return;
+  const name = getWorldbookRawName(worldbookName);
+  if (!name.trim()) return;
   importGroups
     .filter((group) => group?.scope === SOURCE_WORLDBOOK && group.source === name)
     .forEach((group) => {
@@ -3513,7 +3515,7 @@ function getSourceSelectionStore(item) {
 }
 
 function hasWorldbookDraftSource(source) {
-  return settings.worldbookDraftSources.includes(textOf(source));
+  return settings.worldbookDraftSources.includes(getWorldbookRawName(source));
 }
 
 // A book is treated as enabled by the plugin when the current scheme lists it. A tavern-default
@@ -3528,8 +3530,8 @@ function isWorldbookSourceEnabledByPlugin(group) {
 }
 
 function rememberWorldbookDraftSource(source) {
-  const name = textOf(source);
-  if (!name || hasWorldbookDraftSource(name)) return;
+  const name = getWorldbookRawName(source);
+  if (!name.trim() || hasWorldbookDraftSource(name)) return;
   settings.worldbookDraftSources.push(name);
 }
 
@@ -3537,8 +3539,27 @@ function captureWorldbookDraftSources() {
   if (!isFollowingTavernWorldbook()) return;
   settings.worldbookDraftSources = [...new Set(importGroups
     .filter((group) => group?.scope === SOURCE_WORLDBOOK && group.category !== 'inactive')
-    .map((group) => textOf(group.source))
-    .filter(Boolean))];
+    .map((group) => getWorldbookRawName(group.source))
+    .filter((name) => name.trim()))];
+}
+
+function getWorldbookRecordStores() {
+  return {
+    promptSelections: settings.promptSelections,
+    importSelections: settings.importSelections,
+    sourceContentOverrides: settings.sourceContentOverrides,
+    worldbookActivationOverrides: settings.worldbookActivationOverrides,
+    worldbookKeywordOverrides: settings.worldbookKeywordOverrides,
+  };
+}
+
+function reconcileLoadedWorldbookGroup(group, items = group?.items) {
+  if (!group || group.scope !== SOURCE_WORLDBOOK || group.loaded !== true || !Array.isArray(items)) return 0;
+  const result = reconcileWorldbookEntryRecords(getWorldbookRecordStores(), group.source, items);
+  Object.assign(settings, result.stores);
+  group.staleEnabledCount = result.staleEnabledCount;
+  if (result.changed) saveSettings();
+  return result.staleEnabledCount;
 }
 
 function getSourceSelection(item) {
@@ -3609,13 +3630,16 @@ async function ensurePromptSourceItemsForGeneration({ chat = null, animaWorldboo
     });
   const activeWorldbookGroups = importGroups.filter((group) => getSourceMode(group) === SOURCE_MODE_PROMPT
     && group?.scope === SOURCE_WORLDBOOK
-    && (isFollowingTavernWorldbook() ? group.category !== 'inactive' : hasWorldbookDraftSource(group.source))
+    && (isFollowingTavernWorldbook() ? group.category !== 'inactive' : isWorldbookSourceEnabledByPlugin(group))
     && !group.loaded
     && !group.loading);
   await loadWorldbookSourceGroups(
     activeWorldbookGroups,
     (worldbookName) => collectWorldbookImportCandidates(targetWindow, worldbookName),
   );
+  activeWorldbookGroups.forEach((group) => reconcileLoadedWorldbookGroup(group));
+  const worldbookIssue = getWorldbookGenerationIssue(activeWorldbookGroups);
+  if (worldbookIssue) throw new Error(worldbookIssue);
   syncPromptSelectionsFromLoadedGroups(activeWorldbookGroups);
   importCandidates = importGroups.flatMap((group) => group.items || []);
   renderImportCandidates({ renderPreset: false });
@@ -3913,15 +3937,18 @@ function renderSourcePresetSelect() {
 
 function getSelectedGlobalWorldbookNamesFromDom() {
   const selectedLabels = $t('#world_info option:selected')
-    .map((_, option) => textOf($(option).text()))
+    .map((_, option) => getWorldbookRawName($(option).text()))
     .get()
-    .filter(Boolean);
+    .filter((name) => name.trim());
   if (selectedLabels.length) return selectedLabels;
   const value = $t('#world_info').val() || [];
-  return (Array.isArray(value) ? value : [value]).map(textOf).filter(Boolean);
+  return (Array.isArray(value) ? value : [value])
+    .map(getWorldbookRawName)
+    .filter((name) => name.trim());
 }
 
 function getWorldbookCountText(group) {
+  if (group?.loadFailed || group?.error || group?.missingFromTavern) return '点击查看';
   const total = Number(group?.entryCount);
   if (!Number.isFinite(total)) return '统计中';
   return `${Number(group?.pluginEnabledCount || 0)}/${total}`;
@@ -3940,6 +3967,8 @@ function updateWorldbookCountLabel(group) {
     pluginEnabledCount: Number(group.pluginEnabledCount || 0),
     followingTavern: isFollowingTavernWorldbook(),
     schemeEnabled: !isFollowingTavernWorldbook() && isWorldbookSourceEnabledByPlugin(group),
+    entriesResolved: Boolean(group.entriesResolved),
+    loadFailed: Boolean(group.loadFailed || group.error || group.missingFromTavern),
   });
   if (textOf(row.closest('.st-esg-import-category').data('category')) !== expectedCategory) {
     renderImportCandidates({ renderPreset: false });
@@ -3955,13 +3984,19 @@ async function startBackgroundWorldbookCounts() {
     try {
       const items = await readWorldbookItemsForGroup(group);
       if (revision !== worldbookCountRevision || group.loaded) continue;
+      group.error = '';
+      group.loadFailed = false;
+      group.entriesResolved = true;
       group.entryCount = items.length;
       group.pluginEnabledCount = items.filter((item) => getSourceSelection({ ...item, worldbookCategory: group.category })).length;
       updateWorldbookCountLabel(group);
-    } catch (_) {
+    } catch (error) {
       if (revision === worldbookCountRevision) {
-        group.entryCount = 0;
-        group.pluginEnabledCount = 0;
+        group.error = error?.message || '读取世界书失败。';
+        group.loadFailed = true;
+        group.entriesResolved = false;
+        delete group.entryCount;
+        delete group.pluginEnabledCount;
         updateWorldbookCountLabel(group);
       }
     }
@@ -4003,14 +4038,18 @@ async function scanImportCandidates({ explicitPresetName = '' } = {}) {
     targetWindow,
     context,
     selectedWorldNames,
-    explicitWorldbookNames: null,
+    explicitWorldbookNames: followingTavernWorldbook ? null : settings.worldbookDraftSources,
   });
   importGroups = [
     ...collectPresetImportGroups({ targetWindow, context, presetName: settings.activeSourcePreset }),
     ...worldbookGroups.map((group) => {
-      const cached = cachedWorldbookGroups.get(group.source);
+      const cached = group.missingFromTavern ? null : cachedWorldbookGroups.get(group.source);
       return {
         ...group,
+        ...(group.missingFromTavern ? {
+          loadFailed: true,
+          error: `未找到世界书“${group.source}”。它可能已被改名、删除，或方案保存的名称与酒馆实际名称不一致。`,
+        } : {}),
         ...(cached?.loaded ? { loaded: true, items: cached.items, error: cached.error } : {}),
         ...(Array.isArray(cached?.backgroundItems) ? { backgroundItems: cached.backgroundItems } : {}),
         ...(cached?.backgroundItemsPromise ? { backgroundItemsPromise: cached.backgroundItemsPromise } : {}),
@@ -4041,10 +4080,17 @@ async function loadImportGroup(groupIndex) {
   try {
     group.items = await readWorldbookItemsForGroup(group);
     group.loaded = true;
+    group.error = '';
+    group.loadFailed = false;
+    group.entriesResolved = true;
+    group.entryCount = group.items.length;
+    reconcileLoadedWorldbookGroup(group);
     syncPromptSelectionsFromLoadedGroups([group]);
     setStatus(`已加载 ${group.source}：${group.items.length} 个条目。`);
   } catch (error) {
     group.error = error?.message || '加载失败';
+    group.loadFailed = true;
+    group.entriesResolved = false;
     setStatus(`加载 ${group.source} 失败。`);
   } finally {
     group.loading = false;
@@ -4078,6 +4124,8 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
       pluginEnabledCount: currentEnabledCount,
       followingTavern: isFollowingTavernWorldbook(),
       schemeEnabled: !isFollowingTavernWorldbook() && isWorldbookSourceEnabledByPlugin(group),
+      entriesResolved: Boolean(group.entriesResolved || group.loaded),
+      loadFailed: Boolean(group.loadFailed || group.error || group.missingFromTavern),
     });
     if (!worldbookCategories.has(category)) worldbookCategories.set(category, { categoryLabel: group.categoryLabel || '世界书', groups: [] });
     worldbookCategories.get(category).groups.push(group);
@@ -4119,7 +4167,13 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
       : getWorldbookCountText(group);
     return `<button class="st-esg-worldbook-row" type="button" data-group-index="${group.groupIndex}"><span>${escapeHtml(group.group)}</span><em>${count}</em><i class="fa-solid fa-chevron-right"></i></button>`;
   };
-  const renderWorldbookDetail = (group) => `<div class="st-esg-worldbook-detail" data-group-index="${group.groupIndex}"><div class="st-esg-detail-head"><button class="menu_button st-esg-back-worldbooks" type="button" title="返回世界书列表" aria-label="返回世界书列表"><i class="fa-solid fa-arrow-left"></i></button><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loading ? '正在加载条目...' : group.loaded ? `${group.items.length} 个可导入条目` : '准备加载这本世界书'}</div></div>${group.loaded ? '<button class="menu_button st-esg-import-detail-toggle" type="button">全选条目</button>' : ''}</div><div class="st-esg-import-group-list">${renderListToolbar()}${groupBody(group)}</div></div>`;
+  const renderWorldbookDetail = (group) => {
+    const failed = Boolean(group.error || group.loadFailed || group.missingFromTavern);
+    const failureBody = failed
+      ? `<div class="st-esg-worldbook-failure"><div class="st-esg-import-group-title">无法读取这本世界书</div><div class="st-esg-card-desc">${escapeHtml(group.error || '酒馆没有返回这本世界书的条目。')}</div><div class="st-esg-card-desc">可能原因：世界书已被改名或删除；名称首尾含有空格或不可见字符；酒馆返回的名称与实际文件名不一致。</div><button class="menu_button st-esg-remove-worldbook-record" type="button" data-group-index="${group.groupIndex}"><i class="fa-solid fa-trash"></i><span>删除这条世界书记录</span></button></div>`
+      : `${renderListToolbar()}${groupBody(group)}`;
+    return `<div class="st-esg-worldbook-detail" data-group-index="${group.groupIndex}"><div class="st-esg-detail-head"><button class="menu_button st-esg-back-worldbooks" type="button" title="返回世界书列表" aria-label="返回世界书列表"><i class="fa-solid fa-arrow-left"></i></button><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loading ? '正在加载条目...' : failed ? '读取失败' : group.loaded ? `${group.items.length} 个可导入条目` : '准备加载这本世界书'}</div></div>${group.loaded && !failed ? '<button class="menu_button st-esg-import-detail-toggle" type="button">全选条目</button>' : ''}</div><div class="st-esg-import-group-list">${failureBody}</div></div>`;
+  };
   const detailGroup = activeWorldbookGroupIndex === null ? null : groupsWithIndex.find((group) => group.groupIndex === activeWorldbookGroupIndex && group.scope === SOURCE_WORLDBOOK);
   const worldbookSection = detailGroup
     ? renderWorldbookDetail(detailGroup)
@@ -4135,6 +4189,21 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
   });
   if (renderWorldbook) $t('.st-esg-worldbook-row').on('click', function () { openWorldbookDetail(Number($(this).data('group-index'))); });
   if (renderWorldbook) $t('.st-esg-back-worldbooks').on('click', backToWorldbookList);
+  if (renderWorldbook) $t('.st-esg-remove-worldbook-record').on('click', async function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const group = importGroups[Number($(this).data('group-index'))];
+    if (!group || !targetWindow.confirm(`确认删除世界书记录“${group.source}”？\n\n只会从当前插件方案中移除记录，不会删除酒馆里的世界书文件。`)) return;
+    const source = getWorldbookRawName(group.source);
+    settings.worldbookDraftSources = settings.worldbookDraftSources.filter((name) => getWorldbookRawName(name) !== source);
+    const removed = removeWorldbookSourceRecords(getWorldbookRecordStores(), source);
+    Object.assign(settings, removed.stores);
+    markSchemeDirty('worldbook');
+    saveSettings();
+    activeWorldbookGroupIndex = null;
+    await scanImportCandidates();
+    setStatus(`已移除世界书记录“${source}”。请覆盖保存当前方案以永久保存这次修改。`);
+  });
   $t('.st-esg-import-check').off('.stEsgSource');
   $t('.st-esg-import-check').on('click.stEsgSource', (event) => event.stopPropagation());
   $t('.st-esg-import-check').on('change.stEsgSource', function () {
