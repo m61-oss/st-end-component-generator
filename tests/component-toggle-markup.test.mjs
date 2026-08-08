@@ -350,6 +350,11 @@ assert.match(indexSource, /未匹配的旧方案条目/);
 assert.match(indexSource, /未匹配上 UID/);
 assert.match(indexSource, /删除该条记录/);
 assert.match(
+  indexSource,
+  /`\$\{renderUnmatchedWorldbookRecords\(group\)\}\$\{renderListToolbar\(\)\}\$\{groupBody\(group\)\}`/,
+  'unmatched legacy records should appear above the search toolbar and current UID entries',
+);
+assert.match(
   styleSource,
   /\.st-esg-worldbook-failure \.st-esg-remove-worldbook-record\s*\{[^}]*display:\s*inline-flex\s*!important;[^}]*flex-direction:\s*row\s*!important;[^}]*white-space:\s*nowrap\s*!important;/s,
   'the worldbook record delete button should stay horizontal',

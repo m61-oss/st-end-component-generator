@@ -4215,7 +4215,7 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     const failed = Boolean(group.error || group.loadFailed || group.missingFromTavern);
     const failureBody = failed
       ? `<div class="st-esg-worldbook-failure"><div class="st-esg-import-group-title">无法读取这本世界书</div><div class="st-esg-card-desc">${escapeHtml(group.error || '酒馆没有返回这本世界书的条目。')}</div><div class="st-esg-card-desc">可能原因：世界书已被改名或删除；名称首尾含有空格或不可见字符；酒馆返回的名称与实际文件名不一致。</div><button class="menu_button st-esg-remove-worldbook-record" type="button" data-group-index="${group.groupIndex}"><i class="fa-solid fa-trash"></i><span>删除这条世界书记录</span></button></div>`
-      : `${renderListToolbar()}${groupBody(group)}${renderUnmatchedWorldbookRecords(group)}`;
+      : `${renderUnmatchedWorldbookRecords(group)}${renderListToolbar()}${groupBody(group)}`;
     return `<div class="st-esg-worldbook-detail" data-group-index="${group.groupIndex}"><div class="st-esg-detail-head"><button class="menu_button st-esg-back-worldbooks" type="button" title="返回世界书列表" aria-label="返回世界书列表"><i class="fa-solid fa-arrow-left"></i></button><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loading ? '正在加载条目...' : failed ? '读取失败' : group.loaded ? `${group.items.length} 个可导入条目` : '准备加载这本世界书'}</div></div>${group.loaded && !failed ? '<button class="menu_button st-esg-import-detail-toggle" type="button">全选条目</button>' : ''}</div><div class="st-esg-import-group-list">${failureBody}</div></div>`;
   };
   const detailGroup = activeWorldbookGroupIndex === null ? null : groupsWithIndex.find((group) => group.groupIndex === activeWorldbookGroupIndex && group.scope === SOURCE_WORLDBOOK);
