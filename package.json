@@ -1,6 +1,6 @@
 {
   "name": "st-end-component-generator",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": false,
   "type": "module",
   "description": "SillyTavern third-party extension for generating and injecting end-of-message components.",
