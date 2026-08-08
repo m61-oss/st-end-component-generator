@@ -548,8 +548,9 @@ export function getWorldbookEntryName(entry) {
 }
 
 export function isWorldbookEntryEnabled(entry) {
+  if (typeof entry?.disable === 'boolean') return !entry.disable;
   if (typeof entry?.enabled === 'boolean') return entry.enabled;
-  return entry?.disable !== true;
+  return true;
 }
 
 // TavernHelper and older world-info APIs can expose the constant flag in different shapes.

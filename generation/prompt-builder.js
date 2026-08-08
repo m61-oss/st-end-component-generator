@@ -405,8 +405,9 @@ async function loadWorldbookEntries(targetWindow, name) {
 
 function isWorldbookEntryEnabled(entry) {
   if (!entry) return false;
+  if (typeof entry.disable === 'boolean') return !entry.disable;
   if (typeof entry.enabled === 'boolean') return entry.enabled;
-  return entry.disable !== true;
+  return true;
 }
 
 function getWorldbookInsertionBucket(entry) {

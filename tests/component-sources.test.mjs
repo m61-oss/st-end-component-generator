@@ -14,11 +14,23 @@ import {
   getWorldbookEntryKeys,
   getWorldbookImportDisplayCategory,
   isWorldbookEntryConstant,
+  isWorldbookEntryEnabled,
   normalizeComponent,
   normalizeComponentIds,
   migrateLegacyComponentGroups,
   getCurrentCharacterNameSafe,
 } from '../sources/component-sources.js';
+
+assert.equal(
+  isWorldbookEntryEnabled({ enabled: false, disable: false }),
+  true,
+  'raw SillyTavern disable=false must win over a stale enabled=false field',
+);
+assert.equal(
+  isWorldbookEntryEnabled({ enabled: true, disable: true }),
+  false,
+  'raw SillyTavern disable=true must win over a stale enabled=true field',
+);
 
 const generatedIds = ['uuid-for-duplicate', 'uuid-for-missing'];
 const normalizedComponentIds = normalizeComponentIds([
