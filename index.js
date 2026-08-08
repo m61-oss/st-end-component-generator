@@ -157,6 +157,7 @@ const DEFAULT_SETTINGS = {
   memorySource: 'none',
   animaWorldbookEnabled: false,
   animaStatusVariableEnabled: false,
+  animaStatusAfterMessageEnabled: false,
   ballX: null,
   ballY: null,
   ballPositionVersion: 2,
@@ -585,6 +586,7 @@ function loadSettings() {
   if (!Object.prototype.hasOwnProperty.call(storedSettings, 'animaStatusVariableEnabled')) settings.animaStatusVariableEnabled = legacyAnimaEnabled;
   settings.animaWorldbookEnabled = Boolean(settings.animaWorldbookEnabled);
   settings.animaStatusVariableEnabled = Boolean(settings.animaStatusVariableEnabled);
+  settings.animaStatusAfterMessageEnabled = Boolean(settings.animaStatusAfterMessageEnabled);
   settings.qrGenerateEnabled = Boolean(settings.qrGenerateEnabled);
   settings.qrInjectEnabled = Boolean(settings.qrInjectEnabled);
   if (settings.ballPositionVersion !== 2) {
@@ -700,9 +702,9 @@ async function getAnimaWorldbookSnapshotForPrompt() {
   });
 }
 
-function getAnimaStatusForPrompt(context) {
+function getAnimaStatusSnapshotForPrompt(context) {
   if (!isAnimaStatusVariableEnabled()) return null;
-  return readLatestAnimaStatus({ targetWindow, chat: context?.chat })?.data || null;
+  return readLatestAnimaStatus({ targetWindow, chat: context?.chat }) || null;
 }
 
 function getLatestAssistantMessage(chat) {
@@ -948,7 +950,11 @@ async function buildMessages(latestMessage) {
   const theaterComponents = getEnabledTheaterComponents();
   const animaEnabled = isAnimaMemoryEnabled();
   const animaWorldbookEntries = animaEnabled ? await getAnimaWorldbookSnapshotForPrompt() : [];
-  const animaStatus = getAnimaStatusForPrompt(context);
+  const animaStatusSnapshot = getAnimaStatusSnapshotForPrompt(context);
+  const animaStatus = animaStatusSnapshot?.data || null;
+  const animaStatusMessageIndex = settings.animaStatusAfterMessageEnabled
+    ? animaStatusSnapshot?.messageIndex ?? null
+    : null;
   const promptSourceItems = animaEnabled
     ? await ensurePromptSourceItemsForGeneration({ animaWorldbookEntries })
     : await ensurePromptSourceItemsForGeneration();
@@ -971,6 +977,7 @@ async function buildMessages(latestMessage) {
     omitOriginalUserMessages: settings.omitOriginalUserMessages,
     renderTemplate: null,
     animaStatus,
+    animaStatusMessageIndex,
     animaWorldbookEntries,
     animaYaml: targetWindow?.jsyaml || targetWindow?.yaml || null,
     baiBaiBook: settings.memorySource === 'baibai' ? {
@@ -2204,6 +2211,8 @@ function renderMemorySettingsUi() {
   $t('#st-esg-anima-memory-options').toggleClass('st-esg-hidden', mode !== 'anima');
   $t('#st-esg-anima-worldbook-enabled').prop('checked', settings.animaWorldbookEnabled === true);
   $t('#st-esg-anima-status-enabled').prop('checked', settings.animaStatusVariableEnabled === true);
+  $t('#st-esg-anima-status-after-message-option').toggleClass('st-esg-hidden', settings.animaStatusVariableEnabled !== true);
+  $t('#st-esg-anima-status-after-message-enabled').prop('checked', settings.animaStatusAfterMessageEnabled === true);
 }
 
 function getTavernProfiles() {
@@ -4407,6 +4416,14 @@ function renderPluginPanel() {
     const memorySettings = targetDoc.createElement('details');
     memorySettings.className = 'st-esg-card st-esg-collapsible st-esg-memory-settings';
     memorySettings.innerHTML = '<summary class="st-esg-collapsible-summary">记忆设置</summary><div class="st-esg-collapsible-body"><div class="st-esg-memory-source-options"><label class="st-esg-radio-row"><input id="st-esg-memory-source-baibai" type="radio" name="st-esg-memory-source" value="baibai" /><span>柏宝书</span></label><label class="st-esg-radio-row"><input id="st-esg-memory-source-anima" type="radio" name="st-esg-memory-source" value="anima" /><span>Anima</span></label><label class="st-esg-radio-row"><input id="st-esg-memory-source-none" type="radio" name="st-esg-memory-source" value="none" /><span>无</span></label></div><div id="st-esg-baibai-memory-options" class="st-esg-memory-source-panel"></div><div id="st-esg-anima-memory-options" class="st-esg-memory-source-panel"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-anima-worldbook-enabled" type="checkbox" /><span>读取 Anima 世界书</span><em>抓取 Anima 最新召回切片并覆盖快照。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-anima-status-enabled" type="checkbox" /><span>读取 Anima 状态变量</span><em>实时读取最近可用的 anima_data；当前楼层没有时会向前回溯。</em></label></div></div>';
+    const animaStatusLabel = memorySettings.querySelector('#st-esg-anima-status-enabled')?.closest('label');
+    if (animaStatusLabel && !memorySettings.querySelector('#st-esg-anima-status-after-message-option')) {
+      const afterMessageLabel = targetDoc.createElement('label');
+      afterMessageLabel.id = 'st-esg-anima-status-after-message-option';
+      afterMessageLabel.className = 'st-esg-checkbox st-esg-log-option';
+      afterMessageLabel.innerHTML = '<input id="st-esg-anima-status-after-message-enabled" type="checkbox" /><span>\u72b6\u6001\u53d8\u91cf\u63d2\u5165\u5bf9\u5e94\u697c\u5c42\u540e\u9762</span><em>\u5f00\u542f\u540e\uff0c\u5c06 Anima \u72b6\u6001\u53d8\u91cf\u63d2\u5165\u5b83\u6240\u5c5e\u7684 assistant \u697c\u5c42\u540e\uff1b\u5bf9\u5e94\u697c\u5c42\u88ab\u804a\u5929\u8303\u56f4\u6392\u9664\u65f6\u56de\u9000\u5230\u6700\u540e\u53ef\u7528\u7684\u697c\u5c42\u3002</em>';
+      animaStatusLabel.insertAdjacentElement('afterend', afterMessageLabel);
+    }
     const baibaiOptions = memorySettings.querySelector('#st-esg-baibai-memory-options');
     legacyMemorySection?.querySelectorAll('label').forEach((label) => baibaiOptions.appendChild(label));
     legacyMemorySection?.remove();
@@ -4719,6 +4736,11 @@ function bindPanelEvents() {
   $t('#st-esg-anima-status-enabled').on('change', function () {
     settings.animaStatusVariableEnabled = Boolean($(this).prop('checked'));
     if (!settings.animaWorldbookEnabled && !settings.animaStatusVariableEnabled) clearAnimaWorldbookSnapshot();
+    renderMemorySettingsUi();
+    saveSettings();
+  });
+  $t('#st-esg-anima-status-after-message-enabled').on('change', function () {
+    settings.animaStatusAfterMessageEnabled = Boolean($(this).prop('checked'));
     saveSettings();
   });
   $t('#st-esg-reset-task').on('click', function () {
