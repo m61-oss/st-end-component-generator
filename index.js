@@ -3553,8 +3553,8 @@ function getWorldbookRecordStores() {
   };
 }
 
-function reconcileLoadedWorldbookGroup(group, items = group?.items) {
-  if (!group || group.scope !== SOURCE_WORLDBOOK || group.loaded !== true || !Array.isArray(items)) return 0;
+function reconcileLoadedWorldbookGroup(group, items = group?.items, { authoritative = false } = {}) {
+  if (!group || group.scope !== SOURCE_WORLDBOOK || (!authoritative && group.loaded !== true) || !Array.isArray(items)) return 0;
   const result = reconcileWorldbookEntryRecords(getWorldbookRecordStores(), group.source, items);
   Object.assign(settings, result.stores);
   group.staleEnabledCount = result.staleEnabledCount;
@@ -3987,6 +3987,7 @@ async function startBackgroundWorldbookCounts() {
       group.error = '';
       group.loadFailed = false;
       group.entriesResolved = true;
+      reconcileLoadedWorldbookGroup(group, items, { authoritative: true });
       group.entryCount = items.length;
       group.pluginEnabledCount = items.filter((item) => getSourceSelection({ ...item, worldbookCategory: group.category })).length;
       updateWorldbookCountLabel(group);

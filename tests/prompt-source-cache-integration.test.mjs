@@ -35,6 +35,16 @@ assert.match(scanFunction, /promptSourceCache\.signature = getTavernSourceSignat
 assert.match(scanFunction, /explicitWorldbookNames: followingTavernWorldbook \? null : settings\.worldbookDraftSources/);
 assert.doesNotMatch(scanFunction, /collectWorldbookImportCounts\(/);
 
+const backgroundCountFunction = source.slice(
+  source.indexOf('async function startBackgroundWorldbookCounts('),
+  source.indexOf('async function readWorldbookItemsForGroup('),
+);
+assert.match(
+  backgroundCountFunction,
+  /reconcileLoadedWorldbookGroup\(group, items, \{ authoritative: true \}\)/,
+  'a successful background read must migrate saved legacy selections before calculating the scheme count',
+);
+
 assert.match(source, /function invalidateWorldbookSourceCache\(worldbookName\)/);
 assert.match(source, /markWorldbookSourceDirty\(promptSourceCache, worldbookName\)/);
 assert.match(source, /function registerPromptSourceCacheInvalidation\(context\)/);
