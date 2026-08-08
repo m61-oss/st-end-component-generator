@@ -6,6 +6,7 @@ import {
   getWorldbookGenerationIssue,
   isWorldbookEntryKeyForSource,
   reconcileWorldbookEntryRecords,
+  removeWorldbookEntryRecord,
   removeWorldbookSourceRecords,
 } from '../sources/worldbook-identity.js';
 
@@ -39,10 +40,14 @@ const reconciled = reconcileWorldbookEntryRecords({
 }, '她眼中的潮汐 ', [{ key: first, legacyKey: legacyCurrent }]);
 assert.equal(reconciled.changed, true);
 assert.equal(reconciled.staleEnabledCount, 1);
-assert.deepEqual(reconciled.stores.promptSelections, { [first]: true, [unrelated]: true });
-assert.deepEqual(reconciled.stores.sourceContentOverrides, { [first]: '插件修改内容' });
+assert.deepEqual(reconciled.stores.promptSelections, { [first]: true, [legacyDeleted]: true, [unrelated]: true });
+assert.deepEqual(reconciled.stores.sourceContentOverrides, { [first]: '插件修改内容', [legacyDeleted]: '无效修改' });
 assert.deepEqual(reconciled.stores.worldbookActivationOverrides, { [first]: 'blue' });
 assert.deepEqual(reconciled.stores.worldbookKeywordOverrides, { [first]: ['关键词'] });
+assert.equal(reconciled.unmatchedRecords.length, 1);
+assert.equal(reconciled.unmatchedRecords[0].key, legacyDeleted);
+assert.equal(reconciled.unmatchedRecords[0].name, '已删除');
+assert.equal(reconciled.unmatchedRecords[0].enabled, true);
 
 const removed = removeWorldbookSourceRecords({
   promptSelections: { [first]: true, [unrelated]: true },
@@ -51,6 +56,11 @@ const removed = removeWorldbookSourceRecords({
 assert.deepEqual(removed.stores.promptSelections, { [unrelated]: true });
 assert.deepEqual(removed.stores.sourceContentOverrides, { [unrelated]: '保留' });
 assert.equal(removed.removedCount, 2);
+
+const removedEntry = removeWorldbookEntryRecord(reconciled.stores, legacyDeleted);
+assert.equal(removedEntry.removedCount, 2);
+assert.equal(Object.prototype.hasOwnProperty.call(removedEntry.stores.promptSelections, legacyDeleted), false);
+assert.equal(Object.prototype.hasOwnProperty.call(removedEntry.stores.sourceContentOverrides, legacyDeleted), false);
 
 const changedContentLegacy = '世界书：她眼中的潮汐::她眼中的潮汐::世界书::规则::旧版本内容';
 const renamedContent = reconcileWorldbookEntryRecords({
@@ -85,5 +95,26 @@ assert.deepEqual(positional.stores.promptSelections, {
   [positionalItems[2].key]: true,
 }, 'a complete legacy selection snapshot should migrate by entry order when names or content changed');
 assert.equal(positional.staleEnabledCount, 0);
+assert.deepEqual(positional.unmatchedRecords, []);
+
+const falseOnlyLegacy = '世界书：顺序迁移::顺序迁移::世界书::已失效且关闭::旧内容';
+const cleanedFalseOnly = reconcileWorldbookEntryRecords({
+  promptSelections: { [falseOnlyLegacy]: false },
+}, '顺序迁移', positionalItems);
+assert.deepEqual(cleanedFalseOnly.stores.promptSelections, {}, 'an unmatched false-only record carries no scheme state and may be cleaned');
+assert.deepEqual(cleanedFalseOnly.unmatchedRecords, []);
+
+const ambiguousLegacy = '世界书：完全重复::完全重复::世界书::相同名称::相同内容';
+const duplicateItems = [
+  { key: createWorldbookEntryKey('完全重复', 21), legacyKey: ambiguousLegacy, name: '相同名称' },
+  { key: createWorldbookEntryKey('完全重复', 22), legacyKey: ambiguousLegacy, name: '相同名称' },
+];
+const ambiguous = reconcileWorldbookEntryRecords({
+  promptSelections: { [ambiguousLegacy]: true },
+}, '完全重复', duplicateItems);
+assert.equal(Object.prototype.hasOwnProperty.call(ambiguous.stores.promptSelections, duplicateItems[0].key), false);
+assert.equal(Object.prototype.hasOwnProperty.call(ambiguous.stores.promptSelections, duplicateItems[1].key), false);
+assert.equal(ambiguous.unmatchedRecords.length, 1, 'one legacy record shared by multiple identical UID entries must remain unmatched');
+assert.equal(ambiguous.unmatchedRecords[0].key, ambiguousLegacy);
 
 console.log('worldbook identity tests passed');

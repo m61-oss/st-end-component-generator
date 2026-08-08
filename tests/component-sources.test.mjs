@@ -647,6 +647,16 @@ assert.equal(
 );
 assert.equal(
   getWorldbookImportDisplayCategory({ category: 'inactive' }, {
+    pluginEnabledCount: 0,
+    unmatchedEnabledCount: 1,
+    followingTavern: false,
+    entriesResolved: true,
+  }),
+  'plugin',
+  'an enabled unmatched legacy record must keep the book visible in the plugin-enabled category',
+);
+assert.equal(
+  getWorldbookImportDisplayCategory({ category: 'inactive' }, {
     followingTavern: false,
     schemeEnabled: true,
     loadFailed: true,

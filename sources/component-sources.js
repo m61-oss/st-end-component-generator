@@ -467,11 +467,14 @@ export function getWorldbookImportDisplayCategory(worldbook, {
   schemeEnabled = false,
   entriesResolved = false,
   loadFailed = false,
+  unmatchedEnabledCount = 0,
 } = {}) {
   if (loadFailed) return 'failed';
   const category = textOf(worldbook?.category) || 'inactive';
   if (followingTavern) return category;
-  if (entriesResolved) return Number(pluginEnabledCount) > 0 ? (category === 'inactive' ? 'plugin' : category) : 'inactive';
+  if (entriesResolved) return Number(pluginEnabledCount) > 0 || Number(unmatchedEnabledCount) > 0
+    ? (category === 'inactive' ? 'plugin' : category)
+    : 'inactive';
   if (!schemeEnabled && Number(pluginEnabledCount) <= 0) return 'inactive';
   return category === 'inactive' ? 'plugin' : category;
 }

@@ -42,7 +42,7 @@ import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.6';
 import { normalizeApiRetryCount, withApiRetries } from './api/api-retry.js?ver=0.1.6';
 import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.6';
 import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.6';
-import { getWorldbookGenerationIssue, getWorldbookRawName, reconcileWorldbookEntryRecords, removeWorldbookSourceRecords } from './sources/worldbook-identity.js?ver=0.1.6';
+import { getWorldbookGenerationIssue, getWorldbookRawName, reconcileWorldbookEntryRecords, removeWorldbookEntryRecord, removeWorldbookSourceRecords } from './sources/worldbook-identity.js?ver=0.1.6';
 import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.6';
 import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.6';
 import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.6';
@@ -3555,11 +3555,12 @@ function getWorldbookRecordStores() {
 
 function reconcileLoadedWorldbookGroup(group, items = group?.items, { authoritative = false } = {}) {
   if (!group || group.scope !== SOURCE_WORLDBOOK || (!authoritative && group.loaded !== true) || !Array.isArray(items)) {
-    return { changed: false, staleEnabledCount: 0 };
+    return { changed: false, staleEnabledCount: 0, unmatchedRecords: [] };
   }
   const result = reconcileWorldbookEntryRecords(getWorldbookRecordStores(), group.source, items);
   Object.assign(settings, result.stores);
   group.staleEnabledCount = result.staleEnabledCount;
+  group.unmatchedWorldbookRecords = result.unmatchedRecords;
   if (result.changed) saveSettings();
   return result;
 }
@@ -3980,7 +3981,8 @@ function getWorldbookCountText(group) {
   if (group?.loadFailed || group?.error || group?.missingFromTavern) return '点击查看';
   const total = Number(group?.entryCount);
   if (!Number.isFinite(total)) return '统计中';
-  return `${Number(group?.pluginEnabledCount || 0)}/${total}`;
+  const unmatchedCount = Number(group?.staleEnabledCount || 0);
+  return `${Number(group?.pluginEnabledCount || 0)}/${total}${unmatchedCount > 0 ? ` · ${unmatchedCount}条未匹配` : ''}`;
 }
 
 function updateWorldbookCountLabel(group) {
@@ -3998,6 +4000,7 @@ function updateWorldbookCountLabel(group) {
     schemeEnabled: !isFollowingTavernWorldbook() && isWorldbookSourceEnabledByPlugin(group),
     entriesResolved: Boolean(group.entriesResolved),
     loadFailed: Boolean(group.loadFailed || group.error || group.missingFromTavern),
+    unmatchedEnabledCount: Number(group.staleEnabledCount || 0),
   });
   if (textOf(row.closest('.st-esg-import-category').data('category')) !== expectedCategory) {
     renderImportCandidates({ renderPreset: false });
@@ -4160,6 +4163,7 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
       schemeEnabled: !isFollowingTavernWorldbook() && isWorldbookSourceEnabledByPlugin(group),
       entriesResolved: Boolean(group.entriesResolved || group.loaded),
       loadFailed: Boolean(group.loadFailed || group.error || group.missingFromTavern),
+      unmatchedEnabledCount: Number(group.staleEnabledCount || 0),
     });
     if (!worldbookCategories.has(category)) worldbookCategories.set(category, { categoryLabel: group.categoryLabel || '世界书', groups: [] });
     worldbookCategories.get(category).groups.push(group);
@@ -4196,16 +4200,22 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     return `<details class="st-esg-import-group" data-group-index="${group.groupIndex}" ${shouldOpen ? 'open' : ''}><summary class="st-esg-import-group-head"><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loaded ? `${group.items.length} 个可导入条目` : '未加载，点开读取'}</div></div></summary><div class="st-esg-import-group-list">${groupBody(group)}</div></details>`;
   };
   const renderWorldbookRow = (group) => {
+    const unmatchedCount = Number(group.staleEnabledCount || 0);
     const count = group.loaded
-      ? `${group.items.filter((item) => getSourceSelection(item)).length}/${group.items.length}`
+      ? `${group.items.filter((item) => getSourceSelection(item)).length}/${group.items.length}${unmatchedCount > 0 ? ` · ${unmatchedCount}条未匹配` : ''}`
       : getWorldbookCountText(group);
     return `<button class="st-esg-worldbook-row" type="button" data-group-index="${group.groupIndex}"><span>${escapeHtml(group.group)}</span><em>${count}</em><i class="fa-solid fa-chevron-right"></i></button>`;
+  };
+  const renderUnmatchedWorldbookRecords = (group) => {
+    const records = Array.isArray(group.unmatchedWorldbookRecords) ? group.unmatchedWorldbookRecords : [];
+    if (!records.length) return '';
+    return `<div class="st-esg-unmatched-worldbook"><div class="st-esg-unmatched-worldbook-head"><div class="st-esg-import-group-title">未匹配的旧方案条目</div><div class="st-esg-card-desc">这些记录没有匹配上当前 UID。酒馆当前的 UID 条目仍正常显示在上方；请先重新勾选正确条目，再删除旧记录。</div></div>${records.map((record) => `<div class="st-esg-unmatched-worldbook-row"><div class="st-esg-unmatched-worldbook-copy"><div><strong>${escapeHtml(record.name || '旧方案条目')}</strong><em>未匹配上 UID</em></div>${record.contentPreview ? `<p>${escapeHtml(record.contentPreview)}</p>` : ''}</div><button class="menu_button st-esg-remove-unmatched-worldbook-record" type="button" data-group-index="${group.groupIndex}" data-record-key="${escapeHtml(record.key)}"><i class="fa-solid fa-trash"></i><span>删除该条记录</span></button></div>`).join('')}</div>`;
   };
   const renderWorldbookDetail = (group) => {
     const failed = Boolean(group.error || group.loadFailed || group.missingFromTavern);
     const failureBody = failed
       ? `<div class="st-esg-worldbook-failure"><div class="st-esg-import-group-title">无法读取这本世界书</div><div class="st-esg-card-desc">${escapeHtml(group.error || '酒馆没有返回这本世界书的条目。')}</div><div class="st-esg-card-desc">可能原因：世界书已被改名或删除；名称首尾含有空格或不可见字符；酒馆返回的名称与实际文件名不一致。</div><button class="menu_button st-esg-remove-worldbook-record" type="button" data-group-index="${group.groupIndex}"><i class="fa-solid fa-trash"></i><span>删除这条世界书记录</span></button></div>`
-      : `${renderListToolbar()}${groupBody(group)}`;
+      : `${renderListToolbar()}${groupBody(group)}${renderUnmatchedWorldbookRecords(group)}`;
     return `<div class="st-esg-worldbook-detail" data-group-index="${group.groupIndex}"><div class="st-esg-detail-head"><button class="menu_button st-esg-back-worldbooks" type="button" title="返回世界书列表" aria-label="返回世界书列表"><i class="fa-solid fa-arrow-left"></i></button><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loading ? '正在加载条目...' : failed ? '读取失败' : group.loaded ? `${group.items.length} 个可导入条目` : '准备加载这本世界书'}</div></div>${group.loaded && !failed ? '<button class="menu_button st-esg-import-detail-toggle" type="button">全选条目</button>' : ''}</div><div class="st-esg-import-group-list">${failureBody}</div></div>`;
   };
   const detailGroup = activeWorldbookGroupIndex === null ? null : groupsWithIndex.find((group) => group.groupIndex === activeWorldbookGroupIndex && group.scope === SOURCE_WORLDBOOK);
@@ -4237,6 +4247,25 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     activeWorldbookGroupIndex = null;
     await scanImportCandidates();
     setStatus(`已移除世界书记录“${source}”。请覆盖保存当前方案以永久保存这次修改。`);
+  });
+  if (renderWorldbook) $t('.st-esg-remove-unmatched-worldbook-record').on('click', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const group = importGroups[Number($(this).data('group-index'))];
+    const key = String($(this).attr('data-record-key') || '');
+    const record = group?.unmatchedWorldbookRecords?.find((item) => item.key === key);
+    if (!group || !record || !targetWindow.confirm(`确认删除旧方案条目记录“${record.name || '未命名'}”？\n\n只会删除插件方案中的未匹配记录，不会删除酒馆世界书条目。`)) return;
+    const removed = removeWorldbookEntryRecord(getWorldbookRecordStores(), key);
+    Object.assign(settings, removed.stores);
+    group.unmatchedWorldbookRecords = group.unmatchedWorldbookRecords.filter((item) => item.key !== key);
+    group.staleEnabledCount = group.unmatchedWorldbookRecords.filter((item) => item.enabled).length;
+    removeEmptyWorldbookSchemeSource(group, group.loaded
+      ? group.items.filter((item) => getSourceSelection(item)).length
+      : group.pluginEnabledCount, { staleEnabledCount: group.staleEnabledCount });
+    markSchemeDirty('worldbook');
+    saveSettings();
+    renderImportCandidates({ renderPreset: false });
+    setStatus('已删除未匹配的旧方案条目记录。请覆盖保存当前方案。');
   });
   $t('.st-esg-import-check').off('.stEsgSource');
   $t('.st-esg-import-check').on('click.stEsgSource', (event) => event.stopPropagation());
