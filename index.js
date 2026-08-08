@@ -4420,8 +4420,9 @@ function renderPluginPanel() {
     if (animaStatusLabel && !memorySettings.querySelector('#st-esg-anima-status-after-message-option')) {
       const afterMessageLabel = targetDoc.createElement('label');
       afterMessageLabel.id = 'st-esg-anima-status-after-message-option';
+      // 最新楼层的状态变量尚未更新时出现顺序错误
       afterMessageLabel.className = 'st-esg-checkbox st-esg-log-option';
-      afterMessageLabel.innerHTML = '<input id="st-esg-anima-status-after-message-enabled" type="checkbox" /><span>\u72b6\u6001\u53d8\u91cf\u63d2\u5165\u5bf9\u5e94\u697c\u5c42\u540e\u9762</span><em>\u5f00\u542f\u540e\uff0c\u5c06 Anima \u72b6\u6001\u53d8\u91cf\u63d2\u5165\u5b83\u6240\u5c5e\u7684 assistant \u697c\u5c42\u540e\uff1b\u5bf9\u5e94\u697c\u5c42\u88ab\u804a\u5929\u8303\u56f4\u6392\u9664\u65f6\u56de\u9000\u5230\u6700\u540e\u53ef\u7528\u7684\u697c\u5c42\u3002</em>';
+      afterMessageLabel.innerHTML = '<input id="st-esg-anima-status-after-message-enabled" type="checkbox" /><span>\u72b6\u6001\u53d8\u91cf\u63d2\u5165\u5bf9\u5e94\u697c\u5c42\u540e\u9762</span><em>\u5f00\u542f\u540e\uff0c\u5c06 Anima \u72b6\u6001\u53d8\u91cf\u63d2\u5165\u5b83\u6240\u5c5e\u7684 assistant \u697c\u5c42\u540e\uff0c\u907f\u514d\u6700\u65b0\u697c\u5c42\u7684\u72b6\u6001\u53d8\u91cf\u5c1a\u672a\u66f4\u65b0\u65f6\u51fa\u73b0\u987a\u5e8f\u9519\u8bef\u3002</em>';
       animaStatusLabel.insertAdjacentElement('afterend', afterMessageLabel);
     }
     const baibaiOptions = memorySettings.querySelector('#st-esg-baibai-memory-options');
