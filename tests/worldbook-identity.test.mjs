@@ -62,4 +62,28 @@ assert.match(getWorldbookGenerationIssue([{ source: '坏书 ', loaded: false, er
 assert.match(getWorldbookGenerationIssue([{ source: '旧方案', loaded: true, staleEnabledCount: 2 }]), /2 条/);
 assert.equal(getWorldbookGenerationIssue([{ source: '正常', loaded: true, error: '', staleEnabledCount: 0 }]), '');
 
+const positionalLegacyKeys = [
+  '世界书：顺序迁移::顺序迁移::世界书::旧名称一::旧内容一',
+  '世界书：顺序迁移::顺序迁移::世界书::旧名称二::旧内容二',
+  '世界书：顺序迁移::顺序迁移::世界书::旧名称三::旧内容三',
+];
+const positionalItems = [
+  { key: createWorldbookEntryKey('顺序迁移', 10), legacyKey: 'unused-a', name: '新名称一' },
+  { key: createWorldbookEntryKey('顺序迁移', 11), legacyKey: 'unused-b', name: '新名称二' },
+  { key: createWorldbookEntryKey('顺序迁移', 12), legacyKey: 'unused-c', name: '新名称三' },
+];
+const positional = reconcileWorldbookEntryRecords({
+  promptSelections: {
+    [positionalLegacyKeys[0]]: true,
+    [positionalLegacyKeys[1]]: false,
+    [positionalLegacyKeys[2]]: true,
+  },
+}, '顺序迁移', positionalItems);
+assert.deepEqual(positional.stores.promptSelections, {
+  [positionalItems[0].key]: true,
+  [positionalItems[1].key]: false,
+  [positionalItems[2].key]: true,
+}, 'a complete legacy selection snapshot should migrate by entry order when names or content changed');
+assert.equal(positional.staleEnabledCount, 0);
+
 console.log('worldbook identity tests passed');

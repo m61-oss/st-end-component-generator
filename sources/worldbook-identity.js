@@ -65,6 +65,20 @@ export function reconcileWorldbookEntryRecords(recordStores, source, items) {
       changed = true;
     }
 
+    if (storeName === 'promptSelections' || storeName === 'importSelections') {
+      const remainingItems = currentItems.filter((item) => !Object.prototype.hasOwnProperty.call(store, item.key));
+      const legacyPrefix = getLegacyWorldbookEntryKeyPrefix(source);
+      const remainingLegacyKeys = Object.keys(store).filter((key) => legacyPrefix && key.startsWith(legacyPrefix));
+      if (remainingItems.length > 0 && remainingLegacyKeys.length === remainingItems.length) {
+        remainingItems.forEach((item, index) => {
+          const legacyKey = remainingLegacyKeys[index];
+          store[item.key] = store[legacyKey];
+          delete store[legacyKey];
+          changed = true;
+        });
+      }
+    }
+
     for (const key of Object.keys(store)) {
       if (!isWorldbookEntryKeyForSource(key, source) || currentKeys.has(key)) continue;
       if ((storeName === 'promptSelections' || storeName === 'importSelections') && store[key] !== false) {

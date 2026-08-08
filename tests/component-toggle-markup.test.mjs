@@ -346,6 +346,11 @@ assert.doesNotMatch(
 assert.match(indexSource, /\['failed', '读取失败'\]/, 'failed worldbooks should have their own category');
 assert.match(indexSource, /return '点击查看'/, 'failed rows should invite the user to open the failure detail');
 assert.match(indexSource, /删除这条世界书记录/, 'failure detail should let the user remove the stale scheme record');
+assert.match(
+  styleSource,
+  /\.st-esg-worldbook-failure \.st-esg-remove-worldbook-record\s*\{[^}]*display:\s*inline-flex\s*!important;[^}]*flex-direction:\s*row\s*!important;[^}]*white-space:\s*nowrap\s*!important;/s,
+  'the worldbook record delete button should stay horizontal',
+);
 
 // Placement while a scheme is active is decided by the plugin selection, not by re-grouping the
 // directory. A tavern-default scheme that was only just edited has no captured source list yet, so

@@ -3554,12 +3554,41 @@ function getWorldbookRecordStores() {
 }
 
 function reconcileLoadedWorldbookGroup(group, items = group?.items, { authoritative = false } = {}) {
-  if (!group || group.scope !== SOURCE_WORLDBOOK || (!authoritative && group.loaded !== true) || !Array.isArray(items)) return 0;
+  if (!group || group.scope !== SOURCE_WORLDBOOK || (!authoritative && group.loaded !== true) || !Array.isArray(items)) {
+    return { changed: false, staleEnabledCount: 0 };
+  }
   const result = reconcileWorldbookEntryRecords(getWorldbookRecordStores(), group.source, items);
   Object.assign(settings, result.stores);
   group.staleEnabledCount = result.staleEnabledCount;
   if (result.changed) saveSettings();
-  return result.staleEnabledCount;
+  return result;
+}
+
+function removeEmptyWorldbookSchemeSource(group, enabledCount, migration = {}) {
+  if (isFollowingTavernWorldbook()
+    || Number(enabledCount) > 0
+    || Number(migration?.staleEnabledCount || 0) > 0
+    || !hasWorldbookDraftSource(group?.source)) return false;
+  const source = getWorldbookRawName(group.source);
+  settings.worldbookDraftSources = settings.worldbookDraftSources.filter((name) => getWorldbookRawName(name) !== source);
+  const removed = removeWorldbookSourceRecords(getWorldbookRecordStores(), source);
+  Object.assign(settings, removed.stores);
+  saveSettings();
+  return true;
+}
+
+function persistCurrentWorldbookSchemeMigration() {
+  const schemeId = getActiveSchemeId('worldbook');
+  if (!schemeId
+    || schemeId === WORLD_BOOK_FOLLOW_TAVERN
+    || schemeId !== getSelectedSchemeId('worldbook')
+    || settings.dirtySchemeTypes?.worldbook) return false;
+  const list = getSchemeList('worldbook');
+  const scheme = findScheme(list, schemeId);
+  if (!scheme) return false;
+  setSchemeList('worldbook', saveScheme(list, scheme.name, currentSchemeSnapshot('worldbook'), schemeId));
+  saveSettings();
+  return true;
 }
 
 function getSourceSelection(item) {
@@ -3987,9 +4016,13 @@ async function startBackgroundWorldbookCounts() {
       group.error = '';
       group.loadFailed = false;
       group.entriesResolved = true;
-      reconcileLoadedWorldbookGroup(group, items, { authoritative: true });
+      const migration = reconcileLoadedWorldbookGroup(group, items, { authoritative: true });
       group.entryCount = items.length;
       group.pluginEnabledCount = items.filter((item) => getSourceSelection({ ...item, worldbookCategory: group.category })).length;
+      const removedEmptySource = removeEmptyWorldbookSchemeSource(group, group.pluginEnabledCount, migration);
+      if ((migration.changed || removedEmptySource) && migration.staleEnabledCount === 0) {
+        persistCurrentWorldbookSchemeMigration();
+      }
       updateWorldbookCountLabel(group);
     } catch (error) {
       if (revision === worldbookCountRevision) {

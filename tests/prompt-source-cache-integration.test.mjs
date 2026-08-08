@@ -44,6 +44,8 @@ assert.match(
   /reconcileLoadedWorldbookGroup\(group, items, \{ authoritative: true \}\)/,
   'a successful background read must migrate saved legacy selections before calculating the scheme count',
 );
+assert.match(backgroundCountFunction, /removeEmptyWorldbookSchemeSource\(group, group\.pluginEnabledCount/);
+assert.match(backgroundCountFunction, /persistCurrentWorldbookSchemeMigration\(\)/);
 
 assert.match(source, /function invalidateWorldbookSourceCache\(worldbookName\)/);
 assert.match(source, /markWorldbookSourceDirty\(promptSourceCache, worldbookName\)/);
