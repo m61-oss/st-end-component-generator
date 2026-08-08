@@ -486,6 +486,7 @@ select.st-esg-scheme-select {
 .st-esg-unmatched-worldbook-copy em { flex: 0 0 auto; color: #FF9F0A; font-size: 10px; font-style: normal; }
 .st-esg-unmatched-worldbook-copy p { display: -webkit-box; margin: 4px 0 0; overflow: hidden; color: var(--esg-text-muted); font-size: 10px; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .st-esg-unmatched-worldbook-row .st-esg-remove-unmatched-worldbook-record { display: inline-flex !important; flex-direction: row !important; align-items: center; justify-content: center; width: auto !important; padding-inline: 9px !important; white-space: nowrap !important; word-break: keep-all !important; writing-mode: horizontal-tb !important; text-orientation: mixed !important; }
+.st-esg-unmatched-worldbook + .st-esg-list-toolbar { margin: 8px 0 6px; }
 .st-esg-worldbook-detail { border: 1px solid var(--esg-border); border-radius: 8px; background: var(--esg-bg-card); overflow: visible; }
 .st-esg-detail-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--esg-border); background: transparent; }
 .st-esg-back-worldbooks,

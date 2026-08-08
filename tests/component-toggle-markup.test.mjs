@@ -359,6 +359,11 @@ assert.match(
   /\.st-esg-worldbook-failure \.st-esg-remove-worldbook-record\s*\{[^}]*display:\s*inline-flex\s*!important;[^}]*flex-direction:\s*row\s*!important;[^}]*white-space:\s*nowrap\s*!important;/s,
   'the worldbook record delete button should stay horizontal',
 );
+assert.match(
+  styleSource,
+  /\.st-esg-unmatched-worldbook \+ \.st-esg-list-toolbar\s*\{[^}]*margin:\s*8px 0 6px;/s,
+  'the search toolbar must not use its first-child negative margin after unmatched records',
+);
 
 // Placement while a scheme is active is decided by the plugin selection, not by re-grouping the
 // directory. A tavern-default scheme that was only just edited has no captured source list yet, so
