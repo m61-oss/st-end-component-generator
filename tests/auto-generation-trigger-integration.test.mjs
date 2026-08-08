@@ -12,6 +12,14 @@ const receivedHandler = source.slice(
   source.indexOf('function handleAssistantMessageReceived('),
   source.indexOf('function handleAssistantMessageRendered('),
 );
+const generationStartedHandler = source.slice(
+  source.indexOf('function handleGenerationStarted('),
+  source.indexOf('function handleGenerationEnded('),
+);
+const animaPromptSnapshotFunction = source.slice(
+  source.indexOf('async function getAnimaWorldbookSnapshotForPrompt('),
+  source.indexOf('function getAnimaStatusForPrompt('),
+);
 
 assert.match(
   source,
@@ -73,6 +81,25 @@ assert.doesNotMatch(receivedHandler, /invalidatePendingAutomaticGeneration\(\{ a
 assert.doesNotMatch(generateFunction, /if \(entryType === 'automatic'\) logAutomaticGenerationStage\('api-start'/, 'automatic API start should not be logged twice');
 assert.doesNotMatch(generateFunction, /if \(entryType === 'automatic'\) logAutomaticGenerationStage\('api-returned'/, 'automatic API completion should not be logged twice');
 assert.match(triggerHandlers, /logAutomaticGenerationStage\('generation-skip', `等待最新 assistant 超时/, 'a readiness timeout should expose actionable diagnostics');
+assert.ok(
+  generationStartedHandler.indexOf('if (generationAbortController)') < generationStartedHandler.indexOf('captureAnimaWorldbookSnapshot()'),
+  'a statusbar request must not start a body-generation Anima capture loop',
+);
+assert.match(
+  generationStartedHandler,
+  /if \(generationAbortController\) \{[\s\S]*?stopAnimaWorldbookCapture\(\);[\s\S]*?return;/,
+  'a statusbar generation must stop and leave the Anima capture loop before returning',
+);
+assert.match(
+  animaPromptSnapshotFunction,
+  /!animaWorldbookCaptureRun\?\.active/,
+  'prompt assembly must not await an active Anima retry loop started by another generation',
+);
+assert.match(
+  generateFunction,
+  /generationAbortController = new AbortController\(\);[\s\S]*?stopAnimaWorldbookCapture\(\);/,
+  'statusbar generation should end any leftover Anima capture before assembling its prompt',
+);
 
 assert.match(
   generateFunction,

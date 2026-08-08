@@ -635,6 +635,7 @@ function isAnimaStatusVariableEnabled() {
 function stopAnimaWorldbookCapture() {
   if (animaWorldbookCaptureRun) animaWorldbookCaptureRun.active = false;
   animaWorldbookCaptureRun = null;
+  animaWorldbookSnapshotPromise = null;
 }
 
 function getCurrentAnimaChatId() {
@@ -687,7 +688,7 @@ function captureAnimaWorldbookSnapshot() {
 async function getAnimaWorldbookSnapshotForPrompt() {
   if (!isAnimaMemoryEnabled()) return [];
   if (isAnimaWorldbookEnabled()) {
-    if (animaWorldbookSnapshotPromise) {
+    if (animaWorldbookSnapshotPromise && !animaWorldbookCaptureRun?.active) {
       try {
         await animaWorldbookSnapshotPromise;
       } catch (_) {}
@@ -1240,6 +1241,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   if (preview) preview.scrollTop = preview.scrollHeight;
   notifyStatus('正在生成文尾组件……', 'info');
   generationAbortController = new AbortController();
+  stopAnimaWorldbookCapture();
   if (entryType === 'automatic') activeAutomaticTarget = automaticTarget;
   logAutomaticGenerationStage('target-ready', `message ${latest.index}`);
   logAutomaticGenerationStage('api-start', `楼层 ${latest.index}`);
@@ -1578,9 +1580,13 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
 }
 
 function handleGenerationStarted() {
+  if (generationAbortController) {
+    stopAnimaWorldbookCapture();
+    return;
+  }
   if (isAnimaWorldbookEnabled()) void captureAnimaWorldbookSnapshot();
   else stopAnimaWorldbookCapture();
-  if (!settings.autoGenerate || generationAbortController) return;
+  if (!settings.autoGenerate) return;
   automaticGenerationLogActive = false;
   logAutomaticGenerationStage('generation-started');
   invalidatePendingAutomaticGeneration();
