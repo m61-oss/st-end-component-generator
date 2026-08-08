@@ -2499,8 +2499,8 @@ async function handleSchemeAction(type, action) {
     if (type === 'worldbook' && selectedId === WORLD_BOOK_FOLLOW_TAVERN) {
       if (!targetWindow.confirm('确认载入世界书酒馆默认？当前未保存的修改将丢失。')) return;
       setSelectedSchemeId(type, selectedId);
-      await applyFollowTavernWorldbook();
       markSchemeClean(type, selectedId);
+      await applyFollowTavernWorldbook();
       saveSettings();
       renderSchemeOptions(type);
       notifyStatus('已载入世界书酒馆默认。');
@@ -4654,7 +4654,7 @@ function renderPluginPanel() {
     const legacyMemorySection = promptSettings.querySelector('.st-esg-prompt-settings-section');
     const memorySettings = targetDoc.createElement('details');
     memorySettings.className = 'st-esg-card st-esg-collapsible st-esg-memory-settings';
-    memorySettings.innerHTML = '<summary class="st-esg-collapsible-summary">记忆设置</summary><div class="st-esg-collapsible-body"><div class="st-esg-memory-source-options"><label class="st-esg-radio-row"><input id="st-esg-memory-source-baibai" type="radio" name="st-esg-memory-source" value="baibai" /><span>柏宝书</span></label><label class="st-esg-radio-row"><input id="st-esg-memory-source-anima" type="radio" name="st-esg-memory-source" value="anima" /><span>Anima</span></label><label class="st-esg-radio-row"><input id="st-esg-memory-source-none" type="radio" name="st-esg-memory-source" value="none" /><span>无</span></label></div><div id="st-esg-baibai-memory-options" class="st-esg-memory-source-panel"></div><div id="st-esg-anima-memory-options" class="st-esg-memory-source-panel"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-anima-worldbook-enabled" type="checkbox" /><span>读取 Anima 世界书</span><em>抓取 Anima 最新召回切片并覆盖快照。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-anima-status-enabled" type="checkbox" /><span>读取 Anima 状态变量</span><em>实时读取最近可用的 anima_data；当前楼层没有时会向前回溯。</em></label></div></div>';
+    memorySettings.innerHTML = '<summary class="st-esg-collapsible-summary">记忆设置</summary><div class="st-esg-collapsible-body"><div class="st-esg-memory-source-options"><label class="st-esg-radio-row"><input id="st-esg-memory-source-baibai" type="radio" name="st-esg-memory-source" value="baibai" /><span>柏宝书</span></label><label class="st-esg-radio-row"><input id="st-esg-memory-source-anima" type="radio" name="st-esg-memory-source" value="anima" /><span>Anima</span></label><label class="st-esg-radio-row"><input id="st-esg-memory-source-none" type="radio" name="st-esg-memory-source" value="none" /><span>无</span></label></div><div id="st-esg-baibai-memory-options" class="st-esg-memory-source-panel"></div><div id="st-esg-anima-memory-options" class="st-esg-memory-source-panel"><div class="st-esg-card-desc">使用 Anima 记忆前，请先在插件当前的世界书方案中启用 Anima 聊天世界书。</div><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-anima-worldbook-enabled" type="checkbox" /><span>读取 Anima 世界书</span><em>抓取 Anima 最新召回切片并覆盖快照。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-anima-status-enabled" type="checkbox" /><span>读取 Anima 状态变量</span><em>实时读取最近可用的 anima_data；当前楼层没有时会向前回溯。</em></label></div></div>';
     const animaStatusLabel = memorySettings.querySelector('#st-esg-anima-status-enabled')?.closest('label');
     if (animaStatusLabel && !memorySettings.querySelector('#st-esg-anima-status-after-message-option')) {
       const afterMessageLabel = targetDoc.createElement('label');

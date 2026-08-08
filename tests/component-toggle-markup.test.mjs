@@ -329,6 +329,16 @@ assert.match(
   'the current-scheme label should say only that the working copy is unsaved',
 );
 
+const tavernWorldbookLoadStart = indexSource.indexOf("if (type === 'worldbook' && selectedId === WORLD_BOOK_FOLLOW_TAVERN)");
+const tavernWorldbookLoadEnd = indexSource.indexOf('\n    }', tavernWorldbookLoadStart);
+const tavernWorldbookLoadBranch = indexSource.slice(tavernWorldbookLoadStart, tavernWorldbookLoadEnd);
+assert.ok(tavernWorldbookLoadStart >= 0, 'the Tavern-default worldbook load branch should exist');
+assert.ok(
+  tavernWorldbookLoadBranch.indexOf('markSchemeClean(type, selectedId)')
+    < tavernWorldbookLoadBranch.indexOf('await applyFollowTavernWorldbook()'),
+  'Tavern default must become active before scanning worldbooks so cached groups mirror Tavern entry states',
+);
+
 const worldbookScanFunction = indexSource.slice(
   indexSource.indexOf('async function scanImportCandidates('),
   indexSource.indexOf('async function loadImportGroup('),
