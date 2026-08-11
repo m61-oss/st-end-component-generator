@@ -2510,8 +2510,8 @@ async function handleSchemeAction(type, action) {
     if (!scheme) { notifyStatus('请先选择要载入的方案。', 'warning'); return; }
     if (!targetWindow.confirm(`确认载入方案“${scheme.name}”？当前未保存的修改将丢失。`)) return;
     setSelectedSchemeId(type, selectedId);
-    await applyScheme(type, scheme.snapshot || {});
     markSchemeClean(type, selectedId);
+    await applyScheme(type, scheme.snapshot || {});
     renderSchemeOptions(type);
     notifyStatus(`已载入${config.label}方案：${scheme.name}`);
   }
