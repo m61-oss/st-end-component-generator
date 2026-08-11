@@ -817,7 +817,10 @@ export async function buildExternalStatusbarMessages({ targetWindow, context, la
       const itemKey = textOf(item?.sourceUid ?? item?.key);
       const hasPlacementMetadata = ['worldbookPosition', 'worldbookDepth', 'worldbookRole', 'worldbookOrder']
         .some((key) => Object.prototype.hasOwnProperty.call(item, key));
-      return !(hasPlacementMetadata && positionedWorldbookKeys.has(itemKey) && (hasWorldInfoMarker || worldbooks.atDepth.some((injection) => injection.content === textOf(item?.content))));
+      return !(hasPlacementMetadata && (
+        hasWorldInfoMarker
+        || (positionedWorldbookKeys.has(itemKey) && worldbooks.atDepth.some((injection) => injection.content === textOf(item?.content)))
+      ));
     })
     : activePromptSourceItems;
   const promptMessages = buildPromptSourceMessages(promptSourceItemsForBuild, { context, latestMessage, substituteParams, lastUserMessageOverride, includeUserMessages, historyCleanupTags, historyRangeMode, recentMessageCount, inChatInjections, depthReferenceMessages, anchoredInjections, worldbooks, worldbookSourceControlled, animaStatus, animaStatusMessageIndex, animaYaml });
