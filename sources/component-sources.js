@@ -453,7 +453,7 @@ export function getWorldbookGroupsSafe(targetWindow, context, selectedWorldNames
     groups.push({ name: clean, category, categoryLabel, ...metadata });
   };
   // Always record Tavern's own assignment. It stays the grouping for books that the plugin also
-  // enables; whether it is used at all is decided by getWorldbookImportDisplayCategory.
+  // enables; whether it is used at all is decided later by the shared runtime-state resolver.
   [...globalNames, ...selected].forEach((name) => add(name, 'global', '全局世界书'));
   charNames.forEach((name) => add(name, 'character', '角色世界书'));
   add(chatName, 'chat', '聊天世界书');

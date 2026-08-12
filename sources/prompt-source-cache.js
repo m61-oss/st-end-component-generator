@@ -33,7 +33,7 @@ export async function loadWorldbookSourceGroups(groups, loadItems) {
     group.loading = true;
     group.error = '';
     try {
-      group.items = await loadItems(group.source);
+      group.items = await loadItems(group.source, group);
       group.loaded = true;
     } catch (error) {
       group.loaded = false;

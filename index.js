@@ -13,7 +13,6 @@ import {
   getComponentLibraryFolders,
   getComponentBindingName,
   getCurrentCharacterNameSafe,
-  getWorldbookImportDisplayCategory,
   getCurrentPresetNameSafe,
   migrateLegacyComponentGroups,
   getPresetNamesSafe,
@@ -34,10 +33,9 @@ import {
   clearImportSelectionsForScope,
   collectSelectedPromptSourceItems,
   normalizePromptSourceType,
-  resolveWorldbookSelection,
   syncPromptSelectionsFromGroups,
 } from './sources/source-selection.js?ver=0.1.7';
-import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hasEnabledWorldbookSource, hydrateTavernWorldbookSelections, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.7';
+import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hydrateTavernWorldbookSelections, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.7';
 import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.7';
 import { normalizeApiRetryCount, withApiRetries } from './api/api-retry.js?ver=0.1.7';
 import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.7';
@@ -91,6 +89,15 @@ import {
 import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from './settings/task-placement.js?ver=0.1.7';
 import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.1.7';
 import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.1.7';
+import {
+  WORLDBOOK_RUNTIME_DRAFT,
+  WORLDBOOK_RUNTIME_NATIVE,
+  WORLDBOOK_RUNTIME_SCHEME,
+  attachWorldbookRuntimeCategory,
+  isWorldbookSourceEnabled,
+  resolveWorldbookEntryRuntimeState,
+  resolveWorldbookSourceDisplayCategory,
+} from './sources/worldbook-runtime-state.js?ver=0.1.7';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.1.7';
@@ -3605,15 +3612,24 @@ function hasWorldbookDraftSource(source) {
   return settings.worldbookDraftSources.includes(getWorldbookRawName(source));
 }
 
-// A book is treated as enabled by the plugin when the current scheme lists it. A tavern-default
-// scheme that was only just edited has no captured list yet, so fall back to Tavern's own
-// assignment; otherwise every book would look unselected the moment the scheme turns dirty.
+function getWorldbookRuntimeMode() {
+  if (isFollowingTavernWorldbook()) return WORLDBOOK_RUNTIME_NATIVE;
+  if (isTavernDefaultWorldbookScheme()) return WORLDBOOK_RUNTIME_DRAFT;
+  return WORLDBOOK_RUNTIME_SCHEME;
+}
+
+function getWorldbookRuntimeOptions() {
+  return {
+    mode: getWorldbookRuntimeMode(),
+    sourceNames: settings.worldbookDraftSources,
+    selections: getSourceMode('worldbook') === SOURCE_MODE_IMPORT
+      ? settings.importSelections
+      : settings.promptSelections,
+  };
+}
+
 function isWorldbookSourceEnabledByPlugin(group) {
-  if (isTavernDefaultWorldbookScheme()) {
-    if (hasWorldbookDraftSource(group?.source)) return true;
-    return !settings.worldbookDraftSources.length && textOf(group?.category) !== 'inactive';
-  }
-  return hasEnabledWorldbookSource(getSourceSelectionStore(group), group?.source);
+  return isWorldbookSourceEnabled(group, getWorldbookRuntimeOptions());
 }
 
 function rememberWorldbookDraftSource(source) {
@@ -3719,18 +3735,16 @@ function persistCurrentWorldbookSchemeMigration() {
   return true;
 }
 
-function getSourceSelection(item) {
-  if (item?.locked) return item.enabled !== false;
+function getSourceSelection(item, group = null) {
   const store = getSourceSelectionStore(item);
   if (item?.scope === SOURCE_WORLDBOOK) {
-    const followsTavernState = isTavernDefaultWorldbookScheme();
-    if (!followsTavernState && !isWorldbookSourceEnabledByPlugin({
+    return resolveWorldbookEntryRuntimeState(group || {
       scope: item.scope,
       source: item.source,
       category: item.worldbookCategory,
-    })) return false;
-    return resolveWorldbookSelection(item, store, followsTavernState);
+    }, item, { ...getWorldbookRuntimeOptions(), selections: store }).shouldInject;
   }
+  if (item?.locked) return item.enabled !== false;
   if (Object.prototype.hasOwnProperty.call(store, item.key)) return store[item.key] !== false;
   return getSourceMode(item) === SOURCE_MODE_PROMPT ? item.enabled !== false : false;
 }
@@ -3759,14 +3773,16 @@ function syncSelectionForChecks(checks) {
 function syncPromptSelectionsFromLoadedGroups(groups = importGroups) {
   // Tag each worldbook group with whether it mirrors Tavern. While a scheme is active the snapshot is
   // authoritative, so loading a book must not seed its entries from Tavern's activation state.
-  const followingTavernWorldbook = isTavernDefaultWorldbookScheme();
+  const worldbookRuntimeMode = getWorldbookRuntimeMode();
+  const followingTavernWorldbook = worldbookRuntimeMode === WORLDBOOK_RUNTIME_NATIVE;
   const promptGroups = groups.filter((group) => getSourceMode(group) === SOURCE_MODE_PROMPT
+    && (!isWorldbookGroup(group) || worldbookRuntimeMode !== WORLDBOOK_RUNTIME_DRAFT)
     && (group.category !== 'inactive' || !followingTavernWorldbook))
     .map((group) => (isWorldbookGroup(group)
       ? { ...group, followsTavernState: followingTavernWorldbook }
       : group));
   const before = JSON.stringify(settings.promptSelections || {});
-  settings.promptSelections = syncPromptSelectionsFromGroups(promptGroups, settings.promptSelections, (group) => isWorldbookGroup(group) ? isFollowingTavernWorldbook() : isFollowingTavernPreset());
+  settings.promptSelections = syncPromptSelectionsFromGroups(promptGroups, settings.promptSelections, (group) => isWorldbookGroup(group) ? followingTavernWorldbook : isFollowingTavernPreset());
   if (JSON.stringify(settings.promptSelections || {}) !== before) saveSettings();
   return promptGroups.reduce((sum, group) => sum + (group?.loaded && Array.isArray(group.items) ? group.items.length : 0), 0);
 }
@@ -3787,14 +3803,16 @@ async function ensurePromptSourceItemsForGeneration({ chat = null, animaWorldboo
       group.loading = false;
       group.items = [];
     });
+  const worldbookRuntimeOptions = { ...getWorldbookRuntimeOptions(), selections: settings.promptSelections };
   const activeWorldbookGroups = importGroups.filter((group) => getSourceMode(group) === SOURCE_MODE_PROMPT
     && group?.scope === SOURCE_WORLDBOOK
-    && (isFollowingTavernWorldbook() ? group.category !== 'inactive' : isWorldbookSourceEnabledByPlugin(group))
+    && isWorldbookSourceEnabled(group, worldbookRuntimeOptions)
     && !group.loaded
     && !group.loading);
   await loadWorldbookSourceGroups(
     activeWorldbookGroups,
-    (worldbookName) => collectWorldbookImportCandidates(targetWindow, worldbookName),
+    (worldbookName, group) => collectWorldbookImportCandidates(targetWindow, worldbookName)
+      .then((items) => attachWorldbookRuntimeCategory(group, items)),
   );
   activeWorldbookGroups.forEach((group) => reconcileLoadedWorldbookGroup(group));
   const worldbookIssue = getWorldbookGenerationIssue(activeWorldbookGroups);
@@ -3803,20 +3821,16 @@ async function ensurePromptSourceItemsForGeneration({ chat = null, animaWorldboo
   importCandidates = importGroups.flatMap((group) => group.items || []);
   if (settings.activeTab === 'worldbook') renderImportCandidates({ renderPreset: false });
   const promptGroups = importGroups.filter((group) => getSourceMode(group) === SOURCE_MODE_PROMPT);
-  const selected = collectSelectedPromptSourceItems(promptGroups, settings.promptSelections, settings.sourceContentOverrides);
+  const selected = collectSelectedPromptSourceItems(promptGroups, settings.promptSelections, settings.sourceContentOverrides, {
+    isSelected: (item, group) => item?.scope === SOURCE_WORLDBOOK
+      ? resolveWorldbookEntryRuntimeState(group, item, worldbookRuntimeOptions).shouldInject
+      : undefined,
+  });
   const sourceItems = isFollowingTavernPreset() && getSourceMode('preset') === SOURCE_MODE_PROMPT
     ? [
       ...selected.filter((item) => item?.scope === SOURCE_WORLDBOOK),
       ...importGroups
         .filter((group) => !isWorldbookGroup(group) && group.loaded)
-        .flatMap((group) => group.items || [])
-        .filter((item) => item?.enabled !== false),
-    ]
-    : isFollowingTavernWorldbook() && getSourceMode('worldbook') === SOURCE_MODE_PROMPT
-    ? [
-      ...selected.filter((item) => item?.scope !== SOURCE_WORLDBOOK),
-      ...importGroups
-        .filter((group) => isWorldbookGroup(group) && group.category !== 'inactive' && group.loaded)
         .flatMap((group) => group.items || [])
         .filter((item) => item?.enabled !== false),
     ]
@@ -4047,7 +4061,7 @@ function applyListFilters() {
       const searchableText = `${item.name || ''}\n${item.content || ''}\n${getWorldbookKeywordValue(item)}`.toLocaleLowerCase();
       const matchesQuery = !query || searchableText.includes(query);
       const matchesFilter = listFilterMode === 'all'
-        || (listFilterMode === 'enabled' && getSourceSelection(item))
+        || (listFilterMode === 'enabled' && getSourceSelection(item, group))
         || (listFilterMode === 'modified' && hasSourceItemOverride(item));
       const visible = matchesQuery && matchesFilter;
       row.toggleClass('st-esg-hidden', !visible);
@@ -4123,10 +4137,10 @@ function updateWorldbookCountLabel(group) {
   // A fresh count can move a book between categories. The label lives inside the old category body,
   // so rewriting only the text would leave the book filed under the wrong heading until the next
   // full redraw. Re-render once the category no longer matches where the row currently sits.
-  const expectedCategory = getWorldbookImportDisplayCategory(group, {
-    pluginEnabledCount: Number(group.pluginEnabledCount || 0),
-    followingTavern: isFollowingTavernWorldbook(),
-    schemeEnabled: !isFollowingTavernWorldbook() && isWorldbookSourceEnabledByPlugin(group),
+  const expectedCategory = resolveWorldbookSourceDisplayCategory(group, {
+    mode: getWorldbookRuntimeMode(),
+    enabledCount: Number(group.pluginEnabledCount || 0),
+    sourceEnabled: isWorldbookSourceEnabledByPlugin(group),
     entriesResolved: Boolean(group.entriesResolved),
     loadFailed: Boolean(group.loadFailed || group.error || group.missingFromTavern),
     unmatchedEnabledCount: Number(group.staleEnabledCount || 0),
@@ -4151,7 +4165,7 @@ async function startBackgroundWorldbookCounts() {
       group.entriesResolved = true;
       const migration = reconcileLoadedWorldbookGroup(group, items, { authoritative: true });
       group.entryCount = items.length;
-      group.pluginEnabledCount = items.filter((item) => getSourceSelection({ ...item, worldbookCategory: group.category })).length;
+      group.pluginEnabledCount = items.filter((item) => getSourceSelection(item, group)).length;
       const removedEmptySource = removeEmptyWorldbookSchemeSource(group, group.pluginEnabledCount, migration);
       if ((migration.changed || removedEmptySource) && migration.staleEnabledCount === 0) {
         persistCurrentWorldbookSchemeMigration();
@@ -4171,14 +4185,20 @@ async function startBackgroundWorldbookCounts() {
 }
 
 async function readWorldbookItemsForGroup(group) {
-  if (group?.loaded && Array.isArray(group.items)) return group.items;
-  if (Array.isArray(group?.backgroundItems)) return group.backgroundItems;
+  if (group?.loaded && Array.isArray(group.items)) {
+    group.items = attachWorldbookRuntimeCategory(group, group.items);
+    return group.items;
+  }
+  if (Array.isArray(group?.backgroundItems)) {
+    group.backgroundItems = attachWorldbookRuntimeCategory(group, group.backgroundItems);
+    return group.backgroundItems;
+  }
   if (!group?.backgroundItemsPromise) {
     group.backgroundItemsPromise = collectWorldbookImportCandidates(targetWindow, group.source)
-      .then((items) => items.map((item) => ({ ...item, worldbookCategory: group.category })));
+      .then((items) => attachWorldbookRuntimeCategory(group, items));
   }
   try {
-    const items = await group.backgroundItemsPromise;
+    const items = attachWorldbookRuntimeCategory(group, await group.backgroundItemsPromise);
     group.backgroundItems = items;
     return items;
   } finally {
@@ -4217,8 +4237,8 @@ async function scanImportCandidates({ explicitPresetName = '' } = {}) {
           loadFailed: true,
           error: `未找到世界书“${group.source}”。它可能已被改名、删除，或方案保存的名称与酒馆实际名称不一致。`,
         } : {}),
-        ...(cached?.loaded ? { loaded: true, items: cached.items, error: cached.error } : {}),
-        ...(Array.isArray(cached?.backgroundItems) ? { backgroundItems: cached.backgroundItems } : {}),
+        ...(cached?.loaded ? { loaded: true, items: attachWorldbookRuntimeCategory(group, cached.items), error: cached.error } : {}),
+        ...(Array.isArray(cached?.backgroundItems) ? { backgroundItems: attachWorldbookRuntimeCategory(group, cached.backgroundItems) } : {}),
         ...(cached?.backgroundItemsPromise ? { backgroundItemsPromise: cached.backgroundItemsPromise } : {}),
       };
     }),
@@ -4288,12 +4308,12 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
   WORLDBOOK_CATEGORY_ORDER.forEach(([category, categoryLabel]) => worldbookCategories.set(category, { categoryLabel, groups: [] }));
   worldbookGroups.forEach((group) => {
     const currentEnabledCount = group.loaded && getSourceMode(group) === SOURCE_MODE_PROMPT
-      ? group.items.filter((item) => getSourceSelection(item)).length
+      ? group.items.filter((item) => getSourceSelection(item, group)).length
       : Number(group.pluginEnabledCount || 0);
-    const category = getWorldbookImportDisplayCategory(group, {
-      pluginEnabledCount: currentEnabledCount,
-      followingTavern: isFollowingTavernWorldbook(),
-      schemeEnabled: !isFollowingTavernWorldbook() && isWorldbookSourceEnabledByPlugin(group),
+    const category = resolveWorldbookSourceDisplayCategory(group, {
+      mode: getWorldbookRuntimeMode(),
+      enabledCount: currentEnabledCount,
+      sourceEnabled: isWorldbookSourceEnabledByPlugin(group),
       entriesResolved: Boolean(group.entriesResolved || group.loaded),
       loadFailed: Boolean(group.loadFailed || group.error || group.missingFromTavern),
       unmatchedEnabledCount: Number(group.staleEnabledCount || 0),
@@ -4308,7 +4328,7 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     if (!group.loaded) return '<div class="st-esg-empty st-esg-empty-small">展开后才加载条目，避免刷新卡顿。</div>';
     if (!group.items.length) return '<div class="st-esg-empty st-esg-empty-small">没有可导入条目</div>';
     return group.items.map((item, itemIndex) => {
-      const checked = getSourceSelection(item);
+      const checked = getSourceSelection(item, group);
       const isWorldbookItem = group.scope === SOURCE_WORLDBOOK;
       const meta = [item.role ? `role: ${item.role}` : '', item.scope || '', item.sourceUid ? `id: ${item.sourceUid}` : ''].filter(Boolean).join(' | ');
       const summaryLabel = item.locked
@@ -4335,7 +4355,7 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
   const renderWorldbookRow = (group) => {
     const unmatchedCount = Number(group.staleEnabledCount || 0);
     const count = group.loaded
-      ? `${group.items.filter((item) => getSourceSelection(item)).length}/${group.items.length}${unmatchedCount > 0 ? ` · ${unmatchedCount}条未匹配` : ''}`
+      ? `${group.items.filter((item) => getSourceSelection(item, group)).length}/${group.items.length}${unmatchedCount > 0 ? ` · ${unmatchedCount}条未匹配` : ''}`
       : getWorldbookCountText(group);
     return `<button class="st-esg-worldbook-row" type="button" data-group-index="${group.groupIndex}"><span>${escapeHtml(group.group)}</span><em>${count}</em><i class="fa-solid fa-chevron-right"></i></button>`;
   };
@@ -4393,7 +4413,7 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     group.unmatchedWorldbookRecords = group.unmatchedWorldbookRecords.filter((item) => item.key !== key);
     group.staleEnabledCount = group.unmatchedWorldbookRecords.filter((item) => item.enabled).length;
     removeEmptyWorldbookSchemeSource(group, group.loaded
-      ? group.items.filter((item) => getSourceSelection(item)).length
+      ? group.items.filter((item) => getSourceSelection(item, group)).length
       : group.pluginEnabledCount, { staleEnabledCount: group.staleEnabledCount });
     markSchemeDirty('worldbook');
     saveSettings();

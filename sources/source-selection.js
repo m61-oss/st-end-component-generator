@@ -38,7 +38,7 @@ export function syncPromptSelectionsFromGroups(groups, currentSelections = {}, s
   return nextSelections;
 }
 
-export function collectSelectedPromptSourceItems(groups, promptSelections = {}, contentOverrides = {}) {
+export function collectSelectedPromptSourceItems(groups, promptSelections = {}, contentOverrides = {}, options = {}) {
   const store = promptSelections && typeof promptSelections === 'object' ? promptSelections : {};
   const overrides = contentOverrides && typeof contentOverrides === 'object' ? contentOverrides : {};
   const selected = [];
@@ -46,17 +46,21 @@ export function collectSelectedPromptSourceItems(groups, promptSelections = {}, 
     if (!item?.key || !Object.prototype.hasOwnProperty.call(overrides, item.key)) return item;
     return { ...item, content: String(overrides[item.key] ?? '') };
   };
+  const isSelected = typeof options?.isSelected === 'function' ? options.isSelected : null;
   for (const group of Array.isArray(groups) ? groups : []) {
     if (!group?.loaded || !Array.isArray(group.items)) continue;
     for (const item of group.items) {
       if (!item?.key) continue;
       const sourceItem = withOverride(item);
       if (!String(sourceItem?.content ?? '').trim() && !String(sourceItem?.markerType ?? '').trim() && sourceItem?.allowEmpty !== true) continue;
+      const resolvedSelection = isSelected ? isSelected(item, group) : undefined;
       if (item?.locked) {
-        if (item.enabled !== false) selected.push(sourceItem);
+        if (typeof resolvedSelection === 'boolean' ? resolvedSelection : item.enabled !== false) selected.push(sourceItem);
         continue;
       }
-      const checked = Object.prototype.hasOwnProperty.call(store, item.key) ? store[item.key] !== false : item.enabled !== false;
+      const checked = typeof resolvedSelection === 'boolean'
+        ? resolvedSelection
+        : Object.prototype.hasOwnProperty.call(store, item.key) ? store[item.key] !== false : item.enabled !== false;
       if (checked) selected.push(sourceItem);
     }
   }
