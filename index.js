@@ -923,6 +923,25 @@ function scheduleGeneratedPreviewResize() {
   }
 }
 
+function capturePanelScrollTop() {
+  const panelBody = targetDoc.querySelector('.st-esg-panel-body');
+  return panelBody ? panelBody.scrollTop : null;
+}
+
+function restorePanelScrollTop(scrollTop) {
+  if (!Number.isFinite(scrollTop)) return;
+  const restore = () => {
+    const panelBody = targetDoc.querySelector('.st-esg-panel-body');
+    if (panelBody) panelBody.scrollTop = scrollTop;
+  };
+  if (typeof targetWindow.requestAnimationFrame === 'function') targetWindow.requestAnimationFrame(restore);
+  else restore();
+}
+
+function renderPromptLogIfVisible() {
+  if (settings.activeTab === 'debug') renderPromptLog();
+}
+
 function renderGeneratedThinking(blocks = lastGeneratedThinking) {
   const box = $t('#st-esg-thinking-panel');
   if (!box.length) return;
@@ -1101,7 +1120,7 @@ async function callExternalApiOnce(requestContext, signal) {
     promptLogBuilding = false;
     settings.lastPromptLog = '';
     saveSettings();
-    renderPromptLog();
+    renderPromptLogIfVisible();
     const service = targetWindow?.SillyTavern?.ConnectionManagerRequestService
       || targetWindow?.ConnectionManagerRequestService
       || getContext()?.ConnectionManagerRequestService;
@@ -1167,7 +1186,7 @@ async function callExternalApiOnce(requestContext, signal) {
     promptLogBuilding = false;
     settings.lastPromptLog = '';
     saveSettings();
-    renderPromptLog();
+    renderPromptLogIfVisible();
     const response = await tavernChatService.processRequest(requestData, {}, true, signal);
     if (settings.streamingEnabled && typeof response === 'function') {
       const streamPreview = createStreamPreviewController({ intervalMs: 80, onPreview: updateStreamedPreview });
@@ -1214,7 +1233,7 @@ async function callExternalApiOnce(requestContext, signal) {
   promptLogBuilding = false;
   settings.lastPromptLog = '';
   saveSettings();
-  renderPromptLog();
+  renderPromptLogIfVisible();
   console.log(`[${EXTENSION_ID}] prompt log`, { summary: createPromptLogViewModel(lastPromptLogText).summary, diagnostics: lastRuntimeDiagnostics });
   const response = await fetch(apiUrl, {
     method: 'POST',
@@ -1298,9 +1317,9 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   }
   const rollbackMode = settings.injectMode === 'rollbackAppend' || settings.injectMode === 'rollbackReplace';
   if (rollbackMode) await restoreLatestInjection({ targetMessageIndex: latest.index });
+  const panelScrollTop = capturePanelScrollTop();
   clearGeneratedThinking();
-  const preview = $t('#st-esg-preview').get(0);
-  if (preview) preview.scrollTop = preview.scrollHeight;
+  restorePanelScrollTop(panelScrollTop);
   notifyStatus('正在生成文尾组件……', 'info');
   generationAbortController = new AbortController();
   stopAnimaWorldbookCapture();
@@ -1334,7 +1353,9 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     if (error?.name === 'AbortError') {
       const partialStreamText = String(error?.streamedText ?? '');
       if (partialStreamText.trim()) {
+        const partialResultPanelScrollTop = capturePanelScrollTop();
         applyGeneratedResult(partialStreamText);
+        restorePanelScrollTop(partialResultPanelScrollTop);
         saveSettings();
       }
       notifyStatus('已停止生成。提示词查看器内容已保留。', 'warning');
@@ -1347,7 +1368,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   } finally {
     if (promptLogBuilding) {
       promptLogBuilding = false;
-      renderPromptLog();
+      renderPromptLogIfVisible();
     }
     generationAbortController = null;
     if (entryType === 'automatic') activeAutomaticTarget = null;
@@ -1355,9 +1376,11 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     setGeneratingState(false);
   }
   logAutomaticGenerationStage('result-apply', 'updating preview');
+  const resultPanelScrollTop = capturePanelScrollTop();
   applyGeneratedResult(result);
   recentGenerationHistory = recordGenerationResult(getGenerationHistoryStorage(), GENERATION_HISTORY_STORAGE_KEY, settings.lastGenerated);
   renderGenerationHistory();
+  restorePanelScrollTop(resultPanelScrollTop);
   saveSettings();
   if (settings.autoInject && result) {
     if (automaticTarget && !isAutomaticAssistantTargetAddressable(automaticTarget, getContext().chat)) {
@@ -1819,7 +1842,7 @@ function beginPromptLogBuild() {
   lastPromptLogText = '';
   settings.lastPromptLog = '';
   promptLogBuilding = true;
-  renderPromptLog();
+  renderPromptLogIfVisible();
 }
 
 function renderModelOptions() {
@@ -2341,7 +2364,6 @@ async function applyWorldbookScheme(snapshot) {
   // Do not eagerly load every book while applying a scheme. Lazy loading restores entry details
   // when they are opened or needed for generation, avoiding a mobile UI freeze on large libraries.
   await scanImportCandidates();
-  renderImportCandidates({ renderPreset: false });
 }
 
 async function applyFollowTavernWorldbook() {
@@ -2352,7 +2374,6 @@ async function applyFollowTavernWorldbook() {
   settings.worldbookActivationOverrides = {};
   settings.worldbookKeywordOverrides = {};
   await scanImportCandidates();
-  renderImportCandidates({ renderPreset: false });
 }
 
 async function applyFollowTavernPreset() {
@@ -2536,6 +2557,9 @@ function switchTab(tabName) {
   settings.activeTab = nextTab;
   saveSettings();
   if ((nextTab === 'preset' || nextTab === 'worldbook') && (!importGroups.length || promptSourceCache.structureDirty)) scanImportCandidates();
+  else if (nextTab === 'worldbook') renderImportCandidates({ renderPreset: false });
+  else if (nextTab === 'preset') renderImportCandidates({ renderWorldbook: false });
+  if (nextTab === 'debug') renderPromptLog();
   if (nextTab === 'workspace') scheduleGeneratedPreviewResize();
   if (shouldRefreshComponentLibrary) renderComponentList();
 }
@@ -3777,7 +3801,7 @@ async function ensurePromptSourceItemsForGeneration({ chat = null, animaWorldboo
   if (worldbookIssue) throw new Error(worldbookIssue);
   syncPromptSelectionsFromLoadedGroups(activeWorldbookGroups);
   importCandidates = importGroups.flatMap((group) => group.items || []);
-  renderImportCandidates({ renderPreset: false });
+  if (settings.activeTab === 'worldbook') renderImportCandidates({ renderPreset: false });
   const promptGroups = importGroups.filter((group) => getSourceMode(group) === SOURCE_MODE_PROMPT);
   const selected = collectSelectedPromptSourceItems(promptGroups, settings.promptSelections, settings.sourceContentOverrides);
   const sourceItems = isFollowingTavernPreset() && getSourceMode('preset') === SOURCE_MODE_PROMPT
@@ -4108,6 +4132,7 @@ function updateWorldbookCountLabel(group) {
     unmatchedEnabledCount: Number(group.staleEnabledCount || 0),
   });
   if (textOf(row.closest('.st-esg-import-category').data('category')) !== expectedCategory) {
+    if (settings.activeTab !== 'worldbook') return;
     renderImportCandidates({ renderPreset: false });
   }
 }
@@ -4202,7 +4227,8 @@ async function scanImportCandidates({ explicitPresetName = '' } = {}) {
   const syncedCount = syncPromptSelectionsFromLoadedGroups(importGroups);
   activeWorldbookGroupIndex = null;
   importCandidates = importGroups.flatMap((group) => group.items || []);
-  renderImportCandidates();
+  if (settings.activeTab === 'worldbook') renderImportCandidates({ renderPreset: false });
+  else if (settings.activeTab === 'preset') renderImportCandidates({ renderWorldbook: false });
   void startBackgroundWorldbookCounts();
   renderTaskPlacementOptions();
   promptSourceCache.structureDirty = false;
