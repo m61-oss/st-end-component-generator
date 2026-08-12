@@ -99,7 +99,7 @@ import {
   resolveWorldbookSourceDisplayCategory,
 } from './sources/worldbook-runtime-state.js?ver=0.1.7';
 import { createLibraryExportPackage, importLibraryPackage, toggleLibraryExportSelection } from './sources/library-transfer.js?ver=0.1.7';
-import { buildEditedPresetExport, buildPresetExportFilename } from './sources/preset-export.js?ver=0.1.7';
+import { buildEditedPresetExport, buildPresetExportFilename, getNativeTavernPreset } from './sources/preset-export.js?ver=0.1.7';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.1.7';
@@ -3717,10 +3717,6 @@ function getPresetSourceGroup(name) {
     && Array.isArray(group.items));
 }
 
-function getTavernPresetByName(name) {
-  try { return targetWindow?.TavernHelper?.getPreset?.(name) || null; } catch (_) { return null; }
-}
-
 async function exportCurrentEditedPreset() {
   if (getSourceMode('preset') !== SOURCE_MODE_PROMPT) {
     notifyStatus('请先切换到提示词编辑，再导出修改后的预设。', 'warning');
@@ -3735,8 +3731,7 @@ async function exportCurrentEditedPreset() {
       group = getPresetSourceGroup(presetName);
     }
     if (!group) throw new Error('无法读取当前预设条目，请先同步来源。');
-    const preset = getTavernPresetByName(presetName);
-    if (!preset) throw new Error('酒馆中未找到当前预设。');
+    const preset = getNativeTavernPreset(getContext(), presetName);
     const exported = buildEditedPresetExport({
       preset,
       items: group.items,

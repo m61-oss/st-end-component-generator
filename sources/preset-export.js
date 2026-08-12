@@ -10,6 +10,15 @@ export function buildPresetExportFilename({ schemeName = '', dirty = false } = {
   return `织幕-${safeLabel}.json`;
 }
 
+export function getNativeTavernPreset(context, name) {
+  const manager = context?.getPresetManager?.('openai');
+  const preset = manager?.getCompletionPresetByName?.(textOf(name));
+  if (!preset || !Array.isArray(preset.prompts) || !Array.isArray(preset.prompt_order)) {
+    throw new Error('无法读取酒馆原生格式的当前预设。');
+  }
+  return cloneJson(preset);
+}
+
 function getPromptId(prompt) {
   return textOf(prompt?.identifier ?? prompt?.id ?? prompt?.name);
 }
