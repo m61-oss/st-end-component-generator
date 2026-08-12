@@ -433,6 +433,9 @@ select.st-esg-scheme-select {
 .st-esg-component-batch-actions { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; }
 .st-esg-component-batch-actions .menu_button { min-height: 28px; padding-inline: 7px !important; white-space: nowrap; }
 .st-esg-component-batch-actions .menu_button:disabled { cursor: not-allowed; opacity: 0.44; }
+.st-esg-library-transfer-toolbar { position: static; top: auto; flex-wrap: wrap; margin: 0 0 8px; border: 1px solid var(--esg-border); border-radius: 8px; background: var(--esg-bg-card); }
+.st-esg-library-export-count { white-space: nowrap; }
+.st-esg-library-export-select-label { justify-self: end; gap: 0; cursor: pointer; }
 .st-esg-component-select-label { justify-self: end; gap: 0; cursor: pointer; }
 .st-esg-component-folder { border: 0; border-radius: 0; background: transparent; overflow: hidden; }
 .st-esg-component-folder + .st-esg-component-folder,
