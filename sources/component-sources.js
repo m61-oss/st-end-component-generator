@@ -607,6 +607,7 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
         role: prompt?.role || rawPrompt?.role,
         markerType: prompt?.markerType,
         locked: Boolean(prompt?.locked || prompt?.markerType),
+        allowEmpty: true,
       });
     };
     if (orderList.length) {
@@ -654,6 +655,7 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
       role: prompt?.role,
       markerType: prompt?.markerType,
       locked: Boolean(prompt?.locked || prompt?.markerType),
+      allowEmpty: true,
     });
   });
 
@@ -664,6 +666,7 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
       sourceOrder: orderList.length + index,
       sourceUid: prompt?.identifier || prompt?.id,
       role: prompt?.role,
+      allowEmpty: true,
     });
   });
   return [{ scope: SOURCE_PRESET, group: `预设：${selected}`, source: selected, loaded: true, items: candidates }];
