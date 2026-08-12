@@ -100,6 +100,7 @@ import {
 } from './sources/worldbook-runtime-state.js?ver=0.1.7';
 import { buildLibraryExportFilename, createLibraryExportPackage, importLibraryPackage, toggleLibraryExportSelection } from './sources/library-transfer.js?ver=0.1.7';
 import { buildEditedPresetExport, buildPresetExportFilename, getNativeTavernPreset } from './sources/preset-export.js?ver=0.1.7';
+import { resolveTavernProfile } from './generation/tavern-profile.js?ver=0.1.7';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.1.7';
@@ -1110,17 +1111,20 @@ function setGeneratingState(isGenerating) {
 }
 
 async function buildExternalApiRequestContext(latestMessage) {
-  const apiUrl = (settings.apiMode || 'custom') === 'custom'
+  const apiMode = ['custom', 'tavern'].includes(settings.apiMode) ? settings.apiMode : 'custom';
+  const tavernProfile = apiMode === 'tavern'
+    ? resolveTavernProfile(getTavernProfiles(), settings.tavernProfile)
+    : null;
+  const apiUrl = apiMode === 'custom'
     ? normalizeChatCompletionsUrl(settings.apiUrl)
     : 'https://tavern.internal';
-  const model = textOf(settings.apiModel) || (settings.apiMode === 'custom' ? '' : '酒馆预设');
-  const apiMode = ['custom', 'tavern'].includes(settings.apiMode) ? settings.apiMode : 'custom';
+  const model = apiMode === 'tavern' ? textOf(tavernProfile?.model) : textOf(settings.apiModel);
   if (!apiUrl || !model) throw new Error('请先在“API 设置”里填写 API 地址和模型名称。');
   const numeric = parseApiNumericSettings(settings);
   const additional = parseApiAdditionalParameters(settings, await getYamlParser());
   const builtMessages = await buildMessages(latestMessage);
   const messages = settings.compressSystemMessages ? mergeConsecutiveSystemMessages(builtMessages) : builtMessages;
-  return { apiUrl, model, apiMode, numeric, additional, messages };
+  return { apiUrl, model, apiMode, numeric, additional, messages, tavernProfile };
 }
 
 async function callExternalApi(latestMessage, signal) {
@@ -1132,10 +1136,10 @@ async function callExternalApi(latestMessage, signal) {
 }
 
 async function callExternalApiOnce(requestContext, signal) {
-  const { apiUrl, model, apiMode, numeric, additional, messages } = requestContext;
+  const { apiUrl, model, apiMode, numeric, additional, messages, tavernProfile } = requestContext;
   if (apiMode === 'tavern') {
     const numeric = parseApiNumericSettings(settings);
-    const promptLogApi = `酒馆预设：${settings.tavernProfile || '未选择'}`;
+    const promptLogApi = `酒馆预设：${tavernProfile?.profile?.name || settings.tavernProfile || '未选择'}`;
     lastPromptLogText = createPromptLog({ apiUrl: promptLogApi, apiKey: '', model, maxTokens: String(numeric.maxTokens), temperature: String(numeric.temperature), messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics: lastRuntimeDiagnostics, compressSystemMessages: settings.compressSystemMessages });
     promptLogBuilding = false;
     settings.lastPromptLog = '';
@@ -1144,10 +1148,7 @@ async function callExternalApiOnce(requestContext, signal) {
     const service = targetWindow?.SillyTavern?.ConnectionManagerRequestService
       || targetWindow?.ConnectionManagerRequestService
       || getContext()?.ConnectionManagerRequestService;
-    const profiles = getTavernProfiles();
-    const requestedProfile = textOf(settings.tavernProfile);
-    const profile = profiles.find((item) => String(item?.id || '') === requestedProfile || String(item?.name || '') === requestedProfile);
-    const profileId = textOf(profile?.id || requestedProfile);
+    const profileId = textOf(tavernProfile?.profileId);
     if (!profileId || typeof service?.sendRequest !== 'function') throw new Error('未选择可用的酒馆预设。');
     settings.tavernProfile = profileId;
     const response = await service.sendRequest(profileId, messages, Number(settings.maxTokens) || MAX_OUTPUT_TOKENS, {
