@@ -160,12 +160,49 @@
   background: var(--esg-text-main);
 }
 
+.st-esg-brand-mark {
+  display: block;
+  width: 1.45em;
+  height: 1.45em;
+  overflow: visible;
+}
+
+.st-esg-brand-mark-path,
+.st-esg-brand-mark-bridge {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 4.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.st-esg-brand-mark-cut {
+  fill: none;
+  stroke: var(--esg-bg-card, #1e1e1e);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+
+.st-esg-title-icon .st-esg-brand-mark-cut {
+  stroke: var(--esg-text-main);
+}
+
+.st-esg-title-icon .st-esg-brand-mark {
+  width: 28px;
+  height: 28px;
+}
+
+#st-esg-menu-button .st-esg-brand-mark {
+  width: 1.15em;
+  height: 1.15em;
+}
+
 .st-esg-kicker {
-  margin-bottom: 3px;
+  margin-top: 4px;
   color: var(--esg-text-muted);
   font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
 }
 
 .st-esg-title-text {
@@ -737,6 +774,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-range-control input[type="range"] { width: 100%; margin: 0; accent-color: var(--esg-text-main); cursor: pointer; }
 
 #st-esg-ball { --st-esg-ball-size: 38px; --st-esg-ball-opacity: 0.82; position: fixed; width: var(--st-esg-ball-size); height: var(--st-esg-ball-size); border: 1px solid var(--esg-text-main, #E0E0E0); border-radius: 50%; background: var(--esg-bg-card, #1E1E1E); color: var(--esg-text-main, #E0E0E0); display: flex; align-items: center; justify-content: center; z-index: 8999 !important; cursor: grab; box-shadow: var(--esg-shadow, 0 8px 24px rgba(0, 0, 0, 0.28)); touch-action: none; user-select: none; -webkit-tap-highlight-color: transparent; opacity: var(--st-esg-ball-opacity); will-change: left, top, transform; transition: transform 100ms ease, box-shadow 140ms ease, border-color 140ms ease; }
+#st-esg-ball .st-esg-brand-mark { width: 68%; height: 68%; }
 #st-esg-ball.st-esg-ball-under-panel { display: none; }
 #st-esg-ball.selected { outline: 2px solid var(--esg-text-main); }
 #st-esg-ball:hover { transform: scale(1.04); }

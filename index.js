@@ -104,6 +104,8 @@ import { resolveTavernProfile } from './generation/tavern-profile.js?ver=0.1.7';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.1.7';
+const BRAND_NAME = '织幕';
+const BRAND_SUBTITLE = '外置文尾组件生成器';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
 const GENERATION_HISTORY_STORAGE_KEY = `${EXTENSION_ID}.recentGenerationHistory`;
 const SOURCE_MODE_PROMPT = 'prompt';
@@ -126,6 +128,11 @@ const WORLDBOOK_CATEGORY_ORDER = [
   ['failed', '读取失败'],
   ['inactive', '未启用世界书'],
 ];
+
+function renderBrandMark(context = 'default') {
+  const contextClass = String(context || 'default').replace(/[^a-z0-9_-]/gi, '');
+  return `<svg class="st-esg-brand-mark st-esg-brand-mark-${contextClass}" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path class="st-esg-brand-mark-path" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-cut" d="m20.5 21.8 7 4.9"></path><path class="st-esg-brand-mark-bridge" d="m20.5 26.7 7-5"></path></svg>`;
+}
 
 const DEFAULT_SETTINGS = {
   enabled: false,
@@ -2659,8 +2666,8 @@ function renderMagicWandMenuButton() {
   button.id = 'st-esg-menu-button';
   button.className = 'list-group-item flex-container flexGap5 interactable';
   button.tabIndex = 0;
-  button.title = '外置文尾组件生成器';
-  button.innerHTML = '<span><i class="fa-solid fa-wand-magic-sparkles"></i></span><span>文尾组件</span>';
+  button.title = `${BRAND_NAME} · ${BRAND_SUBTITLE}`;
+  button.innerHTML = `<span>${renderBrandMark('menu')}</span><span>${BRAND_NAME}</span>`;
   button.addEventListener('click', () => togglePanel(true));
   menu.prepend(button);
 }
@@ -2676,8 +2683,8 @@ function renderFloatingBall() {
   }
   const ball = targetDoc.createElement('div');
   ball.id = 'st-esg-ball';
-  ball.title = '外置文尾组件生成器';
-  ball.innerHTML = '<i class="fa-solid fa-layer-group"></i>';
+  ball.title = `${BRAND_NAME} · ${BRAND_SUBTITLE}`;
+  ball.innerHTML = renderBrandMark('ball');
   const theme = settings.theme === 'light' ? 'light' : 'dark';
   applyThemeClass(ball, theme);
   applyFloatingBallAppearance(ball);
@@ -4813,6 +4820,11 @@ function renderPluginPanel() {
   dialog.id = 'st-esg-dialog';
   dialog.className = 'st-esg-dialog';
   dialog.innerHTML = buildPluginPanelMarkup();
+  const titleIcon = dialog.querySelector('.st-esg-title-icon');
+  if (titleIcon) titleIcon.innerHTML = renderBrandMark('title');
+  dialog.querySelector('.st-esg-kicker')?.replaceChildren(BRAND_SUBTITLE);
+  dialog.querySelector('.st-esg-title-text')?.replaceChildren(BRAND_NAME);
+  dialog.querySelector('.st-esg-tabs')?.setAttribute('aria-label', `${BRAND_NAME}分页`);
   dialog.querySelector('.st-esg-title-text')?.insertAdjacentHTML('beforeend', ` <span class="st-esg-version-badge">v${EXTENSION_VERSION}</span>`);
   dialog.querySelector('#st-esg-inject')?.insertAdjacentHTML('afterend', '<div id="st-esg-undo-injection" class="menu_button menu_button_icon st-esg-secondary-action st-esg-hidden" title="撤回本次注入"><i class="fa-solid fa-rotate-left"></i><span>撤回注入</span></div>');
   dialog.querySelector('#st-esg-status')?.remove();
