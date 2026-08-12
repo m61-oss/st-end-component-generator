@@ -4,6 +4,12 @@ function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+export function buildPresetExportFilename({ schemeName = '', dirty = false } = {}) {
+  const label = dirty || !textOf(schemeName) ? '未保存方案' : textOf(schemeName);
+  const safeLabel = label.replace(/[\\/:*?"<>|]/g, '_');
+  return `织幕-${safeLabel}.json`;
+}
+
 function getPromptId(prompt) {
   return textOf(prompt?.identifier ?? prompt?.id ?? prompt?.name);
 }

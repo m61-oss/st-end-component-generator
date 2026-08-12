@@ -99,7 +99,7 @@ import {
   resolveWorldbookSourceDisplayCategory,
 } from './sources/worldbook-runtime-state.js?ver=0.1.7';
 import { createLibraryExportPackage, importLibraryPackage, toggleLibraryExportSelection } from './sources/library-transfer.js?ver=0.1.7';
-import { buildEditedPresetExport } from './sources/preset-export.js?ver=0.1.7';
+import { buildEditedPresetExport, buildPresetExportFilename } from './sources/preset-export.js?ver=0.1.7';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.1.7';
@@ -3721,11 +3721,6 @@ function getTavernPresetByName(name) {
   try { return targetWindow?.TavernHelper?.getPreset?.(name) || null; } catch (_) { return null; }
 }
 
-function safeDownloadName(value, fallback = 'preset') {
-  const name = textOf(value).replace(/[\\/:*?"<>|]/g, '_');
-  return name || fallback;
-}
-
 async function exportCurrentEditedPreset() {
   if (getSourceMode('preset') !== SOURCE_MODE_PROMPT) {
     notifyStatus('请先切换到提示词编辑，再导出修改后的预设。', 'warning');
@@ -3748,8 +3743,13 @@ async function exportCurrentEditedPreset() {
       contentOverrides: settings.sourceContentOverrides,
       selectionOverrides: settings.promptSelections,
     });
-    downloadJsonFile(`${safeDownloadName(presetName)}.json`, exported);
-    notifyStatus(`已导出修改后的预设“${presetName}”。`);
+    const activeScheme = findScheme(getSchemeList('preset'), getActiveSchemeId('preset'));
+    const filename = buildPresetExportFilename({
+      schemeName: activeScheme?.name,
+      dirty: Boolean(settings.dirtySchemeTypes?.preset),
+    });
+    downloadJsonFile(filename, exported);
+    notifyStatus(`已导出修改后的预设：${filename}`);
   } catch (error) {
     notifyStatus(`导出失败：${error?.message || '无法生成预设文件。'}`, 'error');
   }
