@@ -131,7 +131,7 @@ const WORLDBOOK_CATEGORY_ORDER = [
 
 function renderBrandMark(context = 'default') {
   const contextClass = String(context || 'default').replace(/[^a-z0-9_-]/gi, '');
-  return `<svg class="st-esg-brand-mark st-esg-brand-mark-${contextClass}" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path class="st-esg-brand-mark-path" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-flow st-esg-brand-mark-flow-path" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-cut" d="m20.5 21.8 7 4.9"></path><path class="st-esg-brand-mark-bridge" d="m20.5 26.7 7-5"></path><path class="st-esg-brand-mark-flow st-esg-brand-mark-flow-bridge" d="m20.5 26.7 7-5"></path></svg>`;
+  return `<svg class="st-esg-brand-mark st-esg-brand-mark-${contextClass}" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path class="st-esg-brand-mark-path" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-flow" pathLength="112" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-cut" d="m20.5 21.8 7 4.9"></path><path class="st-esg-brand-mark-bridge" d="m20.5 26.7 7-5"></path><circle class="st-esg-brand-mark-ready-dot" cx="24" cy="24" r="3.3"></circle></svg>`;
 }
 
 const DEFAULT_SETTINGS = {
