@@ -131,7 +131,7 @@ const WORLDBOOK_CATEGORY_ORDER = [
 
 function renderBrandMark(context = 'default') {
   const contextClass = String(context || 'default').replace(/[^a-z0-9_-]/gi, '');
-  return `<svg class="st-esg-brand-mark st-esg-brand-mark-${contextClass}" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path class="st-esg-brand-mark-path" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-flow" pathLength="112" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-cut" d="m20.5 21.8 7 4.9"></path><path class="st-esg-brand-mark-bridge" d="m20.5 26.7 7-5"></path><circle class="st-esg-brand-mark-ready-dot" cx="24" cy="24" r="3.3"></circle></svg>`;
+  return `<svg class="st-esg-brand-mark st-esg-brand-mark-${contextClass}" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path class="st-esg-brand-mark-path" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-flow st-esg-brand-mark-flow-tail" pathLength="112" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-flow st-esg-brand-mark-flow-body" pathLength="112" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-flow st-esg-brand-mark-flow-head" pathLength="112" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-cut" d="m20.5 21.8 7 4.9"></path><path class="st-esg-brand-mark-bridge" d="m20.5 26.7 7-5"></path></svg>`;
 }
 
 const DEFAULT_SETTINGS = {
@@ -190,6 +190,7 @@ const DEFAULT_SETTINGS = {
   ballVisible: false,
   ballSize: 38,
   ballOpacity: 0.82,
+  ballAnimationEnabled: true,
   qrGenerateEnabled: false,
   qrInjectEnabled: false,
   theme: 'dark',
@@ -510,6 +511,7 @@ function loadSettings() {
   if (!isFreshInstall && !Object.prototype.hasOwnProperty.call(storedSettings, 'replaceLastUserMessageWithTask')) settings.replaceLastUserMessageWithTask = false;
   settings.ballSize = normalizeFloatingBallSize(settings.ballSize);
   settings.ballOpacity = normalizeFloatingBallOpacity(settings.ballOpacity);
+  if (typeof settings.ballAnimationEnabled !== 'boolean') settings.ballAnimationEnabled = true;
   if (!['replace', 'append', 'rollbackAppend', 'rollbackReplace'].includes(settings.injectMode)) settings.injectMode = 'replace';
   try {
     const localValue = targetWindow.localStorage?.getItem(PROMPT_TEMPLATE_COMPAT_STORAGE_KEY);
@@ -2681,10 +2683,11 @@ function setFloatingBallVisualState(state) {
   floatingBallVisualState = ['generating', 'waiting'].includes(state) ? state : 'idle';
   const ball = targetDoc.getElementById('st-esg-ball');
   if (!ball) return;
-  ball.dataset.visualState = floatingBallVisualState;
-  ball.setAttribute('aria-label', floatingBallVisualState === 'generating'
+  const visualState = settings.ballAnimationEnabled ? floatingBallVisualState : 'idle';
+  ball.dataset.visualState = visualState;
+  ball.setAttribute('aria-label', visualState === 'generating'
     ? `${BRAND_NAME}：正在生成`
-    : floatingBallVisualState === 'waiting'
+    : visualState === 'waiting'
       ? `${BRAND_NAME}：等待注入`
       : `${BRAND_NAME}：空闲`);
 }
@@ -4932,6 +4935,7 @@ function renderPluginPanel() {
     const shortcutDetails = targetDoc.createElement('details');
     shortcutDetails.className = 'st-esg-card st-esg-collapsible st-esg-shortcut-settings';
     shortcutDetails.innerHTML = '<summary class="st-esg-collapsible-summary">界面与快捷入口</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox"><input id="st-esg-ball-visible" type="checkbox" /><span>悬浮球</span></label><div class="st-esg-ball-controls"><label class="st-esg-range-control"><span>大小 <output id="st-esg-ball-size-value">38px</output></span><input id="st-esg-ball-size" type="range" min="28" max="72" step="1" /></label><label class="st-esg-range-control"><span>透明度 <output id="st-esg-ball-opacity-value">82%</output></span><input id="st-esg-ball-opacity" type="range" min="20" max="100" step="1" /></label></div><label class="st-esg-checkbox"><input id="st-esg-qr-generate-enabled" type="checkbox" /><span>QR 栏显示“点击生成”</span></label><label class="st-esg-checkbox"><input id="st-esg-qr-inject-enabled" type="checkbox" /><span>QR 栏显示“点击注入”</span></label></div>';
+    shortcutDetails.querySelector('.st-esg-ball-controls')?.insertAdjacentHTML('beforeend', '<label class="st-esg-checkbox st-esg-ball-animation-toggle"><input id="st-esg-ball-animation-enabled" type="checkbox" /><span>状态动画</span></label>');
     ballCard.replaceWith(shortcutDetails);
     runtimePanel.appendChild(shortcutDetails);
   }
@@ -5100,6 +5104,7 @@ function bindPanelEvents() {
   $t('#st-esg-ball-size-value').text(`${getFloatingBallSize()}px`);
   $t('#st-esg-ball-opacity').val(Math.round(getFloatingBallOpacity() * 100));
   $t('#st-esg-ball-opacity-value').text(`${Math.round(getFloatingBallOpacity() * 100)}%`);
+  $t('#st-esg-ball-animation-enabled').prop('checked', settings.ballAnimationEnabled);
   $t('#st-esg-qr-generate-enabled').prop('checked', settings.qrGenerateEnabled);
   $t('#st-esg-qr-inject-enabled').prop('checked', settings.qrInjectEnabled);
   renderGenerationSettings();
@@ -5196,6 +5201,11 @@ function bindPanelEvents() {
     $t('#st-esg-ball-opacity-value').text(`${Math.round(settings.ballOpacity * 100)}%`);
     saveSettings();
     renderFloatingBall();
+  });
+  targetDoc.getElementById('st-esg-ball-animation-enabled')?.addEventListener('change', function () {
+    settings.ballAnimationEnabled = Boolean(this.checked);
+    saveSettings();
+    setFloatingBallVisualState(floatingBallVisualState);
   });
   targetDoc.getElementById('st-esg-qr-generate-enabled')?.addEventListener('change', function () {
     settings.qrGenerateEnabled = Boolean(this.checked);
