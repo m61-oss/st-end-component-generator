@@ -954,8 +954,7 @@ function renderGeneratedThinking(blocks = lastGeneratedThinking) {
   if (!box.length) return;
   const entries = Array.isArray(blocks) ? blocks.filter(Boolean) : [];
   if (!entries.length) { box.empty().addClass('st-esg-hidden'); return; }
-  const label = entries.length === 1 ? '1 段思维链' : `${entries.length} 段思维链`;
-  box.html(`<details class="st-esg-thinking-details"><summary><span class="st-esg-thinking-title"><i class="fa-solid fa-brain"></i>思维链</span><em>${label} · 不会注入</em></summary><pre>${escapeHtml(entries.join('\n\n'))}</pre></details>`).removeClass('st-esg-hidden');
+  box.html(`<details class="st-esg-thinking-details"><summary><span class="st-esg-thinking-title"><i class="fa-solid fa-brain"></i>思维链</span><em>不会注入</em></summary><pre>${escapeHtml(entries.join('\n\n'))}</pre></details>`).removeClass('st-esg-hidden');
 }
 
 function clearGeneratedThinking() {
@@ -2462,7 +2461,7 @@ async function handleSchemeAction(type, action) {
   const config = SCHEME_CONFIG[type];
   if (!config) return;
   if (isSchemeMutationLocked(type, action)) {
-    notifyStatus('导入模式下不能修改方案。', 'warning');
+    notifyStatus('导入到组件时不能修改方案。', 'warning');
     return;
   }
   const list = getSchemeList(type);
@@ -3586,7 +3585,8 @@ async function capturePromptSourceSnapshot(type) {
 async function changeSourceMode(type, mode) {
   const sourceType = getSourceType(type);
   const nextMode = mode === SOURCE_MODE_IMPORT ? SOURCE_MODE_IMPORT : SOURCE_MODE_PROMPT;
-  if (nextMode === SOURCE_MODE_IMPORT && getSourceMode(sourceType) !== SOURCE_MODE_IMPORT) {
+  if (nextMode === getSourceMode(sourceType)) return;
+  if (nextMode === SOURCE_MODE_IMPORT) {
     try {
       await capturePromptSourceSnapshot(sourceType);
     } catch (error) {
@@ -3594,8 +3594,8 @@ async function changeSourceMode(type, mode) {
       renderSourceModeUi();
       return;
     }
-    clearImportSelections(sourceType);
   }
+  clearImportSelections(sourceType);
   if (nextMode === SOURCE_MODE_PROMPT) await clearPromptSourceSnapshot(sourceType);
   setSourceMode(sourceType, nextMode);
   saveSettings();
@@ -3884,7 +3884,7 @@ function renderSourceModeControl(type) {
   const target = isPreset
     ? `<div id="st-esg-import-target-container" class="st-esg-import-target-container" style="display:none;"><label>导入到:<select id="st-esg-import-target-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label><div class="st-esg-actions-row st-esg-source-import-action"><div id="st-esg-import-preset-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>确认导入</span></div></div></div>`
     : `<div id="st-esg-worldbook-import-container" class="st-esg-import-target-container" style="display:none;"><label>导入到:<select id="st-esg-worldbook-import-target-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label><div class="st-esg-actions-row st-esg-source-import-action"><div id="st-esg-import-worldbook-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>确认导入</span></div></div></div>`;
-  return `<div class="st-esg-segmented-control-wrapper"><div class="st-esg-segmented-control"><label><input type="radio" name="${radioName}" value="prompt" class="st-esg-mode-radio" checked><span>编辑模式</span></label><label><input type="radio" name="${radioName}" value="import" class="st-esg-mode-radio"><span>导入模式</span></label></div></div>${target}`;
+  return `<div class="st-esg-segmented-control-wrapper"><div class="st-esg-segmented-control"><label><input type="radio" name="${radioName}" value="prompt" class="st-esg-mode-radio" checked><span>提示词编辑</span></label><label><input type="radio" name="${radioName}" value="import" class="st-esg-mode-radio"><span>导入到组件</span></label></div></div>${target}`;
 }
 
 function getPresetTaskPlacementItems() {
@@ -4330,14 +4330,17 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     return group.items.map((item, itemIndex) => {
       const checked = getSourceSelection(item, group);
       const isWorldbookItem = group.scope === SOURCE_WORLDBOOK;
+      const isPromptEditing = getSourceMode(group) === SOURCE_MODE_PROMPT;
       const meta = [item.role ? `role: ${item.role}` : '', item.scope || '', item.sourceUid ? `id: ${item.sourceUid}` : ''].filter(Boolean).join(' | ');
       const summaryLabel = item.locked
         ? `<span class="st-esg-import-label"><i class="fa-solid fa-lock"></i><span>${escapeHtml(item.name)}</span></span>`
-        : `<label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" ${checked ? 'checked' : ''} /><span>${escapeHtml(item.name)}</span></label>`;
+        : isPromptEditing
+          ? `<label class="st-esg-source-enable-label"><span class="st-esg-source-enable-name">${escapeHtml(item.name)}</span><span class="st-esg-switch st-esg-switch-sm st-esg-source-enable-switch"><input class="st-esg-source-enabled" type="checkbox" ${checked ? 'checked' : ''} /><span></span></span></label>`
+          : `<label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" ${checked ? 'checked' : ''} /><span>${escapeHtml(item.name)}</span></label>`;
       const modifiedMark = hasSourceItemOverride(item)
         ? '<i class="fa-solid fa-pen st-esg-source-modified-mark" title="条目已修改" aria-label="条目已修改"></i>'
         : '';
-      const worldbookMode = isWorldbookItem
+      const worldbookMode = isWorldbookItem && isPromptEditing
         ? (() => {
             const mode = getWorldbookActivationMode(item);
             const label = mode === 'blue' ? '蓝灯' : '绿灯';
@@ -4369,7 +4372,8 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     const failureBody = failed
       ? `<div class="st-esg-worldbook-failure"><div class="st-esg-import-group-title">无法读取这本世界书</div><div class="st-esg-card-desc">${escapeHtml(group.error || '酒馆没有返回这本世界书的条目。')}</div><div class="st-esg-card-desc">可能原因：世界书已被改名或删除；名称首尾含有空格或不可见字符；酒馆返回的名称与实际文件名不一致。</div><button class="menu_button st-esg-remove-worldbook-record" type="button" data-group-index="${group.groupIndex}"><i class="fa-solid fa-trash"></i><span>删除这条世界书记录</span></button></div>`
       : `${renderUnmatchedWorldbookRecords(group)}${renderListToolbar()}${groupBody(group)}`;
-    return `<div class="st-esg-worldbook-detail" data-group-index="${group.groupIndex}"><div class="st-esg-detail-head"><button class="menu_button st-esg-back-worldbooks" type="button" title="返回世界书列表" aria-label="返回世界书列表"><i class="fa-solid fa-arrow-left"></i></button><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loading ? '正在加载条目...' : failed ? '读取失败' : group.loaded ? `${group.items.length} 个可导入条目` : '准备加载这本世界书'}</div></div>${group.loaded && !failed ? '<button class="menu_button st-esg-import-detail-toggle" type="button">全选条目</button>' : ''}</div><div class="st-esg-import-group-list">${failureBody}</div></div>`;
+    const toggleLabel = getSourceMode(group) === SOURCE_MODE_PROMPT ? '开启全部条目' : '全选条目';
+    return `<div class="st-esg-worldbook-detail" data-group-index="${group.groupIndex}"><div class="st-esg-detail-head"><button class="menu_button st-esg-back-worldbooks" type="button" title="返回世界书列表" aria-label="返回世界书列表"><i class="fa-solid fa-arrow-left"></i></button><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loading ? '正在加载条目...' : failed ? '读取失败' : group.loaded ? `${group.items.length} 个可导入条目` : '准备加载这本世界书'}</div></div>${group.loaded && !failed ? `<button class="menu_button st-esg-import-detail-toggle" type="button">${toggleLabel}</button>` : ''}</div><div class="st-esg-import-group-list">${failureBody}</div></div>`;
   };
   const detailGroup = activeWorldbookGroupIndex === null ? null : groupsWithIndex.find((group) => group.groupIndex === activeWorldbookGroupIndex && group.scope === SOURCE_WORLDBOOK);
   const worldbookSection = detailGroup
@@ -4420,9 +4424,10 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     renderImportCandidates({ renderPreset: false });
     setStatus('已删除未匹配的旧方案条目记录。请覆盖保存当前方案。');
   });
-  $t('.st-esg-import-check').off('.stEsgSource');
-  $t('.st-esg-import-check').on('click.stEsgSource', (event) => event.stopPropagation());
-  $t('.st-esg-import-check').on('change.stEsgSource', function () {
+  $t('.st-esg-import-check, .st-esg-source-enabled').off('.stEsgSource');
+  $t('.st-esg-import-check, .st-esg-source-enabled').on('click.stEsgSource', (event) => event.stopPropagation());
+  $t('.st-esg-source-enable-label').off('.stEsgSource').on('click.stEsgSource', (event) => event.stopPropagation());
+  $t('.st-esg-import-check, .st-esg-source-enabled').on('change.stEsgSource', function () {
     const row = $(this).closest('.st-esg-import-item');
     const group = importGroups[Number(row.data('group-index'))];
     const item = group?.items?.[Number(row.data('item-index'))];
@@ -4494,11 +4499,14 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
   if (renderWorldbook) $t('.st-esg-import-detail-toggle').on('click', function (event) {
     event.preventDefault();
     event.stopPropagation();
-    const checks = $(this).closest('.st-esg-worldbook-detail').find('.st-esg-import-check');
+    const checks = $(this).closest('.st-esg-worldbook-detail').find('.st-esg-import-check, .st-esg-source-enabled');
     const shouldCheck = checks.toArray().some((item) => !$(item).prop('checked'));
     checks.prop('checked', shouldCheck);
     syncSelectionForChecks(checks);
-    $(this).text(shouldCheck ? '取消全选' : '全选条目');
+    const promptEditing = getSourceMode('worldbook') === SOURCE_MODE_PROMPT;
+    $(this).text(promptEditing
+      ? (shouldCheck ? '关闭全部条目' : '开启全部条目')
+      : (shouldCheck ? '取消全选' : '全选条目'));
   });
   $t('.st-esg-search-input').off('.stEsgListFilter');
   $t('.st-esg-search-input').on('input.stEsgListFilter', function () {
@@ -4515,7 +4523,7 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
 
 function importCheckedCandidates(sourceType) {
   if (getSourceMode(sourceType) !== SOURCE_MODE_IMPORT) {
-    notifyStatus('当前是编辑模式：勾选会用于生成提示词，不会导入组件库。', 'warning');
+    notifyStatus('当前是提示词编辑：启用状态会用于生成提示词，不会导入组件库。', 'warning');
     return;
   }
   const checked = $t('.st-esg-import-check:checked').toArray();
@@ -4756,8 +4764,8 @@ function refreshHelpText() {
   const descriptions = [
     ['[data-tab-panel="workspace"] .st-esg-generation-content .st-esg-card-desc', '显示最近一次生成的正文，注入前可以直接检查和编辑。'],
     ['[data-tab-panel="task"] .st-esg-card-desc', '编辑发送给模型的任务指令；组件占位符会在发送前替换为当前启用的组件内容。'],
-    ['[data-tab-panel="preset"] > .st-esg-card:nth-child(2) .st-esg-card-desc', '选择要查看和编辑的预设；编辑模式下的勾选与内容会保存到当前方案。'],
-    ['[data-tab-panel="worldbook"] > .st-esg-card:nth-child(2) .st-esg-card-desc', '选择方案后查看当前世界书状态；编辑模式下可调整条目勾选、内容和蓝绿灯。'],
+    ['[data-tab-panel="preset"] > .st-esg-card:nth-child(2) .st-esg-card-desc', '选择要查看和编辑的预设；提示词编辑中的启用状态与内容会保存到当前方案。'],
+    ['[data-tab-panel="worldbook"] > .st-esg-card:nth-child(2) .st-esg-card-desc', '选择方案后查看当前世界书状态；提示词编辑中可调整条目启用状态、内容和蓝绿灯。'],
     ['[data-tab-panel="debug"] .st-esg-card-desc', '查看本次生成流程、注入结果，以及发送给外置 API 的完整消息。'],
     ['.st-esg-manual-component-card .st-esg-card-desc', '添加一个全局、预设方案或当前角色专属的组件。'],
   ];
@@ -4770,8 +4778,8 @@ function refreshHelpText() {
   ];
   optionDescriptions.forEach(([selector, text]) => $t(selector).closest('.st-esg-log-option').children('em').text(text));
   const modeDescriptions = {
-    prompt: ['编辑模式', '编辑当前来源的条目；勾选和内容会参与提示词拼接，并由方案保存。'],
-    import: ['导入模式', '只从当前列表勾选条目并导入组件库；不参与提示词拼接，也不保存为方案。'],
+    prompt: ['提示词编辑', '编辑当前来源的条目；启用状态和内容会参与提示词拼接，并由方案保存。'],
+    import: ['导入到组件', '只从当前列表勾选条目并导入组件库；不参与提示词拼接，也不保存为方案。'],
   };
   ['preset', 'worldbook'].forEach((type) => {
     const mode = getSourceMode(type);

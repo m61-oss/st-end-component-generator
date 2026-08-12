@@ -541,6 +541,9 @@ details.st-esg-import-item[open] > summary { border-bottom: 1px solid var(--esg-
 .st-esg-worldbook-keywords { min-height: 52px; resize: vertical; font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace); }
 .st-esg-import-item .st-esg-checkbox { min-width: 0; flex: 1; }
 .st-esg-import-item .st-esg-checkbox span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-esg-source-enable-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; cursor: pointer; }
+.st-esg-source-enable-name { min-width: 0; overflow: hidden; color: var(--esg-text-main); font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.st-esg-source-enable-switch { flex: 0 0 auto; }
 .st-esg-import-label { display: inline-flex; align-items: center; min-width: 0; gap: 6px; color: var(--esg-text-main); font-size: 12px; font-weight: 500; }
 .st-esg-import-label span { overflow: hidden; color: var(--esg-text-main); text-overflow: ellipsis; white-space: nowrap; }
 .st-esg-source-expand { display: inline-flex !important; align-items: center; justify-content: center; width: 26px; min-width: 26px; height: 26px; padding: 0 !important; border-radius: 6px !important; }
