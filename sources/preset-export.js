@@ -7,6 +7,8 @@ function cloneJson(value) {
 // Matches SillyTavern's "remove connection data" export option. These values
 // describe the local API connection, not the prompt preset itself.
 const CONNECTION_FIELDS = [
+  'preset_settings_openai',
+  'bind_preset_to_connection',
   'chat_completion_source',
   'group_models',
   'sort_models',

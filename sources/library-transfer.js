@@ -17,9 +17,11 @@ function exportItem(item) {
     name: textOf(item?.name) || '未命名条目',
     content: String(item?.content ?? ''),
     enabled: item?.enabled !== false,
-    source: textOf(item?.source),
-    sourceType: textOf(item?.sourceType),
   };
+}
+
+export function buildLibraryExportFilename(dateStamp = new Date().toISOString().slice(0, 10)) {
+  return `织幕-文尾组件库-${textOf(dateStamp)}.json`;
 }
 
 function selectedItems(items, selectedIds) {

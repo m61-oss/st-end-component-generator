@@ -98,7 +98,7 @@ import {
   resolveWorldbookEntryRuntimeState,
   resolveWorldbookSourceDisplayCategory,
 } from './sources/worldbook-runtime-state.js?ver=0.1.7';
-import { createLibraryExportPackage, importLibraryPackage, toggleLibraryExportSelection } from './sources/library-transfer.js?ver=0.1.7';
+import { buildLibraryExportFilename, createLibraryExportPackage, importLibraryPackage, toggleLibraryExportSelection } from './sources/library-transfer.js?ver=0.1.7';
 import { buildEditedPresetExport, buildPresetExportFilename, getNativeTavernPreset } from './sources/preset-export.js?ver=0.1.7';
 
 const EXTENSION_ID = 'st-end-component-generator';
@@ -3764,7 +3764,7 @@ function exportSelectedLibraries() {
     theaterDefaultGroupEnabled: settings.theaterDefaultGroupEnabled,
   });
   const stamp = new Date().toISOString().slice(0, 10);
-  downloadJsonFile(`文尾组件库-${stamp}.json`, bundle);
+  downloadJsonFile(buildLibraryExportFilename(stamp), bundle);
   resetLibraryExportMode();
   renderComponentList();
   notifyStatus(`已导出 ${selectedCount} 个条目。`);
