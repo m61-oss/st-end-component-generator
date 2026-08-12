@@ -3763,8 +3763,7 @@ function exportSelectedLibraries() {
     defaultGroupEnabled: settings.defaultGroupEnabled,
     theaterDefaultGroupEnabled: settings.theaterDefaultGroupEnabled,
   });
-  const stamp = new Date().toISOString().slice(0, 10);
-  downloadJsonFile(buildLibraryExportFilename(stamp), bundle);
+  downloadJsonFile(buildLibraryExportFilename(), bundle);
   resetLibraryExportMode();
   renderComponentList();
   notifyStatus(`已导出 ${selectedCount} 个条目。`);

@@ -20,8 +20,8 @@ function exportItem(item) {
   };
 }
 
-export function buildLibraryExportFilename(dateStamp = new Date().toISOString().slice(0, 10)) {
-  return `织幕-文尾组件库-${textOf(dateStamp)}.json`;
+export function buildLibraryExportFilename() {
+  return '织幕-组件库.json';
 }
 
 function selectedItems(items, selectedIds) {
