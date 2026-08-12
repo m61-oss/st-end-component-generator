@@ -787,9 +787,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   height: var(--st-esg-ball-size);
   border: 1px solid var(--st-esg-ball-border);
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 31% 24%, var(--st-esg-ball-glint) 0, transparent 34%),
-    linear-gradient(145deg, var(--st-esg-ball-surface-top), var(--st-esg-ball-surface-bottom));
+  background: linear-gradient(180deg, var(--st-esg-ball-surface-top) 0 72%, var(--st-esg-ball-surface-bottom) 100%);
   color: var(--esg-text-main, #E0E0E0);
   display: flex;
   align-items: center;
@@ -798,8 +796,9 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   cursor: grab;
   box-shadow:
     inset 0 1px 0 var(--st-esg-ball-inset),
-    inset 0 -2px 4px var(--st-esg-ball-inner-shadow),
-    0 5px 14px var(--st-esg-ball-shadow);
+    inset 0 -2px 0 var(--st-esg-ball-edge),
+    0 2px 0 var(--st-esg-ball-edge),
+    0 4px 8px var(--st-esg-ball-shadow);
   touch-action: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -812,26 +811,24 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   --st-esg-ball-flow-mid: rgba(255, 255, 255, 0.72);
   --st-esg-ball-flow-tail: rgba(255, 255, 255, 0.24);
   --st-esg-ball-base-dim: rgba(255, 255, 255, 0.32);
-  --st-esg-ball-surface-top: #303033;
-  --st-esg-ball-surface-bottom: #151517;
-  --st-esg-ball-border: rgba(255, 255, 255, 0.3);
-  --st-esg-ball-glint: rgba(255, 255, 255, 0.2);
-  --st-esg-ball-inset: rgba(255, 255, 255, 0.24);
-  --st-esg-ball-inner-shadow: rgba(0, 0, 0, 0.28);
-  --st-esg-ball-shadow: rgba(0, 0, 0, 0.38);
+  --st-esg-ball-surface-top: #242426;
+  --st-esg-ball-surface-bottom: #1d1d1f;
+  --st-esg-ball-border: rgba(255, 255, 255, 0.24);
+  --st-esg-ball-inset: rgba(255, 255, 255, 0.16);
+  --st-esg-ball-edge: rgba(0, 0, 0, 0.3);
+  --st-esg-ball-shadow: rgba(0, 0, 0, 0.26);
 }
 .st-esg-theme-light#st-esg-ball {
   --st-esg-ball-flow: #111;
   --st-esg-ball-flow-mid: rgba(17, 17, 17, 0.7);
   --st-esg-ball-flow-tail: rgba(17, 17, 17, 0.22);
   --st-esg-ball-base-dim: rgba(17, 17, 17, 0.28);
-  --st-esg-ball-surface-top: #fff;
-  --st-esg-ball-surface-bottom: #e4e4e7;
-  --st-esg-ball-border: rgba(17, 17, 17, 0.3);
-  --st-esg-ball-glint: rgba(255, 255, 255, 0.94);
-  --st-esg-ball-inset: rgba(255, 255, 255, 0.92);
-  --st-esg-ball-inner-shadow: rgba(17, 17, 17, 0.12);
-  --st-esg-ball-shadow: rgba(0, 0, 0, 0.2);
+  --st-esg-ball-surface-top: #f7f7f8;
+  --st-esg-ball-surface-bottom: #ededf0;
+  --st-esg-ball-border: rgba(17, 17, 17, 0.26);
+  --st-esg-ball-inset: rgba(255, 255, 255, 0.86);
+  --st-esg-ball-edge: rgba(17, 17, 17, 0.14);
+  --st-esg-ball-shadow: rgba(0, 0, 0, 0.16);
 }
 #st-esg-ball::after {
   content: '';
@@ -857,6 +854,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 }
 #st-esg-ball[data-visual-state="generating"] .st-esg-brand-mark-path,
 #st-esg-ball[data-visual-state="generating"] .st-esg-brand-mark-bridge { stroke: var(--st-esg-ball-base-dim); }
+#st-esg-ball[data-visual-state="generating"] .st-esg-brand-mark-cut { display: none; }
 #st-esg-ball[data-visual-state="generating"] .st-esg-brand-mark-flow-tail {
   stroke: var(--st-esg-ball-flow-tail);
   stroke-width: 5.6;
