@@ -154,10 +154,10 @@
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  border: 1px solid var(--esg-text-main);
-  border-radius: 12px;
-  color: var(--esg-bg-card);
-  background: var(--esg-text-main);
+  border: 0;
+  border-radius: 0;
+  color: var(--esg-text-main);
+  background: transparent;
 }
 
 .st-esg-brand-mark {
@@ -183,13 +183,9 @@
   stroke-linecap: round;
 }
 
-.st-esg-title-icon .st-esg-brand-mark-cut {
-  stroke: var(--esg-text-main);
-}
-
 .st-esg-title-icon .st-esg-brand-mark {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
 }
 
 #st-esg-menu-button .st-esg-brand-mark {

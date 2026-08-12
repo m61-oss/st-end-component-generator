@@ -4823,7 +4823,10 @@ function renderPluginPanel() {
   const titleIcon = dialog.querySelector('.st-esg-title-icon');
   if (titleIcon) titleIcon.innerHTML = renderBrandMark('title');
   dialog.querySelector('.st-esg-kicker')?.replaceChildren(BRAND_SUBTITLE);
-  dialog.querySelector('.st-esg-title-text')?.replaceChildren(BRAND_NAME);
+  const titleText = dialog.querySelector('.st-esg-title-text');
+  const titleCopy = titleText?.parentElement;
+  titleText?.replaceChildren(BRAND_NAME);
+  titleCopy?.prepend(titleText);
   dialog.querySelector('.st-esg-tabs')?.setAttribute('aria-label', `${BRAND_NAME}分页`);
   dialog.querySelector('.st-esg-title-text')?.insertAdjacentHTML('beforeend', ` <span class="st-esg-version-badge">v${EXTENSION_VERSION}</span>`);
   dialog.querySelector('#st-esg-inject')?.insertAdjacentHTML('afterend', '<div id="st-esg-undo-injection" class="menu_button menu_button_icon st-esg-secondary-action st-esg-hidden" title="撤回本次注入"><i class="fa-solid fa-rotate-left"></i><span>撤回注入</span></div>');
