@@ -131,7 +131,7 @@ const WORLDBOOK_CATEGORY_ORDER = [
 
 function renderBrandMark(context = 'default') {
   const contextClass = String(context || 'default').replace(/[^a-z0-9_-]/gi, '');
-  return `<svg class="st-esg-brand-mark st-esg-brand-mark-${contextClass}" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path class="st-esg-brand-mark-path" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-cut" d="m20.5 21.8 7 4.9"></path><path class="st-esg-brand-mark-bridge" d="m20.5 26.7 7-5"></path></svg>`;
+  return `<svg class="st-esg-brand-mark st-esg-brand-mark-${contextClass}" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path class="st-esg-brand-mark-path" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-flow st-esg-brand-mark-flow-path" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-cut" d="m20.5 21.8 7 4.9"></path><path class="st-esg-brand-mark-bridge" d="m20.5 26.7 7-5"></path><path class="st-esg-brand-mark-flow st-esg-brand-mark-flow-bridge" d="m20.5 26.7 7-5"></path></svg>`;
 }
 
 const DEFAULT_SETTINGS = {
@@ -235,6 +235,7 @@ let importGroups = [];
 const promptSourceCache = createPromptSourceCacheState();
 let activeWorldbookGroupIndex = null;
 let generationAbortController = null;
+let floatingBallVisualState = 'idle';
 let activeAutomaticTarget = null;
 let automaticGenerationRevision = 0;
 const pendingAutomaticTargets = new Map();
@@ -1112,9 +1113,11 @@ async function buildMessages(latestMessage) {
 
 function setGeneratingState(isGenerating) {
   const button = $t('#st-esg-generate');
-  if (!button.length) return;
-  button.find('i').attr('class', isGenerating ? 'fa-solid fa-stop' : 'fa-solid fa-sparkles');
-  button.find('span').text(isGenerating ? '停止生成' : '生成文尾组件');
+  if (button.length) {
+    button.find('i').attr('class', isGenerating ? 'fa-solid fa-stop' : 'fa-solid fa-sparkles');
+    button.find('span').text(isGenerating ? '停止生成' : '生成文尾组件');
+  }
+  setFloatingBallVisualState(isGenerating ? 'generating' : 'idle');
 }
 
 async function buildExternalApiRequestContext(latestMessage) {
@@ -1406,6 +1409,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   logAutomaticGenerationStage('result-apply', 'updating preview');
   const resultPanelScrollTop = capturePanelScrollTop();
   applyGeneratedResult(result);
+  setFloatingBallVisualState(result ? 'waiting' : 'idle');
   recentGenerationHistory = recordGenerationResult(getGenerationHistoryStorage(), GENERATION_HISTORY_STORAGE_KEY, settings.lastGenerated);
   renderGenerationHistory();
   restorePanelScrollTop(resultPanelScrollTop);
@@ -1497,6 +1501,7 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
       logAutomaticGenerationStage('inject-save-warning', 'injection complete, chat save failed');
       notifyStatus('已注入，但聊天保存失败，刷新后可能丢失。', 'warning');
     }
+    setFloatingBallVisualState('idle');
   } catch (error) {
     logAutomaticGenerationStage('inject-error', error?.message || 'injection failed');
     notifyStatus(error?.message || '注入失败。', 'error');
@@ -2672,12 +2677,25 @@ function renderMagicWandMenuButton() {
   menu.prepend(button);
 }
 
+function setFloatingBallVisualState(state) {
+  floatingBallVisualState = ['generating', 'waiting'].includes(state) ? state : 'idle';
+  const ball = targetDoc.getElementById('st-esg-ball');
+  if (!ball) return;
+  ball.dataset.visualState = floatingBallVisualState;
+  ball.setAttribute('aria-label', floatingBallVisualState === 'generating'
+    ? `${BRAND_NAME}：正在生成`
+    : floatingBallVisualState === 'waiting'
+      ? `${BRAND_NAME}：等待注入`
+      : `${BRAND_NAME}：空闲`);
+}
+
 function renderFloatingBall() {
   if (!settings.ballVisible) { $t('#st-esg-ball').remove(); return; }
   const existingBall = targetDoc.getElementById('st-esg-ball');
   if (existingBall) {
     applyFloatingBallAppearance(existingBall);
     applyFloatingBallPosition(existingBall);
+    setFloatingBallVisualState(floatingBallVisualState);
     existingBall.classList.toggle('st-esg-ball-under-panel', Boolean(getDialog()?.open));
     return;
   }
@@ -2691,6 +2709,7 @@ function renderFloatingBall() {
   applyFloatingBallPosition(ball);
   ball.classList.toggle('st-esg-ball-under-panel', Boolean(getDialog()?.open));
   targetDoc.body.appendChild(ball);
+  setFloatingBallVisualState(floatingBallVisualState);
   let dragging = false, moved = false, suppressClick = false, activePointerId = null, startX = 0, startY = 0, originLeft = 0, originTop = 0;
   const onMove = (event) => {
     if (!dragging || event.pointerId !== activePointerId) return;
