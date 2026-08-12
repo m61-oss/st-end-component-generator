@@ -4,6 +4,73 @@ function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+// Matches SillyTavern's "remove connection data" export option. These values
+// describe the local API connection, not the prompt preset itself.
+const CONNECTION_FIELDS = [
+  'chat_completion_source',
+  'group_models',
+  'sort_models',
+  'openai_model',
+  'claude_model',
+  'openrouter_model',
+  'openrouter_use_fallback',
+  'openrouter_providers',
+  'openrouter_quantizations',
+  'openrouter_allow_fallbacks',
+  'openrouter_middleout',
+  'ai21_model',
+  'mistralai_model',
+  'cohere_model',
+  'perplexity_model',
+  'groq_model',
+  'chutes_model',
+  'siliconflow_model',
+  'siliconflow_endpoint',
+  'minimax_model',
+  'minimax_endpoint',
+  'electronhub_model',
+  'nanogpt_model',
+  'nanogpt_provider',
+  'nanogpt_payg_override',
+  'deepseek_model',
+  'aimlapi_model',
+  'xai_model',
+  'pollinations_model',
+  'moonshot_model',
+  'fireworks_model',
+  'cometapi_model',
+  'custom_model',
+  'custom_url',
+  'custom_include_body',
+  'custom_exclude_body',
+  'custom_include_headers',
+  'custom_prompt_post_processing',
+  'google_model',
+  'vertexai_model',
+  'zai_model',
+  'zai_endpoint',
+  'workers_ai_model',
+  'workers_ai_account_id',
+  'reverse_proxy',
+  'show_external_models',
+  'proxy_password',
+  'vertexai_auth_mode',
+  'vertexai_region',
+  'vertexai_express_project_id',
+  'bypass_status_check',
+  'azure_base_url',
+  'azure_deployment_name',
+  'azure_api_version',
+  'azure_openai_model',
+];
+
+export function sanitizePresetForPortableExport(preset) {
+  const output = cloneJson(preset);
+  CONNECTION_FIELDS.forEach((field) => delete output[field]);
+  delete output.extensions;
+  return output;
+}
+
 export function buildPresetExportFilename({ schemeName = '', dirty = false } = {}) {
   const label = dirty || !textOf(schemeName) ? '未保存方案' : textOf(schemeName);
   const safeLabel = label.replace(/[\\/:*?"<>|]/g, '_');
@@ -77,5 +144,5 @@ export function buildEditedPresetExport({ preset, items = [], contentOverrides =
       return { ...prompt, enabled };
     });
   }
-  return output;
+  return sanitizePresetForPortableExport(output);
 }
