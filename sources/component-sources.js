@@ -7,6 +7,7 @@ export const COMPONENT_SCOPE_CHARACTER = '角色';
 import { getAnimaEntryKind } from './anima-memory.js';
 import { createWorldbookEntryKey, getWorldbookRawName } from './worldbook-identity.js';
 import { createPresetEntryKey } from './preset-identity.js';
+import { selectPresetPromptOrder } from './preset-export.js';
 
 const textOf = (value) => String(value ?? '').trim();
 
@@ -69,17 +70,8 @@ export function getPresetPromptEnabledMap(targetWindow, name) {
 }
 
 function getActivePresetPromptOrder(preset) {
-  const lists = Array.isArray(preset?.prompt_order) ? preset.prompt_order : [];
-  const validLists = lists.filter((list) => Array.isArray(list?.order));
-
-  if (validLists.length) {
-    const dummy = validLists.find((list) => String(list?.character_id) === '100000');
-    if (dummy) return dummy.order;
-
-    const scoreOf = (list) => list.order.filter((item) => getBuiltinMarkerType(item?.identifier)).length;
-    const best = [...validLists].sort((a, b) => scoreOf(b) - scoreOf(a))[0];
-    if (best?.order?.length) return best.order;
-  }
+  const selectedOrder = selectPresetPromptOrder(preset);
+  if (selectedOrder.length) return selectedOrder;
 
   const prompts = Array.isArray(preset?.prompts) ? preset.prompts : [];
   return prompts

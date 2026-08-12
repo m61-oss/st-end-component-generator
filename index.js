@@ -98,7 +98,8 @@ import {
   resolveWorldbookEntryRuntimeState,
   resolveWorldbookSourceDisplayCategory,
 } from './sources/worldbook-runtime-state.js?ver=0.1.7';
-import { createLibraryExportPackage, importLibraryPackage } from './sources/library-transfer.js?ver=0.1.7';
+import { createLibraryExportPackage, importLibraryPackage, toggleLibraryExportSelection } from './sources/library-transfer.js?ver=0.1.7';
+import { buildEditedPresetExport } from './sources/preset-export.js?ver=0.1.7';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.1.7';
@@ -3673,9 +3674,21 @@ function hasWorldbookDraftSource(source) {
 
 function renderLibraryTransferToolbar() {
   const selectedCount = exportSelectedComponentIds.size + exportSelectedTheaterIds.size;
+  const exportableIds = getExportableLibraryIds();
+  const allSelected = exportableIds.total > 0
+    && exportableIds.components.every((id) => exportSelectedComponentIds.has(id))
+    && exportableIds.theater.every((id) => exportSelectedTheaterIds.has(id));
   const normalActions = '<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-library-import-trigger" type="button"><i class="fa-solid fa-file-import"></i><span>导入文件</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-library-export-start" type="button"><i class="fa-solid fa-file-export"></i><span>选择导出</span></button>';
-  const exportActions = `<span class="st-esg-library-export-count">已选 ${selectedCount} 项</span><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-library-export-confirm" type="button" ${selectedCount ? '' : 'disabled'}><i class="fa-solid fa-download"></i><span>确认导出</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-library-export-cancel" type="button"><i class="fa-solid fa-xmark"></i><span>取消</span></button>`;
+  const exportActions = `<span class="st-esg-library-export-count">已选 ${selectedCount} 项</span><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-library-export-toggle-all" type="button" ${exportableIds.total ? '' : 'disabled'}><i class="fa-solid ${allSelected ? 'fa-square-minus' : 'fa-square-check'}"></i><span>${allSelected ? '取消全选' : '全选'}</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-library-export-confirm" type="button" ${selectedCount ? '' : 'disabled'}><i class="fa-solid fa-download"></i><span>确认导出</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-library-export-cancel" type="button"><i class="fa-solid fa-xmark"></i><span>取消</span></button>`;
   return `<div class="st-esg-component-edit-toolbar st-esg-library-transfer-toolbar"><span>${libraryExportMode ? '选择要导出的条目' : '组件库文件'}</span><span class="st-esg-component-batch-actions">${libraryExportMode ? exportActions : normalActions}</span></div><input id="st-esg-library-import-file" class="st-esg-hidden" type="file" accept="application/json,.json" />`;
+}
+
+function getExportableLibraryIds() {
+  const componentIds = $t('#st-esg-component-list .st-esg-component-item').map((_, item) => textOf($(item).attr('data-component-id'))).get().filter(Boolean);
+  const theaterIds = $t('#st-esg-theater-list .st-esg-theater-item').map((_, item) => textOf($(item).attr('data-component-id'))).get().filter(Boolean);
+  const components = [...new Set(componentIds)];
+  const theater = [...new Set(theaterIds)];
+  return { components, theater, total: components.length + theater.length };
 }
 
 function resetLibraryExportMode() {
@@ -3695,6 +3708,51 @@ function downloadJsonFile(filename, value) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function getPresetSourceGroup(name) {
+  return importGroups.find((group) => group?.scope === SOURCE_PRESET
+    && textOf(group?.source) === textOf(name)
+    && group.loaded === true
+    && Array.isArray(group.items));
+}
+
+function getTavernPresetByName(name) {
+  try { return targetWindow?.TavernHelper?.getPreset?.(name) || null; } catch (_) { return null; }
+}
+
+function safeDownloadName(value, fallback = 'preset') {
+  const name = textOf(value).replace(/[\\/:*?"<>|]/g, '_');
+  return name || fallback;
+}
+
+async function exportCurrentEditedPreset() {
+  if (getSourceMode('preset') !== SOURCE_MODE_PROMPT) {
+    notifyStatus('请先切换到提示词编辑，再导出修改后的预设。', 'warning');
+    return;
+  }
+  const presetName = textOf($t('#st-esg-source-preset').val()) || textOf(settings.activeSourcePreset);
+  if (!presetName) { notifyStatus('请先选择要导出的预设。', 'warning'); return; }
+  try {
+    let group = getPresetSourceGroup(presetName);
+    if (!group) {
+      await scanImportCandidates({ explicitPresetName: presetName });
+      group = getPresetSourceGroup(presetName);
+    }
+    if (!group) throw new Error('无法读取当前预设条目，请先同步来源。');
+    const preset = getTavernPresetByName(presetName);
+    if (!preset) throw new Error('酒馆中未找到当前预设。');
+    const exported = buildEditedPresetExport({
+      preset,
+      items: group.items,
+      contentOverrides: settings.sourceContentOverrides,
+      selectionOverrides: settings.promptSelections,
+    });
+    downloadJsonFile(`${safeDownloadName(presetName)}.json`, exported);
+    notifyStatus(`已导出修改后的预设“${presetName}”。`);
+  } catch (error) {
+    notifyStatus(`导出失败：${error?.message || '无法生成预设文件。'}`, 'error');
+  }
 }
 
 function exportSelectedLibraries() {
@@ -3762,6 +3820,16 @@ function bindLibraryTransferControls() {
     renderComponentList();
   });
   panel.find('.st-esg-library-export-cancel').off('.stEsgLibraryTransfer').on('click.stEsgLibraryTransfer', () => { resetLibraryExportMode(); renderComponentList(); });
+  panel.find('.st-esg-library-export-toggle-all').off('.stEsgLibraryTransfer').on('click.stEsgLibraryTransfer', () => {
+    const ids = getExportableLibraryIds();
+    toggleLibraryExportSelection({
+      componentIds: ids.components,
+      theaterIds: ids.theater,
+      selectedComponents: exportSelectedComponentIds,
+      selectedTheaters: exportSelectedTheaterIds,
+    });
+    renderComponentList();
+  });
   panel.find('.st-esg-library-export-confirm').off('.stEsgLibraryTransfer').on('click.stEsgLibraryTransfer', exportSelectedLibraries);
 }
 
@@ -4024,6 +4092,7 @@ function renderSourceModeUi() {
   $t('#st-esg-import-target-container').toggle(presetMode === SOURCE_MODE_IMPORT);
   $t('#st-esg-worldbook-import-container').toggle(worldbookMode === SOURCE_MODE_IMPORT);
   $t('#st-esg-preset-placement-slot').toggle(presetMode === SOURCE_MODE_PROMPT);
+  $t('#st-esg-export-current-preset').prop('disabled', presetMode !== SOURCE_MODE_PROMPT);
   ['preset', 'worldbook'].forEach((type) => {
     const editable = getSourceMode(type) === SOURCE_MODE_PROMPT;
     $t(`.st-esg-scheme-group[data-scheme-type="${type}"] .st-esg-save-scheme-new, .st-esg-scheme-group[data-scheme-type="${type}"] .st-esg-overwrite-scheme, .st-esg-scheme-group[data-scheme-type="${type}"] .st-esg-delete-scheme`).toggleClass('st-esg-hidden', !editable).prop('disabled', !editable);
@@ -4764,6 +4833,8 @@ function renderPluginPanel() {
     extraOptions.innerHTML = `<summary>额外选项</summary><div class="st-esg-preset-extra-options-body">${presetPlacement.innerHTML}</div>`;
     presetPlacement.replaceWith(extraOptions);
   }
+  const presetSourceSelect = dialog.querySelector('#st-esg-source-preset');
+  presetSourceSelect?.closest('.st-esg-grid')?.insertAdjacentHTML('afterend', '<div class="st-esg-actions-row st-esg-preset-export-actions"><button id="st-esg-export-current-preset" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-file-export"></i><span>导出当前预设</span></button></div>');
   const workspace = dialog.querySelector('[data-tab-panel="workspace"]');
   const injectionCard = workspace?.querySelector('#st-esg-inject-mode')?.closest('.st-esg-card');
   const modeCard = workspace?.querySelector('#st-esg-mode')?.closest('.st-esg-card');
@@ -5054,6 +5125,7 @@ function bindPanelEvents() {
     void changeSourceMode('worldbook', String($(this).val()));
   });
   $t('#st-esg-source-preset').on('change', function () { const presetName = String($(this).val() || ''); settings.activeSourcePreset = presetName; if (getSourceMode('preset') === SOURCE_MODE_PROMPT) markSchemeDirty('preset'); else saveSettings(); scanImportCandidates({ explicitPresetName: presetName }); });
+  $t('#st-esg-export-current-preset').on('click', () => { void exportCurrentEditedPreset(); });
   $t('.st-esg-panel-body').off('click.stEsgSourceImport').on('click.stEsgSourceImport', '#st-esg-import-preset-components', () => importCheckedCandidates('preset')).on('click.stEsgSourceImport', '#st-esg-import-worldbook-components', () => importCheckedCandidates('worldbook'));
   $t('#st-esg-copy-prompt-log').on('click', async () => {
     const copied = await copyTextToClipboard(lastPromptLogText);

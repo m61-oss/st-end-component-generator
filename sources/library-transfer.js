@@ -27,6 +27,19 @@ function selectedItems(items, selectedIds) {
   return (Array.isArray(items) ? items : []).filter((item) => selected.has(textOf(item?.id)));
 }
 
+export function toggleLibraryExportSelection({ componentIds = [], theaterIds = [], selectedComponents, selectedTheaters } = {}) {
+  if (!(selectedComponents instanceof Set) || !(selectedTheaters instanceof Set)) throw new Error('导出选择状态无效。');
+  const components = [...new Set(componentIds.map(textOf).filter(Boolean))];
+  const theater = [...new Set(theaterIds.map(textOf).filter(Boolean))];
+  const total = components.length + theater.length;
+  const allSelected = total > 0
+    && components.every((id) => selectedComponents.has(id))
+    && theater.every((id) => selectedTheaters.has(id));
+  components.forEach((id) => { if (allSelected) selectedComponents.delete(id); else selectedComponents.add(id); });
+  theater.forEach((id) => { if (allSelected) selectedTheaters.delete(id); else selectedTheaters.add(id); });
+  return !allSelected;
+}
+
 function createExportGroup(name, library, enabled, items) {
   return { name, library, enabled: enabled !== false, items: items.map(exportItem) };
 }
