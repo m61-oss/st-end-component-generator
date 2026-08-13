@@ -984,6 +984,8 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   --st-esg-ball-inset: rgba(255, 255, 255, 0.16);
   --st-esg-ball-edge: rgba(0, 0, 0, 0.3);
   --st-esg-ball-shadow: rgba(0, 0, 0, 0.26);
+  --st-esg-ball-error: #ff7770;
+  --st-esg-ball-error-surface: #2c2021;
 }
 .st-esg-theme-light#st-esg-ball {
   --st-esg-ball-flow: #111;
@@ -996,6 +998,8 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   --st-esg-ball-inset: rgba(255, 255, 255, 0.86);
   --st-esg-ball-edge: rgba(17, 17, 17, 0.14);
   --st-esg-ball-shadow: rgba(0, 0, 0, 0.16);
+  --st-esg-ball-error: #b93b36;
+  --st-esg-ball-error-surface: #f5e8e7;
 }
 #st-esg-ball::after {
   content: '';
@@ -1050,6 +1054,16 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   stroke: var(--st-esg-ball-flow);
 }
 #st-esg-ball[data-visual-state="waiting"] { border-color: var(--st-esg-ball-flow); }
+#st-esg-ball[data-visual-state="error"] {
+  border-color: var(--st-esg-ball-error);
+  background: linear-gradient(180deg, var(--st-esg-ball-error-surface) 0 72%, var(--st-esg-ball-surface-bottom) 100%);
+}
+#st-esg-ball[data-visual-state="error"] .st-esg-brand-mark-path,
+#st-esg-ball[data-visual-state="error"] .st-esg-brand-mark-bridge,
+#st-esg-ball[data-visual-state="error"] .st-esg-brand-mark-cut { stroke: var(--st-esg-ball-error); }
+#st-esg-ball.st-esg-ball-error-pulse .st-esg-brand-mark {
+  animation: st-esg-weave-error-pulse 260ms ease-out 2;
+}
 @keyframes st-esg-weave-flow-tail {
   from { stroke-dashoffset: 0; }
   to { stroke-dashoffset: -112; }
@@ -1065,6 +1079,10 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 @keyframes st-esg-weave-breathe {
   0%, 100% { opacity: 0.58; transform: scale(0.985); filter: drop-shadow(0 1px 1px var(--st-esg-ball-shadow)); }
   50% { opacity: 1; transform: scale(1.025); filter: drop-shadow(0 0 3px var(--st-esg-ball-flow)); }
+}
+@keyframes st-esg-weave-error-pulse {
+  0%, 100% { opacity: 1; filter: drop-shadow(0 1px 1px var(--st-esg-ball-shadow)); }
+  50% { opacity: 0.42; filter: drop-shadow(0 0 3px var(--st-esg-ball-error)); }
 }
 #st-esg-ball.st-esg-ball-under-panel { display: none; }
 #st-esg-ball.selected { outline: 2px solid var(--esg-text-main); }

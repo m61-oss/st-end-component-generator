@@ -69,6 +69,7 @@ import {
 } from './generation/auto-generation-trigger.js?ver=0.1.7';
 import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.1.7';
 import { hasFloatingBallDragStarted, resolveFloatingBallDock } from './ui/floating-ball-gesture.js?ver=0.1.7';
+import { normalizeFloatingBallVisualState, resolveFloatingBallRenderedState } from './ui/floating-ball-state.js?ver=0.1.7';
 import {
   buildApiRequestParts,
   parseApiAdditionalParameters,
@@ -1044,6 +1045,7 @@ function loadGenerationHistoryEntry(id) {
   settings.lastGenerated = entry.content;
   settings.lastGeneratedStatusPlaceholderPresent = containsStatusPlaceholder(settings.lastGenerated);
   settings.lastGenerationError = null;
+  setFloatingBallVisualState('waiting');
   clearGeneratedThinking();
   $t('#st-esg-preview').val(settings.lastGenerated);
   renderGenerationResultPanel();
@@ -1139,7 +1141,8 @@ function setGeneratingState(isGenerating) {
     button.find('i').attr('class', isGenerating ? 'fa-solid fa-stop' : 'fa-solid fa-sparkles');
     button.find('span').text(isGenerating ? '停止生成' : '生成文尾组件');
   }
-  setFloatingBallVisualState(isGenerating ? 'generating' : 'idle');
+  if (isGenerating) setFloatingBallVisualState('generating');
+  else if (floatingBallVisualState === 'generating') setFloatingBallVisualState('idle');
 }
 
 function waitForInteractionPaint() {
@@ -1535,6 +1538,7 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
     setFloatingBallVisualState('idle');
   } catch (error) {
     logAutomaticGenerationStage('inject-error', error?.message || 'injection failed');
+    recordGenerationError('注入', error);
     notifyStatus(error?.message || '注入失败。', 'error');
   }
 }
@@ -1808,6 +1812,7 @@ function showOperationNotice(text, tone = 'success') {
 
 function recordGenerationError(action, error) {
   settings.lastGenerationError = createGenerationErrorRecord(action, error);
+  setFloatingBallVisualState('error');
   saveSettings();
   renderGenerationResultPanel();
 }
@@ -2831,16 +2836,33 @@ function renderMagicWandMenuButton() {
 }
 
 function setFloatingBallVisualState(state) {
-  floatingBallVisualState = ['generating', 'waiting'].includes(state) ? state : 'idle';
+  const previousState = floatingBallVisualState;
+  floatingBallVisualState = normalizeFloatingBallVisualState(state);
   const ball = targetDoc.getElementById('st-esg-ball');
   if (!ball) return;
-  const visualState = settings.ballAnimationEnabled ? floatingBallVisualState : 'idle';
+  const visualState = resolveFloatingBallRenderedState(floatingBallVisualState, settings.ballAnimationEnabled);
   ball.dataset.visualState = visualState;
+  ball.classList.remove('st-esg-ball-error-pulse');
+  if (visualState === 'error' && previousState !== 'error' && settings.ballAnimationEnabled) {
+    void ball.offsetWidth;
+    ball.classList.add('st-esg-ball-error-pulse');
+  }
   ball.setAttribute('aria-label', visualState === 'generating'
     ? `${BRAND_NAME}：正在生成`
     : visualState === 'waiting'
       ? `${BRAND_NAME}：等待注入`
-      : `${BRAND_NAME}：空闲`);
+      : visualState === 'error'
+        ? `${BRAND_NAME}：执行失败，点击查看错误`
+        : `${BRAND_NAME}：空闲`);
+}
+
+function openPanelFromFloatingBall() {
+  if (floatingBallVisualState === 'error') {
+    switchTab('workspace');
+    renderGenerationResultPanel();
+    setFloatingBallVisualState('idle');
+  }
+  togglePanel(true);
 }
 
 function renderFloatingBall() {
@@ -2921,7 +2943,7 @@ function renderFloatingBall() {
     } else if (!cancelled) {
       dragging = false;
       suppressNextClickAfterFloatingBallOpen();
-      togglePanel(true);
+      openPanelFromFloatingBall();
     }
   };
   ball.addEventListener('pointerdown', (event) => {
@@ -5811,6 +5833,7 @@ function bindPanelEvents() {
   $t('#st-esg-undo-injection').on('click', () => undoLatestInjection());
   $t('#st-esg-generation-error').on('click', '#st-esg-show-generated-content', () => {
     settings.lastGenerationError = null;
+    setFloatingBallVisualState(settings.lastGenerated ? 'waiting' : 'idle');
     saveSettings();
     renderGenerationResultPanel();
   });
@@ -5843,7 +5866,9 @@ function init() {
   if (initialized) return;
   initialized = true;
   recentGenerationHistory = loadGenerationHistory(getGenerationHistoryStorage(), GENERATION_HISTORY_STORAGE_KEY);
-  loadSettings(); initializePromptSourceSnapshotStorage(); loadStylesheet(); mountUiWhenDocumentReady();
+  loadSettings();
+  floatingBallVisualState = settings.lastGenerationError ? 'error' : 'idle';
+  initializePromptSourceSnapshotStorage(); loadStylesheet(); mountUiWhenDocumentReady();
   updateQuickReplyShortcutActions();
   void syncQuickReplyShortcuts();
   startTavernDefaultSync();
