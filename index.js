@@ -103,6 +103,7 @@ import { buildLibraryExportFilename, createLibraryExportPackage, importLibraryPa
 import { buildEditedPresetExport, buildPresetExportFilename, getNativeTavernPreset } from './sources/preset-export.js?ver=0.1.7';
 import { resolveTavernProfile } from './generation/tavern-profile.js?ver=0.1.7';
 import {
+  cancelChatBindingIndex,
   getChatWorldbookSchemeId,
   normalizeChatBindingIndex,
   resolveChatBinding,
@@ -5025,7 +5026,7 @@ function buildDataScopeSummary(groups, emptyText) {
   if (!groups.length) return `<div class="st-esg-data-empty">${escapeHtml(emptyText)}</div>`;
   return groups.map((group) => `<details class="st-esg-data-scope-item" ${group.orphan ? 'data-orphan="true"' : ''}>
     <summary><span>${escapeHtml(group.label)}</span><span>${group.items.length} 个组件${group.orphan ? ' · 归属已不存在' : ''}</span></summary>
-    <div class="st-esg-data-scope-items">${group.items.map((item) => `<div class="st-esg-data-row"><span>${escapeHtml(item.name || '未命名组件')}</span></div>`).join('')}</div>
+    <div class="st-esg-data-scope-items">${group.items.map((item) => `<div class="st-esg-data-row"><span>${escapeHtml(item.name || '未命名组件')}</span><button class="st-esg-icon-btn st-esg-icon-danger st-esg-data-action-button st-esg-data-delete-component" type="button" data-component-id="${escapeHtml(item.id)}" title="删除组件" aria-label="删除组件"><i class="fa-solid fa-trash"></i></button></div>`).join('')}</div>
   </details>`).join('');
 }
 
@@ -5058,10 +5059,10 @@ function renderDataManagement() {
       <div class="st-esg-data-category-icon"><i class="fa-solid ${icon}"></i></div>
       <div class="st-esg-data-category-copy"><div><strong>${label}</strong><span>${countLabel}</span></div><p>${description}</p></div>
       <div class="st-esg-data-category-size"><span>占用</span><b>${formatByteSize(size)}</b></div>
-      <button class="menu_button st-esg-data-clear-button" type="button" data-clear-category="${key}" ${Number(count) > 0 ? '' : 'disabled'}><i class="fa-solid fa-trash-can"></i><span>清空</span></button>
+      <button class="menu_button st-esg-data-action-button st-esg-data-clear-button" type="button" data-clear-category="${key}" ${Number(count) > 0 ? '' : 'disabled'}><i class="fa-solid fa-trash-can"></i><span>清空</span></button>
     </section>`).join('')}</div>
     <section class="st-esg-data-details">
-      <div class="st-esg-data-section-heading"><strong>细分数据</strong><span>这里只展示平时需要切换角色、预设或聊天后才能看到的数据；修改请前往对应页面。</span></div>
+      <div class="st-esg-data-section-heading"><strong>细分管理</strong><span>集中管理平时需要切换角色、预设或聊天后才能找到的数据。</span></div>
       <details class="st-esg-data-detail-group">
         <summary><span>角色专属组件</span><b>${characterComponentCount}</b></summary>
         <div class="st-esg-data-detail-body st-esg-data-scope-list">${buildDataScopeSummary(model.characterGroups, '没有保存角色专属组件。')}</div>
@@ -5072,9 +5073,20 @@ function renderDataManagement() {
       </details>
       <details class="st-esg-data-detail-group">
         <summary><span>聊天世界书绑定</span><b>${model.chatBindings.length}</b></summary>
-        <div class="st-esg-data-detail-body st-esg-data-binding-list">${model.chatBindings.length ? model.chatBindings.map((binding) => `<div class="st-esg-data-binding ${binding.orphan ? 'st-esg-data-orphan' : ''}"><strong>${escapeHtml(binding.chatName || binding.chatId)}</strong><span>${escapeHtml(binding.characterName || '未知角色')} · ${escapeHtml(binding.schemeName || '未知方案')}${binding.orphan ? ' · 方案已不存在' : ''}</span></div>`).join('') : '<div class="st-esg-data-empty">还没有聊天绑定世界书方案。</div>'}</div>
+        <div class="st-esg-data-detail-body st-esg-data-binding-list">${model.chatBindings.length ? model.chatBindings.map((binding) => `<div class="st-esg-data-binding ${binding.orphan ? 'st-esg-data-orphan' : ''}"><div><strong>${escapeHtml(binding.chatName || binding.chatId)}</strong><span>${escapeHtml(binding.characterName || '未知角色')} · ${escapeHtml(binding.schemeName || '未知方案')}${binding.orphan ? ' · 方案已不存在' : ''}</span></div><button class="menu_button st-esg-data-action-button st-esg-cancel-chat-binding" type="button" data-chat-id="${escapeHtml(binding.chatId)}">取消绑定</button></div>`).join('') : '<div class="st-esg-data-empty">还没有聊天绑定世界书方案。</div>'}</div>
       </details>
+      <div class="st-esg-data-orphan-cleanup"><div><strong>遗留数据</strong><span>${model.orphanComponentIds.length + model.orphanBindingChatIds.length ? `发现 ${model.orphanComponentIds.length + model.orphanBindingChatIds.length} 条归属或方案已不存在的数据。` : '未发现遗留数据。'}</span></div><button id="st-esg-clean-orphan-data" class="menu_button st-esg-data-action-button st-esg-icon-danger" type="button" ${model.orphanComponentIds.length + model.orphanBindingChatIds.length ? '' : 'disabled'}><i class="fa-solid fa-broom"></i><span>清理遗留数据</span></button></div>
     </section>`;
+}
+
+function releaseDataManagementButton(button) {
+  if (!button) return;
+  button.blur?.();
+  button.classList?.remove('active', 'selected', 'pressed');
+  targetWindow.requestAnimationFrame?.(() => {
+    button.blur?.();
+    button.classList?.remove('active', 'selected', 'pressed');
+  });
 }
 
 function openDataManagementDialog() {
@@ -5088,15 +5100,67 @@ function openDataManagementDialog() {
     dialog.addEventListener('cancel', (event) => { event.preventDefault(); dialog.close(); });
     dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
     dialog.querySelector('[data-data-dialog-close]')?.addEventListener('click', () => dialog.close());
-    $(dialog).on('click', '[data-clear-category]', function (event) {
+    $(dialog).on('click', '.st-esg-data-delete-component', function (event) {
       event.preventDefault();
-      event.currentTarget.blur();
+      releaseDataManagementButton(event.currentTarget);
+      const id = textOf($(this).data('component-id'));
+      const component = settings.components.find((item) => textOf(item?.id) === id);
+      if (!component || !targetWindow.confirm(`确认删除组件“${component.name || '未命名组件'}”？此操作无法恢复。`)) return;
+      settings.components = settings.components.filter((item) => textOf(item?.id) !== id);
+      saveSettings();
+      renderDataManagement();
+      renderComponentList();
+      notifyStatus('已删除组件。');
+    }).on('click', '.st-esg-cancel-chat-binding', function (event) {
+      event.preventDefault();
+      releaseDataManagementButton(event.currentTarget);
+      void cancelChatWorldbookBinding($(this).data('chat-id'));
+    }).on('click', '#st-esg-clean-orphan-data', function (event) {
+      event.preventDefault();
+      releaseDataManagementButton(event.currentTarget);
+      cleanOrphanPluginData();
+    }).on('click', '[data-clear-category]', function (event) {
+      event.preventDefault();
+      releaseDataManagementButton(event.currentTarget);
       void clearDataManagementCategory($(this).data('clear-category'));
     });
   }
   dialog.className = `st-esg-data-management-dialog st-esg-theme-${settings.theme === 'light' ? 'light' : 'dark'}`;
   renderDataManagement();
   if (!dialog.open) dialog.showModal();
+}
+
+async function cancelChatWorldbookBinding(chatId) {
+  const id = textOf(chatId);
+  if (!id) return;
+  const binding = normalizeChatBindingIndex(settings.chatWorldbookBindings).find((item) => item.chatId === id && !item.cancelled);
+  if (!binding || !targetWindow.confirm(`确认取消聊天“${binding.chatName || id}”的世界书方案绑定？`)) return;
+  settings.chatWorldbookBindings = cancelChatBindingIndex(settings.chatWorldbookBindings, id);
+  const context = getContext();
+  if (getCurrentChatIdSafe(context) === id) {
+    const metadata = getCurrentChatMetadata(context);
+    if (metadata) {
+      setChatWorldbookSchemeId(metadata, '');
+      await persistCurrentChatMetadata(context);
+    }
+  }
+  saveSettings();
+  renderDataManagement();
+  notifyStatus('已取消聊天的世界书方案绑定。');
+}
+
+function cleanOrphanPluginData() {
+  const model = buildDataManagementModel(settings, { characterNames: getAvailableCharacterNames() });
+  const ids = new Set(model.orphanComponentIds);
+  const chatIds = new Set(model.orphanBindingChatIds);
+  if (!ids.size && !chatIds.size) return;
+  if (!targetWindow.confirm(`确认清理 ${ids.size + chatIds.size} 条遗留数据？此操作无法恢复。`)) return;
+  settings.components = settings.components.filter((item) => !ids.has(textOf(item?.id)));
+  settings.chatWorldbookBindings = normalizeChatBindingIndex(settings.chatWorldbookBindings).filter((item) => !chatIds.has(item.chatId));
+  saveSettings();
+  renderDataManagement();
+  renderComponentList();
+  notifyStatus('已清理遗留数据。');
 }
 
 async function clearDataManagementCategory(category) {
