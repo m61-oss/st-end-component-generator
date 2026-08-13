@@ -1,11 +1,11 @@
 {
-  "display_name": "外置文尾组件生成器",
+  "display_name": "织幕·文尾组件",
   "loading_order": 100,
   "requires": [],
   "optional": [],
-  "js": "index.js?ver=0.1.7",
+  "js": "index.js?ver=0.1.8",
   "author": "m61-oss",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "homePage": "https://github.com/m61-oss/st-end-component-generator",
   "auto_update": true,
   "minimum_client_version": "1.12.13"
