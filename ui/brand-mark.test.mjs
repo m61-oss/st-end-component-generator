@@ -8,6 +8,7 @@ test('menu brand mark uses real path gaps without a background-colored cut', () 
 
   assert.match(markup, /st-esg-brand-mark-menu/);
   assert.match(markup, /st-esg-brand-mark-menu-path/);
+  assert.match(markup, /8 35V13/);
   assert.doesNotMatch(markup, /st-esg-brand-mark-cut/);
 });
 
