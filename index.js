@@ -102,6 +102,15 @@ import {
 import { buildLibraryExportFilename, createLibraryExportPackage, importLibraryPackage, toggleLibraryExportSelection } from './sources/library-transfer.js?ver=0.1.7';
 import { buildEditedPresetExport, buildPresetExportFilename, getNativeTavernPreset } from './sources/preset-export.js?ver=0.1.7';
 import { resolveTavernProfile } from './generation/tavern-profile.js?ver=0.1.7';
+import {
+  cancelChatBindingIndex,
+  getChatWorldbookSchemeId,
+  normalizeChatBindingIndex,
+  resolveChatBinding,
+  setChatWorldbookSchemeId,
+  upsertChatBindingIndex,
+} from './settings/chat-worldbook-binding.js?ver=0.1.7';
+import { buildDataManagementModel, formatByteSize } from './settings/data-management.js?ver=0.1.7';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.1.7';
@@ -211,6 +220,7 @@ const DEFAULT_SETTINGS = {
   taskSchemes: [],
   presetSchemes: [],
   worldbookSchemes: [],
+  chatWorldbookBindings: [],
   selectedApiSchemeId: '',
   selectedTaskSchemeId: '',
   selectedPresetSchemeId: '',
@@ -556,6 +566,7 @@ function loadSettings() {
   settings.taskSchemes = normalizeSchemeList(settings.taskSchemes);
   settings.presetSchemes = normalizeSchemeList(settings.presetSchemes);
   settings.worldbookSchemes = normalizeSchemeList(settings.worldbookSchemes);
+  settings.chatWorldbookBindings = normalizeChatBindingIndex(settings.chatWorldbookBindings);
   if (!settings.promptSelections || typeof settings.promptSelections !== 'object') settings.promptSelections = {};
   if (!settings.importSelections || typeof settings.importSelections !== 'object') settings.importSelections = {};
   if (!settings.sourceContentOverrides || typeof settings.sourceContentOverrides !== 'object') settings.sourceContentOverrides = {};
@@ -2110,6 +2121,129 @@ function markSchemeClean(type, id) {
   if (type === 'preset' && initialized) renderComponentList();
 }
 
+function getCurrentChatIdSafe(context = getContext()) {
+  try {
+    return textOf(context?.getCurrentChatId?.()) || textOf(context?.chatId);
+  } catch (_) {
+    return textOf(context?.chatId);
+  }
+}
+
+function isCurrentChatGroup(context = getContext()) {
+  return Boolean(context?.groupId || context?.group?.id || targetWindow?.selected_group);
+}
+
+function getCurrentChatMetadata(context = getContext()) {
+  const metadata = context?.chatMetadata || context?.chat_metadata || targetWindow?.chat_metadata;
+  return metadata && typeof metadata === 'object' ? metadata : null;
+}
+
+async function persistCurrentChatMetadata(context = getContext()) {
+  if (typeof context?.saveMetadata === 'function') await context.saveMetadata();
+  else if (typeof context?.saveMetadataDebounced === 'function') context.saveMetadataDebounced();
+  else if (typeof context?.saveChat === 'function') await context.saveChat();
+}
+
+function getAvailableCharacterNames(context = getContext()) {
+  return (Array.isArray(context?.characters) ? context.characters : [])
+    .map((character) => textOf(character?.name || character?.data?.name))
+    .filter(Boolean);
+}
+
+let chatWorldbookRestoreQueue = Promise.resolve();
+
+async function applyWorldbookSchemeToCurrentChat() {
+  const activeId = getActiveSchemeId('worldbook');
+  const selectedId = getSelectedSchemeId('worldbook');
+  if (!activeId || activeId === WORLD_BOOK_FOLLOW_TAVERN) {
+    notifyStatus('请先将当前世界书配置保存为方案，再应用到当前聊天。', 'warning');
+    return;
+  }
+  if (settings.dirtySchemeTypes?.worldbook) {
+    notifyStatus('当前世界书配置尚未保存，请先保存方案。', 'warning');
+    return;
+  }
+  if (selectedId !== activeId) {
+    notifyStatus('当前选择的世界书方案尚未载入，请先载入方案，再应用到当前聊天。', 'warning');
+    return;
+  }
+  const scheme = findScheme(getSchemeList('worldbook'), activeId);
+  if (!scheme) {
+    notifyStatus('找不到当前世界书方案，请重新保存后再试。', 'error');
+    return;
+  }
+  const context = getContext();
+  if (isCurrentChatGroup(context)) {
+    notifyStatus('当前版本暂不支持为群聊绑定世界书方案。', 'warning');
+    return;
+  }
+  const chatId = getCurrentChatIdSafe(context);
+  const metadata = getCurrentChatMetadata(context);
+  if (!chatId || !metadata) {
+    notifyStatus('当前没有可绑定的聊天。', 'warning');
+    return;
+  }
+  setChatWorldbookSchemeId(metadata, activeId);
+  settings.chatWorldbookBindings = upsertChatBindingIndex(settings.chatWorldbookBindings, {
+    chatId,
+    chatName: chatId,
+    characterName: getCurrentCharacterNameSafe(context),
+    schemeId: activeId,
+    schemeName: scheme.name,
+    updatedAt: Date.now(),
+  });
+  await persistCurrentChatMetadata(context);
+  saveSettings();
+  renderDataManagement();
+  notifyStatus(`已将世界书方案“${scheme.name}”应用到当前聊天。`);
+}
+
+function restoreBoundWorldbookSchemeForCurrentChat() {
+  chatWorldbookRestoreQueue = chatWorldbookRestoreQueue
+    .catch(() => {})
+    .then(() => restoreBoundWorldbookSchemeForCurrentChatNow());
+  return chatWorldbookRestoreQueue;
+}
+
+async function restoreBoundWorldbookSchemeForCurrentChatNow() {
+  const context = getContext();
+  if (isCurrentChatGroup(context)) return;
+  const chatId = getCurrentChatIdSafe(context);
+  if (!chatId) return;
+  const metadata = getCurrentChatMetadata(context);
+  const binding = resolveChatBinding({
+    metadataSchemeId: getChatWorldbookSchemeId(metadata),
+    index: settings.chatWorldbookBindings,
+    chatId,
+  });
+  if (binding.status === 'cancelled') {
+    if (chatId !== getCurrentChatIdSafe()) return;
+    if (metadata && getChatWorldbookSchemeId(metadata)) {
+      setChatWorldbookSchemeId(metadata, '');
+      await persistCurrentChatMetadata(context);
+    }
+    return;
+  }
+  if (binding.status !== 'bound') return;
+  const scheme = findScheme(getSchemeList('worldbook'), binding.schemeId);
+  if (!scheme) {
+    renderDataManagement();
+    return;
+  }
+  if (chatId !== getCurrentChatIdSafe()) return;
+  if (getActiveSchemeId('worldbook') === scheme.id && !settings.dirtySchemeTypes?.worldbook) return;
+  try {
+    setSelectedSchemeId('worldbook', scheme.id);
+    await applyScheme('worldbook', scheme.snapshot || {});
+    markSchemeClean('worldbook', scheme.id);
+    saveSettings();
+    renderSchemeOptions('worldbook');
+    notifyStatus(`已按当前聊天载入世界书方案：${scheme.name}`);
+  } catch (error) {
+    notifyStatus(`自动载入当前聊天的世界书方案失败：${error?.message || '未知错误'}`, 'error');
+  }
+}
+
 function requestTextInputDialog({ title, label, placeholder = '', value = '', options = null }) {
   return new Promise((resolve) => {
     const dialog = targetDoc.createElement('dialog');
@@ -2611,6 +2745,7 @@ function switchTab(tabName) {
   else if (nextTab === 'worldbook') renderImportCandidates({ renderPreset: false });
   else if (nextTab === 'preset') renderImportCandidates({ renderWorldbook: false });
   if (nextTab === 'debug') renderPromptLog();
+  if (nextTab === 'data') renderDataManagement();
   if (nextTab === 'workspace') scheduleGeneratedPreviewResize();
   if (shouldRefreshComponentLibrary) renderComponentList();
 }
@@ -4886,6 +5021,83 @@ function commitRecentMessageCountInput(input) {
   saveSettings();
 }
 
+function buildDataScopeMarkup(groups, emptyText) {
+  if (!groups.length) return `<div class="st-esg-data-empty">${escapeHtml(emptyText)}</div>`;
+  return groups.map((group) => `<details class="st-esg-data-scope-item" ${group.orphan ? 'data-orphan="true"' : ''}>
+    <summary><span>${escapeHtml(group.label)}</span><span>${group.items.length} 个组件${group.orphan ? ' · 归属已不存在' : ''}</span></summary>
+    <div class="st-esg-data-scope-items">${group.items.map((item) => `<div class="st-esg-data-row"><span>${escapeHtml(item.name || '未命名组件')}</span><button class="st-esg-icon-btn st-esg-icon-danger st-esg-data-delete-component" type="button" data-component-id="${escapeHtml(item.id)}" title="删除组件" aria-label="删除组件"><i class="fa-solid fa-trash"></i></button></div>`).join('')}</div>
+  </details>`).join('');
+}
+
+function renderDataManagement() {
+  const host = targetDoc.getElementById('st-esg-data-management');
+  if (!host) return;
+  const model = buildDataManagementModel(settings, {
+    characterNames: getAvailableCharacterNames(),
+    runtimeData: {
+      promptLog: lastPromptLogText,
+      recentGenerationHistory,
+      promptSourceSnapshots,
+      animaWorldbookSnapshot,
+    },
+  });
+  const orphanCount = model.orphanComponentIds.length + model.orphanBindingChatIds.length;
+  host.innerHTML = `
+    <div class="st-esg-data-overview">
+      <div><span>插件设置总占用</span><strong>${formatByteSize(model.storage.total)}</strong></div>
+      <div><span>方案</span><strong>${formatByteSize(model.storage.schemes)}</strong></div>
+      <div><span>组件与小剧场</span><strong>${formatByteSize(model.storage.libraries)}</strong></div>
+      <div><span>聊天绑定</span><strong>${formatByteSize(model.storage.bindings)}</strong></div>
+      <div><span>运行记录</span><strong>${formatByteSize(model.storage.caches)}</strong></div>
+    </div>
+    <details class="st-esg-card st-esg-collapsible" open>
+      <summary class="st-esg-collapsible-summary">角色专属组件 <span>${model.characterGroups.reduce((sum, group) => sum + group.items.length, 0)}</span></summary>
+      <div class="st-esg-collapsible-body st-esg-data-scope-list">${buildDataScopeMarkup(model.characterGroups, '没有保存角色专属组件。')}</div>
+    </details>
+    <details class="st-esg-card st-esg-collapsible">
+      <summary class="st-esg-collapsible-summary">预设专属组件 <span>${model.presetGroups.reduce((sum, group) => sum + group.items.length, 0)}</span></summary>
+      <div class="st-esg-collapsible-body st-esg-data-scope-list">${buildDataScopeMarkup(model.presetGroups, '没有保存预设专属组件。')}</div>
+    </details>
+    <details class="st-esg-card st-esg-collapsible" open>
+      <summary class="st-esg-collapsible-summary">聊天世界书绑定 <span>${model.chatBindings.length}</span></summary>
+      <div class="st-esg-collapsible-body st-esg-data-scope-list">${model.chatBindings.length ? model.chatBindings.map((binding) => `<div class="st-esg-data-binding ${binding.orphan ? 'st-esg-data-orphan' : ''}"><div><strong>${escapeHtml(binding.chatName || binding.chatId)}</strong><span>${escapeHtml(binding.characterName || '未知角色')} · ${escapeHtml(binding.schemeName || '未知方案')}${binding.orphan ? ' · 方案已不存在' : ''}</span></div><button class="menu_button st-esg-secondary-action st-esg-cancel-chat-binding" type="button" data-chat-id="${escapeHtml(binding.chatId)}">取消绑定</button></div>`).join('') : '<div class="st-esg-data-empty">还没有聊天绑定世界书方案。</div>'}</div>
+    </details>
+    <div class="st-esg-data-cleanup"><div><strong>遗留数据</strong><span>${orphanCount ? `发现 ${orphanCount} 条归属或方案已不存在的数据。` : '未发现遗留数据。'}</span></div><button id="st-esg-clean-orphan-data" class="menu_button st-esg-secondary-action st-esg-icon-danger" type="button" ${orphanCount ? '' : 'disabled'}><i class="fa-solid fa-broom"></i><span>清理遗留数据</span></button></div>`;
+}
+
+async function cancelChatWorldbookBinding(chatId) {
+  const id = textOf(chatId);
+  if (!id) return;
+  const binding = normalizeChatBindingIndex(settings.chatWorldbookBindings).find((item) => item.chatId === id && !item.cancelled);
+  if (!binding || !targetWindow.confirm(`确认取消聊天“${binding.chatName || id}”的世界书方案绑定？`)) return;
+  settings.chatWorldbookBindings = cancelChatBindingIndex(settings.chatWorldbookBindings, id);
+  const context = getContext();
+  if (getCurrentChatIdSafe(context) === id) {
+    const metadata = getCurrentChatMetadata(context);
+    if (metadata) {
+      setChatWorldbookSchemeId(metadata, '');
+      await persistCurrentChatMetadata(context);
+    }
+  }
+  saveSettings();
+  renderDataManagement();
+  notifyStatus('已取消聊天的世界书方案绑定。');
+}
+
+function cleanOrphanPluginData() {
+  const model = buildDataManagementModel(settings, { characterNames: getAvailableCharacterNames() });
+  const ids = new Set(model.orphanComponentIds);
+  const chatIds = new Set(model.orphanBindingChatIds);
+  if (!ids.size && !chatIds.size) return;
+  if (!targetWindow.confirm(`确认清理 ${ids.size + chatIds.size} 条遗留数据？此操作无法恢复。`)) return;
+  settings.components = settings.components.filter((item) => !ids.has(textOf(item?.id)));
+  settings.chatWorldbookBindings = normalizeChatBindingIndex(settings.chatWorldbookBindings).filter((item) => !chatIds.has(item.chatId));
+  saveSettings();
+  renderDataManagement();
+  renderComponentList();
+  notifyStatus('已清理遗留数据。');
+}
+
 function renderGenerationSettings() {
   const settingsBody = targetDoc.querySelector('.st-esg-generation-settings .st-esg-collapsible-body');
   const statusPlaceholderSetting = settingsBody?.querySelector('#st-esg-status-placeholder-enabled')?.closest('label');
@@ -4909,6 +5121,10 @@ function renderPluginPanel() {
   dialog.id = 'st-esg-dialog';
   dialog.className = 'st-esg-dialog';
   dialog.innerHTML = buildPluginPanelMarkup();
+  const debugTab = dialog.querySelector('[data-tab="debug"]');
+  debugTab?.insertAdjacentHTML('beforebegin', '<button class="st-esg-tab" type="button" data-tab="data"><i class="fa-solid fa-database"></i><span>数据管理</span></button>');
+  const debugPanelForData = dialog.querySelector('[data-tab-panel="debug"]');
+  debugPanelForData?.insertAdjacentHTML('beforebegin', '<section class="st-esg-tab-panel" data-tab-panel="data"><div class="st-esg-card st-esg-data-intro"><div class="st-esg-card-title">插件数据管理</div><div class="st-esg-card-desc st-esg-show-desc">汇总插件占用，并集中管理平时只有切换到对应角色、预设或聊天后才能看到的数据。</div></div><div id="st-esg-data-management"></div></section>');
   upgradePanelActionToButton(dialog, '#st-esg-generate');
   upgradePanelActionToButton(dialog, '#st-esg-inject');
   const titleIcon = dialog.querySelector('.st-esg-title-icon');
@@ -4926,6 +5142,7 @@ function renderPluginPanel() {
   dialog.querySelector('[data-tab-panel="debug"] .st-esg-card-title')?.replaceChildren('提示词查看器');
   dialog.querySelector('[data-tab-panel="preset"] .st-esg-import-tools')?.replaceWith(...$(renderSourceModeControl('preset')).toArray());
   dialog.querySelector('[data-tab-panel="worldbook"] .st-esg-import-tools')?.replaceWith(...$(renderSourceModeControl('worldbook')).toArray());
+  dialog.querySelector('.st-esg-scheme-group[data-scheme-type="worldbook"]')?.insertAdjacentHTML('afterend', '<div class="st-esg-actions-row st-esg-chat-worldbook-actions"><button id="st-esg-bind-worldbook-chat" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-link"></i><span>应用到当前聊天</span></button></div>');
   const presetPlacement = dialog.querySelector('#st-esg-preset-placement-slot');
   if (presetPlacement) {
     const extraOptions = targetDoc.createElement('details');
@@ -5255,6 +5472,18 @@ function bindPanelEvents() {
   $t('.st-esg-load-scheme').on('click', function () { handleSchemeAction(String($(this).data('scheme-type') || ''), 'load'); });
   $t('.st-esg-overwrite-scheme').on('click', function () { handleSchemeAction(String($(this).data('scheme-type') || ''), 'overwrite'); });
   $t('.st-esg-delete-scheme').on('click', function () { handleSchemeAction(String($(this).data('scheme-type') || ''), 'delete'); });
+  $t('#st-esg-bind-worldbook-chat').on('click', () => { void applyWorldbookSchemeToCurrentChat(); });
+  $t('#st-esg-data-management').on('click', '.st-esg-data-delete-component', function () {
+    const id = textOf($(this).data('component-id'));
+    const component = settings.components.find((item) => textOf(item?.id) === id);
+    if (!component || !targetWindow.confirm(`确认删除组件“${component.name || '未命名组件'}”？此操作无法恢复。`)) return;
+    settings.components = settings.components.filter((item) => textOf(item?.id) !== id);
+    saveSettings();
+    renderDataManagement();
+    renderComponentList();
+  }).on('click', '.st-esg-cancel-chat-binding', function () {
+    void cancelChatWorldbookBinding($(this).data('chat-id'));
+  }).on('click', '#st-esg-clean-orphan-data', cleanOrphanPluginData);
   $t('#st-esg-compress-system').on('change', function () { settings.compressSystemMessages = Boolean($(this).prop('checked')); saveSettings(); });
   targetDoc.getElementById('st-esg-ball-visible')?.addEventListener('change', function () {
     settings.ballVisible = Boolean(this.checked);
@@ -5505,6 +5734,7 @@ function init() {
   updateQuickReplyShortcutActions();
   void syncQuickReplyShortcuts();
   startTavernDefaultSync();
+  void restoreBoundWorldbookSchemeForCurrentChat();
   const context = getContext();
   registerPromptSourceCacheInvalidation(context);
   registerInjectionUndoInvalidation(context);
@@ -5522,6 +5752,7 @@ function init() {
     }
     if (currentChatId) animaWorldbookSnapshotChatId = currentChatId;
     seedLastAutomaticTargetFromCurrentChat();
+    void restoreBoundWorldbookSchemeForCurrentChat();
   });
   console.log(`[${EXTENSION_ID}] 已加载，dialog top layer，UI 挂载文档：${targetWindow === window ? 'current' : 'parent'}`);
 }
