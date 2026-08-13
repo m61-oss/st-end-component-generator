@@ -45,9 +45,60 @@ function formatFields(fields) {
     .join('\n');
 }
 
-function formatProtagonist(protagonist, name) {
+function parseStoryDate(value) {
+  const raw = oneLine(value);
+  if (!raw) return null;
+  const chinese = raw.match(/^(?:[^\d\s]+)?\s*(\d{4,})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?/);
+  if (chinese) return { year: Number(chinese[1]), month: Number(chinese[2]), day: Number(chinese[3]) };
+  const slash = raw.match(/^(\d{4,})\s*[/-]\s*(\d{1,2})\s*[/-]\s*(\d{1,2})/);
+  if (slash) return { year: Number(slash[1]), month: Number(slash[2]), day: Number(slash[3]) };
+  return null;
+}
+
+const CHINESE_DIGITS = {
+  零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5,
+  六: 6, 七: 7, 八: 8, 九: 9,
+};
+
+function numericAge(value) {
+  const match = oneLine(value).match(/^(?:约|大约)?\s*(\d{1,3}|[零〇一二两三四五六七八九十廿卅]+)\s*岁?$/);
+  if (!match) return null;
+  const raw = match[1];
+  if (/^\d+$/.test(raw)) return Number(raw);
+  if (raw === '廿') return 20;
+  if (raw === '卅') return 30;
+  const expanded = raw.replace('廿', '二十').replace('卅', '三十');
+  const tensIndex = expanded.indexOf('十');
+  if (tensIndex < 0) return expanded.length === 1 ? CHINESE_DIGITS[expanded] ?? null : null;
+  const tens = tensIndex === 0 ? 1 : CHINESE_DIGITS[expanded[tensIndex - 1]];
+  const ones = expanded.slice(tensIndex + 1);
+  if (tens === undefined || (ones && CHINESE_DIGITS[ones] === undefined)) return null;
+  return tens * 10 + (ones ? CHINESE_DIGITS[ones] : 0);
+}
+
+function formatAge(age, ageTime, now) {
+  const raw = oneLine(age);
+  if (!raw) return '';
+  const anchor = parseStoryDate(ageTime);
+  const current = parseStoryDate(now);
+  const original = numericAge(raw);
+  if (!anchor || !current || original === null) return raw;
+  if (original <= 0 || original >= 1000) return raw;
+
+  const anchorDate = Date.UTC(anchor.year, anchor.month - 1, anchor.day);
+  const currentDate = Date.UTC(current.year, current.month - 1, current.day);
+  const days = Math.floor((currentDate - anchorDate) / (24 * 60 * 60 * 1000));
+  if (days >= 0 && days < 365) return raw;
+  if (days < 0) return `${raw}(${anchor.year}年时)`;
+
+  const estimated = original + Math.floor(days / 365);
+  return `约${estimated}岁(${anchor.year}年时${original}岁)`;
+}
+
+function formatProtagonist(protagonist, name, currentTime = '') {
   const content = formatFields([
     ['性别', protagonist?.gender],
+    ['年龄', formatAge(protagonist?.age, protagonist?.ageTime, currentTime)],
     ['身份', protagonist?.identity],
     ['外貌', protagonist?.appearance],
     ['着装', protagonist?.outfit],
@@ -125,23 +176,35 @@ function classifyNpcs(npcs, snapshot) {
   return groups;
 }
 
-function formatNpcLine(npc, detail = 'full') {
+function relationHead(value) {
+  const relation = oneLine(value);
+  if (!relation) return '';
+  const head = relation.split(/[,，;；、——]/)[0].trim();
+  return head.length <= 12 ? head : '';
+}
+
+function formatNpcLine(npc, detail = 'full', currentTime = '') {
   const name = oneLine(npc.name);
+  const age = formatAge(npc.age, npc.ageTime, currentTime);
   const identity = [
     oneLine(npc.gender) ? `·${oneLine(npc.gender)}` : '',
+    age ? `·${age}` : '',
     oneLine(npc.title) ? `·${oneLine(npc.title)}` : '',
   ].filter(Boolean).join('');
   const identityBlock = identity ? `(${identity})` : '';
+  const relation = oneLine(npc.relation);
   if (detail === 'main') {
     const state = [
       oneLine(npc.outfit) ? `着装:${oneLine(npc.outfit)}` : '',
       oneLine(npc.condition) ? `状态:${oneLine(npc.condition)}` : '',
       npc.follow ? '随行' : oneLine(npc.location) ? `在:${oneLine(npc.location)}` : '',
     ].filter(Boolean);
-    return `  - ${name}${identityBlock}${state.length ? ` 〔${state.join(';')}〕` : ''}`;
+    const relationText = relation ? ` —— 与主角:${relation}` : '';
+    return `  - ${name}${identityBlock}${relationText}${state.length ? ` 〔${state.join(';')}〕` : ''}`;
   }
   if (detail === 'present') {
     const profile = [
+      relation ? `与主角:${relation}` : '',
       oneLine(npc.personality) ? `性格:${oneLine(npc.personality)}` : '',
       oneLine(npc.desc),
     ].filter(Boolean);
@@ -153,26 +216,60 @@ function formatNpcLine(npc, detail = 'full') {
     return `  - ${name}${identityBlock}${place}${profile.length ? ` —— ${profile.join(';')}` : ''}${state.length ? ` 〔${state.join(';')}〕` : ''}`;
   }
   if (detail === 'nearby') {
-    const personality = oneLine(npc.personality) ? ` —— 性格:${oneLine(npc.personality)}` : '';
+    const profile = [
+      relation ? `与主角:${relation}` : '',
+      oneLine(npc.personality) ? `性格:${oneLine(npc.personality)}` : '',
+    ].filter(Boolean);
+    const personality = profile.length ? ` —— ${profile.join(';')}` : '';
     const place = oneLine(npc.location) ? ` [在:${oneLine(npc.location)}]` : '';
     return `  - ${name}${identityBlock}${personality}${place}`;
   }
+  const shortRelation = relationHead(npc.relation);
+  const shortIdentity = [
+    oneLine(npc.gender) ? `·${oneLine(npc.gender)}` : '',
+    shortRelation ? `·${shortRelation}` : '',
+    oneLine(npc.title) ? `·${oneLine(npc.title)}` : '',
+  ].filter(Boolean).join('');
   const place = oneLine(npc.location) ? ` [在:${oneLine(npc.location)}]` : '';
-  return `  - ${name}${identityBlock}${place}`;
+  return `  - ${name}${shortIdentity ? `(${shortIdentity})` : ''}${place}`;
 }
 
-function formatNpcGroup(label, npcs, detail) {
+function formatNpcGroup(label, npcs, detail, currentTime) {
   if (!npcs.length) return '';
-  return `${label}:\n${npcs.map((npc) => formatNpcLine(npc, detail)).join('\n')}`;
+  return `${label}:\n${npcs.map((npc) => formatNpcLine(npc, detail, currentTime)).join('\n')}`;
+}
+
+function formatNpcTies(npcs) {
+  const grouped = new Map();
+  for (const npc of Array.isArray(npcs) ? npcs : []) {
+    const name = oneLine(npc?.name);
+    const ties = oneLine(npc?.ties);
+    if (!name || !ties) continue;
+    const key = name.toLowerCase();
+    if (!grouped.has(key)) grouped.set(key, { name, ties: [], seen: new Set() });
+    const entry = grouped.get(key);
+    for (const tie of ties.split(/[；;]/).map((item) => item.trim()).filter(Boolean)) {
+      const tieKey = tie.toLowerCase();
+      if (entry.seen.has(tieKey)) continue;
+      entry.seen.add(tieKey);
+      entry.ties.push(tie);
+    }
+  }
+  const rows = [...grouped.values()].map((entry) => `  - ${entry.name}:${entry.ties.join(';')}`);
+  return rows.length
+    ? `角色长期关系(血缘/婚姻/主仆/宿敌等，不因是否在场而失效):\n${rows.join('\n')}`
+    : '';
 }
 
 function formatNpcs(npcs, snapshot) {
   const groups = classifyNpcs(npcs, snapshot);
+  const currentTime = oneLine(snapshot?.state?.time);
   const sections = [
-    formatNpcGroup('主要角色', groups.important, 'main'),
-    formatNpcGroup('在场角色', groups.present, 'present'),
-    formatNpcGroup('同区域角色', groups.nearby, 'nearby'),
-    formatNpcGroup('其他已知角色', groups.absent, 'short'),
+    formatNpcTies(npcs),
+    formatNpcGroup('主要角色', groups.important, 'main', currentTime),
+    formatNpcGroup('在场角色', groups.present, 'present', currentTime),
+    formatNpcGroup('同区域角色', groups.nearby, 'nearby', currentTime),
+    formatNpcGroup('其他已知角色', groups.absent, 'short', currentTime),
   ].filter(Boolean);
   return sections.length ? `NPC名册:\n${sections.join('\n')}` : '';
 }
@@ -190,9 +287,34 @@ function formatPlans(plans) {
   return lines.length ? `未了结的计划/悬念:\n${lines.join('\n')}` : '';
 }
 
-function formatVars(vars) {
+function getCurrentCharacter(context) {
+  if (context?.groupId) return {};
+  const characterId = context?.characterId ?? context?.this_chid;
+  if (characterId === undefined || characterId === null || String(characterId).trim() === '') {
+    return context?.character || {};
+  }
+  return context?.characters?.[characterId] || context?.character || {};
+}
+
+function getBaiBaiVariableMeaning(context) {
+  const settings = context?.extensionSettings?.baibai_book || {};
+  const character = getCurrentCharacter(context);
+  const characterData = character?.data || {};
+  const characterKey = oneLine(character?.avatar || characterData?.avatar || character?.name || characterData?.name);
+  const characterTemplate = characterKey && settings?.varsTemplateByChar?.[characterKey];
+  const chatMetadata = context?.chatMetadata || context?.chat_metadata || {};
+  const chatTemplate = chatMetadata?.baibai_book?.varsTemplate;
+  return [
+    settings?.varsGlobalTemplate?.meaning,
+    characterTemplate?.meaning,
+    chatTemplate?.meaning,
+  ].map(oneLine).filter(Boolean).join('\n\n');
+}
+
+function formatVars(vars, meaning = '') {
   if (!vars || typeof vars !== 'object' || Array.isArray(vars) || !Object.keys(vars).length) return '';
-  return `自定义变量:\n${JSON.stringify(vars, null, 2)}`;
+  const meaningBlock = meaning ? `\n变量含义(仅帮你理解上面的值,不要输出):\n${meaning}` : '';
+  return `自定义变量:\n${JSON.stringify(vars, null, 2)}${meaningBlock}`;
 }
 
 function buildHistoryText(history) {
@@ -218,11 +340,15 @@ function buildStateText(snapshot, context, substituteParams) {
   const sections = [
     `[当前状态]\n当前时间:${oneLine(state.time)}\n当前地点:${oneLine(state.location)}`,
     formatScenes(snapshot),
-    formatProtagonist(snapshot.protagonist, getProtagonistName(context, substituteParams || context?.substituteParams)),
+    formatProtagonist(
+      snapshot.protagonist,
+      getProtagonistName(context, substituteParams || context?.substituteParams),
+      oneLine(snapshot?.state?.time),
+    ),
     formatItems(snapshot.items),
     formatNpcs(snapshot.npcs, snapshot),
     formatPlans(snapshot.plans),
-    formatVars(snapshot.vars),
+    formatVars(snapshot.vars, getBaiBaiVariableMeaning(context)),
   ].filter((section) => oneLine(section));
   return `${RUNTIME_CONTEXT_NOTE}\n${sections.join('\n')}\n${RUNTIME_CONTEXT_END}`;
 }
