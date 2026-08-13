@@ -804,16 +804,13 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   opacity: var(--st-esg-ball-opacity);
-  --st-esg-ball-drag-x: 0px;
-  --st-esg-ball-drag-y: 0px;
-  transform: translate3d(var(--st-esg-ball-drag-x), var(--st-esg-ball-drag-y), 0);
+  transform: translate3d(0, 0, 0);
   will-change: transform;
   transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 140ms ease, border-color 140ms ease;
 }
 #st-esg-ball[data-dock="left"]:not(.st-esg-ball-awake):not(.st-esg-ball-dragging) { transform: translate3d(-50%, 0, 0); }
 #st-esg-ball[data-dock="right"]:not(.st-esg-ball-awake):not(.st-esg-ball-dragging) { transform: translate3d(50%, 0, 0); }
 #st-esg-ball.st-esg-ball-dragging { transition: none; cursor: grabbing; opacity: 1; }
-#st-esg-ball.st-esg-ball-committing { transition: none; }
 #st-esg-ball.st-esg-ball-settling { transition: left 180ms cubic-bezier(0.16, 1, 0.3, 1), transform 180ms cubic-bezier(0.16, 1, 0.3, 1); }
 .st-esg-theme-dark#st-esg-ball {
   --st-esg-ball-flow: #fff;

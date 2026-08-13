@@ -2719,20 +2719,11 @@ function renderFloatingBall() {
   targetDoc.body.appendChild(ball);
   setFloatingBallVisualState(floatingBallVisualState);
   let dragging = false, moved = false, suppressClick = false, activePointerId = null, startX = 0, startY = 0, originLeft = 0, originTop = 0;
-  let appliedX = 0, appliedY = 0;
   const applyDockState = () => {
     const dock = settings.ballSnapEnabled && ['left', 'right'].includes(settings.ballDock) ? settings.ballDock : 'none';
     ball.dataset.dock = dock;
   };
   applyDockState();
-  const paintDragPosition = (dx, dy) => {
-    const maxLeft = Math.max(0, targetWindow.innerWidth - getFloatingBallSize());
-    const maxTop = Math.max(0, targetWindow.innerHeight - getFloatingBallSize());
-    appliedX = clamp(dx, -originLeft, maxLeft - originLeft);
-    appliedY = clamp(dy, -originTop, maxTop - originTop);
-    ball.style.setProperty('--st-esg-ball-drag-x', `${appliedX}px`);
-    ball.style.setProperty('--st-esg-ball-drag-y', `${appliedY}px`);
-  };
   const onMove = (event) => {
     if (activePointerId === null || event.pointerId !== activePointerId) return;
     const dx = event.clientX - startX, dy = event.clientY - startY;
@@ -2744,14 +2735,15 @@ function renderFloatingBall() {
       applyDockState();
       ball.classList.add('st-esg-ball-dragging');
     }
-    paintDragPosition(dx, dy);
+    ball.style.left = `${clamp(originLeft + dx, 0, targetWindow.innerWidth - getFloatingBallSize())}px`;
+    ball.style.top = `${clamp(originTop + dy, 0, targetWindow.innerHeight - getFloatingBallSize())}px`;
   };
   const onUp = (event) => {
     if (activePointerId === null || event.pointerId !== activePointerId) return;
     const cancelled = event.type === 'pointercancel';
-    targetWindow.removeEventListener('pointermove', onMove);
-    targetWindow.removeEventListener('pointerup', onUp);
-    targetWindow.removeEventListener('pointercancel', onUp);
+    ball.removeEventListener('pointermove', onMove);
+    ball.removeEventListener('pointerup', onUp);
+    ball.removeEventListener('pointercancel', onUp);
     if (activePointerId !== null && ball.hasPointerCapture?.(activePointerId)) ball.releasePointerCapture(activePointerId);
     activePointerId = null;
     ball.classList.remove('st-esg-ball-awake');
@@ -2759,15 +2751,8 @@ function renderFloatingBall() {
       dragging = false;
       ball.classList.remove('st-esg-ball-dragging');
       const size = getFloatingBallSize();
-      let left = clamp(originLeft + appliedX, 0, targetWindow.innerWidth - size);
-      const top = clamp(originTop + appliedY, 0, targetWindow.innerHeight - size);
-      ball.classList.add('st-esg-ball-committing');
-      ball.style.removeProperty('--st-esg-ball-drag-x');
-      ball.style.removeProperty('--st-esg-ball-drag-y');
-      ball.style.left = `${left}px`;
-      ball.style.top = `${top}px`;
-      void ball.offsetWidth;
-      ball.classList.remove('st-esg-ball-committing');
+      let left = clamp(Number.parseFloat(ball.style.left), 0, targetWindow.innerWidth - size);
+      const top = clamp(Number.parseFloat(ball.style.top), 0, targetWindow.innerHeight - size);
       if (settings.ballSnapEnabled) {
         settings.ballDock = resolveFloatingBallDock({ left, viewportWidth: targetWindow.innerWidth, ballSize: size, snapZone: 56 });
         if (settings.ballDock === 'left') left = 0;
@@ -2801,12 +2786,11 @@ function renderFloatingBall() {
     const top = Number.parseFloat(ball.style.top);
     originLeft = Number.isFinite(left) ? left : 16;
     originTop = Number.isFinite(top) ? top : 16;
-    appliedX = appliedY = 0;
     ball.classList.add('st-esg-ball-awake');
     ball.setPointerCapture?.(event.pointerId);
-    targetWindow.addEventListener('pointermove', onMove);
-    targetWindow.addEventListener('pointerup', onUp);
-    targetWindow.addEventListener('pointercancel', onUp);
+    ball.addEventListener('pointermove', onMove);
+    ball.addEventListener('pointerup', onUp);
+    ball.addEventListener('pointercancel', onUp);
   });
   ball.addEventListener('click', (event) => {
     if (!suppressClick) return;
