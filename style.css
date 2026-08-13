@@ -714,15 +714,16 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-primary-action,
 .st-esg-secondary-action { min-height: 28px; padding-inline: 10px !important; border-radius: 6px !important; }
 .st-esg-primary-action { color: var(--esg-bg-card) !important; border-color: var(--esg-text-main) !important; background: var(--esg-text-main) !important; }
-.st-esg-primary-action:hover { color: var(--esg-bg-card) !important; background: var(--esg-bg-hover) !important; }
 .st-esg-danger-action { color: var(--esg-bg-card) !important; border-color: var(--esg-text-main) !important; background: var(--esg-bg-hover) !important; }
-.st-esg-danger-action:hover { color: var(--esg-bg-card) !important; background: var(--esg-text-main) !important; }
 .st-esg-secondary-action { color: var(--esg-text-main) !important; border: 1px solid var(--esg-border) !important; background: var(--esg-bg-secondary) !important; }
-.st-esg-secondary-action:hover { color: var(--esg-text-main) !important; border-color: var(--esg-border) !important; background: var(--esg-bg-hover) !important; }
+@media (hover: hover) {
+  .st-esg-primary-action:hover { color: var(--esg-bg-card) !important; background: var(--esg-bg-hover) !important; }
+  .st-esg-danger-action:hover { color: var(--esg-bg-card) !important; background: var(--esg-text-main) !important; }
+  .st-esg-secondary-action:hover { color: var(--esg-text-main) !important; border-color: var(--esg-border) !important; background: var(--esg-bg-hover) !important; }
+}
 .st-esg-dialog .menu_button,
 .st-esg-dialog .st-esg-icon-btn { transition: transform 100ms ease, background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease; }
 .st-esg-dialog .st-esg-tab { transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease; }
-.st-esg-dialog .menu_button:active,
 .st-esg-dialog .st-esg-icon-btn:active { transform: translateY(1px); }
 .st-esg-dialog .menu_button:focus-visible,
 .st-esg-dialog .st-esg-tab:focus-visible,

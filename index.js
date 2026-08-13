@@ -1121,10 +1121,20 @@ async function buildMessages(latestMessage) {
 function setGeneratingState(isGenerating) {
   const button = $t('#st-esg-generate');
   if (button.length) {
+    button.attr('aria-busy', String(isGenerating));
+    button.toggleClass('st-esg-action-running', isGenerating);
     button.find('i').attr('class', isGenerating ? 'fa-solid fa-stop' : 'fa-solid fa-sparkles');
     button.find('span').text(isGenerating ? '停止生成' : '生成文尾组件');
   }
   setFloatingBallVisualState(isGenerating ? 'generating' : 'idle');
+}
+
+function waitForInteractionPaint() {
+  return new Promise((resolve) => {
+    targetWindow.requestAnimationFrame(() => {
+      targetWindow.requestAnimationFrame(resolve);
+    });
+  });
 }
 
 async function buildExternalApiRequestContext(latestMessage) {
@@ -1354,19 +1364,20 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     return '';
   }
   const rollbackMode = settings.injectMode === 'rollbackAppend' || settings.injectMode === 'rollbackReplace';
-  if (rollbackMode) await restoreLatestInjection({ targetMessageIndex: latest.index });
   const panelScrollTop = capturePanelScrollTop();
-  clearGeneratedThinking();
-  restorePanelScrollTop(panelScrollTop);
   notifyStatus('正在生成文尾组件……', 'info');
   generationAbortController = new AbortController();
   stopAnimaWorldbookCapture();
   if (entryType === 'automatic') activeAutomaticTarget = automaticTarget;
-  logAutomaticGenerationStage('target-ready', `message ${latest.index}`);
-  logAutomaticGenerationStage('api-start', `楼层 ${latest.index}`);
   setGeneratingState(true);
+  await waitForInteractionPaint();
   let result = '';
   try {
+    if (rollbackMode) await restoreLatestInjection({ targetMessageIndex: latest.index });
+    clearGeneratedThinking();
+    restorePanelScrollTop(panelScrollTop);
+    logAutomaticGenerationStage('target-ready', `message ${latest.index}`);
+    logAutomaticGenerationStage('api-start', `楼层 ${latest.index}`);
     const apiMode = settings.apiMode || 'custom';
     if (apiMode === 'custom' && (!settings.apiUrl || !settings.apiModel)) {
       const error = new Error('请先在“API 配置”里填写 API 地址和模型名称。');
@@ -4846,6 +4857,17 @@ function buildGenerationSettingsMarkup() {
   return `<details class="st-esg-card st-esg-collapsible st-esg-generation-settings"><summary class="st-esg-collapsible-summary">生成设置</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-generate" type="checkbox" /><span>监听正文结束自动生成</span></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-inject" type="checkbox" /><span>生成结束以后自动注入</span></label><label id="st-esg-inject-mode-row" class="st-esg-generation-inject-mode">注入方式：<select id="st-esg-inject-mode" class="text_pole st-esg-select"><option value="replace">正文已有同名标签时直接覆盖</option><option value="append">始终追加到末尾</option><option value="rollbackAppend">撤回本楼上次注入后追加</option><option value="rollbackReplace">撤回本楼上次注入后覆盖</option></select></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-status-placeholder-enabled" type="checkbox" /><span>将 MVU 状态标签固定到正文末尾</span><em>检测正文或生成内容中的 &lt;StatusPlaceHolderImpl/&gt;，清理重复项并在最终文末保留一个。</em></label><div class="st-esg-card-desc">覆盖模式仅支持成对的尖括号标签（如 &lt;status&gt;…&lt;/status&gt;）。[status]、【状态】等格式无法识别，会自动改为追加。</div></div></details>`;
 }
 
+function upgradePanelActionToButton(dialog, selector) {
+  const current = dialog.querySelector(selector);
+  if (!current || current.tagName === 'BUTTON') return current;
+  const button = targetDoc.createElement('button');
+  for (const { name, value } of current.attributes) button.setAttribute(name, value);
+  button.type = 'button';
+  button.innerHTML = current.innerHTML;
+  current.replaceWith(button);
+  return button;
+}
+
 function renderHistoryRangeUi() {
   const mode = normalizeChatHistoryRangeMode(settings.historyRangeMode);
   settings.historyRangeMode = mode;
@@ -4887,6 +4909,8 @@ function renderPluginPanel() {
   dialog.id = 'st-esg-dialog';
   dialog.className = 'st-esg-dialog';
   dialog.innerHTML = buildPluginPanelMarkup();
+  upgradePanelActionToButton(dialog, '#st-esg-generate');
+  upgradePanelActionToButton(dialog, '#st-esg-inject');
   const titleIcon = dialog.querySelector('.st-esg-title-icon');
   if (titleIcon) titleIcon.innerHTML = renderBrandMark('title');
   dialog.querySelector('.st-esg-kicker')?.replaceChildren(BRAND_SUBTITLE);
@@ -5429,11 +5453,19 @@ function bindPanelEvents() {
       });
     }
   });
-  $t('#st-esg-generate').on('click', () => generateStatusbar());
+  $t('#st-esg-generate').on('click', (event) => {
+    event.preventDefault();
+    event.currentTarget.blur();
+    void generateStatusbar();
+  });
   $t('#st-esg-generation-history').on('click', '.st-esg-load-generation-history', function () {
     loadGenerationHistoryEntry($(this).attr('data-history-id'));
   });
-  $t('#st-esg-inject').on('click', () => injectGeneratedStatusbar());
+  $t('#st-esg-inject').on('click', (event) => {
+    event.preventDefault();
+    event.currentTarget.blur();
+    void injectGeneratedStatusbar();
+  });
   $t('#st-esg-undo-injection').on('click', () => undoLatestInjection());
   $t('#st-esg-generation-error').on('click', '#st-esg-show-generated-content', () => {
     settings.lastGenerationError = null;
