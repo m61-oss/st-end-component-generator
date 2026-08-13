@@ -91,7 +91,7 @@ import {
   loadAndMigratePromptSourceSnapshots,
   normalizePromptSourceSnapshot,
 } from './sources/prompt-source-snapshot-storage.js?ver=0.1.8';
-import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from './settings/task-placement.js?ver=0.1.8';
+import { TASK_PLACEMENT_AFTER_CHAT_HISTORY, resolveTaskPlacementSelection } from './settings/task-placement.js?ver=0.1.8';
 import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.1.8';
 import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.1.8';
 import {
@@ -4458,13 +4458,11 @@ function renderTaskPlacementOptions() {
   select.html(items.length
     ? items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.label)}</option>`).join('')
     : '<option value="">请先在“预设/世界书”页同步当前预设</option>');
-  const selectedPlacementId = settings.taskPlacementAfterSourceId === TASK_PLACEMENT_AFTER_CHAT_HISTORY
-    ? items.find((item) => item.markerType === 'chatHistory')?.id || ''
-    : settings.taskPlacementAfterSourceId;
-  if (items.some((item) => item.id === selectedPlacementId)) {
-    select.val(selectedPlacementId);
-  } else {
-    select.val('');
+  const placement = resolveTaskPlacementSelection(items, settings.taskPlacementAfterSourceId);
+  select.val(placement.selectedId);
+  if (settings.taskPlacementEnabled && settings.taskPlacementAfterSourceId !== placement.storedId) {
+    settings.taskPlacementAfterSourceId = placement.storedId;
+    saveSettings();
   }
 }
 
