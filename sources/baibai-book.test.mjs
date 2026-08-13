@@ -59,7 +59,7 @@ function createApi() {
   };
 }
 
-test('injects BaiBai age, relations, ties and variable meanings without changing the state wrapper', () => {
+test('injects BaiBai relations, ties and variable meanings without calculating or injecting age', () => {
   const [injection] = buildBaiBaiBookInjections({
     api: createApi(),
     context: createContext(),
@@ -68,8 +68,8 @@ test('injects BaiBai age, relations, ties and variable meanings without changing
 
   assert.equal(injection.role, 'system');
   assert.match(injection.content, /〔记忆系统私密简报｜仅你可见〕/);
-  assert.match(injection.content, /年龄：约21岁/);
-  assert.match(injection.content, /角色A\(·女·约19岁\(2024年时18岁\)·助手\)/);
+  assert.doesNotMatch(injection.content, /年龄|ageTime|约21岁|约19岁/);
+  assert.match(injection.content, /角色A\(·女·助手\)/);
   assert.match(injection.content, /与主角:主角的朋友,长期互相照应/);
   assert.match(injection.content, /角色长期关系\(血缘\/婚姻\/主仆\/宿敌等，不因是否在场而失效\):/);
   assert.match(injection.content, /角色A:与角色B是姐妹;与组织有旧约/);
