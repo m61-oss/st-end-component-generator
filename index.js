@@ -67,6 +67,7 @@ import {
   resolveReadyAutomaticAssistantTarget,
 } from './generation/auto-generation-trigger.js?ver=0.1.7';
 import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.1.7';
+import { hasFloatingBallDragStarted, resolveFloatingBallDock } from './ui/floating-ball-gesture.js?ver=0.1.7';
 import {
   buildApiRequestParts,
   parseApiAdditionalParameters,
@@ -191,6 +192,8 @@ const DEFAULT_SETTINGS = {
   ballSize: 38,
   ballOpacity: 0.82,
   ballAnimationEnabled: true,
+  ballSnapEnabled: false,
+  ballDock: 'none',
   qrGenerateEnabled: false,
   qrInjectEnabled: false,
   theme: 'dark',
@@ -512,6 +515,8 @@ function loadSettings() {
   settings.ballSize = normalizeFloatingBallSize(settings.ballSize);
   settings.ballOpacity = normalizeFloatingBallOpacity(settings.ballOpacity);
   if (typeof settings.ballAnimationEnabled !== 'boolean') settings.ballAnimationEnabled = true;
+  if (typeof settings.ballSnapEnabled !== 'boolean') settings.ballSnapEnabled = false;
+  if (!['left', 'right', 'none'].includes(settings.ballDock)) settings.ballDock = 'none';
   if (!['replace', 'append', 'rollbackAppend', 'rollbackReplace'].includes(settings.injectMode)) settings.injectMode = 'replace';
   try {
     const localValue = targetWindow.localStorage?.getItem(PROMPT_TEMPLATE_COMPAT_STORAGE_KEY);
@@ -2714,43 +2719,94 @@ function renderFloatingBall() {
   targetDoc.body.appendChild(ball);
   setFloatingBallVisualState(floatingBallVisualState);
   let dragging = false, moved = false, suppressClick = false, activePointerId = null, startX = 0, startY = 0, originLeft = 0, originTop = 0;
+  let frameId = 0, pendingX = 0, pendingY = 0, appliedX = 0, appliedY = 0;
+  const applyDockState = () => {
+    const dock = settings.ballSnapEnabled && ['left', 'right'].includes(settings.ballDock) ? settings.ballDock : 'none';
+    ball.dataset.dock = dock;
+  };
+  applyDockState();
+  const paintDragFrame = () => {
+    frameId = 0;
+    const maxLeft = Math.max(0, targetWindow.innerWidth - getFloatingBallSize());
+    const maxTop = Math.max(0, targetWindow.innerHeight - getFloatingBallSize());
+    appliedX = clamp(pendingX, -originLeft, maxLeft - originLeft);
+    appliedY = clamp(pendingY, -originTop, maxTop - originTop);
+    ball.style.setProperty('--st-esg-ball-drag-x', `${appliedX}px`);
+    ball.style.setProperty('--st-esg-ball-drag-y', `${appliedY}px`);
+  };
   const onMove = (event) => {
-    if (!dragging || event.pointerId !== activePointerId) return;
+    if (activePointerId === null || event.pointerId !== activePointerId) return;
     const dx = event.clientX - startX, dy = event.clientY - startY;
-    if (Math.hypot(dx, dy) > 6) moved = true;
-    ball.style.left = `${clamp(originLeft + dx, 0, targetWindow.innerWidth - getFloatingBallSize())}px`;
-    ball.style.top = `${clamp(originTop + dy, 0, targetWindow.innerHeight - getFloatingBallSize())}px`;
+    if (!dragging && !hasFloatingBallDragStarted({ dx, dy, threshold: 10 })) return;
+    if (!dragging) {
+      dragging = true;
+      moved = true;
+      settings.ballDock = 'none';
+      applyDockState();
+      ball.classList.add('st-esg-ball-dragging');
+    }
+    pendingX = dx;
+    pendingY = dy;
+    if (!frameId) frameId = targetWindow.requestAnimationFrame(paintDragFrame);
   };
   const onUp = (event) => {
-    if (!dragging || event.pointerId !== activePointerId) return;
+    if (activePointerId === null || event.pointerId !== activePointerId) return;
     const cancelled = event.type === 'pointercancel';
-    dragging = false;
     targetWindow.removeEventListener('pointermove', onMove);
     targetWindow.removeEventListener('pointerup', onUp);
     targetWindow.removeEventListener('pointercancel', onUp);
     if (activePointerId !== null && ball.hasPointerCapture?.(activePointerId)) ball.releasePointerCapture(activePointerId);
     activePointerId = null;
-    const left = Number.parseFloat(ball.style.left);
-    const top = Number.parseFloat(ball.style.top);
-    settings.ballX = Number.isFinite(left) ? left : 16;
-    settings.ballY = Number.isFinite(top) ? top : 16;
-    saveSettings();
+    ball.classList.remove('st-esg-ball-awake');
+    if (frameId) {
+      targetWindow.cancelAnimationFrame(frameId);
+      paintDragFrame();
+    }
     if (moved) {
+      dragging = false;
+      ball.classList.remove('st-esg-ball-dragging');
+      const size = getFloatingBallSize();
+      let left = clamp(originLeft + appliedX, 0, targetWindow.innerWidth - size);
+      const top = clamp(originTop + appliedY, 0, targetWindow.innerHeight - size);
+      ball.style.removeProperty('--st-esg-ball-drag-x');
+      ball.style.removeProperty('--st-esg-ball-drag-y');
+      ball.style.left = `${left}px`;
+      ball.style.top = `${top}px`;
+      if (settings.ballSnapEnabled) {
+        settings.ballDock = resolveFloatingBallDock({ left, viewportWidth: targetWindow.innerWidth, ballSize: size, snapZone: 56 });
+        if (settings.ballDock === 'left') left = 0;
+        if (settings.ballDock === 'right') left = Math.max(0, targetWindow.innerWidth - size);
+        if (settings.ballDock !== 'none') {
+          ball.classList.add('st-esg-ball-settling');
+          void ball.offsetWidth;
+          ball.style.left = `${left}px`;
+          targetWindow.setTimeout(() => ball.classList.remove('st-esg-ball-settling'), 220);
+        }
+      } else {
+        settings.ballDock = 'none';
+      }
+      settings.ballX = left;
+      settings.ballY = top;
+      applyDockState();
+      saveSettings();
       suppressClick = true;
       targetWindow.setTimeout(() => { suppressClick = false; }, 300);
     } else if (!cancelled) {
+      dragging = false;
       suppressNextClickAfterFloatingBallOpen();
       togglePanel(true);
     }
   };
   ball.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
-    event.preventDefault(); event.stopPropagation(); dragging = true; moved = false; suppressClick = false; activePointerId = event.pointerId;
+    event.preventDefault(); event.stopPropagation(); dragging = false; moved = false; suppressClick = false; activePointerId = event.pointerId;
     startX = event.clientX; startY = event.clientY;
     const left = Number.parseFloat(ball.style.left);
     const top = Number.parseFloat(ball.style.top);
     originLeft = Number.isFinite(left) ? left : 16;
     originTop = Number.isFinite(top) ? top : 16;
+    pendingX = pendingY = appliedX = appliedY = 0;
+    ball.classList.add('st-esg-ball-awake');
     ball.setPointerCapture?.(event.pointerId);
     targetWindow.addEventListener('pointermove', onMove);
     targetWindow.addEventListener('pointerup', onUp);
@@ -2762,6 +2818,14 @@ function renderFloatingBall() {
     event.stopPropagation();
     suppressClick = false;
   });
+  ball.addEventListener('pointerenter', () => ball.classList.add('st-esg-ball-awake'));
+  ball.addEventListener('pointerleave', () => {
+    if (activePointerId === null) ball.classList.remove('st-esg-ball-awake');
+  });
+  ball.addEventListener('focus', () => ball.classList.add('st-esg-ball-awake'));
+  ball.addEventListener('blur', () => ball.classList.remove('st-esg-ball-awake'));
+  ball.tabIndex = 0;
+  ball.setAttribute('role', 'button');
 }
 
 function normalizeFloatingBallSize(value) {
@@ -2810,6 +2874,7 @@ function applyFloatingBallPosition(ball) {
   ball.style.left = `${position.left}px`;
   ball.style.top = `${position.top}px`;
   ball.style.removeProperty('bottom');
+  ball.dataset.dock = settings.ballSnapEnabled && ['left', 'right'].includes(settings.ballDock) ? settings.ballDock : 'none';
   if (settings.ballX !== position.left || settings.ballY !== position.top) {
     settings.ballX = position.left;
     settings.ballY = position.top;
@@ -4934,8 +4999,7 @@ function renderPluginPanel() {
   if (ballCard && runtimePanel) {
     const shortcutDetails = targetDoc.createElement('details');
     shortcutDetails.className = 'st-esg-card st-esg-collapsible st-esg-shortcut-settings';
-    shortcutDetails.innerHTML = '<summary class="st-esg-collapsible-summary">界面与快捷入口</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox"><input id="st-esg-ball-visible" type="checkbox" /><span>悬浮球</span></label><div class="st-esg-ball-controls"><label class="st-esg-range-control"><span>大小 <output id="st-esg-ball-size-value">38px</output></span><input id="st-esg-ball-size" type="range" min="28" max="72" step="1" /></label><label class="st-esg-range-control"><span>透明度 <output id="st-esg-ball-opacity-value">82%</output></span><input id="st-esg-ball-opacity" type="range" min="20" max="100" step="1" /></label></div><label class="st-esg-checkbox"><input id="st-esg-qr-generate-enabled" type="checkbox" /><span>QR 栏显示“点击生成”</span></label><label class="st-esg-checkbox"><input id="st-esg-qr-inject-enabled" type="checkbox" /><span>QR 栏显示“点击注入”</span></label></div>';
-    shortcutDetails.querySelector('.st-esg-ball-controls')?.insertAdjacentHTML('beforeend', '<label class="st-esg-checkbox st-esg-ball-animation-toggle"><input id="st-esg-ball-animation-enabled" type="checkbox" /><span>状态动画</span></label>');
+    shortcutDetails.innerHTML = '<summary class="st-esg-collapsible-summary">界面与快捷入口</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox"><input id="st-esg-ball-visible" type="checkbox" /><span>悬浮球</span></label><div class="st-esg-ball-controls"><label class="st-esg-range-control"><span>大小 <output id="st-esg-ball-size-value">38px</output></span><input id="st-esg-ball-size" type="range" min="28" max="72" step="1" /></label><label class="st-esg-range-control"><span>透明度 <output id="st-esg-ball-opacity-value">82%</output></span><input id="st-esg-ball-opacity" type="range" min="20" max="100" step="1" /></label><label class="st-esg-checkbox st-esg-ball-animation-toggle"><input id="st-esg-ball-animation-enabled" type="checkbox" /><span>状态动画</span></label><label class="st-esg-checkbox"><input id="st-esg-ball-snap-enabled" type="checkbox" /><span>贴边吸附</span></label></div><label class="st-esg-checkbox"><input id="st-esg-qr-generate-enabled" type="checkbox" /><span>QR 栏显示“点击生成”</span></label><label class="st-esg-checkbox"><input id="st-esg-qr-inject-enabled" type="checkbox" /><span>QR 栏显示“点击注入”</span></label></div>';
     ballCard.replaceWith(shortcutDetails);
     runtimePanel.appendChild(shortcutDetails);
   }
@@ -5105,6 +5169,9 @@ function bindPanelEvents() {
   $t('#st-esg-ball-opacity').val(Math.round(getFloatingBallOpacity() * 100));
   $t('#st-esg-ball-opacity-value').text(`${Math.round(getFloatingBallOpacity() * 100)}%`);
   $t('#st-esg-ball-animation-enabled').prop('checked', settings.ballAnimationEnabled);
+  $t('#st-esg-ball-snap-enabled').prop('checked', settings.ballSnapEnabled);
+  const floatingBallControls = targetDoc.querySelector('.st-esg-ball-controls');
+  if (floatingBallControls) floatingBallControls.hidden = !settings.ballVisible;
   $t('#st-esg-qr-generate-enabled').prop('checked', settings.qrGenerateEnabled);
   $t('#st-esg-qr-inject-enabled').prop('checked', settings.qrInjectEnabled);
   renderGenerationSettings();
@@ -5187,6 +5254,8 @@ function bindPanelEvents() {
   $t('#st-esg-compress-system').on('change', function () { settings.compressSystemMessages = Boolean($(this).prop('checked')); saveSettings(); });
   targetDoc.getElementById('st-esg-ball-visible')?.addEventListener('change', function () {
     settings.ballVisible = Boolean(this.checked);
+    const floatingBallControls = targetDoc.querySelector('.st-esg-ball-controls');
+    if (floatingBallControls) floatingBallControls.hidden = !settings.ballVisible;
     saveSettings();
     renderFloatingBall();
   });
@@ -5206,6 +5275,12 @@ function bindPanelEvents() {
     settings.ballAnimationEnabled = Boolean(this.checked);
     saveSettings();
     setFloatingBallVisualState(floatingBallVisualState);
+  });
+  targetDoc.getElementById('st-esg-ball-snap-enabled')?.addEventListener('change', function () {
+    settings.ballSnapEnabled = Boolean(this.checked);
+    if (!settings.ballSnapEnabled) settings.ballDock = 'none';
+    saveSettings();
+    renderFloatingBall();
   });
   targetDoc.getElementById('st-esg-qr-generate-enabled')?.addEventListener('change', function () {
     settings.qrGenerateEnabled = Boolean(this.checked);
