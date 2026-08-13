@@ -70,6 +70,7 @@ import {
 import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.1.7';
 import { hasFloatingBallDragStarted, resolveFloatingBallDock } from './ui/floating-ball-gesture.js?ver=0.1.7';
 import { normalizeFloatingBallVisualState, resolveFloatingBallRenderedState } from './ui/floating-ball-state.js?ver=0.1.7';
+import { renderBrandMark } from './ui/brand-mark.js?ver=0.1.7';
 import {
   buildApiRequestParts,
   parseApiAdditionalParameters,
@@ -140,11 +141,6 @@ const WORLDBOOK_CATEGORY_ORDER = [
   ['failed', '读取失败'],
   ['inactive', '未启用世界书'],
 ];
-
-function renderBrandMark(context = 'default') {
-  const contextClass = String(context || 'default').replace(/[^a-z0-9_-]/gi, '');
-  return `<svg class="st-esg-brand-mark st-esg-brand-mark-${contextClass}" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path class="st-esg-brand-mark-path" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-flow st-esg-brand-mark-flow-tail" pathLength="112" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-flow st-esg-brand-mark-flow-body" pathLength="112" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-flow st-esg-brand-mark-flow-head" pathLength="112" d="M8 13 40 35V13L8 35Z"></path><path class="st-esg-brand-mark-cut" d="m20.5 21.8 7 4.9"></path><path class="st-esg-brand-mark-bridge" d="m20.5 26.7 7-5"></path></svg>`;
-}
 
 const DEFAULT_SETTINGS = {
   enabled: false,
@@ -2830,7 +2826,7 @@ function renderMagicWandMenuButton() {
   button.className = 'list-group-item flex-container flexGap5 interactable';
   button.tabIndex = 0;
   button.title = `${BRAND_NAME} · ${BRAND_SUBTITLE}`;
-  button.innerHTML = `<span>${renderBrandMark('menu')}</span><span>${BRAND_NAME}</span>`;
+  button.innerHTML = `<span class="st-esg-menu-brand-icon">${renderBrandMark('menu')}</span><span class="st-esg-menu-brand-label">${BRAND_NAME}</span>`;
   button.addEventListener('click', () => togglePanel(true));
   menu.prepend(button);
 }

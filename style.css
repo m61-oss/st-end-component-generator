@@ -162,6 +162,12 @@
   background: transparent;
 }
 
+#st-esg-menu-button {
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+}
+
 .st-esg-chat-worldbook-actions {
   justify-content: flex-start;
   margin: -2px 0 10px;
@@ -322,6 +328,7 @@
 }
 
 .st-esg-brand-mark-path,
+.st-esg-brand-mark-menu-path,
 .st-esg-brand-mark-bridge {
   fill: none;
   stroke: currentColor;
@@ -351,8 +358,24 @@
 }
 
 #st-esg-menu-button .st-esg-brand-mark {
-  width: 1.15em;
-  height: 1.15em;
+  width: 18px;
+  height: 18px;
+}
+
+#st-esg-menu-button .st-esg-menu-brand-icon {
+  display: inline-flex;
+  flex: 0 0 18px;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  line-height: 0;
+}
+
+#st-esg-menu-button .st-esg-menu-brand-label {
+  display: inline-block;
+  min-width: 0;
+  line-height: 1.2;
 }
 
 .st-esg-kicker {
