@@ -1,11 +1,45 @@
 const textOf = (value) => String(value ?? '').trim();
 const byteSize = (value) => new TextEncoder().encode(JSON.stringify(value ?? null)).length;
+const hasStoredValue = (value) => {
+  if (value == null || value === '') return false;
+  if (Array.isArray(value)) return value.some(hasStoredValue);
+  if (typeof value === 'object') return Object.values(value).some(hasStoredValue);
+  return true;
+};
 
 export function formatByteSize(size) {
   const bytes = Math.max(0, Number(size) || 0);
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function clearSettingsDataCategory(settings, category, updatedAt = Date.now()) {
+  const next = settings && typeof settings === 'object' ? settings : {};
+  if (category === 'schemes') {
+    next.apiSchemes = [];
+    next.taskSchemes = [];
+    next.presetSchemes = [];
+    next.worldbookSchemes = [];
+    next.selectedApiSchemeId = '';
+    next.selectedTaskSchemeId = '';
+    next.selectedPresetSchemeId = '';
+    next.selectedWorldbookSchemeId = '';
+    next.activeSchemeIds = {};
+    next.dirtySchemeTypes = {};
+  } else if (category === 'libraries') {
+    next.components = [];
+    next.componentGroups = [];
+    next.defaultGroupEnabled = {};
+    next.theaterComponents = [];
+    next.theaterGroups = [];
+    next.theaterDefaultGroupEnabled = true;
+  } else if (category === 'bindings') {
+    next.chatWorldbookBindings = (Array.isArray(next.chatWorldbookBindings) ? next.chatWorldbookBindings : [])
+      .map((item) => ({ chatId: textOf(item?.chatId), cancelled: true, updatedAt }))
+      .filter((item) => item.chatId);
+  }
+  return next;
 }
 
 function groupComponents(items, keyOf, labelOf, isOrphan) {
@@ -42,6 +76,12 @@ export function buildDataManagementModel(settings, { characterNames = [], runtim
   const externalRuntimeSize = byteSize(runtimeData);
   return {
     storage: { total: settingsSize + externalRuntimeSize, schemes: byteSize(schemes), libraries: byteSize(libraries), bindings: byteSize(bindings), caches: byteSize(caches) },
+    counts: {
+      schemes: [settings?.apiSchemes, settings?.taskSchemes, presetSchemes, worldbookSchemes].reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0),
+      libraries: components.length + (Array.isArray(settings?.theaterComponents) ? settings.theaterComponents.length : 0),
+      bindings: chatBindings.length,
+      runtime: [settings?.lastGenerated, settings?.lastPromptLog, ...(Array.isArray(settings?.lastGeneratedThinking) ? settings.lastGeneratedThinking : []), ...Object.values(runtimeData || {})].filter(hasStoredValue).length,
+    },
     characterGroups,
     presetGroups,
     chatBindings,
