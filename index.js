@@ -5021,6 +5021,14 @@ function commitRecentMessageCountInput(input) {
   saveSettings();
 }
 
+function buildDataScopeSummary(groups, emptyText) {
+  if (!groups.length) return `<div class="st-esg-data-empty">${escapeHtml(emptyText)}</div>`;
+  return groups.map((group) => `<details class="st-esg-data-scope-item" ${group.orphan ? 'data-orphan="true"' : ''}>
+    <summary><span>${escapeHtml(group.label)}</span><span>${group.items.length} 个组件${group.orphan ? ' · 归属已不存在' : ''}</span></summary>
+    <div class="st-esg-data-scope-items">${group.items.map((item) => `<div class="st-esg-data-row"><span>${escapeHtml(item.name || '未命名组件')}</span></div>`).join('')}</div>
+  </details>`).join('');
+}
+
 function renderDataManagement() {
   const host = targetDoc.getElementById('st-esg-data-management');
   if (!host) return;
@@ -5039,6 +5047,8 @@ function renderDataManagement() {
     ['bindings', 'fa-link', '聊天绑定', model.counts.bindings, `${model.counts.bindings} 个有效绑定`, '聊天窗口与世界书方案的自动切换关系', model.storage.bindings],
     ['runtime', 'fa-clock-rotate-left', '临时记录', model.counts.runtime, `${model.counts.runtime} 类记录`, '生成结果、提示词日志、快照和最近记录', model.storage.caches],
   ];
+  const characterComponentCount = model.characterGroups.reduce((sum, group) => sum + group.items.length, 0);
+  const presetComponentCount = model.presetGroups.reduce((sum, group) => sum + group.items.length, 0);
   host.innerHTML = `
     <section class="st-esg-data-summary">
       <div><span>插件数据估算占用</span><strong>${formatByteSize(model.storage.total)}</strong></div>
@@ -5049,7 +5059,22 @@ function renderDataManagement() {
       <div class="st-esg-data-category-copy"><div><strong>${label}</strong><span>${countLabel}</span></div><p>${description}</p></div>
       <div class="st-esg-data-category-size"><span>占用</span><b>${formatByteSize(size)}</b></div>
       <button class="menu_button st-esg-data-clear-button" type="button" data-clear-category="${key}" ${Number(count) > 0 ? '' : 'disabled'}><i class="fa-solid fa-trash-can"></i><span>清空</span></button>
-    </section>`).join('')}</div>`;
+    </section>`).join('')}</div>
+    <section class="st-esg-data-details">
+      <div class="st-esg-data-section-heading"><strong>细分数据</strong><span>这里只展示平时需要切换角色、预设或聊天后才能看到的数据；修改请前往对应页面。</span></div>
+      <details class="st-esg-data-detail-group">
+        <summary><span>角色专属组件</span><b>${characterComponentCount}</b></summary>
+        <div class="st-esg-data-detail-body st-esg-data-scope-list">${buildDataScopeSummary(model.characterGroups, '没有保存角色专属组件。')}</div>
+      </details>
+      <details class="st-esg-data-detail-group">
+        <summary><span>预设专属组件</span><b>${presetComponentCount}</b></summary>
+        <div class="st-esg-data-detail-body st-esg-data-scope-list">${buildDataScopeSummary(model.presetGroups, '没有保存预设专属组件。')}</div>
+      </details>
+      <details class="st-esg-data-detail-group">
+        <summary><span>聊天世界书绑定</span><b>${model.chatBindings.length}</b></summary>
+        <div class="st-esg-data-detail-body st-esg-data-binding-list">${model.chatBindings.length ? model.chatBindings.map((binding) => `<div class="st-esg-data-binding ${binding.orphan ? 'st-esg-data-orphan' : ''}"><strong>${escapeHtml(binding.chatName || binding.chatId)}</strong><span>${escapeHtml(binding.characterName || '未知角色')} · ${escapeHtml(binding.schemeName || '未知方案')}${binding.orphan ? ' · 方案已不存在' : ''}</span></div>`).join('') : '<div class="st-esg-data-empty">还没有聊天绑定世界书方案。</div>'}</div>
+      </details>
+    </section>`;
 }
 
 function openDataManagementDialog() {
@@ -5063,7 +5088,11 @@ function openDataManagementDialog() {
     dialog.addEventListener('cancel', (event) => { event.preventDefault(); dialog.close(); });
     dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
     dialog.querySelector('[data-data-dialog-close]')?.addEventListener('click', () => dialog.close());
-    $(dialog).on('click', '[data-clear-category]', function () { void clearDataManagementCategory($(this).data('clear-category')); });
+    $(dialog).on('click', '[data-clear-category]', function (event) {
+      event.preventDefault();
+      event.currentTarget.blur();
+      void clearDataManagementCategory($(this).data('clear-category'));
+    });
   }
   dialog.className = `st-esg-data-management-dialog st-esg-theme-${settings.theme === 'light' ? 'light' : 'dark'}`;
   renderDataManagement();
