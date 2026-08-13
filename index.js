@@ -24,6 +24,7 @@ import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from
 import { containsStatusPlaceholder, injectStatusbarText, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.1.7';
 import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.7';
 import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.7';
+import { composeTaskInstruction } from './generation/task-instruction.js?ver=0.1.7';
 import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.1.7';
 import { renderPromptTemplate } from './generation/template-compat.js?ver=0.1.7';
 import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.1.7';
@@ -294,6 +295,7 @@ let quickReplySyncTimer = null;
 let worldbookCountRevision = 0;
 let magicWandMenuTimer = null;
 let yamlParserPromise = null;
+let temporaryTaskInstruction = '';
 
 const $t = (selectorOrHtml) => $(selectorOrHtml, targetDoc);
 const textOf = (value) => String(value ?? '').trim();
@@ -1084,7 +1086,7 @@ async function buildMessages(latestMessage) {
     targetWindow,
     context,
     latestMessage,
-    taskPrompt: settings.taskPrompt,
+    taskPrompt: composeTaskInstruction(settings.taskPrompt, temporaryTaskInstruction),
     components,
     theaterComponents,
     promptSourceItems,
@@ -5291,6 +5293,8 @@ function renderPluginPanel() {
   debugPanel?.insertAdjacentHTML('afterbegin', '<div class="st-esg-card st-esg-generation-log-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">本次生成日志</div><div class="st-esg-card-desc">每次开始生成时清空，只保留本次生成流程。</div></div></div><pre id="st-esg-generation-log" class="st-esg-generation-log">尚未开始生成</pre></div>');
   const generationContentCard = workspace?.querySelector('#st-esg-preview')?.closest('.st-esg-card');
   generationContentCard?.classList.add('st-esg-generation-content');
+  generationContentCard?.querySelector('.st-esg-card-head')?.remove();
+  generationContentCard?.insertAdjacentHTML('beforebegin', '<div class="st-esg-card st-esg-compact-card st-esg-temporary-task-card"><label for="st-esg-temporary-task-instruction">额外指令</label><div class="st-esg-temporary-task-row"><input id="st-esg-temporary-task-instruction" class="text_pole" type="text" autocomplete="off" placeholder="临时追加到任务指令末尾" /><button id="st-esg-clear-temporary-task-instruction" class="menu_button st-esg-secondary-action" type="button">清空</button></div></div>');
   generationContentCard?.insertAdjacentHTML('afterend', '<div class="st-esg-card st-esg-generation-history-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">最近生成记录</div><div class="st-esg-card-desc">保留最近三次成功生成；载入后可在上方预览框检查或编辑。</div></div></div><div id="st-esg-generation-history" class="st-esg-generation-history"></div></div>');
   const apiFields = dialog.querySelector('#st-esg-api-url')?.closest('.st-esg-grid');
   const apiUrlLabel = dialog.querySelector('#st-esg-api-url')?.closest('label');
@@ -5320,8 +5324,6 @@ function renderPluginPanel() {
   const apiModel = dialog.querySelector('#st-esg-api-model');
   apiModel?.insertAdjacentHTML('afterend', '<select id="st-esg-api-model-picker" class="text_pole st-esg-api-model-picker st-esg-api-custom-fields" style="display:none;"></select><div id="st-esg-api-model-feedback" class="st-esg-model-feedback st-esg-api-custom-fields"></div>');
   const preview = dialog.querySelector('#st-esg-preview');
-  preview?.closest('.st-esg-card')?.querySelector('.st-esg-card-title')?.classList.add('st-esg-generation-result-title');
-  preview?.closest('.st-esg-card')?.querySelector('.st-esg-card-desc')?.classList.add('st-esg-generation-result-desc');
   const taskInput = dialog.querySelector('#st-esg-task');
   taskInput?.insertAdjacentHTML('afterend', '<div class="st-esg-task-components-help"><code>{{external_components}}</code> 会在生成时替换为当前启用的文尾组件；不写则不会发送组件。</div>');
   preview?.insertAdjacentHTML('beforebegin', '<div id="st-esg-thinking-panel" class="st-esg-hidden"></div><div id="st-esg-generation-error" class="st-esg-generation-error st-esg-hidden"></div>');
@@ -5536,6 +5538,7 @@ function bindPanelEvents() {
   $t('#st-esg-anima-worldbook-enabled').prop('checked', settings.animaWorldbookEnabled);
   $t('#st-esg-anima-status-enabled').prop('checked', settings.animaStatusVariableEnabled);
   $t('#st-esg-preview').val(settings.lastGenerated);
+  $t('#st-esg-temporary-task-instruction').val(temporaryTaskInstruction);
   renderGenerationHistory();
   renderGeneratedThinking();
   renderGenerationResultPanel();
@@ -5683,6 +5686,15 @@ function bindPanelEvents() {
     settings.taskPrompt = String($(this).val());
     if (!settings.dirtySchemeTypes.task) markSchemeDirty('task');
     else saveSettings();
+  });
+  $t('#st-esg-temporary-task-instruction').on('input', function () {
+    temporaryTaskInstruction = String($(this).val() ?? '');
+  });
+  $t('#st-esg-clear-temporary-task-instruction').on('click', function (event) {
+    event.preventDefault();
+    temporaryTaskInstruction = '';
+    $t('#st-esg-temporary-task-instruction').val('');
+    event.currentTarget.blur();
   });
   $t('#st-esg-task-placement-enabled').on('change', function () {
     settings.taskPlacementEnabled = Boolean($(this).prop('checked'));
