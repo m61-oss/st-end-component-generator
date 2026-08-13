@@ -70,6 +70,7 @@ import {
 import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.1.7';
 import { hasFloatingBallDragStarted, resolveFloatingBallDock } from './ui/floating-ball-gesture.js?ver=0.1.7';
 import { normalizeFloatingBallVisualState, resolveFloatingBallRenderedState } from './ui/floating-ball-state.js?ver=0.1.7';
+import { isFloatingBallExternallyManaged, markFloatingBallCompatible } from './ui/floating-ball-compat.js?ver=0.1.7';
 import { renderBrandMark } from './ui/brand-mark.js?ver=0.1.7';
 import {
   buildApiRequestParts,
@@ -2865,6 +2866,7 @@ function renderFloatingBall() {
   if (!settings.ballVisible) { $t('#st-esg-ball').remove(); return; }
   const existingBall = targetDoc.getElementById('st-esg-ball');
   if (existingBall) {
+    markFloatingBallCompatible(existingBall);
     applyFloatingBallAppearance(existingBall);
     applyFloatingBallPosition(existingBall);
     setFloatingBallVisualState(floatingBallVisualState);
@@ -2873,6 +2875,7 @@ function renderFloatingBall() {
   }
   const ball = targetDoc.createElement('div');
   ball.id = 'st-esg-ball';
+  markFloatingBallCompatible(ball);
   ball.title = `${BRAND_NAME} · ${BRAND_SUBTITLE}`;
   ball.innerHTML = renderBrandMark('ball');
   const theme = settings.theme === 'light' ? 'light' : 'dark';
@@ -2890,6 +2893,7 @@ function renderFloatingBall() {
   applyDockState();
   const onMove = (event) => {
     if (activePointerId === null || event.pointerId !== activePointerId) return;
+    if (isFloatingBallExternallyManaged(ball)) return;
     const dx = event.clientX - startX, dy = event.clientY - startY;
     if (!dragging && !hasFloatingBallDragStarted({ dx, dy, threshold: 8 })) return;
     if (!dragging) {
@@ -3014,6 +3018,7 @@ function getFloatingBallPosition() {
 }
 
 function applyFloatingBallPosition(ball) {
+  if (isFloatingBallExternallyManaged(ball)) return;
   const position = getFloatingBallPosition();
   ball.style.left = `${position.left}px`;
   ball.style.top = `${position.top}px`;
