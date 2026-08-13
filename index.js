@@ -2826,7 +2826,7 @@ function renderMagicWandMenuButton() {
   button.className = 'list-group-item flex-container flexGap5 interactable';
   button.tabIndex = 0;
   button.title = `${BRAND_NAME} · ${BRAND_SUBTITLE}`;
-  button.innerHTML = `<span class="st-esg-menu-brand-icon">${renderBrandMark('menu')}</span><span class="st-esg-menu-brand-label">${BRAND_NAME}</span>`;
+  button.innerHTML = `<span class="extensionsMenuExtensionButton st-esg-menu-brand-icon">${renderBrandMark('menu')}</span><span>${BRAND_NAME}</span>`;
   button.addEventListener('click', () => togglePanel(true));
   menu.prepend(button);
 }
