@@ -74,17 +74,25 @@ export async function hydrateTavernWorldbookSelections(groups, selections = {}, 
 
 function hasSelectedWorldbookItem(group, selections) {
   const store = selections && typeof selections === 'object' ? selections : {};
-  return (Array.isArray(group?.items) ? group.items : []).some((item) => (
+  if ((Array.isArray(group?.items) ? group.items : []).some((item) => (
     item?.key && Object.prototype.hasOwnProperty.call(store, item.key) && store[item.key] !== false
+  ))) return true;
+  // Worldbook groups are lazy-loaded. Before their entries are opened, the only
+  // evidence that a source belongs to a prompt scheme may be a stored stable key.
+  return Object.entries(store).some(([key, value]) => (
+    value !== false && isWorldbookEntryKeyForSource(key, group?.source)
   ));
 }
 
-export function getWorldbookSchemeSourceNames(snapshot = {}) {
+export function getWorldbookSchemeSourceNames(snapshot = {}, fallbackItems = []) {
   const sourceNames = [...new Set((Array.isArray(snapshot?.worldbookSources) ? snapshot.worldbookSources : [])
     .map(getWorldbookRawName)
     .filter((name) => name.trim()))];
   const selectionSources = new Set();
-  for (const store of [snapshot?.promptSelections, snapshot?.importSelections]) {
+  // Import selections are deliberately excluded: they describe a component-library
+  // transfer, never a prompt scheme. Legacy prompt data lives in promptSelections or
+  // the separate prompt snapshot handled below.
+  for (const store of [snapshot?.promptSelections]) {
     for (const key of Object.keys(store && typeof store === 'object' ? store : {})) {
       const parts = String(key).split('::');
       if (parts[2] !== '世界书' || !textOf(parts[1])) continue;
@@ -96,22 +104,45 @@ export function getWorldbookSchemeSourceNames(snapshot = {}) {
     }
   }
 
-  // Older versions saved every discoverable worldbook. When that snapshot also carries
-  // explicit entry selections, those selections are the reliable static source list.
-  return sourceNames.length ? sourceNames : [...selectionSources];
+  // A prompt snapshot is kept separately while the page is in import mode. It is
+  // the last known prompt selection state, not an import selection, and is therefore
+  // a safe recovery source for old schemes that were saved without a source list.
+  for (const item of Array.isArray(fallbackItems) ? fallbackItems : []) {
+    if (item?.scope !== '世界书' || !textOf(item?.source)) continue;
+    selectionSources.add(getWorldbookRawName(item.source));
+  }
+
+  // Keep the explicit list, but add sources recoverable from stable selection keys or
+  // the separately stored prompt snapshot. This prevents a stale/partial source list
+  // from making a valid scheme render as an empty worldbook page.
+  return [...new Set([...sourceNames, ...selectionSources])];
 }
 
-export function resolveWorldbookPromptSelectionsForLoad(snapshot = {}, currentSelections = {}) {
+function promptSelectionsFromSnapshotItems(items = []) {
+  const recovered = {};
+  for (const item of Array.isArray(items) ? items : []) {
+    if (item?.scope !== '世界书' || !textOf(item?.key)) continue;
+    recovered[item.key] = true;
+  }
+  return recovered;
+}
+
+export function resolveWorldbookPromptSelectionsForLoad(snapshot = {}, currentSelections = {}, promptSnapshotItems = []) {
   const saved = snapshot?.promptSelections && typeof snapshot.promptSelections === 'object'
     ? snapshot.promptSelections
     : {};
-  // A few pre-mode-separation snapshots were written while the import view was open and
-  // therefore contain only import checks. Do not erase the edit-mode selections that are
-  // still present in the current settings when such a snapshot is loaded.
-  if (snapshot?.sourceMode === 'import' && Object.keys(saved).length === 0) {
-    return currentSelections && typeof currentSelections === 'object' ? { ...currentSelections } : {};
+  if (Object.keys(saved).length > 0 || snapshot?.sourceMode !== 'import') return { ...saved };
+
+  // Pre-mode-separation snapshots could be captured while the import page was open. Their
+  // promptSelections field is empty, but entering import mode first stored the selected
+  // prompt items in IndexedDB. Recover from that prompt-only snapshot before considering
+  // the current settings; never copy importSelections into promptSelections.
+  const recovered = promptSelectionsFromSnapshotItems(promptSnapshotItems);
+  if (Object.keys(recovered).length > 0) return recovered;
+  if (currentSelections && typeof currentSelections === 'object' && Object.keys(currentSelections).length > 0) {
+    return { ...currentSelections };
   }
-  return { ...saved };
+  return {};
 }
 
 export function captureSchemeSnapshot(type, settings, groups = [], options = {}) {
@@ -147,15 +178,15 @@ export function captureSchemeSnapshot(type, settings, groups = [], options = {})
       replaceLastUserMessageWithTask: Boolean(settings.replaceLastUserMessageWithTask),
       omitOriginalUserMessages: Boolean(settings.omitOriginalUserMessages),
       promptSelections: pickByKeys(settings.promptSelections, keys),
-      importSelections: pickByKeys(settings.importSelections, keys),
       sourceContentOverrides: pickByKeys(settings.sourceContentOverrides, keys),
     };
   }
   if (type === 'worldbook') {
     const worldbookGroups = (Array.isArray(groups) ? groups : []).filter(isWorldbookGroup);
-    const sourceSelections = (settings.sourceModes?.worldbook || settings.sourceMode || 'prompt') === 'import'
-      ? settings.importSelections
-      : settings.promptSelections;
+    // Schemes describe the prompt configuration. The import view is a temporary
+    // component-library workflow and must never decide which worldbooks belong to
+    // a saved scheme, even when an old caller captures a snapshot while it is open.
+    const sourceSelections = settings.promptSelections;
     const configuredSources = new Set((Array.isArray(settings.worldbookDraftSources) ? settings.worldbookDraftSources : [])
       .map(getWorldbookRawName)
       .filter((name) => name.trim()));
@@ -189,7 +220,6 @@ export function captureSchemeSnapshot(type, settings, groups = [], options = {})
       // component-library view and must never become part of the saved scheme state.
       sourceMode: 'prompt',
       promptSelections: pickByKeys(settings.promptSelections, keys),
-      importSelections: pickByKeys(settings.importSelections, keys),
       sourceContentOverrides: pickByKeys(settings.sourceContentOverrides, keys),
       worldbookActivationOverrides: pickByKeys(settings.worldbookActivationOverrides, keys),
       worldbookKeywordOverrides: pickByKeys(settings.worldbookKeywordOverrides, keys),

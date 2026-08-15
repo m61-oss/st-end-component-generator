@@ -1623,6 +1623,13 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     generationAbortController.abort();
     return '';
   }
+  const importModeSourceType = ['preset', 'worldbook'].find((type) => getSourceMode(type) === SOURCE_MODE_IMPORT);
+  if (importModeSourceType) {
+    const message = `当前处于“导入到组件”模式，请先切换${importModeSourceType === 'worldbook' ? '世界书' : '预设'}到“提示词编辑”后再生成。`;
+    logAutomaticGenerationStage('generation-skip', message);
+    if (entryType !== 'automatic') notifyStatus(message, 'warning');
+    return '';
+  }
   if (entryType !== 'automatic' || !automaticGenerationLogActive) clearAutomaticGenerationLog();
   logAutomaticGenerationStage('generation-start', '准备目标回复');
   const context = getContext();
@@ -2816,7 +2823,6 @@ async function applyPresetScheme(snapshot) {
   settings.importSelections = clearImportSelectionsForScope(settings.importSelections, COMPONENT_SCOPE_PRESET);
   settings.sourceContentOverrides = clearImportSelectionsForScope(settings.sourceContentOverrides, COMPONENT_SCOPE_PRESET);
   Object.assign(settings.promptSelections, snapshot.promptSelections || {});
-  Object.assign(settings.importSelections, snapshot.importSelections || {});
   Object.assign(settings.sourceContentOverrides, snapshot.sourceContentOverrides || {});
   reconcileLoadedPresetGroups(importGroups);
   $t('#st-esg-replace-last-user-message').prop('checked', settings.replaceLastUserMessageWithTask);
@@ -2826,20 +2832,33 @@ async function applyPresetScheme(snapshot) {
 }
 
 async function applyWorldbookScheme(snapshot) {
+  // The import page can be opened before IndexedDB finishes restoring the last
+  // prompt snapshot. Wait so a legacy import-mode scheme can be repaired instead
+  // of being cleared against an empty in-memory placeholder.
+  await promptSourceSnapshotReady;
+  const currentPromptSelections = { ...settings.promptSelections };
+  const promptSnapshotItems = getPromptSourceSnapshotItems('worldbook');
+  const restoredPromptSelections = resolveWorldbookPromptSelectionsForLoad(
+    snapshot,
+    currentPromptSelections,
+    promptSnapshotItems,
+  );
+
   // Saved schemes represent prompt editing. Import mode is a temporary library view
   // and must not be restored from an old or accidentally captured snapshot.
   setSourceMode('worldbook', SOURCE_MODE_PROMPT);
   if (getSourceMode('worldbook') === SOURCE_MODE_PROMPT) await clearPromptSourceSnapshot('worldbook');
   renderSourceModeUi();
-  settings.worldbookDraftSources = getWorldbookSchemeSourceNames(snapshot);
-  const currentPromptSelections = { ...settings.promptSelections };
+  settings.worldbookDraftSources = getWorldbookSchemeSourceNames(snapshot, promptSnapshotItems);
   settings.promptSelections = clearImportSelectionsForScope(settings.promptSelections, SOURCE_WORLDBOOK);
   settings.importSelections = clearImportSelectionsForScope(settings.importSelections, SOURCE_WORLDBOOK);
   settings.sourceContentOverrides = clearImportSelectionsForScope(settings.sourceContentOverrides, SOURCE_WORLDBOOK);
   settings.worldbookActivationOverrides = clearImportSelectionsForScope(settings.worldbookActivationOverrides, SOURCE_WORLDBOOK);
   settings.worldbookKeywordOverrides = clearImportSelectionsForScope(settings.worldbookKeywordOverrides, SOURCE_WORLDBOOK);
-  Object.assign(settings.promptSelections, resolveWorldbookPromptSelectionsForLoad(snapshot, currentPromptSelections));
-  Object.assign(settings.importSelections, snapshot.importSelections || {});
+  // The scheme's prompt selections are authoritative. The only fallback above is a
+  // one-time recovery for old import-mode snapshots, using the separately stored
+  // prompt snapshot rather than the import checkboxes.
+  Object.assign(settings.promptSelections, restoredPromptSelections);
   Object.assign(settings.sourceContentOverrides, snapshot.sourceContentOverrides || {});
   Object.assign(settings.worldbookActivationOverrides, snapshot.worldbookActivationOverrides || {});
   Object.assign(settings.worldbookKeywordOverrides, snapshot.worldbookKeywordOverrides || {});
@@ -4465,6 +4484,9 @@ function reconcileLoadedWorldbookGroup(group, items = group?.items, { authoritat
 
 function removeEmptyWorldbookSchemeSource(group, enabledCount, migration = {}) {
   if (isFollowingTavernWorldbook()
+    // Import mode owns a separate, temporary selection store. Its background counts
+    // must not remove prompt sources or records from the saved worldbook scheme.
+    || getSourceMode('worldbook') === SOURCE_MODE_IMPORT
     || Number(enabledCount) > 0
     || Number(migration?.staleEnabledCount || 0) > 0
     || !hasWorldbookDraftSource(group?.source)) return false;
