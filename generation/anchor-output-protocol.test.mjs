@@ -55,6 +55,21 @@ test('accepts an empty insertion plan but rejects non-array output', () => {
   assert.equal(parseAnchorOutput(JSON.stringify({ thinking: 'x', output: 'text' })), null);
 });
 
+test('accepts start and end items without an anchor field', () => {
+  const parsed = parseAnchorOutput(JSON.stringify({
+    thinking: '先判断整条消息边界',
+    output: [
+      { position: 'start', content: '文首组件' },
+      { position: 'end', content: '文尾组件' },
+    ],
+  }));
+
+  assert.deepEqual(parsed.items, [
+    { position: 'start', content: '文首组件' },
+    { position: 'end', content: '文尾组件' },
+  ]);
+});
+
 test('validates and normalizes one anchor item without trimming source text', () => {
   const item = normalizeAnchorInsertionItem({
     position: ' AFTER ',

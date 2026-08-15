@@ -44,6 +44,48 @@ test('uses CRLF when the target message uses CRLF', () => {
   assert.equal(output.text, 'A\r\nX\r\nB');
 });
 
+test('accepts start and end as absolute message boundaries', () => {
+  const output = applyAnchorInsertions('正文\n</details>\n<!-- tail -->', [
+    { position: 'start', content: 'START' },
+    { position: 'end', content: 'END' },
+  ]);
+
+  assert.equal(output.text, 'START\n正文\n</details>\n<!-- tail -->\nEND');
+  assert.equal(output.applied.length, 2);
+  assert.equal(output.skipped.length, 0);
+  assert.deepEqual(output.applied.map(({ item }) => item.position), ['start', 'end']);
+});
+
+test('matches punctuation and whitespace differences with a visible match type', () => {
+  const result = locateAnchorInsertions('第一句，第二句。\n第三句', [
+    { position: 'after', anchor: '第一句,第二句', content: '插入' },
+  ]);
+
+  assert.equal(result.matches.length, 1);
+  assert.equal(result.matches[0].matchType, 'loose');
+  assert.equal(result.matches[0].matchedText, '第一句，第二句');
+});
+
+test('uses compact fuzzy matching when punctuation and line breaks differ', () => {
+  const result = locateAnchorInsertions('第一句，\n第二句。', [
+    { position: 'after', anchor: '第一句\n第二句', content: '插入' },
+  ]);
+
+  assert.equal(result.matches.length, 1);
+  assert.equal(result.matches[0].matchType, 'fuzzy');
+  assert.equal(result.matches[0].matchedText, '第一句，\n第二句');
+});
+
+test('does not auto-select an ambiguous fuzzy anchor', () => {
+  const result = locateAnchorInsertions('甲，乙。\n甲、乙。', [
+    { position: 'after', anchor: '甲乙', content: '插入' },
+  ]);
+
+  assert.equal(result.matches.length, 0);
+  assert.equal(result.skipped.length, 1);
+  assert.equal(result.skipped[0].status, 'multiple');
+});
+
 test('applies multiple matches from right to left without offset drift', () => {
   const output = applyAnchorInsertions('A\nB\nC', [
     { position: 'after', anchor: 'A', content: 'one' },
@@ -52,4 +94,3 @@ test('applies multiple matches from right to left without offset drift', () => {
 
   assert.equal(output.text, 'A\none\nB\nC\nthree');
 });
-

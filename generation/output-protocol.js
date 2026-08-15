@@ -36,15 +36,15 @@ function normalizeText(value) {
 }
 
 const ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT = `【固定输出协议｜锚点插入模式｜最高优先级】
-本协议只规定完整回复的外层 JSON 封装以及锚点插入计划，不改变任务本身要求的内容、文风、步骤或既定内部格式。
+本协议只规定完整回复的外层 JSON 封装以及锚点插入计划，不改变任务本身要求的内容、文风、步骤或既定内部格式。output 只承载本次任务明确要求的实际交付，忽视所有续写正文要求，不得在 JSON 外生成正文。
 
 完整回复必须且只能是一个可被标准 JSON 解析器解析的对象，顶层字段固定且顺序固定：
 {
   "thinking": "全部思考、推演及其既定格式，思考内容用中文",
   "output": [
     {
-      "position": "before 或 after",
-      "anchor": "从当前目标正文中逐字复制的唯一连续片段",
+      "position": "start、end、before 或 after",
+      "anchor": "仅在 before/after 时填写；从当前目标正文中逐字复制的唯一连续片段",
       "content": "需要插入的全部实际内容及其既定格式"
     }
   ]
@@ -52,13 +52,14 @@ const ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT = `【固定输出协议｜锚点插�
 
 锚点计划规则：
 1. output 必须是数组，可以为空，也可以包含任意数量的插入项；不要为了凑数量固定输出一项、两项或同时输出 before 和 after。
-2. 你必须根据任务需要自行判断是否插入、需要几项、每项使用 before 还是 after。没有合适位置时省略该项，不要编造锚点。
-3. anchor 必须逐字复制当前目标助手正文中实际存在的一段连续文字，并且应当只在正文中出现一次；不要改写、概括、翻译或添加省略号。
-4. position=before 表示把 content 插入 anchor 之前；position=after 表示插入 anchor 之后。插件会让每项内容独立成行。
-5. content 只放本次新增的实际内容，不要把 anchor、说明、思考或 JSON 外壳再次写入 content。
-6. 无论 output 数组有几项，所有思考都只放入 thinking，所有交付内容都只放入对应项的 content。
-7. JSON 外不得输出任何字符、解释、标题或代码围栏；两个字段必须始终存在且均为字符串/数组规定的类型。严格转义字符串中的双引号、反斜杠和换行。
-8. 完整回复的第一个字符必须是 {，最后一个字符必须是 }。`;
+2. 你必须根据任务需要自行判断是否插入、需要几项以及每项的位置（before 还是 after，或 start/end）；不要为了凑数量固定输出条目，不要同时机械输出 before 和 after。没有合适位置时省略该项。
+3. position=start 表示插入整条目标助手消息的最前方；position=end 表示插入整条目标助手消息的最后方。这里的“整条消息”包括正文后所有闭合标签、状态块、HTML/XML 标签、注释和其他尾部字符；选择 end 时不要寻找“最后一句正文”作为锚点，也不要填写 anchor。
+4. position=before 表示把 content 插入 anchor 之前；position=after 表示插入 anchor 之后。只有 before/after 需要 anchor。插件会让每项内容独立成行。
+5. before/after 的 anchor 必须逐字复制当前目标助手正文中实际存在的一段连续文字，并且应当只在正文中出现一次；不要改写、概括、翻译或添加省略号。插件会容忍少量标点、全半角和换行差异，但你仍应优先复制原文。
+6. content 只放本次新增的实际内容，不要把 anchor、说明、思考或 JSON 外壳再次写入 content。
+7. 无论 output 数组有几项，所有思考都只放入 thinking，所有交付内容都只放入对应项的 content。
+8. JSON 外不得输出任何字符、解释、标题或代码围栏；两个字段必须始终存在且均为字符串/数组规定的类型。严格转义字符串中的双引号、反斜杠和换行。
+9. 完整回复的第一个字符必须是 {，最后一个字符必须是 }。`;
 
 function normalizeField(value) {
   if (value === null || value === undefined) return '';
@@ -222,6 +223,20 @@ function readFinalOutputValue(source, valueStart) {
 
   let end = source.length;
   while (/\s/.test(source[end - 1] || '')) end -= 1;
+
+  // Some providers append one orphan quote after the recovered JSON object:
+  // `{"thinking":"...","output":"..."}"`. Treat the quote immediately
+  // before the object brace as the output terminator and keep neither the
+  // brace nor the orphan quote in the visible output.
+  if (source[end - 1] === '"') {
+    let brace = end - 2;
+    while (/\s/.test(source[brace] || '')) brace -= 1;
+    if (source[brace] === '}') {
+      let closingQuote = brace - 1;
+      while (/\s/.test(source[closingQuote] || '')) closingQuote -= 1;
+      if (source[closingQuote] === '"') end = closingQuote;
+    }
+  }
 
   // output is the final field: remove only the outer closing quote/object
   // suffix, never an inner quote from the generated content.

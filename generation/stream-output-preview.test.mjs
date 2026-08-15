@@ -39,3 +39,12 @@ test('shows anchor contents as the live preview once the plan is complete', () =
     protocol: true,
   });
 });
+
+test('shows a partial anchor content while the JSON plan is still streaming', () => {
+  const preview = normalizeStreamOutputPreview('{"thinking":"先判断","output":[{"position":"end","content":"正在生成');
+
+  assert.equal(preview.mode, 'anchor-loose-json');
+  assert.equal(preview.protocol, true);
+  assert.equal(preview.text, '正在生成');
+  assert.equal(preview.thinking, '先判断');
+});

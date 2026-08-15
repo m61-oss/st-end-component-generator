@@ -25,7 +25,7 @@ import { containsStatusPlaceholder, injectStatusbarText, normalizeStatusPlacehol
 import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.8';
 import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.8';
 import { normalizeGeneratedResult } from './generation/output-result.js?ver=0.1.8';
-import { applyAnchorInsertions } from './injection/anchor-insertion.js?ver=0.1.8';
+import { applyAnchorInsertions, getAnchorMatchContext, locateAnchorInsertions } from './injection/anchor-insertion.js?ver=0.1.8';
 import { normalizeStreamOutputPreview } from './generation/stream-output-preview.js?ver=0.1.8';
 import { composeTaskInstruction } from './generation/task-instruction.js?ver=0.1.8';
 import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.1.8';
@@ -50,7 +50,7 @@ import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.8';
 import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.8';
 import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.8';
 import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.1.8';
-import { loadGenerationHistory, recordGenerationResult } from './generation/generation-history.js?ver=0.1.8';
+import { loadGenerationHistory, recordGenerationResult, updateGenerationHistoryEntry } from './generation/generation-history.js?ver=0.1.8';
 import {
   THEATER_RANDOM_MODE_ALL,
   THEATER_RANDOM_MODE_ENABLED,
@@ -184,6 +184,8 @@ const DEFAULT_SETTINGS = {
   lastGenerated: '',
   lastGeneratedAnchorItems: [],
   lastGeneratedAnchorWarnings: [],
+  lastGeneratedResultMode: 'standard',
+  lastGeneratedAnchorTargetIndex: null,
   lastGeneratedStatusPlaceholderPresent: false,
   lastGeneratedThinking: [],
   lastGenerationError: null,
@@ -268,6 +270,8 @@ let lastPromptLogText = '';
 let promptLogBuilding = false;
 let lastGeneratedThinking = [];
 let recentGenerationHistory = [];
+let activeGenerationHistoryId = null;
+let anchorEditSaveTimer = null;
 let promptSourceSnapshots = { preset: null, worldbook: null };
 let promptSourceSnapshotStore = null;
 let promptSourceSnapshotReady = Promise.resolve();
@@ -541,6 +545,10 @@ function loadSettings() {
   if (typeof settings.rollbackBeforeGeneration !== 'boolean') settings.rollbackBeforeGeneration = false;
   if (!Array.isArray(settings.lastGeneratedAnchorItems)) settings.lastGeneratedAnchorItems = [];
   if (!Array.isArray(settings.lastGeneratedAnchorWarnings)) settings.lastGeneratedAnchorWarnings = [];
+  if (!['standard', 'anchor'].includes(settings.lastGeneratedResultMode)) {
+    settings.lastGeneratedResultMode = settings.lastGeneratedAnchorItems.length ? 'anchor' : 'standard';
+  }
+  if (!Number.isInteger(settings.lastGeneratedAnchorTargetIndex)) settings.lastGeneratedAnchorTargetIndex = null;
   try {
     const localValue = targetWindow.localStorage?.getItem(PROMPT_TEMPLATE_COMPAT_STORAGE_KEY);
     if (localValue === 'true' || localValue === 'false') settings.promptTemplateCompatEnabled = localValue === 'true';
@@ -1039,6 +1047,72 @@ function clearGeneratedThinking() {
   thinkingPanel?.classList.add('st-esg-hidden');
 }
 
+function clearGeneratedResultState() {
+  settings.lastGenerated = '';
+  settings.lastGeneratedAnchorItems = [];
+  settings.lastGeneratedAnchorWarnings = [];
+  settings.lastGeneratedResultMode = 'standard';
+  settings.lastGeneratedAnchorTargetIndex = null;
+  settings.lastGeneratedStatusPlaceholderPresent = false;
+  settings.lastGenerationError = null;
+  activeGenerationHistoryId = null;
+  clearGeneratedThinking();
+  $t('#st-esg-preview').val('').removeClass('st-esg-hidden');
+  renderAnchorInsertionPlan([], []);
+  renderGenerationResultPanel();
+}
+
+function getAnchorTargetMessage() {
+  const context = getContext();
+  const indexed = Number.isInteger(settings.lastGeneratedAnchorTargetIndex)
+    ? getAssistantMessageAtIndex(context.chat, settings.lastGeneratedAnchorTargetIndex)
+    : null;
+  return indexed || getLatestAssistantMessage(context.chat);
+}
+
+function resolveAnchorPlanForDisplay(items = settings.lastGeneratedAnchorItems) {
+  const target = getAnchorTargetMessage();
+  const text = String(target?.message?.mes ?? '');
+  const resolution = locateAnchorInsertions(text, items);
+  const matches = new Map(resolution.matches.map((match) => [match.itemIndex, match]));
+  const skipped = new Map(resolution.skipped.map((entry) => [entry.itemIndex, entry]));
+  return { text, target, matches, skipped };
+}
+
+function describeAnchorMatch(item, match, skipped, hasTarget, sourceText = '') {
+  if (!hasTarget) return { label: '等待目标正文', className: 'pending', context: '生成目标尚未就绪' };
+  if (match?.matchType === 'boundary') {
+    return {
+      label: item.position === 'start' ? '文首定位' : '文尾定位',
+      className: 'boundary',
+      context: item.position === 'start' ? '整条消息的第一个字符之前' : '整条消息的最后一个字符之后',
+    };
+  }
+  if (match?.matchType === 'exact') return { label: '精确匹配', className: 'exact', context: getAnchorMatchContext(sourceText, match) };
+  if (match?.matchType === 'loose') return { label: '宽松匹配', className: 'loose', context: getAnchorMatchContext(sourceText, match) };
+  if (match?.matchType === 'fuzzy') return { label: '模糊匹配', className: 'fuzzy', context: getAnchorMatchContext(sourceText, match) };
+  if (skipped?.status === 'multiple') return { label: '多处匹配', className: 'multiple', context: `找到 ${skipped.occurrences || 2} 处候选位置，请补充锚点文字` };
+  if (skipped?.status === 'invalid') return { label: '格式无效', className: 'invalid', context: '请填写插入内容，并为 before/after 提供锚点' };
+  return { label: '未匹配', className: 'missing', context: '当前目标正文中没有找到可用位置' };
+}
+
+function updateAnchorPlanResolutionUi() {
+  const box = $t('#st-esg-anchor-plan');
+  if (!box.length) return;
+  const items = Array.isArray(settings.lastGeneratedAnchorItems) ? settings.lastGeneratedAnchorItems : [];
+  const { text, target, matches, skipped } = resolveAnchorPlanForDisplay(items);
+  box.find('.st-esg-anchor-plan-item').each(function () {
+    const card = $(this);
+    const index = Number(card.attr('data-anchor-item-index'));
+    const item = items[index];
+    if (!item) return;
+    const state = describeAnchorMatch(item, matches.get(index), skipped.get(index), Boolean(target && text), text);
+    card.attr('data-match-status', state.className);
+    card.find('[data-anchor-status]').attr('class', `st-esg-anchor-status st-esg-anchor-status-${state.className}`).text(state.label);
+    card.find('[data-anchor-context]').text(state.context);
+  });
+}
+
 function renderAnchorInsertionPlan(items = settings.lastGeneratedAnchorItems, warnings = []) {
   const preview = $t('#st-esg-preview');
   if (!preview.length) return;
@@ -1047,7 +1121,8 @@ function renderAnchorInsertionPlan(items = settings.lastGeneratedAnchorItems, wa
     preview.before('<div id="st-esg-anchor-plan" class="st-esg-anchor-plan st-esg-hidden"></div>');
     box = $t('#st-esg-anchor-plan');
   }
-  const entries = Array.isArray(items) ? items.filter((item) => item && item.anchor && item.content) : [];
+  const sourceItems = Array.isArray(items) ? items : [];
+  const entries = sourceItems.map((item, sourceIndex) => ({ item, sourceIndex })).filter(({ item }) => item && item.content);
   if (!entries.length && !warnings.length) {
     box.empty().addClass('st-esg-hidden');
     return;
@@ -1055,7 +1130,31 @@ function renderAnchorInsertionPlan(items = settings.lastGeneratedAnchorItems, wa
   const warningHtml = warnings.length
     ? `<div class="st-esg-anchor-plan-warnings">${warnings.map((warning) => `<div>${escapeHtml(warning)}</div>`).join('')}</div>`
     : '';
-  const itemHtml = entries.map((item, index) => `<details class="st-esg-anchor-plan-item" open><summary><span>#${index + 1} · ${escapeHtml(item.position === 'before' ? '插入到锚点前' : '插入到锚点后')}</span></summary><div class="st-esg-anchor-plan-anchor">${escapeHtml(item.anchor)}</div><pre>${escapeHtml(item.content)}</pre></details>`).join('');
+  const resolved = resolveAnchorPlanForDisplay(sourceItems);
+  const itemHtml = entries.map(({ item, sourceIndex }, index) => {
+    const match = resolved.matches.get(sourceIndex);
+    const skipped = resolved.skipped.get(sourceIndex);
+    const state = describeAnchorMatch(item, match, skipped, Boolean(resolved.target && resolved.text), resolved.text);
+    const isBoundary = item.position === 'start' || item.position === 'end';
+    const positionLabel = item.position === 'start'
+      ? '插入到整条消息开头'
+      : item.position === 'end'
+        ? '插入到整条消息末尾'
+        : item.position === 'before'
+          ? '插入到锚点前'
+          : '插入到锚点后';
+    return `<details class="st-esg-anchor-plan-item" data-anchor-item-index="${sourceIndex}" data-match-status="${state.className}" open>
+      <summary><span>#${index + 1} · ${escapeHtml(positionLabel)}</span><span data-anchor-status class="st-esg-anchor-status st-esg-anchor-status-${state.className}">${escapeHtml(state.label)}</span></summary>
+      <div class="st-esg-anchor-plan-fields">
+        <label>定位方式<select class="text_pole st-esg-anchor-position" data-anchor-field="position">
+          ${['start', 'end', 'before', 'after'].map((position) => `<option value="${position}" ${item.position === position ? 'selected' : ''}>${position === 'start' ? '文首' : position === 'end' ? '文尾' : position === 'before' ? '锚点前' : '锚点后'}</option>`).join('')}
+        </select></label>
+        <label class="st-esg-anchor-field${isBoundary ? ' st-esg-hidden' : ''}">锚点<textarea class="text_pole textarea_compact st-esg-anchor-input" data-anchor-field="anchor" rows="2">${escapeHtml(item.anchor || '')}</textarea></label>
+        <div class="st-esg-anchor-context" data-anchor-context>${escapeHtml(state.context)}</div>
+        <label>插入内容<textarea class="text_pole textarea_compact st-esg-anchor-content" data-anchor-field="content" rows="4">${escapeHtml(item.content || '')}</textarea></label>
+      </div>
+    </details>`;
+  }).join('');
   box.html(`<div class="st-esg-anchor-plan-head"><strong>锚点插入计划</strong><span>${entries.length} 项</span></div>${warningHtml}${itemHtml}`).removeClass('st-esg-hidden');
 }
 
@@ -1080,26 +1179,37 @@ function renderGenerationHistory() {
     list.html('<div class="st-esg-generation-history-empty">还没有成功生成的记录。</div>');
     return;
   }
-  list.html(recentGenerationHistory.map((entry) => `
-    <details class="st-esg-generation-history-entry" data-history-id="${escapeHtml(entry.id)}">
-      <summary><span>${escapeHtml(formatGenerationHistoryTime(entry.generatedAt))}</span><em>${entry.content.length} 字</em></summary>
-      <pre>${escapeHtml(entry.content)}</pre>
-      <div class="st-esg-actions-row"><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-load-generation-history" type="button" data-history-id="${escapeHtml(entry.id)}"><i class="fa-solid fa-arrow-up-from-bracket"></i><span>载入</span></button></div>
-    </details>
-  `).join(''));
+   list.html(recentGenerationHistory.map((entry) => {
+     const isAnchor = entry.kind === 'anchor';
+     const countLabel = isAnchor ? `${entry.anchorItems.length} 项锚点` : `${entry.content.length} 字`;
+     const body = isAnchor
+       ? `<div class="st-esg-generation-history-anchor-list">${entry.anchorItems.map((item, index) => `<div><span>#${index + 1} · ${escapeHtml(item.position === 'start' ? '文首' : item.position === 'end' ? '文尾' : item.position === 'before' ? '锚点前' : '锚点后')}</span><pre>${escapeHtml(item.content)}</pre></div>`).join('')}</div>`
+       : `<pre>${escapeHtml(entry.content)}</pre>`;
+     return `
+       <details class="st-esg-generation-history-entry" data-history-id="${escapeHtml(entry.id)}">
+         <summary><span>${escapeHtml(formatGenerationHistoryTime(entry.generatedAt))}</span><em>${countLabel}</em></summary>
+         ${body}
+         <div class="st-esg-actions-row"><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-load-generation-history" type="button" data-history-id="${escapeHtml(entry.id)}"><i class="fa-solid fa-arrow-up-from-bracket"></i><span>载入</span></button></div>
+       </details>
+     `;
+   }).join(''));
 }
 
 function loadGenerationHistoryEntry(id) {
   const entry = recentGenerationHistory.find((item) => item.id === String(id || ''));
   if (!entry) return false;
-  settings.lastGenerated = entry.content;
-  settings.lastGeneratedAnchorItems = [];
-  settings.lastGeneratedAnchorWarnings = [];
-  settings.lastGeneratedStatusPlaceholderPresent = containsStatusPlaceholder(settings.lastGenerated);
+  activeGenerationHistoryId = entry.id;
+  settings.lastGeneratedResultMode = entry.kind === 'anchor' ? 'anchor' : 'standard';
+  settings.lastGenerated = entry.kind === 'anchor' ? '' : entry.content;
+  settings.lastGeneratedAnchorItems = entry.kind === 'anchor' ? entry.anchorItems.map((item) => ({ ...item })) : [];
+  settings.lastGeneratedAnchorWarnings = entry.kind === 'anchor' ? [...entry.warnings] : [];
+  settings.lastGeneratedStatusPlaceholderPresent = containsStatusPlaceholder(settings.lastGenerated)
+    || settings.lastGeneratedAnchorItems.some((item) => containsStatusPlaceholder(item?.content));
   settings.lastGenerationError = null;
   setFloatingBallVisualState('waiting');
   clearGeneratedThinking();
   $t('#st-esg-preview').val(settings.lastGenerated);
+  renderAnchorInsertionPlan(settings.lastGeneratedAnchorItems, settings.lastGeneratedAnchorWarnings);
   renderGenerationResultPanel();
   resizeGeneratedPreview();
   saveSettings();
@@ -1107,9 +1217,30 @@ function loadGenerationHistoryEntry(id) {
   return true;
 }
 
+function scheduleAnchorEditPersistence() {
+  if (anchorEditSaveTimer) targetWindow.clearTimeout(anchorEditSaveTimer);
+  anchorEditSaveTimer = targetWindow.setTimeout(() => {
+    anchorEditSaveTimer = null;
+    if (activeGenerationHistoryId) {
+      recentGenerationHistory = updateGenerationHistoryEntry(
+        getGenerationHistoryStorage(),
+        GENERATION_HISTORY_STORAGE_KEY,
+        activeGenerationHistoryId,
+        {
+          anchorItems: settings.lastGeneratedAnchorItems,
+          warnings: settings.lastGeneratedAnchorWarnings,
+        },
+      );
+      renderGenerationHistory();
+    }
+    saveSettings();
+  }, 220);
+}
+
 function applyGeneratedResult(rawText) {
   const normalized = normalizeGeneratedResult(rawText, settings.outputCleanupTags);
   const raw = String(rawText ?? '');
+  settings.lastGeneratedResultMode = normalized.mode.startsWith('anchor-') ? 'anchor' : 'standard';
   settings.lastGeneratedAnchorItems = Array.isArray(normalized.anchorItems) ? normalized.anchorItems : [];
   settings.lastGeneratedAnchorWarnings = Array.isArray(normalized.warnings) ? normalized.warnings : [];
   settings.lastGenerated = normalized.usable ? normalized.content : '';
@@ -1118,7 +1249,7 @@ function applyGeneratedResult(rawText) {
   lastGeneratedThinking = normalized.thinking;
   settings.lastGeneratedThinking = normalized.thinking;
   settings.lastGenerationError = null;
-  $t('#st-esg-preview').val(normalized.mode === 'anchor-json' ? '' : (normalized.usable ? settings.lastGenerated : raw));
+  $t('#st-esg-preview').val(settings.lastGeneratedResultMode === 'anchor' ? '' : (normalized.usable ? settings.lastGenerated : raw));
   renderAnchorInsertionPlan(settings.lastGeneratedAnchorItems, normalized.warnings || []);
   renderGeneratedThinking();
   renderGenerationResultPanel();
@@ -1438,6 +1569,9 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     return '';
   }
   const panelScrollTop = capturePanelScrollTop();
+  clearGeneratedResultState();
+  settings.lastGeneratedAnchorTargetIndex = latest.index;
+  saveSettings();
   notifyStatus('正在生成文尾组件……', 'info');
   generationAbortController = new AbortController();
   stopAnimaWorldbookCapture();
@@ -1501,7 +1635,14 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   const resultPanelScrollTop = capturePanelScrollTop();
   applyGeneratedResult(result);
   setFloatingBallVisualState(result ? 'waiting' : 'idle');
-  recentGenerationHistory = recordGenerationResult(getGenerationHistoryStorage(), GENERATION_HISTORY_STORAGE_KEY, settings.lastGenerated);
+  const historyResult = settings.lastGeneratedResultMode === 'anchor'
+    ? { kind: 'anchor', anchorItems: settings.lastGeneratedAnchorItems, warnings: settings.lastGeneratedAnchorWarnings }
+    : settings.lastGenerated;
+  const previousHistoryHead = recentGenerationHistory[0]?.id || null;
+  recentGenerationHistory = recordGenerationResult(getGenerationHistoryStorage(), GENERATION_HISTORY_STORAGE_KEY, historyResult);
+  activeGenerationHistoryId = recentGenerationHistory[0]?.id !== previousHistoryHead
+    ? recentGenerationHistory[0]?.id || null
+    : null;
   renderGenerationHistory();
   restorePanelScrollTop(resultPanelScrollTop);
   saveSettings();
@@ -1893,7 +2034,7 @@ function renderGenerationResultPanel() {
   const panel = $t('#st-esg-generation-error');
   if (!preview.length || !panel.length) return;
   renderAnchorInsertionPlan(settings.lastGeneratedAnchorItems || [], settings.lastGeneratedAnchorWarnings || []);
-  preview.toggleClass('st-esg-hidden', Boolean(error));
+  preview.toggleClass('st-esg-hidden', Boolean(error) || settings.lastGeneratedResultMode === 'anchor');
   thinking.toggleClass('st-esg-hidden', Boolean(error) || !lastGeneratedThinking.length);
   if (!error) {
     panel.empty().addClass('st-esg-hidden');
@@ -5680,6 +5821,22 @@ function bindPanelEvents() {
   });
   $t('#st-esg-fetch-models').on('click', fetchApiModels);
   $t('#st-esg-additional-parameters').on('click', showApiAdditionalParametersDialog);
+  $t('.st-esg-generation-content').off('input.stEsgAnchor change.stEsgAnchor').on('input.stEsgAnchor change.stEsgAnchor', '#st-esg-anchor-plan [data-anchor-field]', function () {
+    const field = $(this);
+    const card = field.closest('.st-esg-anchor-plan-item');
+    const index = Number(card.attr('data-anchor-item-index'));
+    const item = settings.lastGeneratedAnchorItems?.[index];
+    const fieldName = String(field.attr('data-anchor-field') || '');
+    if (!item || !['position', 'anchor', 'content'].includes(fieldName)) return;
+    item[fieldName] = String(field.val() ?? '');
+    if (fieldName === 'position') {
+      renderAnchorInsertionPlan(settings.lastGeneratedAnchorItems, settings.lastGeneratedAnchorWarnings);
+      renderGenerationResultPanel();
+    } else {
+      updateAnchorPlanResolutionUi();
+    }
+    scheduleAnchorEditPersistence();
+  });
   $t('.st-esg-scheme-select').on('change', function () {
     const type = String($(this).data('scheme-type') || '');
     const selectedId = String($(this).val() || '');

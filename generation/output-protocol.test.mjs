@@ -42,6 +42,7 @@ test('publishes a variable-length anchor plan only in anchor mode', () => {
   assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /output[\s\S]*position[\s\S]*anchor[\s\S]*content/);
   assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /任意数量/);
   assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /before 还是 after/);
+  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /忽视所有续写正文要求/);
   assert.doesNotMatch(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /织幕/);
 });
 
@@ -161,6 +162,15 @@ test('removes whitespace between the recovered output quote and outer object bra
 
   assert.equal(parsed.mode, 'loose-json');
   assert.equal(parsed.content, 'content with "quoted" text');
+});
+
+test('drops an orphan quote after a recovered object terminator', () => {
+  const parsed = parseOutputProtocolResponse(
+    '{"thinking":"x","output":"正文"}"',
+  );
+
+  assert.equal(parsed.mode, 'loose-json');
+  assert.equal(parsed.content, '正文');
 });
 
 test('marks malformed thinking with multiple output candidates as ambiguous', () => {

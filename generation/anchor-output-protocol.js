@@ -34,19 +34,31 @@ function parseLooseAnchorOutput(source) {
   const thinkingStart = /"thinking"\s*:\s*"/i.exec(source);
   const thinkingEnd = source.indexOf('"output"', thinkingStart ? thinkingStart.index : 0);
   const thinking = thinkingStart && thinkingEnd > thinkingStart.index
-    ? decodeLooseString(source.slice(thinkingStart.index + thinkingStart[0].length, thinkingEnd).replace(/\s*,\s*$/, ''))
+    ? decodeLooseString(source.slice(thinkingStart.index + thinkingStart[0].length, thinkingEnd).replace(/"\s*,\s*$/, '').replace(/\s*,\s*$/, ''))
     : '';
   const body = source.slice(outputMatch.index + outputMatch[0].length);
-  const itemPattern = /\{\s*"position"\s*:\s*"(before|after)"\s*,\s*"anchor"\s*:\s*"([\s\S]*?)"\s*,\s*"content"\s*:\s*"([\s\S]*?)"\s*(?=\}|,\s*\{)/gi;
+  const itemPattern = /\{\s*"position"\s*:\s*"(start|end|before|after)"\s*,\s*(?:"anchor"\s*:\s*"([\s\S]*?)"\s*,\s*)?"content"\s*:\s*"([\s\S]*?)"\s*(?=\}|,\s*\{|$)/gi;
   const items = [];
   let match;
   while ((match = itemPattern.exec(body))) {
     const item = normalizeAnchorInsertionItem({
       position: match[1],
-      anchor: decodeLooseString(match[2]),
+      anchor: match[2] === undefined ? undefined : decodeLooseString(match[2]),
       content: decodeLooseString(match[3]),
     });
     if (item) items.push(item);
+  }
+  if (!items.length) {
+    const partialPattern = /\{\s*"position"\s*:\s*"(start|end|before|after)"\s*,\s*(?:"anchor"\s*:\s*"([\s\S]*?)"\s*,\s*)?"content"\s*:\s*"([\s\S]*)$/i;
+    const partial = partialPattern.exec(body);
+    if (partial) {
+      const item = normalizeAnchorInsertionItem({
+        position: partial[1],
+        anchor: partial[2] === undefined ? undefined : decodeLooseString(partial[2]),
+        content: decodeLooseString(partial[3]),
+      });
+      if (item) items.push(item);
+    }
   }
   if (!items.length) return null;
   return {
@@ -68,11 +80,11 @@ export function isAnchorInsertionItem(value) {
     value &&
       typeof value === 'object' &&
       !Array.isArray(value) &&
-      (value.position === 'before' || value.position === 'after') &&
-      typeof value.anchor === 'string' &&
-      value.anchor.trim().length > 0 &&
+      (value.position === 'start' || value.position === 'end' || value.position === 'before' || value.position === 'after') &&
       typeof value.content === 'string' &&
-      value.content.trim().length > 0,
+      value.content.trim().length > 0 &&
+      ((value.position === 'start' || value.position === 'end')
+        || (typeof value.anchor === 'string' && value.anchor.trim().length > 0)),
   );
 }
 
@@ -82,9 +94,9 @@ export function normalizeAnchorInsertionItem(value) {
   const position = asText(value.position).trim().toLowerCase();
   const normalized = {
     position,
-    anchor: asText(value.anchor),
     content: asText(value.content),
   };
+  if (position === 'before' || position === 'after') normalized.anchor = asText(value.anchor);
 
   return isAnchorInsertionItem(normalized) ? normalized : null;
 }
