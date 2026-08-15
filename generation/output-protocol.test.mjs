@@ -14,19 +14,20 @@ test('publishes the fixed two-field protocol as a system message', () => {
     role: 'system',
     content: OUTPUT_PROTOCOL_SYSTEM_PROMPT,
   });
-  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /"thinking"[\s\S]*"content"/);
+  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /"thinking"[\s\S]*"output"/);
   assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /固定输出协议｜最高优先级/);
   assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /无论任务要求输出何种内容/);
   assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /顶层只能存在/);
   assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /严格按照 JSON 语法转义/);
   assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /输出前确认/);
+  assert.doesNotMatch(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /"content"\s*:/);
   assert.doesNotMatch(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /织幕固定输出协议/);
 });
 
 test('parses a strict JSON envelope and preserves both fields', () => {
   const parsed = parseOutputProtocolResponse(JSON.stringify({
     thinking: 'Phase.0\nPhase.1',
-    content: '<draft>摘要</draft>',
+    output: '<draft>摘要</draft>',
   }));
 
   assert.deepEqual(parsed, {
@@ -38,7 +39,7 @@ test('parses a strict JSON envelope and preserves both fields', () => {
 });
 
 test('accepts a markdown JSON fence around the envelope', () => {
-  const parsed = parseOutputProtocolResponse('```json\n{"thinking":"x","content":"y"}\n```');
+  const parsed = parseOutputProtocolResponse('```json\n{"thinking":"x","output":"y"}\n```');
 
   assert.equal(parsed.mode, 'json');
   assert.equal(parsed.thinking, 'x');
@@ -46,29 +47,33 @@ test('accepts a markdown JSON fence around the envelope', () => {
   assert.equal(parsed.complete, true);
 });
 
-test('recovers content when the final object or quoted value is cut off', () => {
-  const missingObject = parseOutputProtocolResponse('{\n  "thinking": "x",\n  "content": "正文"');
+test('recovers output when the final object or quoted value is cut off', () => {
+  const missingObject = parseOutputProtocolResponse('{\n  "thinking": "x",\n  "output": "正文"');
   assert.equal(missingObject.mode, 'loose-json');
   assert.equal(missingObject.thinking, 'x');
   assert.equal(missingObject.content, '正文');
   assert.equal(missingObject.complete, false);
 
-  const missingQuote = parseOutputProtocolResponse('{"thinking":"x","content":"正文');
+  const missingQuote = parseOutputProtocolResponse('{"thinking":"x","output":"正文');
   assert.equal(missingQuote.mode, 'loose-json');
   assert.equal(missingQuote.content, '正文');
   assert.equal(missingQuote.complete, false);
 });
 
-test('ignores unknown fields while keeping content as the final protocol field', () => {
+test('ignores unknown fields while keeping output as the final protocol field', () => {
   const parsed = parseOutputProtocolResponse(JSON.stringify({
     thinking: '',
     future: { anchor: 'after-content' },
-    content: '正文',
+    output: '正文',
   }));
 
   assert.equal(parsed.mode, 'json');
   assert.equal(parsed.thinking, '');
   assert.equal(parsed.content, '正文');
+
+  const legacyEnvelope = parseOutputProtocolResponse('{"thinking":"x","content":"旧格式"}');
+  assert.equal(legacyEnvelope.mode, 'json');
+  assert.equal(legacyEnvelope.content, '旧格式');
 });
 
 test('falls back to the legacy text path when no content field exists', () => {

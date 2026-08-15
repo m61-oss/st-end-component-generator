@@ -2,14 +2,14 @@ const OUTPUT_PROTOCOL_SYSTEM_PROMPT = `【固定输出协议｜最高优先级�
 无论任务要求输出何种内容，完整回复必须且只能是一个可被标准 JSON 解析器解析的对象，格式固定为：
 {
 "thinking": "任务要求的全部思考过程",
-"content": "任务要求交付的全部最终内容"
+"output": "任务要求交付的全部最终内容"
 }
 
 严格遵守：
-1. 顶层只能存在 "thinking"、"content" 两个字段，且顺序固定；"content" 必须为最后一个字段。
+1. 顶层只能存在 "thinking"、"output" 两个字段，且顺序固定；"output" 必须为最后一个字段。
 2. 两个字段必须始终存在且均为字符串：
    - "thinking"：仅放置任务要求的思考、分析或推演过程。
-   - "content"：仅放置最终交付内容。
+   - "output"：仅放置最终交付内容。
 3. 任务要求的 Markdown、HTML/XML 标签、换行、特殊符号、内容顺序与数量，均保留在对应字符串中，不得因此改变 JSON 外层结构。
 4. 严格按照 JSON 语法转义字符串中的双引号、反斜杠、换行等字符，确保整个回复可直接解析。
 5. 即使某字段没有内容，也必须输出为空字符串，不得省略字段。
@@ -18,8 +18,8 @@ const OUTPUT_PROTOCOL_SYSTEM_PROMPT = `【固定输出协议｜最高优先级�
 - 在 JSON 对象前后输出任何字符；
 - 使用 Markdown / "json" 代码围栏；
 - 添加其他字段、对象外壳、数组或元数据；
-- 混淆 "thinking" 与 "content" 的内容；
-- 在 "content" 后追加任何字段或文本。
+- 混淆 "thinking" 与 "output" 的内容；
+- 在 "output" 后追加任何字段或文本。
 
 输出前确认：回复以 "{" 开始、以 "}" 结束，顶层仅含上述两个字段，并可被标准 JSON 解析器直接解析。`;
 
@@ -49,11 +49,17 @@ function stripOuterJsonFence(value) {
 function parseStrictEnvelope(candidate) {
   try {
     const value = JSON.parse(candidate);
-    if (!value || typeof value !== 'object' || Array.isArray(value) || !Object.prototype.hasOwnProperty.call(value, 'content')) return null;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const outputKey = Object.prototype.hasOwnProperty.call(value, 'output')
+      ? 'output'
+      : Object.prototype.hasOwnProperty.call(value, 'content')
+        ? 'content'
+        : null;
+    if (!outputKey) return null;
     return {
       mode: 'json',
       thinking: normalizeField(value.thinking),
-      content: normalizeField(value.content),
+      content: normalizeField(value[outputKey]),
       complete: true,
     };
   } catch {
@@ -149,12 +155,13 @@ function readLooseValue(source, valueStart) {
 }
 
 function parseLooseEnvelope(candidate) {
-  const contentProperty = findLastTopLevelProperty(candidate, 'content');
-  if (!contentProperty) return null;
+  const outputProperty = findLastTopLevelProperty(candidate, 'output')
+    || findLastTopLevelProperty(candidate, 'content');
+  if (!outputProperty) return null;
   const thinkingProperty = findLastTopLevelProperty(candidate, 'thinking');
   let thinking = '';
   if (thinkingProperty) thinking = readLooseValue(candidate, thinkingProperty.valueStart).value;
-  const content = readLooseValue(candidate, contentProperty.valueStart);
+  const content = readLooseValue(candidate, outputProperty.valueStart);
   return {
     mode: 'loose-json',
     thinking,

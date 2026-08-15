@@ -6,7 +6,7 @@ import { normalizeGeneratedResult } from './output-result.js';
 test('normalizes JSON thinking and then applies legacy configured block extraction', () => {
   const result = normalizeGeneratedResult(JSON.stringify({
     thinking: 'Phase.0\nPhase.1',
-    content: '<thinking>legacy thinking</thinking>正文',
+    output: '<thinking>legacy thinking</thinking>正文',
   }), 'thinking');
 
   assert.equal(result.content, '正文');
@@ -26,7 +26,7 @@ test('keeps legacy non-JSON output compatible with configured tags', () => {
 });
 
 test('recovers truncated JSON content and marks the envelope incomplete', () => {
-  const result = normalizeGeneratedResult('{"thinking":"Phase.0","content":"正文"');
+  const result = normalizeGeneratedResult('{"thinking":"Phase.0","output":"正文"');
 
   assert.equal(result.content, '正文');
   assert.deepEqual(result.thinking, ['Phase.0']);
@@ -35,7 +35,7 @@ test('recovers truncated JSON content and marks the envelope incomplete', () => 
   assert.equal(result.usable, true);
 });
 
-test('does not mark a protocol-like object without content as injectable output', () => {
+test('does not mark a protocol-like object without output as injectable output', () => {
   const raw = '{"thinking":"Phase.0","other":"value"}';
   const result = normalizeGeneratedResult(raw);
 
@@ -47,6 +47,15 @@ test('does not mark a protocol-like object without content as injectable output'
   const arbitrary = normalizeGeneratedResult('{"other":"value"}');
   assert.equal(arbitrary.usable, false);
   assert.equal(arbitrary.content, '');
+});
+
+test('keeps the previous content field as a backward-compatible JSON envelope', () => {
+  const result = normalizeGeneratedResult('{"thinking":"Phase.0","content":"旧格式正文"}');
+
+  assert.equal(result.content, '旧格式正文');
+  assert.deepEqual(result.thinking, ['Phase.0']);
+  assert.equal(result.mode, 'json');
+  assert.equal(result.usable, true);
 });
 
 test('returns an empty unusable result for an empty response', () => {
