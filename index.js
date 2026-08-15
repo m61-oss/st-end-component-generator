@@ -24,6 +24,7 @@ import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from
 import { containsStatusPlaceholder, injectStatusbarText, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.1.8';
 import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.8';
 import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.8';
+import { normalizeGeneratedResult } from './generation/output-result.js?ver=0.1.8';
 import { composeTaskInstruction } from './generation/task-instruction.js?ver=0.1.8';
 import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.1.8';
 import { renderPromptTemplate } from './generation/template-compat.js?ver=0.1.8';
@@ -39,7 +40,7 @@ import {
 import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hydrateTavernWorldbookSelections, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.8';
 import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.8';
 import { normalizeApiRetryCount, withApiRetries } from './api/api-retry.js?ver=0.1.8';
-import { extractConfiguredBlocks, stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.8';
+import { stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.8';
 import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.8';
 import { getWorldbookGenerationIssue, getWorldbookRawName, reconcileWorldbookEntryRecords, removeWorldbookEntryRecord, removeWorldbookSourceRecords } from './sources/worldbook-identity.js?ver=0.1.8';
 import { migratePresetPromptSourceSnapshot, reconcilePresetEntryRecords, reconcilePresetSchemeRecords } from './sources/preset-identity.js?ver=0.1.8';
@@ -1053,13 +1054,14 @@ function loadGenerationHistoryEntry(id) {
 }
 
 function applyGeneratedResult(rawText) {
-  const result = extractConfiguredBlocks(rawText, settings.outputCleanupTags);
-  settings.lastGenerated = result.body.trim();
-  settings.lastGeneratedStatusPlaceholderPresent = containsStatusPlaceholder(rawText);
-  lastGeneratedThinking = result.blocks;
-  settings.lastGeneratedThinking = result.blocks;
+  const normalized = normalizeGeneratedResult(rawText, settings.outputCleanupTags);
+  const raw = String(rawText ?? '');
+  settings.lastGenerated = normalized.usable ? normalized.content : '';
+  settings.lastGeneratedStatusPlaceholderPresent = containsStatusPlaceholder(settings.lastGenerated);
+  lastGeneratedThinking = normalized.thinking;
+  settings.lastGeneratedThinking = normalized.thinking;
   settings.lastGenerationError = null;
-  $t('#st-esg-preview').val(settings.lastGenerated);
+  $t('#st-esg-preview').val(normalized.usable ? settings.lastGenerated : raw);
   renderGeneratedThinking();
   renderGenerationResultPanel();
   resizeGeneratedPreview();
@@ -1445,7 +1447,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   renderGenerationHistory();
   restorePanelScrollTop(resultPanelScrollTop);
   saveSettings();
-  if (settings.autoInject && result) {
+  if (settings.autoInject && result && settings.lastGenerated) {
     if (automaticTarget && !isAutomaticAssistantTargetAddressable(automaticTarget, getContext().chat)) {
       logAutomaticGenerationStage('inject-skip', '目标已不是最新 assistant，结果保留在预览中');
       notifyStatus('组件已经生成，但原目标已不是最新 assistant，已保留结果并跳过自动注入。', 'warning');

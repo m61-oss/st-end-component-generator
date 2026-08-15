@@ -1,6 +1,7 @@
 import { buildBaiBaiBookInjections } from '../sources/baibai-book.js';
 import { applyAnimaWorldbookOverrides, getAnimaEntryKind, replaceAnimaStatusMacros } from '../sources/anima-memory.js';
 import { stripHistoryBlocksByRules } from '../injection/tag-rules.js';
+import { buildOutputProtocolMessage } from './output-protocol.js';
 import { CHAT_HISTORY_RANGE_VISIBLE, selectChatHistoryMessages } from './chat-history-range.js';
 
 const textOf = (value) => String(value ?? '').trim();
@@ -759,15 +760,16 @@ async function buildPluginTaskMessage({ taskPrompt, components, theaterComponent
 }
 
 function insertTaskMessage(messages, taskMessage, taskPlacement) {
+  const protocolMessage = buildOutputProtocolMessage();
   const afterSourceId = textOf(taskPlacement?.enabled ? taskPlacement?.afterSourceId : '');
   if (!afterSourceId) {
-    messages.push(taskMessage);
+    messages.push(protocolMessage, taskMessage);
     return;
   }
   const index = afterSourceId === TASK_PLACEMENT_AFTER_CHAT_HISTORY
     ? messages.findLastIndex((message) => textOf(message?.sourceMarkerType) === 'chatHistory')
     : messages.findLastIndex((message) => textOf(message?.sourceItemId) === afterSourceId);
-  messages.splice(index >= 0 ? index + 1 : messages.length, 0, taskMessage);
+  messages.splice(index >= 0 ? index + 1 : messages.length, 0, protocolMessage, taskMessage);
 }
 
 function stripInternalMessageFields(messages) {
