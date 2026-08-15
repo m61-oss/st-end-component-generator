@@ -25,6 +25,7 @@ import { containsStatusPlaceholder, injectStatusbarText, STATUS_PLACEHOLDER_TAG 
 import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.8';
 import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.8';
 import { normalizeGeneratedResult } from './generation/output-result.js?ver=0.1.8';
+import { normalizeStreamOutputPreview } from './generation/stream-output-preview.js?ver=0.1.8';
 import { composeTaskInstruction } from './generation/task-instruction.js?ver=0.1.8';
 import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.1.8';
 import { renderPromptTemplate } from './generation/template-compat.js?ver=0.1.8';
@@ -958,9 +959,12 @@ function resizeGeneratedPreview({ followBottom = false, preserveScrollTop = null
 function updateStreamedPreview(text) {
   const preview = $t('#st-esg-preview').get(0);
   if (!preview) return;
+  const streamed = normalizeStreamOutputPreview(text);
+  updateStreamedThinking(streamed.thinking);
+  if (preview.value === streamed.text) return;
   const followBottom = isPreviewNearBottom(preview);
   const previousScrollTop = preview.scrollTop;
-  preview.value = String(text ?? '');
+  preview.value = streamed.text;
   resizeGeneratedPreview({ followBottom, preserveScrollTop: previousScrollTop });
 }
 
@@ -997,6 +1001,23 @@ function renderGeneratedThinking(blocks = lastGeneratedThinking) {
   const entries = Array.isArray(blocks) ? blocks.filter(Boolean) : [];
   if (!entries.length) { box.empty().addClass('st-esg-hidden'); return; }
   box.html(`<details class="st-esg-thinking-details"><summary><span class="st-esg-thinking-title"><i class="fa-solid fa-brain"></i>思维链</span><em>不会注入</em></summary><pre>${escapeHtml(entries.join('\n\n'))}</pre></details>`).removeClass('st-esg-hidden');
+}
+
+function updateStreamedThinking(text) {
+  const value = String(text ?? '');
+  const box = $t('#st-esg-thinking-panel');
+  if (!box.length) return;
+  if (!value) {
+    if (box.find('pre').length || !box.hasClass('st-esg-hidden')) box.empty().addClass('st-esg-hidden');
+    return;
+  }
+  const pre = box.find('pre').get(0);
+  if (!pre) {
+    renderGeneratedThinking([value]);
+    return;
+  }
+  if (pre.textContent !== value) pre.textContent = value;
+  box.removeClass('st-esg-hidden');
 }
 
 function clearGeneratedThinking() {

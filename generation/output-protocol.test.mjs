@@ -5,6 +5,7 @@ import {
   OUTPUT_PROTOCOL_SYSTEM_PROMPT,
   buildOutputProtocolMessage,
   parseOutputProtocolResponse,
+  parseOutputProtocolStreamPreview,
 } from './output-protocol.js';
 
 test('publishes the fixed two-field protocol as a system message', () => {
@@ -101,4 +102,58 @@ test('never throws for empty or malformed model output', () => {
   assert.equal(parseOutputProtocolResponse(''), null);
   assert.doesNotThrow(() => parseOutputProtocolResponse('{not json'));
   assert.equal(parseOutputProtocolResponse('{not json').mode, 'legacy');
+});
+
+test('decodes escaped line breaks while a JSON response is still streaming', () => {
+  const parsed = parseOutputProtocolStreamPreview(String.raw`{"thinking":"第一步\n第二步","output":"第一行\n第二行`);
+
+  assert.equal(parsed.mode, 'loose-json');
+  assert.equal(parsed.thinking, '第一步\n第二步');
+  assert.equal(parsed.content, '第一行\n第二行');
+  assert.equal(parsed.complete, false);
+});
+
+test('recovers the full final output when HTML attributes contain unescaped quotes', () => {
+  const parsed = parseOutputProtocolResponse(
+    '{"thinking":"x","output":"<summary style="list-style:none; text-align:center;">title</summary>"}',
+  );
+
+  assert.equal(parsed.mode, 'loose-json');
+  assert.equal(parsed.content, '<summary style="list-style:none; text-align:center;">title</summary>');
+});
+
+test('does not search for a later output field inside the output text', () => {
+  const parsed = parseOutputProtocolResponse(
+    '{"thinking":"x","output":"first, example: \\"output\\":\\"not a field\\"; second"}',
+  );
+
+  assert.equal(parsed.mode, 'json');
+  assert.equal(parsed.content, 'first, example: "output":"not a field"; second');
+});
+
+test('keeps an unescaped output-field example inside recovered output', () => {
+  const parsed = parseOutputProtocolResponse(
+    '{"thinking":"x","output":"first, "output":"not a field"; second"}',
+  );
+
+  assert.equal(parsed.mode, 'loose-json');
+  assert.equal(parsed.content, 'first, "output":"not a field"; second');
+});
+
+test('marks malformed thinking with multiple output candidates as ambiguous', () => {
+  const parsed = parseOutputProtocolResponse(
+    '{"thinking":"thinking mentions, "output":"example", then continues","output":"actual"}',
+  );
+
+  assert.equal(parsed.mode, 'ambiguous-json');
+  assert.equal(parsed.ambiguous, true);
+});
+
+test('recognizes the thinking field before the output field arrives', () => {
+  const parsed = parseOutputProtocolStreamPreview(String.raw`{"thinking":"第一步\n第二步`);
+
+  assert.equal(parsed.mode, 'loose-json');
+  assert.equal(parsed.thinking, '第一步\n第二步');
+  assert.equal(parsed.content, '');
+  assert.equal(parsed.complete, false);
 });

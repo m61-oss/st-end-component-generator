@@ -70,3 +70,20 @@ test('keeps the task content as the last-user-message override', async () => {
   assert.equal(messages.find((message) => message.content === 'TASK' && message.role === 'system')?.content, 'TASK');
   assert.equal(messages[taskIndex - 1].content, 'TASK');
 });
+
+test('resolves core plugin macros without case sensitivity', async () => {
+  const messages = await build({
+    promptSourceItems: [
+      {
+        id: 'macro-entry',
+        role: 'system',
+        content: '{{char}}|{{CHAR}}|{{user}}|{{USER}}|{{lastUserMessage}}|{{LastUserMessage}}|{{lastusermessage}}|{{LASTUSERMESSAGE}}',
+      },
+    ],
+  });
+  const macroMessage = messages.find((message) => message.role === 'system');
+  assert.equal(
+    macroMessage?.content,
+    `角色|角色|User|User|${context.chat[0].mes}|${context.chat[0].mes}|${context.chat[0].mes}|${context.chat[0].mes}`,
+  );
+});

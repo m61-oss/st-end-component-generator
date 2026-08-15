@@ -114,31 +114,64 @@ function decodeQuotedFragment(fragment) {
   }
 }
 
-function findLastTopLevelProperty(source, propertyName) {
-  if (source[0] !== '{') return null;
-  let depth = 0;
-  let last = null;
-  for (let index = 0; index < source.length; index += 1) {
-    const character = source[index];
-    if (character === '"') {
-      const token = readQuotedToken(source, index);
-      if (!token) continue;
-      if (depth === 1 && token.value === propertyName && token.closed) {
-        let cursor = token.end;
+function findThinkingPrefix(source) {
+  const match = /^\s*\{\s*"thinking"\s*:\s*/.exec(source);
+  return match ? { valueStart: match[0].length } : null;
+}
+
+function locateProtocolFields(source) {
+  const thinkingPrefix = findThinkingPrefix(source);
+  if (!thinkingPrefix || source[thinkingPrefix.valueStart] !== '"') return null;
+
+  const thinkingToken = readQuotedToken(source, thinkingPrefix.valueStart);
+  if (thinkingToken?.closed) {
+    let cursor = thinkingToken.end;
+    while (/\s/.test(source[cursor] || '')) cursor += 1;
+    if (source[cursor] === ',') {
+      cursor += 1;
+      while (/\s/.test(source[cursor] || '')) cursor += 1;
+      const outputKey = readQuotedToken(source, cursor);
+      if (outputKey?.closed && outputKey.value === 'output') {
+        cursor = outputKey.end;
         while (/\s/.test(source[cursor] || '')) cursor += 1;
         if (source[cursor] === ':') {
           cursor += 1;
           while (/\s/.test(source[cursor] || '')) cursor += 1;
-          last = { valueStart: cursor };
+          return {
+            thinkingValueStart: thinkingPrefix.valueStart,
+            thinkingValue: thinkingToken.value,
+            outputValueStart: cursor,
+            ambiguous: false,
+          };
         }
       }
-      index = Math.max(index, token.end - 1);
-      continue;
     }
-    if (character === '{' || character === '[') depth += 1;
-    else if (character === '}' || character === ']') depth = Math.max(0, depth - 1);
   }
-  return last;
+
+  // If thinking is malformed, only use the fixed field separator as a
+  // recovery anchor. Multiple candidates cannot be disambiguated safely.
+  const candidates = [];
+  const outputPattern = /,\s*"output"\s*:\s*/g;
+  let match;
+  while ((match = outputPattern.exec(source.slice(thinkingPrefix.valueStart)))) {
+    const keyStart = thinkingPrefix.valueStart + match.index;
+    candidates.push({
+      keyStart,
+      valueStart: keyStart + match[0].length,
+    });
+  }
+  if (!candidates.length) return null;
+
+  const selected = candidates[0];
+  const thinkingFragment = source
+    .slice(thinkingPrefix.valueStart + 1, selected.keyStart)
+    .replace(/,\s*$/, '');
+  return {
+    thinkingValueStart: thinkingPrefix.valueStart,
+    thinkingValue: decodeQuotedFragment(thinkingFragment),
+    outputValueStart: selected.valueStart,
+    ambiguous: candidates.length > 1,
+  };
 }
 
 function readLooseValue(source, valueStart) {
@@ -157,18 +190,62 @@ function readLooseValue(source, valueStart) {
   return { value, complete: false };
 }
 
-function parseLooseEnvelope(candidate) {
-  const outputProperty = findLastTopLevelProperty(candidate, 'output');
-  if (!outputProperty) return null;
-  const thinkingProperty = findLastTopLevelProperty(candidate, 'thinking');
-  let thinking = '';
-  if (thinkingProperty) thinking = readLooseValue(candidate, thinkingProperty.valueStart).value;
-  const content = readLooseValue(candidate, outputProperty.valueStart);
+function readFinalOutputValue(source, valueStart) {
+  if (source[valueStart] !== '"') {
+    return readLooseValue(source, valueStart);
+  }
+
+  let end = source.length;
+  while (/\s/.test(source[end - 1] || '')) end -= 1;
+
+  // output is the final field: remove only the outer closing quote/object
+  // suffix, never an inner quote from the generated content.
+  if (source[end - 1] === '}' && source[end - 2] === '"') {
+    end -= 2;
+  } else if (source[end - 1] === '"') {
+    end -= 1;
+  }
+
   return {
-    mode: 'loose-json',
+    value: decodeQuotedFragment(source.slice(valueStart + 1, end)),
+    complete: false,
+  };
+}
+
+function parseLooseEnvelope(candidate) {
+  const fields = locateProtocolFields(candidate);
+  if (!fields) return null;
+  const thinking = normalizeField(fields.thinkingValue);
+  const content = readFinalOutputValue(candidate, fields.outputValueStart);
+  return {
+    mode: fields.ambiguous ? 'ambiguous-json' : 'loose-json',
     thinking,
     content: content.value,
     complete: content.complete,
+    ...(fields.ambiguous ? { ambiguous: true } : {}),
+  };
+}
+
+function parsePartialEnvelope(candidate) {
+  const fields = locateProtocolFields(candidate);
+  if (fields) {
+    const content = readFinalOutputValue(candidate, fields.outputValueStart);
+    return {
+      mode: fields.ambiguous ? 'ambiguous-json' : 'loose-json',
+      thinking: normalizeField(fields.thinkingValue),
+      content: content.value,
+      complete: false,
+      ...(fields.ambiguous ? { ambiguous: true } : {}),
+    };
+  }
+
+  const thinkingPrefix = findThinkingPrefix(candidate);
+  if (!thinkingPrefix) return null;
+  return {
+    mode: 'loose-json',
+    thinking: readLooseValue(candidate, thinkingPrefix.valueStart).value,
+    content: '',
+    complete: false,
   };
 }
 
@@ -184,6 +261,21 @@ export function parseOutputProtocolResponse(rawText) {
   const candidate = stripOuterJsonFence(original);
   return parseStrictEnvelope(candidate)
     || parseLooseEnvelope(candidate)
+    || {
+      mode: 'legacy',
+      thinking: '',
+      content: original,
+      complete: false,
+    };
+}
+
+export function parseOutputProtocolStreamPreview(rawText) {
+  const original = normalizeText(rawText);
+  if (!original.trim()) return null;
+  const candidate = stripOuterJsonFence(original);
+  return parseStrictEnvelope(candidate)
+    || parseLooseEnvelope(candidate)
+    || parsePartialEnvelope(candidate)
     || {
       mode: 'legacy',
       thinking: '',

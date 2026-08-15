@@ -67,3 +67,13 @@ test('returns an empty unusable result for an empty response', () => {
     usable: false,
   });
 });
+
+test('does not inject an envelope whose field boundary is ambiguous', () => {
+  const result = normalizeGeneratedResult(
+    '{"thinking":"thinking mentions, "output":"example", then continues","output":"actual"}',
+  );
+
+  assert.equal(result.mode, 'ambiguous-json');
+  assert.equal(result.usable, false);
+  assert.equal(result.content, '');
+});

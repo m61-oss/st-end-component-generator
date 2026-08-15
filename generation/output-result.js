@@ -38,6 +38,17 @@ export function normalizeGeneratedResult(rawText, outputCleanupTags = '') {
     };
   }
 
+  if (parsed.ambiguous) {
+    return {
+      content: '',
+      thinking: [],
+      mode: parsed.mode,
+      complete: false,
+      usable: false,
+      ambiguous: true,
+    };
+  }
+
   const extracted = extractConfiguredBlocks(parsed.content, outputCleanupTags);
   return {
     content: extracted.body.trim(),

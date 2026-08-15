@@ -330,20 +330,22 @@ function replaceMacros(content, { context, latestMessage, lastUserMessageOverrid
   const charName = getCharacterName(context);
   const userName = getUserName(context);
   const lastUserMessage = textOf(lastUserMessageOverride) || getLastUserMessage(context);
-  const replacements = {
-    '{{char}}': charName,
-    '{{user}}': userName,
+  const coreMacroValues = {
+    char: charName,
+    user: userName,
+    lastusermessage: lastUserMessage,
+  };
+  const legacyReplacements = {
     '{{lastMessage}}': latestMessage?.mes || '',
     '{{lastAssistantMessage}}': latestMessage?.mes || '',
-    '{{lastUserMessage}}': lastUserMessage,
-    '{{LastUserMessage}}': lastUserMessage,
     '{{recentChat}}': chatHistory,
     '{{chatHistory}}': chatHistory,
     '{{description}}': context?.characters?.[context?.characterId ?? context?.this_chid]?.description || context?.characters?.[context?.characterId ?? context?.this_chid]?.data?.description || '',
     '{{scenario}}': context?.characters?.[context?.characterId ?? context?.this_chid]?.scenario || context?.characters?.[context?.characterId ?? context?.this_chid]?.data?.scenario || '',
     '{{personality}}': context?.characters?.[context?.characterId ?? context?.this_chid]?.personality || context?.characters?.[context?.characterId ?? context?.this_chid]?.data?.personality || '',
   };
-  const replaced = Object.entries(replacements).reduce((text, [key, value]) => text.split(key).join(String(value ?? '')), String(content || ''));
+  const coreReplaced = String(content || '').replace(/\{\{(char|user|lastusermessage)\}\}/gi, (_macro, name) => String(coreMacroValues[name.toLowerCase()] ?? ''));
+  const replaced = Object.entries(legacyReplacements).reduce((text, [key, value]) => text.split(key).join(String(value ?? '')), coreReplaced);
   return replaceAnimaStatusMacros(replaced, animaStatus, { yamlLibrary: animaYaml });
 }
 
