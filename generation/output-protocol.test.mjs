@@ -72,8 +72,8 @@ test('ignores unknown fields while keeping output as the final protocol field', 
   assert.equal(parsed.content, '正文');
 
   const legacyEnvelope = parseOutputProtocolResponse('{"thinking":"x","content":"旧格式"}');
-  assert.equal(legacyEnvelope.mode, 'json');
-  assert.equal(legacyEnvelope.content, '旧格式');
+  assert.equal(legacyEnvelope.mode, 'legacy');
+  assert.equal(legacyEnvelope.content, '{"thinking":"x","content":"旧格式"}');
 });
 
 test('falls back to the legacy text path when no content field exists', () => {

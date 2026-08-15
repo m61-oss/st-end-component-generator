@@ -50,16 +50,11 @@ function parseStrictEnvelope(candidate) {
   try {
     const value = JSON.parse(candidate);
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-    const outputKey = Object.prototype.hasOwnProperty.call(value, 'output')
-      ? 'output'
-      : Object.prototype.hasOwnProperty.call(value, 'content')
-        ? 'content'
-        : null;
-    if (!outputKey) return null;
+    if (!Object.prototype.hasOwnProperty.call(value, 'output')) return null;
     return {
       mode: 'json',
       thinking: normalizeField(value.thinking),
-      content: normalizeField(value[outputKey]),
+      content: normalizeField(value.output),
       complete: true,
     };
   } catch {
@@ -155,8 +150,7 @@ function readLooseValue(source, valueStart) {
 }
 
 function parseLooseEnvelope(candidate) {
-  const outputProperty = findLastTopLevelProperty(candidate, 'output')
-    || findLastTopLevelProperty(candidate, 'content');
+  const outputProperty = findLastTopLevelProperty(candidate, 'output');
   if (!outputProperty) return null;
   const thinkingProperty = findLastTopLevelProperty(candidate, 'thinking');
   let thinking = '';

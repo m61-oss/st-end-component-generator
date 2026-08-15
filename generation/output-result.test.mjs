@@ -49,13 +49,13 @@ test('does not mark a protocol-like object without output as injectable output',
   assert.equal(arbitrary.content, '');
 });
 
-test('keeps the previous content field as a backward-compatible JSON envelope', () => {
+test('does not treat the retired content field as the output protocol', () => {
   const result = normalizeGeneratedResult('{"thinking":"Phase.0","content":"旧格式正文"}');
 
-  assert.equal(result.content, '旧格式正文');
-  assert.deepEqual(result.thinking, ['Phase.0']);
-  assert.equal(result.mode, 'json');
-  assert.equal(result.usable, true);
+  assert.equal(result.content, '');
+  assert.deepEqual(result.thinking, []);
+  assert.equal(result.mode, 'legacy');
+  assert.equal(result.usable, false);
 });
 
 test('returns an empty unusable result for an empty response', () => {
