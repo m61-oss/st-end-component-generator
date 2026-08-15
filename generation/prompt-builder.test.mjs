@@ -29,33 +29,34 @@ async function build(options = {}) {
   });
 }
 
-function assertProtocolImmediatelyBeforeTask(messages) {
+function assertProtocolIsFinalMessage(messages) {
   const taskIndex = messages.findIndex((message) => message.role === 'user' && message.content === 'TASK');
-  assert.ok(taskIndex > 0, 'task user message should exist after at least one protocol message');
-  assert.deepEqual(messages[taskIndex - 1], buildOutputProtocolMessage());
+  assert.ok(taskIndex >= 0, 'task user message should exist');
+  assert.deepEqual(messages.at(-1), buildOutputProtocolMessage());
+  assert.ok(taskIndex < messages.length - 1, 'task user message should precede the final protocol message');
   return taskIndex;
 }
 
-test('places protocol immediately before task when placement is disabled', async () => {
+test('places task before the final protocol when placement is disabled', async () => {
   const messages = await build({ taskPlacement: { enabled: false } });
-  const taskIndex = assertProtocolImmediatelyBeforeTask(messages);
-  assert.equal(taskIndex, messages.length - 1);
+  const taskIndex = assertProtocolIsFinalMessage(messages);
+  assert.equal(taskIndex, messages.length - 2);
 });
 
-test('places protocol and task immediately after chat history', async () => {
+test('places task after chat history and protocol at the end', async () => {
   const messages = await build({
     taskPlacement: { enabled: true, afterSourceId: TASK_PLACEMENT_AFTER_CHAT_HISTORY },
   });
-  const taskIndex = assertProtocolImmediatelyBeforeTask(messages);
-  assert.equal(messages[taskIndex - 2].content, '助手消息');
+  const taskIndex = assertProtocolIsFinalMessage(messages);
+  assert.equal(messages[taskIndex - 1].content, '助手消息');
 });
 
-test('places protocol and task immediately after a selected source item', async () => {
+test('places task after a selected source item and protocol at the end', async () => {
   const messages = await build({
     taskPlacement: { enabled: true, afterSourceId: 'system-entry' },
   });
-  const taskIndex = assertProtocolImmediatelyBeforeTask(messages);
-  assert.equal(messages[taskIndex - 2].content, 'SYSTEM');
+  const taskIndex = assertProtocolIsFinalMessage(messages);
+  assert.equal(messages[taskIndex - 1].content, 'SYSTEM');
 });
 
 test('keeps the task content as the last-user-message override', async () => {
@@ -65,7 +66,7 @@ test('keeps the task content as the last-user-message override', async () => {
       { id: 'macro-entry', role: 'system', content: '{{lastUserMessage}}' },
     ],
   });
-  const taskIndex = assertProtocolImmediatelyBeforeTask(messages);
+  const taskIndex = assertProtocolIsFinalMessage(messages);
   assert.equal(messages.find((message) => message.content === 'TASK' && message.role === 'system')?.content, 'TASK');
-  assert.equal(messages[taskIndex - 2].content, 'TASK');
+  assert.equal(messages[taskIndex - 1].content, 'TASK');
 });
