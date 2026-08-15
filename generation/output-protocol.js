@@ -200,8 +200,10 @@ function readFinalOutputValue(source, valueStart) {
 
   // output is the final field: remove only the outer closing quote/object
   // suffix, never an inner quote from the generated content.
-  if (source[end - 1] === '}' && source[end - 2] === '"') {
-    end -= 2;
+  if (source[end - 1] === '}') {
+    let closingQuote = end - 2;
+    while (/\s/.test(source[closingQuote] || '')) closingQuote -= 1;
+    if (source[closingQuote] === '"') end = closingQuote;
   } else if (source[end - 1] === '"') {
     end -= 1;
   }

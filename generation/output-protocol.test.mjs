@@ -140,6 +140,15 @@ test('keeps an unescaped output-field example inside recovered output', () => {
   assert.equal(parsed.content, 'first, "output":"not a field"; second');
 });
 
+test('removes whitespace between the recovered output quote and outer object brace', () => {
+  const parsed = parseOutputProtocolResponse(
+    '{"thinking":"x","output":"content with "quoted" text"\n}',
+  );
+
+  assert.equal(parsed.mode, 'loose-json');
+  assert.equal(parsed.content, 'content with "quoted" text');
+});
+
 test('marks malformed thinking with multiple output candidates as ambiguous', () => {
   const parsed = parseOutputProtocolResponse(
     '{"thinking":"thinking mentions, "output":"example", then continues","output":"actual"}',
