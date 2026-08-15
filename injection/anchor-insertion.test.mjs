@@ -110,3 +110,18 @@ test('builds a final-message preview with inserted content segments', () => {
   assert.equal(preview.applied.length, 1);
   assert.equal(preview.skipped.length, 0);
 });
+
+test('does not apply anchor items marked as excluded from injection', () => {
+  const items = [
+    { position: 'after', anchor: '第一段。', content: '保留组件' },
+    { position: 'after', anchor: '第二段。', content: '排除组件', injectionEnabled: false },
+  ];
+  const output = applyAnchorInsertions('第一段。\n\n第二段。', items);
+  const preview = buildAnchorPreviewSegments('第一段。\n\n第二段。', items);
+
+  assert.equal(output.text, '第一段。\n保留组件\n\n第二段。');
+  assert.equal(output.applied.length, 1);
+  assert.equal(output.disabled.length, 1);
+  assert.equal(preview.disabled.length, 1);
+  assert.equal(preview.segments.some((segment) => segment.text === '排除组件'), false);
+});

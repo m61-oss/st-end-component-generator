@@ -25,7 +25,7 @@ import { containsStatusPlaceholder, injectStatusbarText, normalizeStatusPlacehol
 import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.8';
 import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.8';
 import { normalizeGeneratedResult } from './generation/output-result.js?ver=0.1.8';
-import { applyAnchorInsertions, buildAnchorPreviewSegments, locateAnchorInsertions } from './injection/anchor-insertion.js?ver=0.1.8';
+import { applyAnchorInsertions, buildAnchorPreviewSegments, isAnchorInsertionEnabled, locateAnchorInsertions } from './injection/anchor-insertion.js?ver=0.1.8';
 import { normalizeStreamOutputPreview } from './generation/stream-output-preview.js?ver=0.1.8';
 import { composeTaskInstruction } from './generation/task-instruction.js?ver=0.1.8';
 import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.1.8';
@@ -1095,6 +1095,19 @@ function describeAnchorMatch(item, match, skipped, hasTarget) {
   return { label: '未匹配', className: 'missing' };
 }
 
+function updateAnchorInjectionToggleUi(card, item) {
+  const enabled = isAnchorInsertionEnabled(item);
+  const label = enabled ? '标记为不注入' : '恢复注入';
+  card.attr('data-injection-enabled', String(enabled));
+  const toggle = card.find('[data-anchor-toggle]');
+  toggle
+    .attr('data-injection-enabled', String(enabled))
+    .attr('aria-label', label)
+    .attr('title', label)
+    .attr('aria-pressed', String(enabled));
+  toggle.find('i').attr('class', `fa-solid ${enabled ? 'fa-link' : 'fa-link-slash'}`);
+}
+
 function updateAnchorPlanStatusUi() {
   const box = $t('#st-esg-anchor-plan');
   if (!box.length) return;
@@ -1108,6 +1121,7 @@ function updateAnchorPlanStatusUi() {
     const state = describeAnchorMatch(item, matches.get(index), skipped.get(index), Boolean(target && text));
     card.attr('data-match-status', state.className);
     card.find('[data-anchor-status]').attr('class', `st-esg-anchor-status st-esg-anchor-status-${state.className}`).text(state.label);
+    updateAnchorInjectionToggleUi(card, item);
   });
 }
 
@@ -1134,6 +1148,9 @@ function renderAnchorInsertionPlan(items = settings.lastGeneratedAnchorItems, wa
     const skipped = resolved.skipped.get(sourceIndex);
     const state = describeAnchorMatch(item, match, skipped, Boolean(resolved.target && resolved.text));
     const isBoundary = item.position === 'start' || item.position === 'end';
+    const injectionEnabled = isAnchorInsertionEnabled(item);
+    const injectionToggleLabel = injectionEnabled ? '标记为不注入' : '恢复注入';
+    const injectionToggleIcon = injectionEnabled ? 'fa-link' : 'fa-link-slash';
     const positionLabel = item.position === 'start'
       ? '插入到整条消息开头'
       : item.position === 'end'
@@ -1141,15 +1158,15 @@ function renderAnchorInsertionPlan(items = settings.lastGeneratedAnchorItems, wa
         : item.position === 'before'
           ? '插入到锚点前'
           : '插入到锚点后';
-    return `<details class="st-esg-anchor-plan-item" data-anchor-item-index="${sourceIndex}" data-match-status="${state.className}" open>
-      <summary><span>#${index + 1} · ${escapeHtml(positionLabel)}</span><span data-anchor-status class="st-esg-anchor-status st-esg-anchor-status-${state.className}">${escapeHtml(state.label)}</span></summary>
+    return `<details class="st-esg-anchor-plan-item" data-anchor-item-index="${sourceIndex}" data-match-status="${state.className}" data-injection-enabled="${injectionEnabled}" open>
+      <summary><span>#${index + 1} · ${escapeHtml(positionLabel)}</span><span class="st-esg-anchor-summary-controls"><span data-anchor-status class="st-esg-anchor-status st-esg-anchor-status-${state.className}">${escapeHtml(state.label)}</span><button type="button" class="st-esg-anchor-toggle" data-anchor-toggle data-injection-enabled="${injectionEnabled}" aria-label="${injectionToggleLabel}" aria-pressed="${injectionEnabled}" title="${injectionToggleLabel}"><i class="fa-solid ${injectionToggleIcon}" aria-hidden="true"></i></button></span></summary>
       <div class="st-esg-anchor-plan-fields">
         <label class="st-esg-anchor-field${isBoundary ? ' st-esg-hidden' : ''}">锚点<textarea class="text_pole textarea_compact st-esg-anchor-input" data-anchor-field="anchor" rows="2">${escapeHtml(item.anchor || '')}</textarea></label>
         <label>插入内容<textarea class="text_pole textarea_compact st-esg-anchor-content" data-anchor-field="content" rows="4">${escapeHtml(item.content || '')}</textarea></label>
       </div>
     </details>`;
   }).join('');
-  box.html(`<div class="st-esg-anchor-plan-head"><div><strong>锚点插入计划</strong><span>${entries.length} 项</span></div><button type="button" class="menu_button menu_button_icon st-esg-anchor-preview-button"><i class="fa-solid fa-eye"></i><span>预览插入效果</span></button></div>${warningHtml}${itemHtml}`).removeClass('st-esg-hidden');
+  box.html(`<div class="st-esg-anchor-plan-head"><div><strong>锚点插入计划</strong><span>${entries.length} 项</span></div><button type="button" class="menu_button menu_button_icon st-esg-anchor-preview-button" aria-label="预览插入效果" title="预览插入效果"><i class="fa-solid fa-eye" aria-hidden="true"></i></button></div>${warningHtml}${itemHtml}`).removeClass('st-esg-hidden');
 }
 
 function showAnchorInsertionPreviewDialog() {
@@ -1171,6 +1188,9 @@ function showAnchorInsertionPreviewDialog() {
   const skippedHtml = preview.skipped.length
     ? `<div class="st-esg-anchor-preview-skipped">${preview.skipped.length} 项未能定位，已按原文保留。请回到计划卡片编辑锚点。</div>`
     : '';
+  const disabledHtml = preview.disabled.length
+    ? `<div class="st-esg-anchor-preview-skipped st-esg-anchor-preview-disabled">${preview.disabled.length} 项已标记为不注入，本次预览中保留原文。</div>`
+    : '';
   const targetLabel = hasTarget ? `第 ${Number(target.index) + 1} 层 assistant` : '未找到目标楼层';
 
   dialog.innerHTML = `
@@ -1183,8 +1203,9 @@ function showAnchorInsertionPreviewDialog() {
         <button class="st-esg-icon-btn" type="button" data-anchor-preview-close aria-label="关闭预览"><i class="fa-solid fa-xmark"></i></button>
       </header>
       <div class="st-esg-anchor-preview-body">
-        <div class="st-esg-anchor-preview-meta">已定位 ${preview.applied.length} 项${preview.skipped.length ? `，跳过 ${preview.skipped.length} 项` : ''}</div>
+        <div class="st-esg-anchor-preview-meta">已定位 ${preview.applied.length} 项${preview.disabled.length ? `，排除 ${preview.disabled.length} 项` : ''}${preview.skipped.length ? `，跳过 ${preview.skipped.length} 项` : ''}</div>
         ${skippedHtml}
+        ${disabledHtml}
         <pre class="st-esg-anchor-preview-text">${segmentHtml}</pre>
       </div>
       <footer class="st-esg-actions-row st-esg-anchor-preview-footer">
@@ -1739,6 +1760,11 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
       const cleanedItems = anchorItems.map((item) => ({ ...item, content: cleanGeneratedText(item.content) }));
       const anchorResult = applyAnchorInsertions(originalText, cleanedItems);
       if (!anchorResult.applied.length) {
+        if (anchorResult.disabled.length) {
+          logAutomaticGenerationStage('inject-skip', '所有锚点项目均已标记为不注入');
+          notifyStatus(`本次没有启用的锚点项目可注入${anchorResult.skipped.length ? `，另有 ${anchorResult.skipped.length} 项未匹配` : ''}。`, 'warning');
+          return;
+        }
         const details = anchorResult.skipped.map((entry) => entry.reason).join('；');
         throw new Error(`锚点插入失败：${details || '没有可用的唯一锚点'}`);
       }
@@ -1747,7 +1773,12 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
       if (settings.statusPlaceholderEnabled && (containsStatusPlaceholder(originalText) || containsStatusPlaceholder(injectedText))) {
         latest.message.mes = normalizeStatusPlaceholder(latest.message.mes, true);
       }
-      if (anchorResult.skipped.length) notifyStatus(`已跳过 ${anchorResult.skipped.length} 个无效锚点，其余内容已注入`, 'warning');
+      if (anchorResult.skipped.length || anchorResult.disabled.length) {
+        const notices = [];
+        if (anchorResult.disabled.length) notices.push(`排除 ${anchorResult.disabled.length} 项`);
+        if (anchorResult.skipped.length) notices.push(`跳过 ${anchorResult.skipped.length} 个无效锚点`);
+        notifyStatus(`已注入 ${anchorResult.applied.length} 项，${notices.join('，')}`, 'warning');
+      }
     } else {
       injectedText = cleanGeneratedText(text);
       injectStatusbar(latest.message, injectedText, settings.injectMode);
@@ -5869,6 +5900,18 @@ function bindPanelEvents() {
   $t('#st-esg-additional-parameters').on('click', showApiAdditionalParametersDialog);
   $t('.st-esg-generation-content').off('click.stEsgAnchorPreview').on('click.stEsgAnchorPreview', '.st-esg-anchor-preview-button', function () {
     showAnchorInsertionPreviewDialog();
+  });
+  $t('.st-esg-generation-content').off('click.stEsgAnchorToggle').on('click.stEsgAnchorToggle', '#st-esg-anchor-plan [data-anchor-toggle]', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const toggle = $(this);
+    const card = toggle.closest('.st-esg-anchor-plan-item');
+    const index = Number(card.attr('data-anchor-item-index'));
+    const item = settings.lastGeneratedAnchorItems?.[index];
+    if (!item) return;
+    item.injectionEnabled = !isAnchorInsertionEnabled(item);
+    updateAnchorPlanStatusUi();
+    scheduleAnchorEditPersistence();
   });
   $t('.st-esg-generation-content').off('input.stEsgAnchor change.stEsgAnchor').on('input.stEsgAnchor change.stEsgAnchor', '#st-esg-anchor-plan [data-anchor-field]', function () {
     const field = $(this);

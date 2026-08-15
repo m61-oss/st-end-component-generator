@@ -4,6 +4,10 @@ function isBoundaryPosition(position) {
   return position === 'start' || position === 'end';
 }
 
+export function isAnchorInsertionEnabled(item) {
+  return item?.injectionEnabled !== false;
+}
+
 function isInsertionItem(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   if (!ANCHOR_POSITIONS.has(value.position)) return false;
@@ -207,7 +211,10 @@ export function applyAnchorInsertions(messageText, items) {
   const text = typeof messageText === 'string' ? messageText : '';
   const located = locateAnchorInsertions(text, items);
   const newline = detectNewline(text);
-  const ordered = [...located.matches].sort(
+  const disabled = (Array.isArray(items) ? items : [])
+    .map((item, itemIndex) => ({ item, itemIndex, status: 'disabled', reason: '本项已标记为不注入' }))
+    .filter(({ item }) => !isAnchorInsertionEnabled(item));
+  const ordered = located.matches.filter((match) => isAnchorInsertionEnabled(match.item)).sort(
     (a, b) => b.offset - a.offset || b.itemIndex - a.itemIndex,
   );
   let result = text;
@@ -219,7 +226,7 @@ export function applyAnchorInsertions(messageText, items) {
   }
 
   applied.reverse();
-  return { text: result, applied, skipped: located.skipped };
+  return { text: result, applied, skipped: located.skipped, disabled };
 }
 
 /**
@@ -231,7 +238,10 @@ export function buildAnchorPreviewSegments(messageText, items) {
   const text = typeof messageText === 'string' ? messageText : '';
   const located = locateAnchorInsertions(text, items);
   const newline = detectNewline(text);
-  const ordered = [...located.matches].sort(
+  const disabled = (Array.isArray(items) ? items : [])
+    .map((item, itemIndex) => ({ item, itemIndex, status: 'disabled', reason: '本项已标记为不注入' }))
+    .filter(({ item }) => !isAnchorInsertionEnabled(item));
+  const ordered = located.matches.filter((match) => isAnchorInsertionEnabled(match.item)).sort(
     (a, b) => b.offset - a.offset || b.itemIndex - a.itemIndex,
   );
   let result = text;
@@ -276,7 +286,7 @@ export function buildAnchorPreviewSegments(messageText, items) {
   });
   if (cursor < result.length) segments.push({ type: 'source', text: result.slice(cursor) });
 
-  return { text: result, segments, applied, skipped: located.skipped };
+  return { text: result, segments, applied, skipped: located.skipped, disabled };
 }
 
 export function getAnchorMatchContext(messageText, match, radius = 72) {
