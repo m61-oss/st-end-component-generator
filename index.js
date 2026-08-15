@@ -39,7 +39,7 @@ import {
   normalizePromptSourceType,
   syncPromptSelectionsFromGroups,
 } from './sources/source-selection.js?ver=0.1.8';
-import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hydrateTavernWorldbookSelections, normalizeSchemeList, saveScheme } from './settings/scheme-utils.js?ver=0.1.8';
+import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hydrateTavernWorldbookSelections, normalizeSchemeList, resolveWorldbookPromptSelectionsForLoad, saveScheme } from './settings/scheme-utils.js?ver=0.1.8';
 import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.8';
 import { normalizeApiRetryCount, withApiRetries } from './api/api-retry.js?ver=0.1.8';
 import { stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.8';
@@ -2799,7 +2799,9 @@ function applyTaskScheme(snapshot) {
 }
 
 async function applyPresetScheme(snapshot) {
-  setSourceMode('preset', snapshot.sourceMode);
+  // Saved schemes represent prompt editing. Import mode is a temporary library view
+  // and must not be restored from an old or accidentally captured snapshot.
+  setSourceMode('preset', SOURCE_MODE_PROMPT);
   if (getSourceMode('preset') === SOURCE_MODE_PROMPT) await clearPromptSourceSnapshot('preset');
   renderSourceModeUi();
   settings.activeSourcePreset = textOf(snapshot.activeSourcePreset);
@@ -2824,16 +2826,19 @@ async function applyPresetScheme(snapshot) {
 }
 
 async function applyWorldbookScheme(snapshot) {
-  setSourceMode('worldbook', snapshot.sourceMode);
+  // Saved schemes represent prompt editing. Import mode is a temporary library view
+  // and must not be restored from an old or accidentally captured snapshot.
+  setSourceMode('worldbook', SOURCE_MODE_PROMPT);
   if (getSourceMode('worldbook') === SOURCE_MODE_PROMPT) await clearPromptSourceSnapshot('worldbook');
   renderSourceModeUi();
   settings.worldbookDraftSources = getWorldbookSchemeSourceNames(snapshot);
+  const currentPromptSelections = { ...settings.promptSelections };
   settings.promptSelections = clearImportSelectionsForScope(settings.promptSelections, SOURCE_WORLDBOOK);
   settings.importSelections = clearImportSelectionsForScope(settings.importSelections, SOURCE_WORLDBOOK);
   settings.sourceContentOverrides = clearImportSelectionsForScope(settings.sourceContentOverrides, SOURCE_WORLDBOOK);
   settings.worldbookActivationOverrides = clearImportSelectionsForScope(settings.worldbookActivationOverrides, SOURCE_WORLDBOOK);
   settings.worldbookKeywordOverrides = clearImportSelectionsForScope(settings.worldbookKeywordOverrides, SOURCE_WORLDBOOK);
-  Object.assign(settings.promptSelections, snapshot.promptSelections || {});
+  Object.assign(settings.promptSelections, resolveWorldbookPromptSelectionsForLoad(snapshot, currentPromptSelections));
   Object.assign(settings.importSelections, snapshot.importSelections || {});
   Object.assign(settings.sourceContentOverrides, snapshot.sourceContentOverrides || {});
   Object.assign(settings.worldbookActivationOverrides, snapshot.worldbookActivationOverrides || {});
@@ -4476,7 +4481,10 @@ function persistCurrentWorldbookSchemeMigration() {
   if (!schemeId
     || schemeId === WORLD_BOOK_FOLLOW_TAVERN
     || schemeId !== getSelectedSchemeId('worldbook')
-    || settings.dirtySchemeTypes?.worldbook) return false;
+    || settings.dirtySchemeTypes?.worldbook
+    // Background UID/source reconciliation must never rewrite a saved scheme while
+    // the user is in the temporary import-to-library view.
+    || getSourceMode('worldbook') === SOURCE_MODE_IMPORT) return false;
   const list = getSchemeList('worldbook');
   const scheme = findScheme(list, schemeId);
   if (!scheme) return false;

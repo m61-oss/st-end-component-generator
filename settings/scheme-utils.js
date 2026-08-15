@@ -85,15 +85,33 @@ export function getWorldbookSchemeSourceNames(snapshot = {}) {
     .filter((name) => name.trim()))];
   const selectionSources = new Set();
   for (const store of [snapshot?.promptSelections, snapshot?.importSelections]) {
-    for (const [key, value] of Object.entries(store && typeof store === 'object' ? store : {})) {
+    for (const key of Object.keys(store && typeof store === 'object' ? store : {})) {
       const parts = String(key).split('::');
-      if (value !== false && parts[2] === '世界书' && textOf(parts[1])) selectionSources.add(textOf(parts[1]));
+      if (parts[2] !== '世界书' || !textOf(parts[1])) continue;
+      let source = parts[1];
+      if (parts[0] === 'worldbook-v2') {
+        try { source = decodeURIComponent(source); } catch (_) {}
+      }
+      if (textOf(source)) selectionSources.add(getWorldbookRawName(source));
     }
   }
 
   // Older versions saved every discoverable worldbook. When that snapshot also carries
   // explicit entry selections, those selections are the reliable static source list.
-  return sourceNames;
+  return sourceNames.length ? sourceNames : [...selectionSources];
+}
+
+export function resolveWorldbookPromptSelectionsForLoad(snapshot = {}, currentSelections = {}) {
+  const saved = snapshot?.promptSelections && typeof snapshot.promptSelections === 'object'
+    ? snapshot.promptSelections
+    : {};
+  // A few pre-mode-separation snapshots were written while the import view was open and
+  // therefore contain only import checks. Do not erase the edit-mode selections that are
+  // still present in the current settings when such a snapshot is loaded.
+  if (snapshot?.sourceMode === 'import' && Object.keys(saved).length === 0) {
+    return currentSelections && typeof currentSelections === 'object' ? { ...currentSelections } : {};
+  }
+  return { ...saved };
 }
 
 export function captureSchemeSnapshot(type, settings, groups = [], options = {}) {
@@ -121,7 +139,9 @@ export function captureSchemeSnapshot(type, settings, groups = [], options = {})
     const keys = groupKeys(groups, (group) => !isWorldbookGroup(group));
     return {
       activeSourcePreset: settings.activeSourcePreset || '',
-      sourceMode: settings.sourceModes?.preset || settings.sourceMode || 'prompt',
+      // A scheme is the editable prompt configuration. Import mode is a temporary
+      // component-library view and must never become part of the saved scheme state.
+      sourceMode: 'prompt',
       taskPlacementEnabled: Boolean(settings.taskPlacementEnabled),
       taskPlacementAfterSourceId: settings.taskPlacementAfterSourceId || '',
       replaceLastUserMessageWithTask: Boolean(settings.replaceLastUserMessageWithTask),
@@ -165,7 +185,9 @@ export function captureSchemeSnapshot(type, settings, groups = [], options = {})
     }
     return {
       worldbookSources: [...new Set(savedWorldbookGroups.map((group) => getWorldbookRawName(group.source)).filter((name) => name.trim()))],
-      sourceMode: settings.sourceModes?.worldbook || settings.sourceMode || 'prompt',
+      // A scheme is the editable prompt configuration. Import mode is a temporary
+      // component-library view and must never become part of the saved scheme state.
+      sourceMode: 'prompt',
       promptSelections: pickByKeys(settings.promptSelections, keys),
       importSelections: pickByKeys(settings.importSelections, keys),
       sourceContentOverrides: pickByKeys(settings.sourceContentOverrides, keys),
