@@ -14,10 +14,13 @@ test('publishes the fixed two-field protocol as a system message', () => {
     role: 'system',
     content: OUTPUT_PROTOCOL_SYSTEM_PROMPT,
   });
-  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /织幕固定输出协议/);
-  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /你的完整回复必须是一个 JSON 对象/);
   assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /"thinking"[\s\S]*"content"/);
-  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /JSON 外不得输出解释/);
+  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /固定输出协议｜最高优先级/);
+  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /无论任务要求输出何种内容/);
+  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /顶层只能存在/);
+  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /严格按照 JSON 语法转义/);
+  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /输出前确认/);
+  assert.doesNotMatch(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /织幕固定输出协议/);
 });
 
 test('parses a strict JSON envelope and preserves both fields', () => {

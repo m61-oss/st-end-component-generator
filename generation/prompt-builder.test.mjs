@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { buildExternalStatusbarMessages } from './prompt-builder.js';
+import { buildOutputProtocolMessage } from './output-protocol.js';
 import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from '../settings/task-placement.js';
 
 const context = {
@@ -31,10 +32,7 @@ async function build(options = {}) {
 function assertProtocolImmediatelyBeforeTask(messages) {
   const taskIndex = messages.findIndex((message) => message.role === 'user' && message.content === 'TASK');
   assert.ok(taskIndex > 0, 'task user message should exist after at least one protocol message');
-  assert.deepEqual(messages[taskIndex - 1], {
-    role: 'system',
-    content: '【织幕固定输出协议｜必须遵守】\n本协议只规定回复的外层格式，不改变任务要求的内容、文风、步骤和标签。\n你的完整回复必须是一个 JSON 对象，且只包含以下两个字段，并严格按此顺序输出：\n\n{\n  "thinking": "执行任务要求的全部思考步骤",\n  "content": "思考结束后需要交付的全部最终内容"\n}\n\n规则：\n1. thinking 必须包含任务要求的思维链步骤。\n2. content 必须是最后一个字段，包含所有委托要求的内容。\n3. 不得把思维链写入 content。\n4. JSON 外不得输出解释、标题或代码围栏。\n5. 即使某部分为空，也不得省略 thinking 或 content。',
-  });
+  assert.deepEqual(messages[taskIndex - 1], buildOutputProtocolMessage());
   return taskIndex;
 }
 
