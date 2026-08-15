@@ -1,4 +1,5 @@
 import { extractConfiguredBlocks } from '../injection/tag-rules.js';
+import { parseAnchorOutput } from './anchor-output-protocol.js';
 import { parseOutputProtocolResponse } from './output-protocol.js';
 
 function isProtocolLikeLegacyText(value) {
@@ -16,6 +17,19 @@ function isProtocolLikeLegacyText(value) {
 }
 
 export function normalizeGeneratedResult(rawText, outputCleanupTags = '') {
+  const anchor = parseAnchorOutput(rawText);
+  if (anchor) {
+    return {
+      content: '',
+      anchorItems: anchor.items,
+      thinking: [anchor.thinking].filter(Boolean),
+      mode: anchor.mode,
+      complete: anchor.complete,
+      usable: anchor.items.length > 0,
+      warnings: anchor.warnings,
+    };
+  }
+
   const parsed = parseOutputProtocolResponse(rawText);
   if (!parsed) {
     return {

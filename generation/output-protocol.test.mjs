@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   OUTPUT_PROTOCOL_SYSTEM_PROMPT,
+  ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT,
   buildOutputProtocolMessage,
   parseOutputProtocolResponse,
   parseOutputProtocolStreamPreview,
@@ -29,6 +30,19 @@ test('publishes the fixed two-field protocol as a system message', () => {
   assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /完整回复的第一个字符必须是/);
   assert.doesNotMatch(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /"content"\s*:/);
   assert.doesNotMatch(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /织幕固定输出协议/);
+});
+
+test('publishes a variable-length anchor plan only in anchor mode', () => {
+  const message = buildOutputProtocolMessage({ mode: 'anchor' });
+
+  assert.deepEqual(message, {
+    role: 'system',
+    content: ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT,
+  });
+  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /output[\s\S]*position[\s\S]*anchor[\s\S]*content/);
+  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /任意数量/);
+  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /before 还是 after/);
+  assert.doesNotMatch(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /织幕/);
 });
 
 test('parses a strict JSON envelope and preserves both fields', () => {

@@ -71,6 +71,12 @@ test('keeps the task content as the last-user-message override', async () => {
   assert.equal(messages[taskIndex - 1].content, 'TASK');
 });
 
+test('uses the anchor protocol only when anchor output mode is requested', async () => {
+  const messages = await build({ outputMode: 'anchor' });
+  assert.deepEqual(messages.at(-1), buildOutputProtocolMessage({ mode: 'anchor' }));
+  assert.notDeepEqual(messages.at(-1), buildOutputProtocolMessage());
+});
+
 test('resolves core plugin macros without case sensitivity', async () => {
   const messages = await build({
     promptSourceItems: [

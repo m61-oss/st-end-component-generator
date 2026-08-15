@@ -35,6 +35,31 @@ function normalizeText(value) {
   return value === null || value === undefined ? '' : String(value);
 }
 
+const ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT = `【固定输出协议｜锚点插入模式｜最高优先级】
+本协议只规定完整回复的外层 JSON 封装以及锚点插入计划，不改变任务本身要求的内容、文风、步骤或既定内部格式。
+
+完整回复必须且只能是一个可被标准 JSON 解析器解析的对象，顶层字段固定且顺序固定：
+{
+  "thinking": "全部思考、推演及其既定格式，思考内容用中文",
+  "output": [
+    {
+      "position": "before 或 after",
+      "anchor": "从当前目标正文中逐字复制的唯一连续片段",
+      "content": "需要插入的全部实际内容及其既定格式"
+    }
+  ]
+}
+
+锚点计划规则：
+1. output 必须是数组，可以为空，也可以包含任意数量的插入项；不要为了凑数量固定输出一项、两项或同时输出 before 和 after。
+2. 你必须根据任务需要自行判断是否插入、需要几项、每项使用 before 还是 after。没有合适位置时省略该项，不要编造锚点。
+3. anchor 必须逐字复制当前目标助手正文中实际存在的一段连续文字，并且应当只在正文中出现一次；不要改写、概括、翻译或添加省略号。
+4. position=before 表示把 content 插入 anchor 之前；position=after 表示插入 anchor 之后。插件会让每项内容独立成行。
+5. content 只放本次新增的实际内容，不要把 anchor、说明、思考或 JSON 外壳再次写入 content。
+6. 无论 output 数组有几项，所有思考都只放入 thinking，所有交付内容都只放入对应项的 content。
+7. JSON 外不得输出任何字符、解释、标题或代码围栏；两个字段必须始终存在且均为字符串/数组规定的类型。严格转义字符串中的双引号、反斜杠和换行。
+8. 完整回复的第一个字符必须是 {，最后一个字符必须是 }。`;
+
 function normalizeField(value) {
   if (value === null || value === undefined) return '';
   if (typeof value === 'string') return value;
@@ -251,10 +276,15 @@ function parsePartialEnvelope(candidate) {
   };
 }
 
-export { OUTPUT_PROTOCOL_SYSTEM_PROMPT };
+export { OUTPUT_PROTOCOL_SYSTEM_PROMPT, ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT };
 
-export function buildOutputProtocolMessage() {
-  return { role: 'system', content: OUTPUT_PROTOCOL_SYSTEM_PROMPT };
+export function buildOutputProtocolMessage({ mode = 'standard' } = {}) {
+  return {
+    role: 'system',
+    content: mode === 'anchor'
+      ? ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT
+      : OUTPUT_PROTOCOL_SYSTEM_PROMPT,
+  };
 }
 
 export function parseOutputProtocolResponse(rawText) {

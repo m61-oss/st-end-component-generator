@@ -22,3 +22,20 @@ test('keeps legacy streamed text unchanged', () => {
     protocol: false,
   });
 });
+
+test('shows anchor contents as the live preview once the plan is complete', () => {
+  const preview = normalizeStreamOutputPreview(JSON.stringify({
+    thinking: '先定位',
+    output: [
+      { position: 'after', anchor: 'A', content: 'one' },
+      { position: 'before', anchor: 'B', content: 'two' },
+    ],
+  }));
+
+  assert.deepEqual(preview, {
+    text: 'one\n\ntwo',
+    thinking: '先定位',
+    mode: 'anchor-json',
+    protocol: true,
+  });
+});

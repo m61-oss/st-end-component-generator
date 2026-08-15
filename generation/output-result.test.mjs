@@ -77,3 +77,29 @@ test('does not inject an envelope whose field boundary is ambiguous', () => {
   assert.equal(result.usable, false);
   assert.equal(result.content, '');
 });
+
+test('normalizes an anchor insertion plan as structured output', () => {
+  const result = normalizeGeneratedResult(JSON.stringify({
+    thinking: '先检查正文锚点',
+    output: [{ position: 'after', anchor: '原文。', content: '<component>内容</component>' }],
+  }));
+
+  assert.equal(result.mode, 'anchor-json');
+  assert.equal(result.content, '');
+  assert.deepEqual(result.anchorItems, [
+    { position: 'after', anchor: '原文。', content: '<component>内容</component>' },
+  ]);
+  assert.deepEqual(result.thinking, ['先检查正文锚点']);
+  assert.equal(result.usable, true);
+});
+
+test('keeps recovered loose anchor plans injectable', () => {
+  const result = normalizeGeneratedResult('{"thinking":"先定位","output":[{"position":"after","anchor":"原文。","content":"<b style="color:red">内容</b>"}]');
+
+  assert.equal(result.mode, 'anchor-loose-json');
+  assert.equal(result.complete, false);
+  assert.equal(result.usable, true);
+  assert.deepEqual(result.anchorItems, [
+    { position: 'after', anchor: '原文。', content: '<b style="color:red">内容</b>' },
+  ]);
+});

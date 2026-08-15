@@ -21,10 +21,11 @@ import {
   normalizeComponentScope,
 } from './sources/component-sources.js?ver=0.1.8';
 import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.1.8';
-import { containsStatusPlaceholder, injectStatusbarText, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.1.8';
+import { containsStatusPlaceholder, injectStatusbarText, normalizeStatusPlaceholder, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.1.8';
 import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.8';
 import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.8';
 import { normalizeGeneratedResult } from './generation/output-result.js?ver=0.1.8';
+import { applyAnchorInsertions } from './injection/anchor-insertion.js?ver=0.1.8';
 import { normalizeStreamOutputPreview } from './generation/stream-output-preview.js?ver=0.1.8';
 import { composeTaskInstruction } from './generation/task-instruction.js?ver=0.1.8';
 import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.1.8';
@@ -172,6 +173,7 @@ const DEFAULT_SETTINGS = {
   apiRetryCount: 0,
   promptTemplateCompatEnabled: false,
   injectMode: 'replace',
+  rollbackBeforeGeneration: false,
   statusPlaceholderEnabled: false,
   mvuReprocessOnInject: true,
   historyCleanupTags: '',
@@ -180,6 +182,8 @@ const DEFAULT_SETTINGS = {
   recentMessageCount: 10,
   outputCleanupTags: '',
   lastGenerated: '',
+  lastGeneratedAnchorItems: [],
+  lastGeneratedAnchorWarnings: [],
   lastGeneratedStatusPlaceholderPresent: false,
   lastGeneratedThinking: [],
   lastGenerationError: null,
@@ -529,7 +533,14 @@ function loadSettings() {
   if (typeof settings.ballAnimationEnabled !== 'boolean') settings.ballAnimationEnabled = true;
   if (typeof settings.ballSnapEnabled !== 'boolean') settings.ballSnapEnabled = false;
   if (!['left', 'right', 'none'].includes(settings.ballDock)) settings.ballDock = 'none';
-  if (!['replace', 'append', 'rollbackAppend', 'rollbackReplace'].includes(settings.injectMode)) settings.injectMode = 'replace';
+  if (settings.injectMode === 'rollbackAppend' || settings.injectMode === 'rollbackReplace') {
+    settings.rollbackBeforeGeneration = true;
+    settings.injectMode = settings.injectMode === 'rollbackAppend' ? 'append' : 'replace';
+  }
+  if (!['replace', 'append', 'anchor'].includes(settings.injectMode)) settings.injectMode = 'replace';
+  if (typeof settings.rollbackBeforeGeneration !== 'boolean') settings.rollbackBeforeGeneration = false;
+  if (!Array.isArray(settings.lastGeneratedAnchorItems)) settings.lastGeneratedAnchorItems = [];
+  if (!Array.isArray(settings.lastGeneratedAnchorWarnings)) settings.lastGeneratedAnchorWarnings = [];
   try {
     const localValue = targetWindow.localStorage?.getItem(PROMPT_TEMPLATE_COMPAT_STORAGE_KEY);
     if (localValue === 'true' || localValue === 'false') settings.promptTemplateCompatEnabled = localValue === 'true';
@@ -1028,6 +1039,26 @@ function clearGeneratedThinking() {
   thinkingPanel?.classList.add('st-esg-hidden');
 }
 
+function renderAnchorInsertionPlan(items = settings.lastGeneratedAnchorItems, warnings = []) {
+  const preview = $t('#st-esg-preview');
+  if (!preview.length) return;
+  let box = $t('#st-esg-anchor-plan');
+  if (!box.length) {
+    preview.before('<div id="st-esg-anchor-plan" class="st-esg-anchor-plan st-esg-hidden"></div>');
+    box = $t('#st-esg-anchor-plan');
+  }
+  const entries = Array.isArray(items) ? items.filter((item) => item && item.anchor && item.content) : [];
+  if (!entries.length && !warnings.length) {
+    box.empty().addClass('st-esg-hidden');
+    return;
+  }
+  const warningHtml = warnings.length
+    ? `<div class="st-esg-anchor-plan-warnings">${warnings.map((warning) => `<div>${escapeHtml(warning)}</div>`).join('')}</div>`
+    : '';
+  const itemHtml = entries.map((item, index) => `<details class="st-esg-anchor-plan-item" open><summary><span>#${index + 1} · ${escapeHtml(item.position === 'before' ? '插入到锚点前' : '插入到锚点后')}</span></summary><div class="st-esg-anchor-plan-anchor">${escapeHtml(item.anchor)}</div><pre>${escapeHtml(item.content)}</pre></details>`).join('');
+  box.html(`<div class="st-esg-anchor-plan-head"><strong>锚点插入计划</strong><span>${entries.length} 项</span></div>${warningHtml}${itemHtml}`).removeClass('st-esg-hidden');
+}
+
 function formatGenerationHistoryTime(value) {
   const date = new Date(Number(value));
   if (!Number.isFinite(date.getTime())) return '时间未知';
@@ -1062,6 +1093,8 @@ function loadGenerationHistoryEntry(id) {
   const entry = recentGenerationHistory.find((item) => item.id === String(id || ''));
   if (!entry) return false;
   settings.lastGenerated = entry.content;
+  settings.lastGeneratedAnchorItems = [];
+  settings.lastGeneratedAnchorWarnings = [];
   settings.lastGeneratedStatusPlaceholderPresent = containsStatusPlaceholder(settings.lastGenerated);
   settings.lastGenerationError = null;
   setFloatingBallVisualState('waiting');
@@ -1077,12 +1110,16 @@ function loadGenerationHistoryEntry(id) {
 function applyGeneratedResult(rawText) {
   const normalized = normalizeGeneratedResult(rawText, settings.outputCleanupTags);
   const raw = String(rawText ?? '');
+  settings.lastGeneratedAnchorItems = Array.isArray(normalized.anchorItems) ? normalized.anchorItems : [];
+  settings.lastGeneratedAnchorWarnings = Array.isArray(normalized.warnings) ? normalized.warnings : [];
   settings.lastGenerated = normalized.usable ? normalized.content : '';
-  settings.lastGeneratedStatusPlaceholderPresent = containsStatusPlaceholder(settings.lastGenerated);
+  settings.lastGeneratedStatusPlaceholderPresent = containsStatusPlaceholder(settings.lastGenerated)
+    || settings.lastGeneratedAnchorItems.some((item) => containsStatusPlaceholder(item?.content));
   lastGeneratedThinking = normalized.thinking;
   settings.lastGeneratedThinking = normalized.thinking;
   settings.lastGenerationError = null;
-  $t('#st-esg-preview').val(normalized.usable ? settings.lastGenerated : raw);
+  $t('#st-esg-preview').val(normalized.mode === 'anchor-json' ? '' : (normalized.usable ? settings.lastGenerated : raw));
+  renderAnchorInsertionPlan(settings.lastGeneratedAnchorItems, normalized.warnings || []);
   renderGeneratedThinking();
   renderGenerationResultPanel();
   resizeGeneratedPreview();
@@ -1131,8 +1168,9 @@ async function buildMessages(latestMessage) {
       substituteParams: context.substituteParams,
       includeHistory: settings.baiBaiBookHistoryEnabled,
       includeState: settings.baiBaiBookStateEnabled,
-    } : null,
-  });
+      } : null,
+    outputMode: settings.injectMode === 'anchor' ? 'anchor' : 'standard',
+   });
   if (settings.promptTemplateCompatEnabled) {
     for (const message of messages) {
       const source = String(message?.content ?? '');
@@ -1399,7 +1437,6 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     notifyStatus(error.message, 'warning');
     return '';
   }
-  const rollbackMode = settings.injectMode === 'rollbackAppend' || settings.injectMode === 'rollbackReplace';
   const panelScrollTop = capturePanelScrollTop();
   notifyStatus('正在生成文尾组件……', 'info');
   generationAbortController = new AbortController();
@@ -1409,7 +1446,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   await waitForInteractionPaint();
   let result = '';
   try {
-    if (rollbackMode) await restoreLatestInjection({ targetMessageIndex: latest.index });
+    if (settings.rollbackBeforeGeneration) await restoreLatestInjection({ targetMessageIndex: latest.index });
     clearGeneratedThinking();
     restorePanelScrollTop(panelScrollTop);
     logAutomaticGenerationStage('target-ready', `message ${latest.index}`);
@@ -1468,7 +1505,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   renderGenerationHistory();
   restorePanelScrollTop(resultPanelScrollTop);
   saveSettings();
-  if (settings.autoInject && result && settings.lastGenerated) {
+  if (settings.autoInject && result && (settings.lastGenerated || settings.lastGeneratedAnchorItems?.length)) {
     if (automaticTarget && !isAutomaticAssistantTargetAddressable(automaticTarget, getContext().chat)) {
       logAutomaticGenerationStage('inject-skip', '目标已不是最新 assistant，结果保留在预览中');
       notifyStatus('组件已经生成，但原目标已不是最新 assistant，已保留结果并跳过自动注入。', 'warning');
@@ -1494,28 +1531,40 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
     return;
   }
   try {
-    const text = settings.lastGenerated || $t('#st-esg-preview').val() || await generateStatusbar('manual', targetMessageIndex);
-    if (!text) {
+    let text = settings.lastGenerated || $t('#st-esg-preview').val();
+    let anchorItems = Array.isArray(settings.lastGeneratedAnchorItems) ? settings.lastGeneratedAnchorItems : [];
+    if (!text && !anchorItems.length) {
+      await generateStatusbar('manual', targetMessageIndex);
+      text = settings.lastGenerated || $t('#st-esg-preview').val();
+      anchorItems = Array.isArray(settings.lastGeneratedAnchorItems) ? settings.lastGeneratedAnchorItems : [];
+    }
+    if (!text && !anchorItems.length) {
       logAutomaticGenerationStage('inject-skip', '没有可注入的生成内容');
       return;
     }
-    const injectedText = cleanGeneratedText(text);
-    const rollbackMode = settings.injectMode === 'rollbackAppend' || settings.injectMode === 'rollbackReplace';
-    const effectiveMode = settings.injectMode === 'rollbackAppend' ? 'append' : settings.injectMode === 'rollbackReplace' ? 'replace' : settings.injectMode;
-    if (rollbackMode) {
-      await restoreLatestInjection({ targetMessageIndex: latest.index });
-      context = getContext();
-      latest = targetMessageIndex === null
-        ? getLatestAssistantMessage(context.chat)
-        : getAssistantMessageAtIndex(context.chat, targetMessageIndex);
-      if (!latest) throw new Error('撤回后没有找到可注入的助手回复。');
-    }
+    let injectedText = '';
     const originalText = String(latest.message.mes ?? '');
     const swipeId = Number.isInteger(latest.message.swipe_id) ? latest.message.swipe_id : null;
     const hadSwipe = swipeId !== null && Array.isArray(latest.message.swipes);
     const originalSwipeText = hadSwipe ? String(latest.message.swipes[swipeId] ?? originalText) : '';
     logAutomaticGenerationStage('inject-snapshot', `message ${latest.index}; snapshot saved`);
-    injectStatusbar(latest.message, injectedText, effectiveMode);
+    if (anchorItems.length) {
+      const cleanedItems = anchorItems.map((item) => ({ ...item, content: cleanGeneratedText(item.content) }));
+      const anchorResult = applyAnchorInsertions(originalText, cleanedItems);
+      if (!anchorResult.applied.length) {
+        const details = anchorResult.skipped.map((entry) => entry.reason).join('；');
+        throw new Error(`锚点插入失败：${details || '没有可用的唯一锚点'}`);
+      }
+      latest.message.mes = anchorResult.text;
+      injectedText = anchorResult.applied.map((entry) => entry.item.content).join('\n');
+      if (settings.statusPlaceholderEnabled && (containsStatusPlaceholder(originalText) || containsStatusPlaceholder(injectedText))) {
+        latest.message.mes = normalizeStatusPlaceholder(latest.message.mes, true);
+      }
+      if (anchorResult.skipped.length) notifyStatus(`已跳过 ${anchorResult.skipped.length} 个无效锚点，其余内容已注入`, 'warning');
+    } else {
+      injectedText = cleanGeneratedText(text);
+      injectStatusbar(latest.message, injectedText, settings.injectMode);
+    }
     if (Array.isArray(latest.message.swipes) && Number.isInteger(latest.message.swipe_id)) latest.message.swipes[latest.message.swipe_id] = latest.message.mes;
     let mvuReprocessed = false;
     if (settings.mvuReprocessOnInject && containsMvuUpdateVariable(injectedText)) {
@@ -1843,6 +1892,7 @@ function renderGenerationResultPanel() {
   const thinking = $t('#st-esg-thinking-panel');
   const panel = $t('#st-esg-generation-error');
   if (!preview.length || !panel.length) return;
+  renderAnchorInsertionPlan(settings.lastGeneratedAnchorItems || [], settings.lastGeneratedAnchorWarnings || []);
   preview.toggleClass('st-esg-hidden', Boolean(error));
   thinking.toggleClass('st-esg-hidden', Boolean(error) || !lastGeneratedThinking.length);
   if (!error) {
@@ -5032,7 +5082,7 @@ function buildPluginPanelMarkup() {
 }
 
 function buildGenerationSettingsMarkup() {
-  return `<details class="st-esg-card st-esg-collapsible st-esg-generation-settings"><summary class="st-esg-collapsible-summary">生成设置</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-generate" type="checkbox" /><span>监听正文结束自动生成</span></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-inject" type="checkbox" /><span>生成结束以后自动注入</span></label><label id="st-esg-inject-mode-row" class="st-esg-generation-inject-mode">注入方式：<select id="st-esg-inject-mode" class="text_pole st-esg-select"><option value="replace">正文已有同名标签时直接覆盖</option><option value="append">始终追加到末尾</option><option value="rollbackAppend">撤回本楼上次注入后追加</option><option value="rollbackReplace">撤回本楼上次注入后覆盖</option></select></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-status-placeholder-enabled" type="checkbox" /><span>将 MVU 状态标签固定到正文末尾</span><em>检测正文或生成内容中的 &lt;StatusPlaceHolderImpl/&gt;，清理重复项并在最终文末保留一个。</em></label><div class="st-esg-card-desc">覆盖模式仅支持成对的尖括号标签（如 &lt;status&gt;…&lt;/status&gt;）。[status]、【状态】等格式无法识别，会自动改为追加。</div></div></details>`;
+  return `<details class="st-esg-card st-esg-collapsible st-esg-generation-settings"><summary class="st-esg-collapsible-summary">生成设置</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-generate" type="checkbox" /><span>监听正文结束自动生成</span></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-inject" type="checkbox" /><span>生成结束以后自动注入</span></label><label id="st-esg-inject-mode-row" class="st-esg-generation-inject-mode">注入方式：<select id="st-esg-inject-mode" class="text_pole st-esg-select"><option value="replace">正文已有同名标签时直接覆盖</option><option value="append">始终追加到末尾</option><option value="anchor">按模型返回的自定义锚点插入</option></select></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-rollback-before-generation" type="checkbox" /><span>生成前撤回本楼上次注入</span><em>只在开始新一轮生成前撤回上一轮注入；手动点击“注入”不会重复撤回。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-status-placeholder-enabled" type="checkbox" /><span>将 MVU 状态标签固定到正文末尾</span><em>检测正文或生成内容中的 &lt;StatusPlaceHolderImpl/&gt;，清理重复项并在最终文末保留一个。</em></label><div class="st-esg-card-desc">覆盖模式仅支持成对的尖括号标签（如 &lt;status&gt;…&lt;/status&gt;）。[status]、【状态】等格式无法识别，会自动改为追加。锚点模式会让模型根据当前正文自行决定插入数量与 before/after 方向，每项内容独立成行。</div></div></details>`;
 }
 
 function upgradePanelActionToButton(dialog, selector) {
@@ -5241,6 +5291,8 @@ async function clearDataManagementCategory(category) {
       message: '确认清空生成结果、最近生成记录、提示词查看记录、报错记录、思维链、导入模式快照和 Anima 临时快照？此操作不会删除方案或组件。',
       async clear() {
         settings.lastGenerated = '';
+        settings.lastGeneratedAnchorItems = [];
+        settings.lastGeneratedAnchorWarnings = [];
         settings.lastGeneratedStatusPlaceholderPresent = false;
         settings.lastGenerationError = null;
         settings.lastPromptLog = '';
@@ -5275,6 +5327,13 @@ async function clearDataManagementCategory(category) {
 
 function renderGenerationSettings() {
   const settingsBody = targetDoc.querySelector('.st-esg-generation-settings .st-esg-collapsible-body');
+  const modeSelect = settingsBody?.querySelector('#st-esg-inject-mode');
+  if (modeSelect) {
+    modeSelect.innerHTML = '<option value="replace">正文已有同名标签时直接覆盖</option><option value="append">始终追加到末尾</option><option value="anchor">按模型返回的自定义锚点插入</option>';
+    if (!settingsBody.querySelector('#st-esg-rollback-before-generation')) {
+      modeSelect.closest('label')?.insertAdjacentHTML('afterend', '<label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-rollback-before-generation" type="checkbox" /><span>生成前撤回本楼上次注入</span><em>只在开始新一轮生成前撤回上一轮注入；手动点击“注入”不会重复撤回。</em></label>');
+    }
+  }
   const statusPlaceholderSetting = settingsBody?.querySelector('#st-esg-status-placeholder-enabled')?.closest('label');
   const injectionModeDescription = settingsBody?.querySelector('.st-esg-card-desc');
   if (injectionModeDescription && statusPlaceholderSetting) {
@@ -5286,6 +5345,7 @@ function renderGenerationSettings() {
   $t('#st-esg-auto-generate').prop('checked', settings.autoGenerate);
   $t('#st-esg-auto-inject').prop('checked', settings.autoInject);
   $t('#st-esg-inject-mode').val(settings.injectMode);
+  $t('#st-esg-rollback-before-generation').prop('checked', settings.rollbackBeforeGeneration);
   $t('#st-esg-status-placeholder-enabled').prop('checked', settings.statusPlaceholderEnabled);
   $t('#st-esg-mvu-reprocess-on-inject').prop('checked', settings.mvuReprocessOnInject);
 }
@@ -5774,9 +5834,12 @@ function bindPanelEvents() {
     setStatus('已恢复默认提示词。');
   });
   $t('#st-esg-preview').on('input', function () {
+    settings.lastGeneratedAnchorItems = [];
+    settings.lastGeneratedAnchorWarnings = [];
     settings.lastGenerated = String($(this).val());
     settings.lastGeneratedStatusPlaceholderPresent = containsStatusPlaceholder(settings.lastGenerated);
     resizeGeneratedPreview();
+    renderAnchorInsertionPlan([], []);
     saveSettings();
   });
   $t('#st-esg-api-url').on('input', function () { settings.apiUrl = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
@@ -5815,6 +5878,7 @@ function bindPanelEvents() {
   $t('#st-esg-api-retry-count').on('change blur', function () { settings.apiRetryCount = normalizeApiRetryCount($(this).val()); $(this).val(settings.apiRetryCount); markSchemeDirty('api'); saveSettings(); });
   $t('#st-esg-prompt-template-compat').on('change', function () { settings.promptTemplateCompatEnabled = Boolean($(this).prop('checked')); saveSettings(); });
   $t('#st-esg-inject-mode').on('change', function () { settings.injectMode = String($(this).val()); saveSettings(); });
+  $t('#st-esg-rollback-before-generation').on('change', function () { settings.rollbackBeforeGeneration = Boolean($(this).prop('checked')); saveSettings(); });
   ['history', 'output'].forEach((type) => {
     $t(`#st-esg-${type}-rule-add`).on('click', () => addTagRule(type));
     $t(`#st-esg-${type}-rule-input`).on('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); addTagRule(type); } });
