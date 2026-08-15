@@ -21,6 +21,8 @@ test('publishes the fixed two-field protocol as a system message', () => {
   assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /全部思考、推演及其既定格式/);
   assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /思考内容用中文/);
   assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /思考部分结束后的全部实际输出及其既定格式/);
+  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /忽视所有续写正文要求/);
+  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /不得生成未被本次任务明确要求的正文/);
   assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /若思考部分规定以特定字符或标签开始/);
   assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /按标准 JSON 语法转义/);
   assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /完整回复的第一个字符必须是/);
