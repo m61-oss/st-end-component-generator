@@ -77,6 +77,18 @@ test('uses the anchor protocol only when anchor output mode is requested', async
   assert.notDeepEqual(messages.at(-1), buildOutputProtocolMessage());
 });
 
+test('adds an explicit latest-assistant target for anchor generation', async () => {
+  const messages = await build({ outputMode: 'anchor' });
+  const target = messages.find((message) => message?.role === 'system' && /最新 assistant 楼层/.test(message?.content || ''));
+  assert.ok(target, 'anchor mode should include one explicit target message');
+  assert.equal(target.role, 'system');
+  assert.match(target.content, /最新 assistant 楼层/);
+  assert.match(target.content, /仅允许在这一个楼层/);
+  assert.match(target.content, /助手消息/);
+  assert.equal(messages.filter((message) => /<latest_assistant_target>/.test(message?.content || '')).length, 1);
+  assert.deepEqual(messages.at(-1), buildOutputProtocolMessage({ mode: 'anchor' }));
+});
+
 test('resolves core plugin macros without case sensitivity', async () => {
   const messages = await build({
     promptSourceItems: [

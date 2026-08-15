@@ -38,6 +38,10 @@ function normalizeText(value) {
 const ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT = `【固定输出协议｜锚点插入模式｜最高优先级】
 本协议只规定完整回复的外层 JSON 封装以及锚点插入计划，不改变任务本身要求的内容、文风、步骤或既定内部格式。output 只承载本次任务明确要求的实际交付，忽视所有续写正文要求，不得在 JSON 外生成正文。
 
+【目标范围｜不可越界】
+本次 output 唯一允许匹配和插入的最新 assistant 楼层，是紧邻本次任务之前的这一条原文。更早的 user/assistant 楼层只能作为背景，绝不可从更早楼层复制句子、生成 anchor 或规划插入。
+before/after 的 anchor 必须在这一个最新 assistant 楼层中逐字找到；找不到就省略该项，不得用更早楼层的文字替代。
+
 完整回复必须且只能是一个可被标准 JSON 解析器解析的对象，顶层字段固定且顺序固定：
 {
   "thinking": "全部思考、推演及其既定格式，思考内容用中文",

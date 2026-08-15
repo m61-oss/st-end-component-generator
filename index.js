@@ -25,7 +25,7 @@ import { containsStatusPlaceholder, injectStatusbarText, normalizeStatusPlacehol
 import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.8';
 import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.8';
 import { normalizeGeneratedResult } from './generation/output-result.js?ver=0.1.8';
-import { applyAnchorInsertions, getAnchorMatchContext, locateAnchorInsertions } from './injection/anchor-insertion.js?ver=0.1.8';
+import { applyAnchorInsertions, buildAnchorPreviewSegments, locateAnchorInsertions } from './injection/anchor-insertion.js?ver=0.1.8';
 import { normalizeStreamOutputPreview } from './generation/stream-output-preview.js?ver=0.1.8';
 import { composeTaskInstruction } from './generation/task-instruction.js?ver=0.1.8';
 import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.1.8';
@@ -1064,10 +1064,10 @@ function clearGeneratedResultState() {
 
 function getAnchorTargetMessage() {
   const context = getContext();
-  const indexed = Number.isInteger(settings.lastGeneratedAnchorTargetIndex)
-    ? getAssistantMessageAtIndex(context.chat, settings.lastGeneratedAnchorTargetIndex)
-    : null;
-  return indexed || getLatestAssistantMessage(context.chat);
+  if (Number.isInteger(settings.lastGeneratedAnchorTargetIndex)) {
+    return getAssistantMessageAtIndex(context.chat, settings.lastGeneratedAnchorTargetIndex);
+  }
+  return getLatestAssistantMessage(context.chat);
 }
 
 function resolveAnchorPlanForDisplay(items = settings.lastGeneratedAnchorItems) {
@@ -1079,24 +1079,23 @@ function resolveAnchorPlanForDisplay(items = settings.lastGeneratedAnchorItems) 
   return { text, target, matches, skipped };
 }
 
-function describeAnchorMatch(item, match, skipped, hasTarget, sourceText = '') {
-  if (!hasTarget) return { label: '等待目标正文', className: 'pending', context: '生成目标尚未就绪' };
+function describeAnchorMatch(item, match, skipped, hasTarget) {
+  if (!hasTarget) return { label: '等待目标正文', className: 'pending' };
   if (match?.matchType === 'boundary') {
     return {
       label: item.position === 'start' ? '文首定位' : '文尾定位',
       className: 'boundary',
-      context: item.position === 'start' ? '整条消息的第一个字符之前' : '整条消息的最后一个字符之后',
     };
   }
-  if (match?.matchType === 'exact') return { label: '精确匹配', className: 'exact', context: getAnchorMatchContext(sourceText, match) };
-  if (match?.matchType === 'loose') return { label: '宽松匹配', className: 'loose', context: getAnchorMatchContext(sourceText, match) };
-  if (match?.matchType === 'fuzzy') return { label: '模糊匹配', className: 'fuzzy', context: getAnchorMatchContext(sourceText, match) };
-  if (skipped?.status === 'multiple') return { label: '多处匹配', className: 'multiple', context: `找到 ${skipped.occurrences || 2} 处候选位置，请补充锚点文字` };
-  if (skipped?.status === 'invalid') return { label: '格式无效', className: 'invalid', context: '请填写插入内容，并为 before/after 提供锚点' };
-  return { label: '未匹配', className: 'missing', context: '当前目标正文中没有找到可用位置' };
+  if (match?.matchType === 'exact') return { label: '精确匹配', className: 'exact' };
+  if (match?.matchType === 'loose') return { label: '宽松匹配', className: 'loose' };
+  if (match?.matchType === 'fuzzy') return { label: '模糊匹配', className: 'fuzzy' };
+  if (skipped?.status === 'multiple') return { label: '多处匹配', className: 'multiple' };
+  if (skipped?.status === 'invalid') return { label: '格式无效', className: 'invalid' };
+  return { label: '未匹配', className: 'missing' };
 }
 
-function updateAnchorPlanResolutionUi() {
+function updateAnchorPlanStatusUi() {
   const box = $t('#st-esg-anchor-plan');
   if (!box.length) return;
   const items = Array.isArray(settings.lastGeneratedAnchorItems) ? settings.lastGeneratedAnchorItems : [];
@@ -1106,10 +1105,9 @@ function updateAnchorPlanResolutionUi() {
     const index = Number(card.attr('data-anchor-item-index'));
     const item = items[index];
     if (!item) return;
-    const state = describeAnchorMatch(item, matches.get(index), skipped.get(index), Boolean(target && text), text);
+    const state = describeAnchorMatch(item, matches.get(index), skipped.get(index), Boolean(target && text));
     card.attr('data-match-status', state.className);
     card.find('[data-anchor-status]').attr('class', `st-esg-anchor-status st-esg-anchor-status-${state.className}`).text(state.label);
-    card.find('[data-anchor-context]').text(state.context);
   });
 }
 
@@ -1134,7 +1132,7 @@ function renderAnchorInsertionPlan(items = settings.lastGeneratedAnchorItems, wa
   const itemHtml = entries.map(({ item, sourceIndex }, index) => {
     const match = resolved.matches.get(sourceIndex);
     const skipped = resolved.skipped.get(sourceIndex);
-    const state = describeAnchorMatch(item, match, skipped, Boolean(resolved.target && resolved.text), resolved.text);
+    const state = describeAnchorMatch(item, match, skipped, Boolean(resolved.target && resolved.text));
     const isBoundary = item.position === 'start' || item.position === 'end';
     const positionLabel = item.position === 'start'
       ? '插入到整条消息开头'
@@ -1146,16 +1144,64 @@ function renderAnchorInsertionPlan(items = settings.lastGeneratedAnchorItems, wa
     return `<details class="st-esg-anchor-plan-item" data-anchor-item-index="${sourceIndex}" data-match-status="${state.className}" open>
       <summary><span>#${index + 1} · ${escapeHtml(positionLabel)}</span><span data-anchor-status class="st-esg-anchor-status st-esg-anchor-status-${state.className}">${escapeHtml(state.label)}</span></summary>
       <div class="st-esg-anchor-plan-fields">
-        <label>定位方式<select class="text_pole st-esg-anchor-position" data-anchor-field="position">
-          ${['start', 'end', 'before', 'after'].map((position) => `<option value="${position}" ${item.position === position ? 'selected' : ''}>${position === 'start' ? '文首' : position === 'end' ? '文尾' : position === 'before' ? '锚点前' : '锚点后'}</option>`).join('')}
-        </select></label>
         <label class="st-esg-anchor-field${isBoundary ? ' st-esg-hidden' : ''}">锚点<textarea class="text_pole textarea_compact st-esg-anchor-input" data-anchor-field="anchor" rows="2">${escapeHtml(item.anchor || '')}</textarea></label>
-        <div class="st-esg-anchor-context" data-anchor-context>${escapeHtml(state.context)}</div>
         <label>插入内容<textarea class="text_pole textarea_compact st-esg-anchor-content" data-anchor-field="content" rows="4">${escapeHtml(item.content || '')}</textarea></label>
       </div>
     </details>`;
   }).join('');
-  box.html(`<div class="st-esg-anchor-plan-head"><strong>锚点插入计划</strong><span>${entries.length} 项</span></div>${warningHtml}${itemHtml}`).removeClass('st-esg-hidden');
+  box.html(`<div class="st-esg-anchor-plan-head"><div><strong>锚点插入计划</strong><span>${entries.length} 项</span></div><button type="button" class="menu_button menu_button_icon st-esg-anchor-preview-button"><i class="fa-solid fa-eye"></i><span>预览插入效果</span></button></div>${warningHtml}${itemHtml}`).removeClass('st-esg-hidden');
+}
+
+function showAnchorInsertionPreviewDialog() {
+  targetDoc.getElementById('st-esg-anchor-preview-dialog')?.remove();
+  const dialog = targetDoc.createElement('dialog');
+  dialog.id = 'st-esg-anchor-preview-dialog';
+  dialog.className = `st-esg-anchor-preview-dialog st-esg-theme-${settings.theme === 'light' ? 'light' : 'dark'}`;
+
+  const target = getAnchorTargetMessage();
+  const targetText = String(target?.message?.mes ?? '');
+  const items = Array.isArray(settings.lastGeneratedAnchorItems) ? settings.lastGeneratedAnchorItems : [];
+  const preview = buildAnchorPreviewSegments(targetText, items);
+  const hasTarget = Boolean(target && targetText);
+  const segmentHtml = preview.segments.length
+    ? preview.segments.map((segment) => segment.type === 'insert'
+      ? `<mark class="st-esg-anchor-preview-insert" data-anchor-preview-item-index="${Number(segment.itemIndex)}">${escapeHtml(segment.text)}</mark>`
+      : escapeHtml(segment.text)).join('')
+    : escapeHtml(hasTarget ? targetText : '未找到本次生成记录对应的最新 assistant 楼层。');
+  const skippedHtml = preview.skipped.length
+    ? `<div class="st-esg-anchor-preview-skipped">${preview.skipped.length} 项未能定位，已按原文保留。请回到计划卡片编辑锚点。</div>`
+    : '';
+  const targetLabel = hasTarget ? `第 ${Number(target.index) + 1} 层 assistant` : '未找到目标楼层';
+
+  dialog.innerHTML = `
+    <form method="dialog">
+      <header class="st-esg-anchor-preview-header">
+        <div>
+          <div class="st-esg-card-title">插入效果预览</div>
+          <div class="st-esg-card-desc">目标：${escapeHtml(targetLabel)} · 高亮部分为本次插入内容</div>
+        </div>
+        <button class="st-esg-icon-btn" type="button" data-anchor-preview-close aria-label="关闭预览"><i class="fa-solid fa-xmark"></i></button>
+      </header>
+      <div class="st-esg-anchor-preview-body">
+        <div class="st-esg-anchor-preview-meta">已定位 ${preview.applied.length} 项${preview.skipped.length ? `，跳过 ${preview.skipped.length} 项` : ''}</div>
+        ${skippedHtml}
+        <pre class="st-esg-anchor-preview-text">${segmentHtml}</pre>
+      </div>
+      <footer class="st-esg-actions-row st-esg-anchor-preview-footer">
+        <button class="menu_button st-esg-primary-action" type="button" data-anchor-preview-close>关闭</button>
+      </footer>
+    </form>`;
+
+  const closeDialog = () => {
+    if (dialog.open && typeof dialog.close === 'function') dialog.close();
+    dialog.remove();
+  };
+  dialog.querySelectorAll('[data-anchor-preview-close]').forEach((button) => button.addEventListener('click', closeDialog));
+  dialog.addEventListener('cancel', (event) => { event.preventDefault(); closeDialog(); });
+  dialog.addEventListener('click', (event) => { if (event.target === dialog) closeDialog(); });
+  targetDoc.body.appendChild(dialog);
+  if (typeof dialog.showModal === 'function') dialog.showModal();
+  else dialog.setAttribute('open', '');
 }
 
 function formatGenerationHistoryTime(value) {
@@ -5821,20 +5867,18 @@ function bindPanelEvents() {
   });
   $t('#st-esg-fetch-models').on('click', fetchApiModels);
   $t('#st-esg-additional-parameters').on('click', showApiAdditionalParametersDialog);
+  $t('.st-esg-generation-content').off('click.stEsgAnchorPreview').on('click.stEsgAnchorPreview', '.st-esg-anchor-preview-button', function () {
+    showAnchorInsertionPreviewDialog();
+  });
   $t('.st-esg-generation-content').off('input.stEsgAnchor change.stEsgAnchor').on('input.stEsgAnchor change.stEsgAnchor', '#st-esg-anchor-plan [data-anchor-field]', function () {
     const field = $(this);
     const card = field.closest('.st-esg-anchor-plan-item');
     const index = Number(card.attr('data-anchor-item-index'));
     const item = settings.lastGeneratedAnchorItems?.[index];
     const fieldName = String(field.attr('data-anchor-field') || '');
-    if (!item || !['position', 'anchor', 'content'].includes(fieldName)) return;
+    if (!item || !['anchor', 'content'].includes(fieldName)) return;
     item[fieldName] = String(field.val() ?? '');
-    if (fieldName === 'position') {
-      renderAnchorInsertionPlan(settings.lastGeneratedAnchorItems, settings.lastGeneratedAnchorWarnings);
-      renderGenerationResultPanel();
-    } else {
-      updateAnchorPlanResolutionUi();
-    }
+    updateAnchorPlanStatusUi();
     scheduleAnchorEditPersistence();
   });
   $t('.st-esg-scheme-select').on('change', function () {

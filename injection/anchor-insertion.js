@@ -222,6 +222,63 @@ export function applyAnchorInsertions(messageText, items) {
   return { text: result, applied, skipped: located.skipped };
 }
 
+/**
+ * Build the same final message as applyAnchorInsertions, while retaining
+ * segments that identify the newly inserted component text. The UI uses this
+ * to highlight inserted content without changing the actual chat message.
+ */
+export function buildAnchorPreviewSegments(messageText, items) {
+  const text = typeof messageText === 'string' ? messageText : '';
+  const located = locateAnchorInsertions(text, items);
+  const newline = detectNewline(text);
+  const ordered = [...located.matches].sort(
+    (a, b) => b.offset - a.offset || b.itemIndex - a.itemIndex,
+  );
+  let result = text;
+  const ranges = [];
+  const applied = [];
+
+  for (const match of ordered) {
+    const offset = Math.max(0, Math.min(Number(match.offset) || 0, result.length));
+    const left = result.slice(0, offset);
+    const right = result.slice(offset);
+    const body = stripOuterNewlines(String(match.item.content ?? ''));
+    const prefix = left.length === 0 || left.endsWith(newline) ? '' : newline;
+    const suffix = right.length === 0 || right.startsWith(newline) ? '' : newline;
+    const insertedLength = prefix.length + body.length + suffix.length;
+
+    ranges.forEach((range) => {
+      if (range.start >= offset) {
+        range.start += insertedLength;
+        range.end += insertedLength;
+      }
+    });
+
+    result = `${left}${prefix}${body}${suffix}${right}`;
+    ranges.push({
+      start: offset + prefix.length,
+      end: offset + prefix.length + body.length,
+      itemIndex: match.itemIndex,
+    });
+    applied.push(match);
+  }
+
+  applied.reverse();
+  ranges.sort((a, b) => a.start - b.start || a.itemIndex - b.itemIndex);
+  const segments = [];
+  let cursor = 0;
+  ranges.forEach((range) => {
+    const start = Math.max(cursor, range.start);
+    if (start > cursor) segments.push({ type: 'source', text: result.slice(cursor, start) });
+    const end = Math.max(start, range.end);
+    if (end > start) segments.push({ type: 'insert', text: result.slice(start, end), itemIndex: range.itemIndex });
+    cursor = end;
+  });
+  if (cursor < result.length) segments.push({ type: 'source', text: result.slice(cursor) });
+
+  return { text: result, segments, applied, skipped: located.skipped };
+}
+
 export function getAnchorMatchContext(messageText, match, radius = 72) {
   const text = typeof messageText === 'string' ? messageText : '';
   if (!match || match.matchType === 'boundary') {

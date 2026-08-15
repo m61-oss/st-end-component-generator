@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   applyAnchorInsertions,
+  buildAnchorPreviewSegments,
   locateAnchorInsertions,
 } from './anchor-insertion.js';
 
@@ -93,4 +94,19 @@ test('applies multiple matches from right to left without offset drift', () => {
   ]);
 
   assert.equal(output.text, 'A\none\nB\nC\nthree');
+});
+
+test('builds a final-message preview with inserted content segments', () => {
+  const preview = buildAnchorPreviewSegments('第一段。\n\n第二段。', [
+    { position: 'after', anchor: '第一段。', content: '新增组件' },
+  ]);
+
+  assert.equal(preview.text, '第一段。\n新增组件\n\n第二段。');
+  assert.deepEqual(preview.segments, [
+    { type: 'source', text: '第一段。\n' },
+    { type: 'insert', text: '新增组件', itemIndex: 0 },
+    { type: 'source', text: '\n\n第二段。' },
+  ]);
+  assert.equal(preview.applied.length, 1);
+  assert.equal(preview.skipped.length, 0);
 });
