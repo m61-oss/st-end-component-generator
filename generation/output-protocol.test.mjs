@@ -16,10 +16,13 @@ test('publishes the fixed two-field protocol as a system message', () => {
   });
   assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /"thinking"[\s\S]*"output"/);
   assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /固定输出协议｜最高优先级/);
-  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /无论任务要求输出何种内容/);
-  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /顶层只能存在/);
-  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /严格按照 JSON 语法转义/);
-  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /输出前确认/);
+  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /本协议仅规定完整回复的外层封装/);
+  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /外层封装先于任何内部内容形成/);
+  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /全部思考、推演及其既定格式/);
+  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /思考部分结束后的全部实际输出及其既定格式/);
+  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /若思考部分规定以特定字符或标签开始/);
+  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /按标准 JSON 语法转义/);
+  assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /完整回复的第一个字符必须是/);
   assert.doesNotMatch(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /"content"\s*:/);
   assert.doesNotMatch(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /织幕固定输出协议/);
 });
