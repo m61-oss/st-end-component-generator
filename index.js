@@ -1117,12 +1117,11 @@ function renderAnchorInsertionPlan(items = settings.lastGeneratedAnchorItems, wa
   const contentCard = preview.closest('.st-esg-generation-content');
   if (!box.length) {
     const anchorMarkup = '<div id="st-esg-anchor-plan" class="st-esg-anchor-plan st-esg-hidden"></div>';
-    if (contentCard.length) contentCard.before(anchorMarkup);
-    else preview.before(anchorMarkup);
+    preview.before(anchorMarkup);
     box = $t('#st-esg-anchor-plan');
-  } else if (contentCard.length && box.closest('.st-esg-generation-content').length) {
-    // 锚点计划本身就是一个独立卡片，不能继续嵌套在预览卡片里。
-    contentCard.before(box);
+  } else if (contentCard.length && !contentCard[0].contains(box[0])) {
+    // 兼容旧版已渲染的独立计划：重新放回生成内容卡片内，保持嵌套层级稳定。
+    preview.before(box);
   }
   const sourceItems = Array.isArray(items) ? items : [];
   const entries = sourceItems.map((item, sourceIndex) => ({ item, sourceIndex })).filter(({ item }) => item && item.content);

@@ -538,7 +538,7 @@ select.st-esg-scheme-select {
 
 .st-esg-textarea { min-height: 68px; resize: vertical; line-height: 1.45 !important; }
 .st-esg-preview { --st-esg-preview-min-height: 160px; display: block !important; box-sizing: border-box; width: 100%; min-height: var(--st-esg-preview-min-height); padding-bottom: 14px !important; max-height: min(520px, 55vh) !important; overflow-y: auto !important; flex: none !important; align-self: stretch; resize: none; font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace); }
-.st-esg-anchor-plan { display: grid; gap: 7px; margin: 8px 0 9px; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.st-esg-anchor-plan { display: grid; gap: 7px; margin: 8px 0 9px; padding: 9px; border: 1px solid var(--esg-border); border-radius: 9px; background: var(--esg-bg-input); }
 .st-esg-anchor-plan-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--esg-text-main); font-size: 12px; }
 .st-esg-anchor-plan-head > div { display: inline-flex; align-items: baseline; gap: 7px; min-width: 0; }
 .st-esg-anchor-preview-button { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 28px; height: 28px; min-height: 28px; padding: 0; border: 1px solid color-mix(in srgb, var(--esg-border) 72%, transparent) !important; border-radius: 7px; color: var(--esg-text-muted); background: transparent !important; box-shadow: none !important; font-size: 12px; }
