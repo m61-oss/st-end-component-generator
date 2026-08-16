@@ -40,16 +40,19 @@ test('publishes a variable-length anchor plan only in anchor mode', () => {
     content: ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT,
   });
   assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /output[\s\S]*position[\s\S]*anchor[\s\S]*content/);
-  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /任意数量/);
-  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /before 还是 after/);
-  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /忽视所有续写正文要求/);
-  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /唯一允许匹配和插入的最新 assistant 楼层/);
+  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /本协议只规定完整回复的外层 JSON 封装与锚点插入计划/);
+  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /全部思考、推演与插入规划，使用中文/);
+  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /唯一目标范围/);
+  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /仅两个标记之间的完整原文属于目标范围/);
+  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /output[\s\S]*可为空或包含任意数量插入项/);
+  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /若\s*"anchor"\s*重复/);
+  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /完整回复必须以\s*"\{"\s*开始/);
+  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /忽略续写正文要求/);
+  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /唯一允许匹配和插入的目标/);
   assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /<latest_assistant_target>/);
   assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /<\/latest_assistant_target>/);
-  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /标记内部/);
   assert.doesNotMatch(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /紧邻本次任务之前/);
-  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /绝不可从更早楼层复制/);
-  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /找不到就省略/);
+  assert.doesNotMatch(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /找不到就省略/);
   assert.doesNotMatch(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /织幕/);
 });
 

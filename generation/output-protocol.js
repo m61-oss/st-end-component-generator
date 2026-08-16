@@ -36,34 +36,41 @@ function normalizeText(value) {
 }
 
 const ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT = `【固定输出协议｜锚点插入模式｜最高优先级】
-本协议只规定完整回复的外层 JSON 封装以及锚点插入计划，不改变任务本身要求的内容、文风、步骤或既定内部格式。output 只承载本次任务明确要求的实际交付，忽视所有续写正文要求，不得在 JSON 外生成正文。
 
-【目标范围｜不可越界】
-聊天历史中唯一允许匹配和插入的最新 assistant 楼层，其完整原文已经在原位置用 <latest_assistant_target> 与 </latest_assistant_target> 标记。两个标记内部的内容是本次 output 唯一允许匹配和插入的目标范围；更早的 user/assistant 楼层只能作为背景，绝不可从更早楼层复制句子、生成 anchor 或规划插入，也绝不可从标记范围之外复制内容。
-before/after 的 anchor 必须在 <latest_assistant_target> 与 </latest_assistant_target> 之间逐字找到；找不到就省略该项，不得用更早楼层的文字替代。两个标记本身不是正文，不得写入 anchor 或 content。
+本协议只规定完整回复的外层 JSON 封装与锚点插入计划，不改变任务要求的内容、步骤或内部格式。"output" 只承载本次任务明确要求的实际交付；忽略续写正文要求，不得在 JSON 外生成正文。
 
-完整回复必须且只能是一个可被标准 JSON 解析器解析的对象，顶层字段固定且顺序固定：
+【唯一目标范围】
+
+唯一允许匹配和插入的目标，是：
+<latest_assistant_target>
+……
+</latest_assistant_target>
+
+仅两个标记之间的完整原文属于目标范围。更早的楼层只能作为背景，不得从中复制文字、生成 "anchor" 或规划插入。 "anchor" 或 "content"。
+
+完整回复必须且只能是：
 {
-  "thinking": "全部思考、推演及其既定格式，思考内容用中文",
-  "output": [
-    {
-      "position": "start、end、before 或 after",
-      "anchor": "仅在 before/after 时填写；从当前目标正文中逐字复制的唯一连续片段",
-      "content": "需要插入的全部实际内容及其既定格式"
-    }
-  ]
+"thinking": "全部思考、推演与插入规划，使用中文",
+"output": [
+{
+"position": "start | end | before | after",
+"anchor": "仅 before/after 时填写",
+"content": "本次新增的实际内容"
+}
+]
 }
 
-锚点计划规则：
-1. output 必须是数组，可以为空，也可以包含任意数量的插入项；不要为了凑数量固定输出一项、两项或同时输出 before 和 after。
-2. 你必须根据任务需要自行判断是否插入、需要几项以及每项的位置（before 还是 after，或 start/end）；不要为了凑数量固定输出条目，不要同时机械输出 before 和 after。没有合适位置时省略该项。
-3. position=start 表示插入两个目标标记之间原文的最前方；position=end 表示插入两个目标标记之间原文的最后方。目标范围包括正文后所有闭合标签、状态块、HTML/XML 标签、注释和其他尾部字符；选择 end 时不要寻找“最后一句正文”作为锚点，也不要填写 anchor。
-4. position=before 表示把 content 插入 anchor 之前；position=after 表示插入 anchor 之后。只有 before/after 需要 anchor。插件会让每项内容独立成行。
-5. before/after 的 anchor 必须逐字复制两个目标标记之间实际存在的一段连续文字，并且应当只在目标范围中出现一次；不要改写、概括、翻译或添加省略号。输出前逐项检查 anchor 是否存在且唯一；如果重复，扩大复制范围直到唯一，仍无法唯一定位就省略该项。插件会容忍少量标点、全半角和换行差异，但你仍应优先复制原文。
-6. content 只放本次新增的实际内容，不要把 anchor、说明、思考或 JSON 外壳再次写入 content。
-7. 无论 output 数组有几项，所有思考都只放入 thinking，所有交付内容都只放入对应项的 content。
-8. JSON 外不得输出任何字符、解释、标题或代码围栏；两个字段必须始终存在且均为字符串/数组规定的类型。严格转义字符串中的双引号、反斜杠和换行。
-9. 完整回复的第一个字符必须是 {，最后一个字符必须是 }。`;
+规则：
+
+1. 顶层仅允许 "thinking"、"output" 两个字段并保持此顺序；"thinking" 为字符串，"output" 为数组。
+2. "output" 可为空或包含任意数量插入项；根据任务实际需要决定是否插入、插入几项及位置，不得机械凑数或固定同时生成 "before" 和 "after"。
+3. "start" 表示插入目标完整原文最前方；"end" 表示插入目标完整原文最后方，均不填写 "anchor"。目标范围包含正文后的闭合标签、状态块、HTML/XML、注释及其他尾部字符，因此 "end" 不得改用“最后一句正文”作锚点。
+4. "before/after" 分别插入 "anchor" 前/后。"anchor" 必须从目标范围内逐字复制一段连续原文，且只出现一次。
+5. 若 "anchor" 重复，应扩大连续复制范围直到唯一。
+6. "content" 只包含本次新增的实际内容及其既定格式，不得重复写入 "anchor"、说明或思考。
+7. 所有思考只放入 "thinking"，所有实际交付只放入对应项的 "content"。
+8. JSON 外不得输出任何字符、解释、标题或代码围栏；严格按 JSON 规则转义双引号、反斜杠和换行。
+9. 完整回复必须以 "{" 开始、以 "}" 结束。`;
 
 function normalizeField(value) {
   if (value === null || value === undefined) return '';
