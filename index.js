@@ -119,6 +119,7 @@ const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.1.9';
 const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置文尾组件生成器';
+const EXTERNAL_FLOATING_BALL_HIDDEN_CLASS = 'st-esg-external-ball-hidden';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
 const GENERATION_HISTORY_STORAGE_KEY = `${EXTENSION_ID}.recentGenerationHistory`;
 // 生成页当前结果只属于本次页面运行会话；跨刷新查看应使用最近生成记录。
@@ -3083,10 +3084,15 @@ function closeSillyTavernOverlays() {
   $t('.openDrawer').not('.drawerPinnedOpen').removeClass('openDrawer').addClass('closedDrawer');
 }
 
+function setExternalFloatingBallCompatibilityHidden(hidden) {
+  targetDoc.body?.classList.toggle(EXTERNAL_FLOATING_BALL_HIDDEN_CLASS, Boolean(hidden));
+}
+
 function togglePanel(forceOpen) {
   const dialog = getDialog();
   if (!dialog) return;
   const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !dialog.open;
+  setExternalFloatingBallCompatibilityHidden(shouldOpen);
   targetDoc.getElementById('st-esg-ball')?.classList.toggle('st-esg-ball-under-panel', shouldOpen);
   applyTheme();
   if (shouldOpen) {
@@ -5736,6 +5742,7 @@ function renderPluginPanel() {
   dialog.addEventListener('close', () => {
     resetComponentEditMode();
     resetComponentLibraryFilters();
+    setExternalFloatingBallCompatibilityHidden(false);
     targetDoc.getElementById('st-esg-ball')?.classList.remove('st-esg-ball-under-panel');
   });
   dialog.addEventListener('click', (event) => { if (event.target === dialog) togglePanel(false); });
