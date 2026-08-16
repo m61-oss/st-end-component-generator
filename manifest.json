@@ -3,9 +3,9 @@
   "loading_order": 100,
   "requires": [],
   "optional": [],
-  "js": "index.js?ver=0.1.8",
+  "js": "index.js?ver=0.1.9",
   "author": "m61-oss",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "homePage": "https://github.com/m61-oss/st-end-component-generator",
   "auto_update": true,
   "minimum_client_version": "1.12.13"
