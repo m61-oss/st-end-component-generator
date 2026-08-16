@@ -106,22 +106,6 @@
   justify-content: center;
 }
 
-/*
- * The floating-ball collector may reparent captured third-party balls into an
- * open dialog.  Our full-screen dialog is a flex container, so leaving those
- * balls visible would make them become layout siblings and squeeze the panel.
- * Only collector-marked balls are hidden; ordinary, uncaptured QuickBar balls
- * keep their normal behavior.  If a captured ball brought QuickBar's panel
- * along, hide that panel too while the collector marker is present.
- */
-body.st-esg-external-ball-hidden [data-edge-ball-id] {
-  display: none !important;
-}
-
-body.st-esg-external-ball-hidden:has([data-edge-ball-id]) .ih-floating-panel {
-  display: none !important;
-}
-
 .st-esg-dialog,
 .st-esg-dialog * {
   box-sizing: border-box;
