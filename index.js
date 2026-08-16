@@ -75,6 +75,7 @@ import { hasFloatingBallDragStarted, resolveFloatingBallDock } from './ui/floati
 import { normalizeFloatingBallVisualState, resolveFloatingBallRenderedState } from './ui/floating-ball-state.js?ver=0.1.8';
 import { isFloatingBallExternallyManaged, markFloatingBallCompatible } from './ui/floating-ball-compat.js?ver=0.1.8';
 import { renderBrandMark } from './ui/brand-mark.js?ver=0.1.8';
+import { getGenerationInjectionModeHelp } from './ui/generation-settings.js?ver=0.1.8';
 import {
   buildApiRequestParts,
   parseApiAdditionalParameters,
@@ -5276,21 +5277,24 @@ function buildPluginPanelMarkup() {
 function buildGenerationSettingsMarkup() {
   return `<details class="st-esg-card st-esg-collapsible st-esg-generation-settings"><summary class="st-esg-collapsible-summary">生成设置</summary><div class="st-esg-collapsible-body st-esg-generation-settings-body">
     <section class="st-esg-generation-settings-section">
-      <div class="st-esg-generation-settings-section-title"><strong>自动化</strong><span>决定生成流程是否自动运行</span></div>
+      <div class="st-esg-generation-settings-section-title"><strong>运行流程</strong></div>
       <div class="st-esg-generation-settings-grid">
         <label class="st-esg-checkbox st-esg-log-option st-esg-generation-setting-card"><input id="st-esg-auto-generate" type="checkbox" /><span>监听正文结束自动生成</span><em>检测到新的助手正文结束后自动开始生成。</em></label>
         <label class="st-esg-checkbox st-esg-log-option st-esg-generation-setting-card"><input id="st-esg-auto-inject" type="checkbox" /><span>生成结束后自动注入</span><em>生成完成并通过解析后，自动写回当前回复。</em></label>
       </div>
     </section>
     <section class="st-esg-generation-settings-section st-esg-generation-injection-section">
-      <div class="st-esg-generation-settings-section-title"><strong>注入策略</strong><span>选择生成内容如何进入当前回复</span></div>
-      <label id="st-esg-inject-mode-row" class="st-esg-generation-inject-mode"><span>注入方式</span><select id="st-esg-inject-mode" class="text_pole st-esg-select"><option value="replace">正文已有同名标签时直接覆盖</option><option value="append">始终追加到末尾</option><option value="anchor">按模型返回的自定义锚点插入</option></select></label>
-      <div class="st-esg-generation-settings-help">覆盖模式仅支持成对的尖括号标签（如 &lt;status&gt;…&lt;/status&gt;）。[status]、【状态】等格式无法识别，会自动改为追加。锚点模式会让模型根据当前正文自行决定插入数量与 before/after 方向，每项内容独立成行。</div>
+      <div class="st-esg-generation-settings-section-title"><strong>注入方式</strong></div>
+      <select id="st-esg-inject-mode" class="text_pole st-esg-select" aria-label="注入方式"><option value="replace">正文已有同名标签时直接覆盖</option><option value="append">始终追加到末尾</option><option value="anchor">按模型返回的自定义锚点插入</option></select>
+      <div id="st-esg-inject-mode-help" class="st-esg-generation-settings-help" role="status" aria-live="polite"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span></span></div>
     </section>
     <section class="st-esg-generation-settings-section">
-      <div class="st-esg-generation-settings-section-title"><strong>注入前后</strong><span>控制重复注入与状态标签的位置</span></div>
-      <label class="st-esg-checkbox st-esg-log-option st-esg-generation-setting-row"><input id="st-esg-rollback-before-generation" type="checkbox" /><span>生成前撤回本楼上次注入</span><em>只在开始新一轮生成前撤回上一轮注入；手动点击“注入”不会重复撤回。</em></label>
-      <label class="st-esg-checkbox st-esg-log-option st-esg-generation-setting-row"><input id="st-esg-status-placeholder-enabled" type="checkbox" /><span>将 MVU 状态标签固定到正文末尾</span><em>检测正文或生成内容中的 &lt;StatusPlaceHolderImpl/&gt;，清理重复项并在最终文末保留一个。</em></label>
+      <div class="st-esg-generation-settings-section-title"><strong>注入处理</strong></div>
+      <div class="st-esg-generation-settings-grid st-esg-generation-processing-options">
+        <label class="st-esg-checkbox st-esg-log-option st-esg-generation-setting-row"><input id="st-esg-rollback-before-generation" type="checkbox" /><span>生成前撤回本楼上次注入</span><em>只在开始新一轮生成前撤回上一轮注入；手动点击“注入”不会重复撤回。</em></label>
+        <label class="st-esg-checkbox st-esg-log-option st-esg-generation-setting-row"><input id="st-esg-status-placeholder-enabled" type="checkbox" /><span>将 MVU 状态标签固定到正文末尾</span><em>检测正文或生成内容中的 &lt;StatusPlaceHolderImpl/&gt;，清理重复项并在最终文末保留一个。</em></label>
+        <label class="st-esg-checkbox st-esg-log-option st-esg-generation-setting-row"><input id="st-esg-mvu-reprocess-on-inject" type="checkbox" /><span>注入变量更新后重处理 MVU 变量</span><em>仅本次注入内容含有 &lt;UpdateVariable&gt; 时执行；未安装 MVU 会自动跳过。</em></label>
+      </div>
     </section>
   </div></details>`;
 }
@@ -5541,23 +5545,17 @@ async function clearDataManagementCategory(category) {
 function renderGenerationSettings() {
   const settingsBody = targetDoc.querySelector('.st-esg-generation-settings .st-esg-collapsible-body');
   const modeSelect = settingsBody?.querySelector('#st-esg-inject-mode');
-  if (modeSelect) {
-    modeSelect.innerHTML = '<option value="replace">正文已有同名标签时直接覆盖</option><option value="append">始终追加到末尾</option><option value="anchor">按模型返回的自定义锚点插入</option>';
-    if (!settingsBody.querySelector('#st-esg-rollback-before-generation')) {
-      modeSelect.closest('label')?.insertAdjacentHTML('afterend', '<label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-rollback-before-generation" type="checkbox" /><span>生成前撤回本楼上次注入</span><em>只在开始新一轮生成前撤回上一轮注入；手动点击“注入”不会重复撤回。</em></label>');
-    }
-  }
-  const statusPlaceholderSetting = settingsBody?.querySelector('#st-esg-status-placeholder-enabled')?.closest('label');
-  const injectionModeDescription = settingsBody?.querySelector('.st-esg-card-desc');
-  if (injectionModeDescription && statusPlaceholderSetting) {
-    settingsBody.insertBefore(injectionModeDescription, statusPlaceholderSetting);
-  }
-  if (statusPlaceholderSetting && !targetDoc.getElementById('st-esg-mvu-reprocess-on-inject')) {
-    statusPlaceholderSetting.insertAdjacentHTML('afterend', '<label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-mvu-reprocess-on-inject" type="checkbox" /><span>注入变量更新后重处理 MVU 变量</span><em>仅本次注入内容含有 &lt;UpdateVariable&gt; 时执行；未安装 MVU 会自动跳过。</em></label>');
+  const modeHelp = settingsBody?.querySelector('#st-esg-inject-mode-help');
+  const injectionHelp = getGenerationInjectionModeHelp(settings.injectMode);
+  if (modeSelect) modeSelect.value = injectionHelp.mode;
+  if (modeHelp) {
+    modeHelp.dataset.mode = injectionHelp.mode;
+    const helpText = modeHelp.querySelector('span');
+    if (helpText) helpText.textContent = injectionHelp.text;
   }
   $t('#st-esg-auto-generate').prop('checked', settings.autoGenerate);
   $t('#st-esg-auto-inject').prop('checked', settings.autoInject);
-  $t('#st-esg-inject-mode').val(settings.injectMode);
+  $t('#st-esg-inject-mode').val(injectionHelp.mode);
   $t('#st-esg-rollback-before-generation').prop('checked', settings.rollbackBeforeGeneration);
   $t('#st-esg-status-placeholder-enabled').prop('checked', settings.statusPlaceholderEnabled);
   $t('#st-esg-mvu-reprocess-on-inject').prop('checked', settings.mvuReprocessOnInject);
@@ -6118,7 +6116,7 @@ function bindPanelEvents() {
   $t('#st-esg-api-retry-count').on('input', function () { settings.apiRetryCount = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
   $t('#st-esg-api-retry-count').on('change blur', function () { settings.apiRetryCount = normalizeApiRetryCount($(this).val()); $(this).val(settings.apiRetryCount); markSchemeDirty('api'); saveSettings(); });
   $t('#st-esg-prompt-template-compat').on('change', function () { settings.promptTemplateCompatEnabled = Boolean($(this).prop('checked')); saveSettings(); });
-  $t('#st-esg-inject-mode').on('change', function () { settings.injectMode = String($(this).val()); saveSettings(); });
+  $t('#st-esg-inject-mode').on('change', function () { settings.injectMode = String($(this).val()); saveSettings(); renderGenerationSettings(); });
   $t('#st-esg-rollback-before-generation').on('change', function () { settings.rollbackBeforeGeneration = Boolean($(this).prop('checked')); saveSettings(); });
   ['history', 'output'].forEach((type) => {
     $t(`#st-esg-${type}-rule-add`).on('click', () => addTagRule(type));
