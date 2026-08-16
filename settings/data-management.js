@@ -1,3 +1,4 @@
+import { getWorldbookSchemeSnapshotStats } from './scheme-utils.js';
 const textOf = (value) => String(value ?? '').trim();
 const byteSize = (value) => new TextEncoder().encode(JSON.stringify(value ?? null)).length;
 const hasStoredValue = (value) => {
@@ -69,6 +70,16 @@ export function buildDataManagementModel(settings, { characterNames = [], runtim
   const orphanComponentIds = [...characterGroups, ...presetGroups].filter((group) => group.orphan).flatMap((group) => group.items.map((item) => textOf(item?.id))).filter(Boolean);
   const orphanBindingChatIds = chatBindings.filter((item) => item.orphan).map((item) => textOf(item?.chatId)).filter(Boolean);
   const schemes = { api: settings?.apiSchemes, task: settings?.taskSchemes, preset: presetSchemes, worldbook: worldbookSchemes };
+  const worldbookSchemeDetails = worldbookSchemes.map((scheme) => {
+    const snapshot = scheme?.snapshot && typeof scheme.snapshot === 'object' ? scheme.snapshot : {};
+    const stats = getWorldbookSchemeSnapshotStats(snapshot);
+    return {
+      id: textOf(scheme?.id),
+      name: textOf(scheme?.name) || '未命名方案',
+      ...stats,
+      size: byteSize(snapshot),
+    };
+  });
   const libraries = { components, componentGroups: settings?.componentGroups, theaterComponents: settings?.theaterComponents, theaterGroups: settings?.theaterGroups };
   const bindings = { chatWorldbookBindings: settings?.chatWorldbookBindings };
   const caches = { lastPromptLog: settings?.lastPromptLog, lastGenerated: settings?.lastGenerated, lastGeneratedThinking: settings?.lastGeneratedThinking, ...runtimeData };
@@ -84,6 +95,7 @@ export function buildDataManagementModel(settings, { characterNames = [], runtim
     },
     characterGroups,
     presetGroups,
+    worldbookSchemes: worldbookSchemeDetails,
     chatBindings,
     orphanComponentIds,
     orphanBindingChatIds,

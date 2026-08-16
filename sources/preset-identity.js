@@ -54,22 +54,6 @@ export function reconcilePresetEntryRecords(recordStores, source, items) {
   return { stores, keyMap, changed };
 }
 
-export function migratePresetPromptSourceSnapshot(snapshot, source, items) {
-  if (!snapshot || typeof snapshot !== 'object' || !Array.isArray(snapshot.items)) {
-    return { snapshot: null, changed: false };
-  }
-  const keyMap = reconcilePresetEntryRecords({}, source, items).keyMap;
-  let changed = false;
-  const nextItems = snapshot.items.map((item) => {
-    if (String(item?.source ?? '').trim() !== String(source ?? '').trim()) return item;
-    const key = keyMap[item?.key];
-    if (!key || key === item.key) return item;
-    changed = true;
-    return { ...item, key };
-  });
-  return { snapshot: changed ? { ...snapshot, items: nextItems } : snapshot, changed };
-}
-
 export function reconcilePresetSchemeRecords(schemes, source, items) {
   let changed = false;
   const nextSchemes = (Array.isArray(schemes) ? schemes : []).map((scheme) => {

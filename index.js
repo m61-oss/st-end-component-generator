@@ -39,13 +39,13 @@ import {
   normalizePromptSourceType,
   syncPromptSelectionsFromGroups,
 } from './sources/source-selection.js?ver=0.1.8';
-import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hydrateTavernWorldbookSelections, normalizeSchemeList, resolveWorldbookPromptSelectionsForLoad, saveScheme } from './settings/scheme-utils.js?ver=0.1.8';
+import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hydrateTavernWorldbookSelections, isWorldbookSchemeSnapshotUsable, normalizeSchemeList, resolveWorldbookPromptSelectionsForLoad, saveScheme } from './settings/scheme-utils.js?ver=0.1.8';
 import { readOpenAiStream } from './api/stream-utils.js?ver=0.1.8';
 import { normalizeApiRetryCount, withApiRetries } from './api/api-retry.js?ver=0.1.8';
 import { stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.1.8';
 import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.1.8';
 import { getWorldbookGenerationIssue, getWorldbookRawName, reconcileWorldbookEntryRecords, removeWorldbookEntryRecord, removeWorldbookSourceRecords } from './sources/worldbook-identity.js?ver=0.1.8';
-import { migratePresetPromptSourceSnapshot, reconcilePresetEntryRecords, reconcilePresetSchemeRecords } from './sources/preset-identity.js?ver=0.1.8';
+import { reconcilePresetEntryRecords, reconcilePresetSchemeRecords } from './sources/preset-identity.js?ver=0.1.8';
 import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.8';
 import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.8';
 import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.8';
@@ -88,12 +88,6 @@ import {
   markWorldbookSourceDirty,
   takeDirtyWorldbookSources,
 } from './sources/prompt-source-cache.js?ver=0.1.8';
-import {
-  assertPromptSourceSnapshotsAvailable,
-  createIndexedDbPromptSourceSnapshotStore,
-  loadAndMigratePromptSourceSnapshots,
-  normalizePromptSourceSnapshot,
-} from './sources/prompt-source-snapshot-storage.js?ver=0.1.8';
 import { TASK_PLACEMENT_AFTER_CHAT_HISTORY, resolveTaskPlacementSelection } from './settings/task-placement.js?ver=0.1.8';
 import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.1.8';
 import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.1.8';
@@ -272,9 +266,6 @@ let lastGeneratedThinking = [];
 let recentGenerationHistory = [];
 let activeGenerationHistoryId = null;
 let anchorEditSaveTimer = null;
-let promptSourceSnapshots = { preset: null, worldbook: null };
-let promptSourceSnapshotStore = null;
-let promptSourceSnapshotReady = Promise.resolve();
 let latestInjectionUndoSnapshot = null;
 let animaWorldbookSnapshotPromise = null;
 let animaWorldbookSnapshot = [];
@@ -529,6 +520,11 @@ function loadSettings() {
   const isFreshInstall = Object.keys(storedSettings).length === 0;
   const hadActiveSchemeIds = Object.prototype.hasOwnProperty.call(storedSettings, 'activeSchemeIds');
   settings = Object.assign({ ...DEFAULT_SETTINGS }, storedSettings);
+  // Prompt-source snapshots were only a bridge for the old import-mode generator.
+  // Import mode is now isolated from prompt editing, so discard the obsolete legacy
+  // setting instead of allowing it to influence a scheme load.
+  delete settings.promptSourceSnapshots;
+  delete storedSettings.promptSourceSnapshots;
   if (!isFreshInstall && !Object.prototype.hasOwnProperty.call(storedSettings, 'taskPlacementEnabled')) settings.taskPlacementEnabled = false;
   if (!isFreshInstall && !Object.prototype.hasOwnProperty.call(storedSettings, 'taskPlacementAfterSourceId')) settings.taskPlacementAfterSourceId = '';
   if (!isFreshInstall && !Object.prototype.hasOwnProperty.call(storedSettings, 'replaceLastUserMessageWithTask')) settings.replaceLastUserMessageWithTask = false;
@@ -687,54 +683,6 @@ function saveSettings() {
     targetWindow.localStorage?.setItem(PROMPT_TEMPLATE_COMPAT_STORAGE_KEY, String(Boolean(settings.promptTemplateCompatEnabled)));
   } catch (_) {}
   getContext().saveSettingsDebounced();
-}
-
-function initializePromptSourceSnapshotStorage() {
-  const legacySnapshots = settings.promptSourceSnapshots && typeof settings.promptSourceSnapshots === 'object'
-    ? settings.promptSourceSnapshots
-    : {};
-  promptSourceSnapshots = {
-    preset: normalizePromptSourceSnapshot(legacySnapshots.preset),
-    worldbook: normalizePromptSourceSnapshot(legacySnapshots.worldbook),
-  };
-  try {
-    promptSourceSnapshotStore = createIndexedDbPromptSourceSnapshotStore(targetWindow.indexedDB);
-  } catch (error) {
-    console.warn(`[${EXTENSION_ID}] 无法初始化浏览器提示词快照存储`, error);
-    return;
-  }
-  promptSourceSnapshotReady = loadAndMigratePromptSourceSnapshots(promptSourceSnapshotStore, legacySnapshots, {
-    sourceModes: settings.sourceModes,
-  })
-    .then((snapshots) => {
-      promptSourceSnapshots = snapshots;
-      delete settings.promptSourceSnapshots;
-      delete getSettingsStore().promptSourceSnapshots;
-      saveSettings();
-    })
-    .catch((error) => {
-      console.warn(`[${EXTENSION_ID}] 无法读取或迁移浏览器提示词快照`, error);
-    });
-}
-
-async function savePromptSourceSnapshot(type, snapshot) {
-  const sourceType = getSourceType(type);
-  await promptSourceSnapshotReady;
-  if (!promptSourceSnapshotStore) throw new Error('当前浏览器无法保存提示词快照。');
-  await promptSourceSnapshotStore.set(sourceType, snapshot);
-  promptSourceSnapshots[sourceType] = normalizePromptSourceSnapshot(snapshot);
-}
-
-async function clearPromptSourceSnapshot(type) {
-  const sourceType = getSourceType(type);
-  await promptSourceSnapshotReady;
-  promptSourceSnapshots[sourceType] = null;
-  if (!promptSourceSnapshotStore) return;
-  try {
-    await promptSourceSnapshotStore.remove(sourceType);
-  } catch (error) {
-    console.warn(`[${EXTENSION_ID}] 无法删除浏览器提示词快照`, error);
-  }
 }
 
 function isAnimaMemoryEnabled() {
@@ -1347,7 +1295,7 @@ async function buildMessages(latestMessage) {
     components,
     theaterComponents,
     promptSourceItems,
-    worldbookSourceControlled: getSourceMode('worldbook') === SOURCE_MODE_PROMPT || getPromptSourceSnapshotItems('worldbook').length > 0,
+    worldbookSourceControlled: getSourceMode('worldbook') === SOURCE_MODE_PROMPT,
     historyCleanupTags: settings.historyCleanupRules,
     historyRangeMode: settings.historyRangeMode,
     recentMessageCount: settings.recentMessageCount,
@@ -2809,7 +2757,6 @@ async function applyPresetScheme(snapshot) {
   // Saved schemes represent prompt editing. Import mode is a temporary library view
   // and must not be restored from an old or accidentally captured snapshot.
   setSourceMode('preset', SOURCE_MODE_PROMPT);
-  if (getSourceMode('preset') === SOURCE_MODE_PROMPT) await clearPromptSourceSnapshot('preset');
   renderSourceModeUi();
   settings.activeSourcePreset = textOf(snapshot.activeSourcePreset);
   settings.taskPlacementEnabled = Boolean(snapshot.taskPlacementEnabled);
@@ -2832,24 +2779,16 @@ async function applyPresetScheme(snapshot) {
 }
 
 async function applyWorldbookScheme(snapshot) {
-  // The import page can be opened before IndexedDB finishes restoring the last
-  // prompt snapshot. Wait so a legacy import-mode scheme can be repaired instead
-  // of being cleared against an empty in-memory placeholder.
-  await promptSourceSnapshotReady;
-  const currentPromptSelections = { ...settings.promptSelections };
-  const promptSnapshotItems = getPromptSourceSnapshotItems('worldbook');
-  const restoredPromptSelections = resolveWorldbookPromptSelectionsForLoad(
-    snapshot,
-    currentPromptSelections,
-    promptSnapshotItems,
-  );
+  if (!isWorldbookSchemeSnapshotUsable(snapshot)) {
+    throw new Error('该世界书方案没有可恢复的世界书来源或条目记录，已阻止载入以保护当前配置。');
+  }
+  const restoredPromptSelections = resolveWorldbookPromptSelectionsForLoad(snapshot);
 
   // Saved schemes represent prompt editing. Import mode is a temporary library view
   // and must not be restored from an old or accidentally captured snapshot.
   setSourceMode('worldbook', SOURCE_MODE_PROMPT);
-  if (getSourceMode('worldbook') === SOURCE_MODE_PROMPT) await clearPromptSourceSnapshot('worldbook');
   renderSourceModeUi();
-  settings.worldbookDraftSources = getWorldbookSchemeSourceNames(snapshot, promptSnapshotItems);
+  settings.worldbookDraftSources = getWorldbookSchemeSourceNames(snapshot);
   settings.promptSelections = clearImportSelectionsForScope(settings.promptSelections, SOURCE_WORLDBOOK);
   settings.importSelections = clearImportSelectionsForScope(settings.importSelections, SOURCE_WORLDBOOK);
   settings.sourceContentOverrides = clearImportSelectionsForScope(settings.sourceContentOverrides, SOURCE_WORLDBOOK);
@@ -3030,6 +2969,10 @@ async function handleSchemeAction(type, action) {
     }
     const scheme = findScheme(list, selectedId);
     if (!scheme) { notifyStatus('请先选择要载入的方案。', 'warning'); return; }
+    if (type === 'worldbook' && !isWorldbookSchemeSnapshotUsable(scheme.snapshot || {})) {
+      notifyStatus(`世界书方案“${scheme.name}”没有可恢复的数据，已阻止载入；当前配置未改变。`, 'error');
+      return;
+    }
     if (!targetWindow.confirm(`确认载入方案“${scheme.name}”？当前未保存的修改将丢失。`)) return;
     setSelectedSchemeId(type, selectedId);
     markSchemeClean(type, selectedId);
@@ -4181,41 +4124,17 @@ function setSourceMode(type, mode) {
   settings.sourceModes[sourceType] = mode === SOURCE_MODE_IMPORT ? SOURCE_MODE_IMPORT : SOURCE_MODE_PROMPT;
 }
 
-function getPromptSourceSnapshotItems(type) {
-  const snapshot = promptSourceSnapshots?.[getSourceType(type)];
-  return Array.isArray(snapshot?.items) ? snapshot.items : [];
-}
-
 function clearImportSelections(type) {
   const sourceType = getSourceType(type);
   const sourceScope = sourceType === 'worldbook' ? SOURCE_WORLDBOOK : SOURCE_PRESET;
   settings.importSelections = clearImportSelectionsForScope(settings.importSelections, sourceScope);
 }
 
-async function capturePromptSourceSnapshot(type) {
-  const sourceType = getSourceType(type);
-  const items = await ensurePromptSourceItemsForGeneration({ refreshSources: false });
-  const snapshot = {
-    items: items.filter((item) => getSourceType(item) === sourceType),
-  };
-  await savePromptSourceSnapshot(sourceType, snapshot);
-}
-
 async function changeSourceMode(type, mode) {
   const sourceType = getSourceType(type);
   const nextMode = mode === SOURCE_MODE_IMPORT ? SOURCE_MODE_IMPORT : SOURCE_MODE_PROMPT;
   if (nextMode === getSourceMode(sourceType)) return;
-  if (nextMode === SOURCE_MODE_IMPORT) {
-    try {
-      await capturePromptSourceSnapshot(sourceType);
-    } catch (error) {
-      notifyStatus(error?.message || '无法建立提示词快照。', 'error');
-      renderSourceModeUi();
-      return;
-    }
-  }
   clearImportSelections(sourceType);
-  if (nextMode === SOURCE_MODE_PROMPT) await clearPromptSourceSnapshot(sourceType);
   setSourceMode(sourceType, nextMode);
   saveSettings();
   renderSourceModeUi();
@@ -4438,23 +4357,11 @@ function getPresetRecordStores(source = settings) {
   };
 }
 
-function migrateBrowserPresetPromptSnapshot(source, items) {
-  void promptSourceSnapshotReady.then(async () => {
-    const migration = migratePresetPromptSourceSnapshot(promptSourceSnapshots.preset, source, items);
-    if (!migration.changed) return;
-    promptSourceSnapshots.preset = migration.snapshot;
-    if (promptSourceSnapshotStore) await promptSourceSnapshotStore.set('preset', migration.snapshot);
-  }).catch((error) => {
-    console.warn(`[${EXTENSION_ID}] 无法迁移浏览器中的预设提示词快照`, error);
-  });
-}
-
 function reconcileLoadedPresetGroups(groups) {
   const presetGroups = (Array.isArray(groups) ? groups : [])
     .filter((group) => group?.scope === SOURCE_PRESET && group.loaded === true && Array.isArray(group.items));
   let changed = false;
   for (const group of presetGroups) {
-    migrateBrowserPresetPromptSnapshot(group.source, group.items);
     const current = reconcilePresetEntryRecords(getPresetRecordStores(), group.source, group.items);
     if (current.changed) {
       Object.assign(settings, current.stores);
@@ -4568,8 +4475,6 @@ function syncPromptSelectionsFromLoadedGroups(groups = importGroups) {
 }
 
 async function ensurePromptSourceItemsForGeneration({ chat = null, animaWorldbookEntries = [] } = {}) {
-  await promptSourceSnapshotReady;
-  assertPromptSourceSnapshotsAvailable(settings.sourceModes, promptSourceSnapshots);
   const currentSignature = getTavernSourceSignature();
   if (promptSourceCache.signature && currentSignature !== promptSourceCache.signature) {
     markPromptSourceStructureDirty(promptSourceCache);
@@ -4615,14 +4520,11 @@ async function ensurePromptSourceItemsForGeneration({ chat = null, animaWorldboo
         .filter((item) => item?.enabled !== false),
     ]
     : selected;
-  const snapshotItems = ['preset', 'worldbook'].flatMap((type) => (
-    getSourceMode(type) === SOURCE_MODE_IMPORT ? getPromptSourceSnapshotItems(type) : []
-  ));
   const context = getContext();
   const promptChat = Array.isArray(chat) ? chat : context.chat;
   // Keep selection, activation lamps, and scheme overrides authoritative. Only after
   // that normal pipeline is complete do we replace the content of existing Anima entries.
-  const selectedItemsWithAnima = applyAnimaWorldbookOverrides([...sourceItems, ...snapshotItems], animaWorldbookEntries);
+  const selectedItemsWithAnima = applyAnimaWorldbookOverrides(sourceItems, animaWorldbookEntries);
   const itemsWithKeywordOverrides = selectedItemsWithAnima.map((item) => {
     if (item?.scope !== SOURCE_WORLDBOOK || !item?.key || !Object.prototype.hasOwnProperty.call(settings.worldbookKeywordOverrides, item.key)) return item;
     return { ...item, worldbookKeys: splitWorldbookKeywords(settings.worldbookKeywordOverrides[item.key]) };
@@ -5378,7 +5280,6 @@ function renderDataManagement() {
     runtimeData: {
       promptLog: lastPromptLogText,
       recentGenerationHistory,
-      promptSourceSnapshots,
       animaWorldbookSnapshot,
     },
   });
@@ -5386,10 +5287,11 @@ function renderDataManagement() {
     ['schemes', 'fa-folder-tree', '方案数据', model.counts.schemes, `${model.counts.schemes} 个已保存方案`, 'API、任务指令、预设和世界书方案', model.storage.schemes],
     ['libraries', 'fa-layer-group', '库数据', model.counts.libraries, `${model.counts.libraries} 个条目`, '组件库、小剧场库及其分组', model.storage.libraries],
     ['bindings', 'fa-link', '聊天绑定', model.counts.bindings, `${model.counts.bindings} 个有效绑定`, '聊天窗口与世界书方案的自动切换关系', model.storage.bindings],
-    ['runtime', 'fa-clock-rotate-left', '临时记录', model.counts.runtime, `${model.counts.runtime} 类记录`, '生成结果、提示词日志、快照和最近记录', model.storage.caches],
+    ['runtime', 'fa-clock-rotate-left', '临时记录', model.counts.runtime, `${model.counts.runtime} 类记录`, '生成结果、提示词日志和最近记录', model.storage.caches],
   ];
   const characterComponentCount = model.characterGroups.reduce((sum, group) => sum + group.items.length, 0);
   const presetComponentCount = model.presetGroups.reduce((sum, group) => sum + group.items.length, 0);
+  const worldbookSchemeCount = model.worldbookSchemes.length;
   host.innerHTML = `
     <section class="st-esg-data-summary">
       <div><span>插件数据估算占用</span><strong>${formatByteSize(model.storage.total)}</strong></div>
@@ -5410,6 +5312,10 @@ function renderDataManagement() {
       <details class="st-esg-data-detail-group">
         <summary><span>预设专属组件</span><b>${presetComponentCount}</b></summary>
         <div class="st-esg-data-detail-body st-esg-data-scope-list">${buildDataScopeSummary(model.presetGroups, '没有保存预设专属组件。')}</div>
+      </details>
+      <details class="st-esg-data-detail-group">
+        <summary><span>世界书方案快照</span><b>${worldbookSchemeCount}</b></summary>
+        <div class="st-esg-data-detail-body st-esg-data-binding-list">${worldbookSchemeCount ? model.worldbookSchemes.map((scheme) => `<div class="st-esg-data-binding ${scheme.hasData ? '' : 'st-esg-data-orphan'}"><div><strong>${escapeHtml(scheme.name)}</strong><span>${scheme.sourceCount} 个世界书来源 · ${scheme.entryCount} 条条目记录 · ${formatByteSize(scheme.size)}</span></div><span>${scheme.hasData ? '可恢复' : '空快照'}</span></div>`).join('') : '<div class="st-esg-data-empty">没有保存世界书方案。</div>'}</div>
       </details>
       <details class="st-esg-data-detail-group">
         <summary><span>聊天世界书绑定</span><b>${model.chatBindings.length}</b></summary>
@@ -5536,7 +5442,7 @@ async function clearDataManagementCategory(category) {
     },
     runtime: {
       count: model.counts.runtime,
-      message: '确认清空生成结果、最近生成记录、提示词查看记录、报错记录、思维链、导入模式快照和 Anima 临时快照？此操作不会删除方案或组件。',
+      message: '确认清空生成结果、最近生成记录、提示词查看记录、报错记录、思维链和 Anima 临时快照？此操作不会删除方案或组件。',
       async clear() {
         settings.lastGenerated = '';
         settings.lastGeneratedAnchorItems = [];
@@ -5549,7 +5455,6 @@ async function clearDataManagementCategory(category) {
         clearGeneratedThinking();
         recentGenerationHistory = [];
         try { getGenerationHistoryStorage()?.removeItem?.(GENERATION_HISTORY_STORAGE_KEY); } catch (_) {}
-        await Promise.all(['preset', 'worldbook'].map((type) => clearPromptSourceSnapshot(type)));
         clearAnimaWorldbookSnapshot();
       },
     },
@@ -6228,7 +6133,7 @@ function init() {
   recentGenerationHistory = loadGenerationHistory(getGenerationHistoryStorage(), GENERATION_HISTORY_STORAGE_KEY);
   loadSettings();
   floatingBallVisualState = settings.lastGenerationError ? 'error' : 'idle';
-  initializePromptSourceSnapshotStorage(); loadStylesheet(); mountUiWhenDocumentReady();
+  loadStylesheet(); mountUiWhenDocumentReady();
   updateQuickReplyShortcutActions();
   void syncQuickReplyShortcuts();
   startTavernDefaultSync();

@@ -4,8 +4,16 @@ import test from 'node:test';
 import {
   captureSchemeSnapshot,
   getWorldbookSchemeSourceNames,
+  isWorldbookSchemeSnapshotUsable,
   resolveWorldbookPromptSelectionsForLoad,
 } from './scheme-utils.js';
+
+test('worldbook scheme snapshots report whether they contain recoverable scheme data', () => {
+  assert.equal(isWorldbookSchemeSnapshotUsable({}), false);
+  assert.equal(isWorldbookSchemeSnapshotUsable({ worldbookSources: ['book-with-no-entry-overrides'] }), true);
+  assert.equal(isWorldbookSchemeSnapshotUsable({ promptSelections: { 'worldbook-v2::book::worldbook:1': false } }), true);
+  assert.equal(isWorldbookSchemeSnapshotUsable({ importSelections: { 'worldbook-v2::import-only::worldbook:1': true } }), false);
+});
 
 const worldbookItem = (key, source = '角色世界书') => ({
   key,
@@ -46,15 +54,13 @@ test('worldbook source discovery never uses import-only selection keys', () => {
   }), []);
 });
 
-test('legacy import-mode snapshots preserve the current prompt selections when no prompt records were saved', () => {
+test('import-mode snapshot metadata never restores current prompt selections', () => {
   assert.deepEqual(resolveWorldbookPromptSelectionsForLoad({
     sourceMode: 'import',
     promptSelections: {},
   }, {
     'worldbook-v2::角色世界书::世界书::1': true,
-  }), {
-    'worldbook-v2::角色世界书::世界书::1': true,
-  });
+  }), {});
 });
 
 test('normal prompt-mode snapshots remain authoritative during load', () => {
@@ -68,7 +74,7 @@ test('normal prompt-mode snapshots remain authoritative during load', () => {
   });
 });
 
-test('legacy import-mode load recovers the separate prompt snapshot before current state', () => {
+test('import-mode snapshot metadata never restores a separate temporary snapshot', () => {
   const key = 'worldbook-v2::prompt-book::世界书::7';
   assert.deepEqual(resolveWorldbookPromptSelectionsForLoad({
     sourceMode: 'import',
@@ -80,20 +86,15 @@ test('legacy import-mode load recovers the separate prompt snapshot before curre
     scope: '世界书',
     source: 'prompt-book',
     key,
-  }]), {
-    [key]: true,
-  });
+  }]), {});
 });
 
-test('scheme source discovery unions prompt snapshot sources with a stale source list', () => {
+test('scheme source discovery preserves the explicit source list without temporary snapshots', () => {
   assert.deepEqual(getWorldbookSchemeSourceNames({
     worldbookSources: ['stale-book'],
     promptSelections: {},
     importSelections: {},
-  }, [{
-    scope: '世界书',
-    source: 'prompt-book',
-  }]), ['stale-book', 'prompt-book']);
+  }), ['stale-book']);
 });
 
 test('worldbook scheme source filtering follows prompt selections while import mode is open', () => {

@@ -84,14 +84,13 @@ function hasSelectedWorldbookItem(group, selections) {
   ));
 }
 
-export function getWorldbookSchemeSourceNames(snapshot = {}, fallbackItems = []) {
+export function getWorldbookSchemeSourceNames(snapshot = {}) {
   const sourceNames = [...new Set((Array.isArray(snapshot?.worldbookSources) ? snapshot.worldbookSources : [])
     .map(getWorldbookRawName)
     .filter((name) => name.trim()))];
   const selectionSources = new Set();
   // Import selections are deliberately excluded: they describe a component-library
-  // transfer, never a prompt scheme. Legacy prompt data lives in promptSelections or
-  // the separate prompt snapshot handled below.
+  // transfer, never a prompt scheme.
   for (const store of [snapshot?.promptSelections]) {
     for (const key of Object.keys(store && typeof store === 'object' ? store : {})) {
       const parts = String(key).split('::');
@@ -104,45 +103,50 @@ export function getWorldbookSchemeSourceNames(snapshot = {}, fallbackItems = [])
     }
   }
 
-  // A prompt snapshot is kept separately while the page is in import mode. It is
-  // the last known prompt selection state, not an import selection, and is therefore
-  // a safe recovery source for old schemes that were saved without a source list.
-  for (const item of Array.isArray(fallbackItems) ? fallbackItems : []) {
-    if (item?.scope !== '世界书' || !textOf(item?.source)) continue;
-    selectionSources.add(getWorldbookRawName(item.source));
-  }
-
   // Keep the explicit list, but add sources recoverable from stable selection keys or
-  // the separately stored prompt snapshot. This prevents a stale/partial source list
-  // from making a valid scheme render as an empty worldbook page.
+  // prompt selection keys. This prevents a stale/partial source list from making a
+  // valid scheme render as an empty worldbook page.
   return [...new Set([...sourceNames, ...selectionSources])];
 }
 
-function promptSelectionsFromSnapshotItems(items = []) {
-  const recovered = {};
-  for (const item of Array.isArray(items) ? items : []) {
-    if (item?.scope !== '世界书' || !textOf(item?.key)) continue;
-    recovered[item.key] = true;
-  }
-  return recovered;
+function isWorldbookRecordKey(key, sources) {
+  const value = textOf(key);
+  if (!value) return false;
+  if (Array.isArray(sources) && sources.some((source) => isWorldbookEntryKeyForSource(value, source))) return true;
+  return value.startsWith('worldbook-v2::') || value.startsWith('世界书：');
 }
 
-export function resolveWorldbookPromptSelectionsForLoad(snapshot = {}, currentSelections = {}, promptSnapshotItems = []) {
+export function getWorldbookSchemeSnapshotStats(snapshot = {}) {
+  const sources = getWorldbookSchemeSourceNames(snapshot);
+  const records = new Set();
+  for (const store of [
+    snapshot?.promptSelections,
+    snapshot?.sourceContentOverrides,
+    snapshot?.worldbookActivationOverrides,
+    snapshot?.worldbookKeywordOverrides,
+  ]) {
+    for (const key of Object.keys(store && typeof store === 'object' ? store : {})) {
+      if (isWorldbookRecordKey(key, sources)) records.add(key);
+    }
+  }
+  return {
+    sourceCount: sources.length,
+    entryCount: records.size,
+    hasData: sources.length > 0 || records.size > 0,
+  };
+}
+
+export function isWorldbookSchemeSnapshotUsable(snapshot = {}) {
+  return getWorldbookSchemeSnapshotStats(snapshot).hasData;
+}
+
+export function resolveWorldbookPromptSelectionsForLoad(snapshot = {}) {
   const saved = snapshot?.promptSelections && typeof snapshot.promptSelections === 'object'
     ? snapshot.promptSelections
     : {};
-  if (Object.keys(saved).length > 0 || snapshot?.sourceMode !== 'import') return { ...saved };
-
-  // Pre-mode-separation snapshots could be captured while the import page was open. Their
-  // promptSelections field is empty, but entering import mode first stored the selected
-  // prompt items in IndexedDB. Recover from that prompt-only snapshot before considering
-  // the current settings; never copy importSelections into promptSelections.
-  const recovered = promptSelectionsFromSnapshotItems(promptSnapshotItems);
-  if (Object.keys(recovered).length > 0) return recovered;
-  if (currentSelections && typeof currentSelections === 'object' && Object.keys(currentSelections).length > 0) {
-    return { ...currentSelections };
-  }
-  return {};
+  // A saved scheme is authoritative. Import-mode selections and temporary browser
+  // snapshots are deliberately ignored and can never be promoted into a scheme.
+  return { ...saved };
 }
 
 export function captureSchemeSnapshot(type, settings, groups = [], options = {}) {
