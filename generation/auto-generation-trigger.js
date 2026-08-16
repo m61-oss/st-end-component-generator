@@ -36,6 +36,12 @@ export function isAutomaticAssistantMessageTypeEligible(messageType) {
   return !NON_BODY_ASSISTANT_MESSAGE_TYPES.has(normalizedType);
 }
 
+export function matchesAutomaticGenerationTrigger(messageText, triggerText) {
+  const trigger = String(triggerText ?? '');
+  if (!trigger) return true;
+  return String(messageText ?? '').includes(trigger);
+}
+
 export function captureAutomaticGenerationBaseline(chat = []) {
   const messages = Array.isArray(chat) ? chat : [];
   let lastAssistantIndex = -1;

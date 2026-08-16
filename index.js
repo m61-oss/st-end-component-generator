@@ -68,6 +68,7 @@ import {
   isAutomaticAssistantTargetAddressable,
   isAutomaticAssistantMessageTypeEligible,
   isAutomaticTargetAfterGenerationStart,
+  matchesAutomaticGenerationTrigger,
   resolveReadyAutomaticAssistantTarget,
 } from './generation/auto-generation-trigger.js?ver=0.1.8';
 import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.1.8';
@@ -156,6 +157,7 @@ const DEFAULT_SETTINGS = {
   enabled: false,
   mode: 'manual',
   autoGenerate: null,
+  automaticGenerationTriggerText: '',
   autoInject: null,
   activeTab: 'workspace',
   taskPrompt: [
@@ -585,6 +587,7 @@ function loadSettings() {
     if (localValue === 'true' || localValue === 'false') settings.promptTemplateCompatEnabled = localValue === 'true';
   } catch (_) {}
   if (typeof settings.autoGenerate !== 'boolean') settings.autoGenerate = settings.mode !== 'manual';
+  if (typeof settings.automaticGenerationTriggerText !== 'string') settings.automaticGenerationTriggerText = '';
   if (typeof settings.promptTemplateCompatEnabled !== 'boolean') settings.promptTemplateCompatEnabled = false;
   if (typeof settings.autoInject !== 'boolean') settings.autoInject = settings.mode === 'autoInject';
   settings.apiMode = ['custom', 'tavern'].includes(settings.apiMode) ? settings.apiMode : 'custom';
@@ -1965,6 +1968,11 @@ async function runDeferredAutomaticGeneration(pendingTarget, revision, attempt =
     logAutomaticGenerationStage('跳过重复', `楼层 ${readyTarget.messageIndex}`);
     return;
   }
+  const triggerText = String(settings.automaticGenerationTriggerText ?? '');
+  if (!matchesAutomaticGenerationTrigger(readyTarget.messageText, triggerText)) {
+    logAutomaticGenerationStage('等待触发字符串', `楼层 ${readyTarget.messageIndex}；未检测到“${triggerText}”`);
+    return;
+  }
   lastAutomaticTargetKey = targetKey;
   logAutomaticGenerationStage('找到 assistant', `楼层 ${readyTarget.messageIndex}`);
   await generateStatusbar('automatic', readyTarget.messageIndex, readyTarget);
@@ -2010,6 +2018,13 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
   const targetKey = getAutomaticAssistantTargetKey(readyTarget);
   if (!targetKey || targetKey === lastAutomaticTargetKey) {
     logAutomaticGenerationStage('跳过重复', `楼层 ${readyTarget?.messageIndex ?? '未知'}`);
+    return;
+  }
+  const triggerText = String(settings.automaticGenerationTriggerText ?? '');
+  if (!matchesAutomaticGenerationTrigger(readyTarget.messageText, triggerText)) {
+    const triggerPreview = triggerText.length > 30 ? `${triggerText.slice(0, 30)}…` : triggerText;
+    logAutomaticGenerationStage('generation-skip', `楼层 ${readyTarget.messageIndex}；未检测到触发字符串“${triggerText}”`);
+    notifyStatus(`未检测到触发字符串“${triggerPreview}”，已跳过本轮自动生成。`, 'warning');
     return;
   }
   lastAutomaticTargetKey = targetKey;
@@ -5280,6 +5295,11 @@ function buildGenerationSettingsMarkup() {
       <div class="st-esg-generation-settings-section-title"><strong>运行流程</strong></div>
       <div class="st-esg-generation-settings-grid">
         <label class="st-esg-checkbox st-esg-log-option st-esg-generation-setting-card"><input id="st-esg-auto-generate" type="checkbox" /><span>监听正文结束自动生成</span><em>检测到新的助手正文结束后自动开始生成。</em></label>
+        <div id="st-esg-auto-generate-trigger-row" class="st-esg-auto-generate-trigger st-esg-hidden">
+          <label for="st-esg-auto-generate-trigger">自动生成触发字符串</label>
+          <input id="st-esg-auto-generate-trigger" class="text_pole" type="text" autocomplete="off" placeholder="留空则不限制" />
+          <span>仅当最新回复原样包含该字符串时自动生成；区分大小写，留空则保持当前行为。</span>
+        </div>
         <label class="st-esg-checkbox st-esg-log-option st-esg-generation-setting-card"><input id="st-esg-auto-inject" type="checkbox" /><span>生成结束后自动注入</span><em>生成完成并通过解析后，自动写回当前回复。</em></label>
       </div>
     </section>
@@ -5554,6 +5574,8 @@ function renderGenerationSettings() {
     if (helpText) helpText.textContent = injectionHelp.text;
   }
   $t('#st-esg-auto-generate').prop('checked', settings.autoGenerate);
+  $t('#st-esg-auto-generate-trigger').val(settings.automaticGenerationTriggerText);
+  $t('#st-esg-auto-generate-trigger-row').toggleClass('st-esg-hidden', !settings.autoGenerate);
   $t('#st-esg-auto-inject').prop('checked', settings.autoInject);
   $t('#st-esg-inject-mode').val(injectionHelp.mode);
   $t('#st-esg-rollback-before-generation').prop('checked', settings.rollbackBeforeGeneration);
@@ -5976,6 +5998,10 @@ function bindPanelEvents() {
     settings.autoGenerate = Boolean($(this).prop('checked'));
     saveSettings();
     renderGenerationSettings();
+  });
+  $t('#st-esg-auto-generate-trigger').on('input', function () {
+    settings.automaticGenerationTriggerText = String($(this).val() ?? '');
+    saveSettings();
   });
   $t('#st-esg-auto-inject').on('change', function () {
     settings.autoInject = Boolean($(this).prop('checked'));

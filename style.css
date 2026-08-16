@@ -918,6 +918,10 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-generation-setting-row + .st-esg-generation-setting-row { margin-top: 6px; }
 .st-esg-generation-setting-card span, .st-esg-generation-setting-row span { color: var(--esg-text-main); font-size: 13px; line-height: 1.35; }
 .st-esg-generation-setting-card em, .st-esg-generation-setting-row em { grid-column: 2; color: var(--esg-text-muted); font-size: 11px; font-style: normal; line-height: 1.4; }
+.st-esg-auto-generate-trigger { display: grid; gap: 5px; margin: 2px 0 7px; padding-left: 32px; }
+.st-esg-auto-generate-trigger > label { color: var(--esg-text-main); font-size: 12px; font-weight: 600; line-height: 1.35; }
+.st-esg-auto-generate-trigger > input { width: 100%; min-height: 34px; }
+.st-esg-auto-generate-trigger > span { color: var(--esg-text-muted); font-size: 10px; line-height: 1.4; }
 .st-esg-generation-settings-section .st-esg-checkbox > input[type="checkbox"] { width: 24px; height: 24px; min-width: 24px; margin-top: 1px; border-radius: 6px; }
 .st-esg-generation-settings-section .st-esg-checkbox > input[type="checkbox"]:checked { background-size: 15px 15px !important; }
 .st-esg-generation-injection-section > .st-esg-select { width: 100%; min-height: 40px !important; padding: 8px 12px !important; }
