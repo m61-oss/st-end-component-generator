@@ -39,8 +39,8 @@ const ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT = `【固定输出协议｜锚点插�
 本协议只规定完整回复的外层 JSON 封装以及锚点插入计划，不改变任务本身要求的内容、文风、步骤或既定内部格式。output 只承载本次任务明确要求的实际交付，忽视所有续写正文要求，不得在 JSON 外生成正文。
 
 【目标范围｜不可越界】
-本次 output 唯一允许匹配和插入的最新 assistant 楼层，是紧邻本次任务之前的这一条原文。更早的 user/assistant 楼层只能作为背景，绝不可从更早楼层复制句子、生成 anchor 或规划插入。
-before/after 的 anchor 必须在这一个最新 assistant 楼层中逐字找到；找不到就省略该项，不得用更早楼层的文字替代。
+聊天历史中唯一允许匹配和插入的最新 assistant 楼层，其完整原文已经在原位置用 <latest_assistant_target> 与 </latest_assistant_target> 标记。两个标记内部的内容是本次 output 唯一允许匹配和插入的目标范围；更早的 user/assistant 楼层只能作为背景，绝不可从更早楼层复制句子、生成 anchor 或规划插入，也绝不可从标记范围之外复制内容。
+before/after 的 anchor 必须在 <latest_assistant_target> 与 </latest_assistant_target> 之间逐字找到；找不到就省略该项，不得用更早楼层的文字替代。两个标记本身不是正文，不得写入 anchor 或 content。
 
 完整回复必须且只能是一个可被标准 JSON 解析器解析的对象，顶层字段固定且顺序固定：
 {
@@ -57,9 +57,9 @@ before/after 的 anchor 必须在这一个最新 assistant 楼层中逐字找到
 锚点计划规则：
 1. output 必须是数组，可以为空，也可以包含任意数量的插入项；不要为了凑数量固定输出一项、两项或同时输出 before 和 after。
 2. 你必须根据任务需要自行判断是否插入、需要几项以及每项的位置（before 还是 after，或 start/end）；不要为了凑数量固定输出条目，不要同时机械输出 before 和 after。没有合适位置时省略该项。
-3. position=start 表示插入整条目标助手消息的最前方；position=end 表示插入整条目标助手消息的最后方。这里的“整条消息”包括正文后所有闭合标签、状态块、HTML/XML 标签、注释和其他尾部字符；选择 end 时不要寻找“最后一句正文”作为锚点，也不要填写 anchor。
+3. position=start 表示插入两个目标标记之间原文的最前方；position=end 表示插入两个目标标记之间原文的最后方。目标范围包括正文后所有闭合标签、状态块、HTML/XML 标签、注释和其他尾部字符；选择 end 时不要寻找“最后一句正文”作为锚点，也不要填写 anchor。
 4. position=before 表示把 content 插入 anchor 之前；position=after 表示插入 anchor 之后。只有 before/after 需要 anchor。插件会让每项内容独立成行。
-5. before/after 的 anchor 必须逐字复制当前目标助手正文中实际存在的一段连续文字，并且应当只在正文中出现一次；不要改写、概括、翻译或添加省略号。插件会容忍少量标点、全半角和换行差异，但你仍应优先复制原文。
+5. before/after 的 anchor 必须逐字复制两个目标标记之间实际存在的一段连续文字，并且应当只在目标范围中出现一次；不要改写、概括、翻译或添加省略号。输出前逐项检查 anchor 是否存在且唯一；如果重复，扩大复制范围直到唯一，仍无法唯一定位就省略该项。插件会容忍少量标点、全半角和换行差异，但你仍应优先复制原文。
 6. content 只放本次新增的实际内容，不要把 anchor、说明、思考或 JSON 外壳再次写入 content。
 7. 无论 output 数组有几项，所有思考都只放入 thinking，所有交付内容都只放入对应项的 content。
 8. JSON 外不得输出任何字符、解释、标题或代码围栏；两个字段必须始终存在且均为字符串/数组规定的类型。严格转义字符串中的双引号、反斜杠和换行。
