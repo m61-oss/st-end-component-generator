@@ -77,28 +77,31 @@ test('uses the anchor protocol only when anchor output mode is requested', async
   assert.notDeepEqual(messages.at(-1), buildOutputProtocolMessage());
 });
 
-test('marks the latest assistant message in place for anchor generation', async () => {
+test('places anchor boundary tags in adjacent system messages without mutating assistant content', async () => {
   const messages = await build({ outputMode: 'anchor' });
-  const target = messages.find((message) => message?.role === 'assistant' && /<latest_assistant_target>/.test(message?.content || ''));
-  assert.ok(target, 'anchor mode should mark the existing latest assistant message');
-  assert.equal(target.role, 'assistant');
-  assert.match(target.content, /<latest_assistant_target>\s*助手消息\s*<\/latest_assistant_target>/);
-  assert.equal(messages.filter((message) => message?.role === 'assistant' && /<latest_assistant_target>/.test(message?.content || '')).length, 1);
-  assert.equal(messages.filter((message) => /锚点插入目标/.test(message?.content || '')).length, 0);
-  assert.equal(messages.filter((message) => message?.content === '助手消息').length, 0);
+  const targetIndex = messages.findIndex((message) => message?.role === 'assistant' && message?.content === '助手消息');
+  assert.ok(targetIndex >= 0, 'anchor mode should keep the existing latest assistant content');
+  assert.deepEqual(messages.slice(targetIndex - 1, targetIndex + 2).map(({ role, content }) => ({ role, content })), [
+    { role: 'system', content: '<latest_assistant_target>' },
+    { role: 'assistant', content: '助手消息' },
+    { role: 'system', content: '</latest_assistant_target>' },
+  ]);
+  assert.equal(messages.filter((message) => /<latest_assistant_target>/.test(message?.content || '')).length, 2);
   assert.deepEqual(messages.at(-1), buildOutputProtocolMessage({ mode: 'anchor' }));
 });
 
-test('keeps the marked assistant message in chat order when task placement changes', async () => {
+test('keeps the marked assistant message and boundary tags in chat order when task placement changes', async () => {
   const messages = await build({
     outputMode: 'anchor',
     taskPlacement: { enabled: true, afterSourceId: 'system-entry' },
   });
-  const targetIndex = messages.findIndex((message) => message?.role === 'assistant' && /<latest_assistant_target>/.test(message?.content || ''));
+  const targetIndex = messages.findIndex((message) => message?.role === 'assistant' && message?.content === '助手消息');
   const taskIndex = messages.findIndex((message) => message?.role === 'user' && message?.content === 'TASK');
-  assert.ok(targetIndex >= 0, 'marked target should remain in chat history');
+  assert.ok(targetIndex >= 0, 'target should remain in chat history');
   assert.ok(taskIndex >= 0, 'task should remain present');
   assert.ok(targetIndex > taskIndex, 'task placement must not move the marked assistant message');
+  assert.equal(messages[targetIndex - 1]?.content, '<latest_assistant_target>');
+  assert.equal(messages[targetIndex + 1]?.content, '</latest_assistant_target>');
 });
 
 test('resolves core plugin macros without case sensitivity', async () => {

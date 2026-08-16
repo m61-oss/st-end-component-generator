@@ -783,8 +783,10 @@ function markLatestAssistantTarget(messages, context, latestMessage, outputMode 
     && !message?.anchorTargetMessage
   ));
   if (!target || !textOf(target.content)) return;
-  target.content = `${ANCHOR_TARGET_OPEN}\n${target.content}\n${ANCHOR_TARGET_CLOSE}`;
-  target.anchorTargetMessage = true;
+  const targetIndex = messages.indexOf(target);
+  if (targetIndex < 0) return;
+  messages.splice(targetIndex, 0, { role: 'system', content: ANCHOR_TARGET_OPEN });
+  messages.splice(targetIndex + 2, 0, { role: 'system', content: ANCHOR_TARGET_CLOSE });
 }
 
 function insertTaskMessage(messages, taskMessage, taskPlacement, outputMode = 'standard') {
