@@ -1077,9 +1077,15 @@ function renderAnchorInsertionPlan(items = settings.lastGeneratedAnchorItems, wa
   const preview = $t('#st-esg-preview');
   if (!preview.length) return;
   let box = $t('#st-esg-anchor-plan');
+  const contentCard = preview.closest('.st-esg-generation-content');
   if (!box.length) {
-    preview.before('<div id="st-esg-anchor-plan" class="st-esg-anchor-plan st-esg-hidden"></div>');
+    const anchorMarkup = '<div id="st-esg-anchor-plan" class="st-esg-anchor-plan st-esg-hidden"></div>';
+    if (contentCard.length) contentCard.before(anchorMarkup);
+    else preview.before(anchorMarkup);
     box = $t('#st-esg-anchor-plan');
+  } else if (contentCard.length && box.closest('.st-esg-generation-content').length) {
+    // 锚点计划本身就是一个独立卡片，不能继续嵌套在预览卡片里。
+    contentCard.before(box);
   }
   const sourceItems = Array.isArray(items) ? items : [];
   const entries = sourceItems.map((item, sourceIndex) => ({ item, sourceIndex })).filter(({ item }) => item && item.content);
@@ -1343,7 +1349,7 @@ function setGeneratingState(isGenerating) {
     button.attr('aria-busy', String(isGenerating));
     button.toggleClass('st-esg-action-running', isGenerating);
     button.find('i').attr('class', isGenerating ? 'fa-solid fa-stop' : 'fa-solid fa-sparkles');
-    button.find('span').text(isGenerating ? '停止生成' : '生成文尾组件');
+    button.find('span').text(isGenerating ? '停止生成' : '生成组件');
   }
   if (isGenerating) setFloatingBallVisualState('generating');
   else if (floatingBallVisualState === 'generating') setFloatingBallVisualState('idle');
@@ -5232,7 +5238,25 @@ function buildPluginPanelMarkup() {
 }
 
 function buildGenerationSettingsMarkup() {
-  return `<details class="st-esg-card st-esg-collapsible st-esg-generation-settings"><summary class="st-esg-collapsible-summary">生成设置</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-generate" type="checkbox" /><span>监听正文结束自动生成</span></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-auto-inject" type="checkbox" /><span>生成结束以后自动注入</span></label><label id="st-esg-inject-mode-row" class="st-esg-generation-inject-mode">注入方式：<select id="st-esg-inject-mode" class="text_pole st-esg-select"><option value="replace">正文已有同名标签时直接覆盖</option><option value="append">始终追加到末尾</option><option value="anchor">按模型返回的自定义锚点插入</option></select></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-rollback-before-generation" type="checkbox" /><span>生成前撤回本楼上次注入</span><em>只在开始新一轮生成前撤回上一轮注入；手动点击“注入”不会重复撤回。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-status-placeholder-enabled" type="checkbox" /><span>将 MVU 状态标签固定到正文末尾</span><em>检测正文或生成内容中的 &lt;StatusPlaceHolderImpl/&gt;，清理重复项并在最终文末保留一个。</em></label><div class="st-esg-card-desc">覆盖模式仅支持成对的尖括号标签（如 &lt;status&gt;…&lt;/status&gt;）。[status]、【状态】等格式无法识别，会自动改为追加。锚点模式会让模型根据当前正文自行决定插入数量与 before/after 方向，每项内容独立成行。</div></div></details>`;
+  return `<details class="st-esg-card st-esg-collapsible st-esg-generation-settings"><summary class="st-esg-collapsible-summary">生成设置</summary><div class="st-esg-collapsible-body st-esg-generation-settings-body">
+    <section class="st-esg-generation-settings-section">
+      <div class="st-esg-generation-settings-section-title"><strong>自动化</strong><span>决定生成流程是否自动运行</span></div>
+      <div class="st-esg-generation-settings-grid">
+        <label class="st-esg-checkbox st-esg-log-option st-esg-generation-setting-card"><input id="st-esg-auto-generate" type="checkbox" /><span>监听正文结束自动生成</span><em>检测到新的助手正文结束后自动开始生成。</em></label>
+        <label class="st-esg-checkbox st-esg-log-option st-esg-generation-setting-card"><input id="st-esg-auto-inject" type="checkbox" /><span>生成结束后自动注入</span><em>生成完成并通过解析后，自动写回当前回复。</em></label>
+      </div>
+    </section>
+    <section class="st-esg-generation-settings-section st-esg-generation-injection-section">
+      <div class="st-esg-generation-settings-section-title"><strong>注入策略</strong><span>选择生成内容如何进入当前回复</span></div>
+      <label id="st-esg-inject-mode-row" class="st-esg-generation-inject-mode"><span>注入方式</span><select id="st-esg-inject-mode" class="text_pole st-esg-select"><option value="replace">正文已有同名标签时直接覆盖</option><option value="append">始终追加到末尾</option><option value="anchor">按模型返回的自定义锚点插入</option></select></label>
+      <div class="st-esg-generation-settings-help">覆盖模式仅支持成对的尖括号标签（如 &lt;status&gt;…&lt;/status&gt;）。[status]、【状态】等格式无法识别，会自动改为追加。锚点模式会让模型根据当前正文自行决定插入数量与 before/after 方向，每项内容独立成行。</div>
+    </section>
+    <section class="st-esg-generation-settings-section">
+      <div class="st-esg-generation-settings-section-title"><strong>注入前后</strong><span>控制重复注入与状态标签的位置</span></div>
+      <label class="st-esg-checkbox st-esg-log-option st-esg-generation-setting-row"><input id="st-esg-rollback-before-generation" type="checkbox" /><span>生成前撤回本楼上次注入</span><em>只在开始新一轮生成前撤回上一轮注入；手动点击“注入”不会重复撤回。</em></label>
+      <label class="st-esg-checkbox st-esg-log-option st-esg-generation-setting-row"><input id="st-esg-status-placeholder-enabled" type="checkbox" /><span>将 MVU 状态标签固定到正文末尾</span><em>检测正文或生成内容中的 &lt;StatusPlaceHolderImpl/&gt;，清理重复项并在最终文末保留一个。</em></label>
+    </section>
+  </div></details>`;
 }
 
 function upgradePanelActionToButton(dialog, selector) {
@@ -5511,6 +5535,8 @@ function renderPluginPanel() {
   dialog.innerHTML = buildPluginPanelMarkup();
   upgradePanelActionToButton(dialog, '#st-esg-generate');
   upgradePanelActionToButton(dialog, '#st-esg-inject');
+  dialog.querySelector('#st-esg-generate span')?.replaceChildren('生成组件');
+  dialog.querySelector('#st-esg-inject span')?.replaceChildren('注入回复');
   const titleIcon = dialog.querySelector('.st-esg-title-icon');
   if (titleIcon) titleIcon.innerHTML = renderBrandMark('title');
   dialog.querySelector('.st-esg-kicker')?.replaceChildren(BRAND_SUBTITLE);
@@ -5833,10 +5859,10 @@ function bindPanelEvents() {
   });
   $t('#st-esg-fetch-models').on('click', fetchApiModels);
   $t('#st-esg-additional-parameters').on('click', showApiAdditionalParametersDialog);
-  $t('.st-esg-generation-content').off('click.stEsgAnchorPreview').on('click.stEsgAnchorPreview', '.st-esg-anchor-preview-button', function () {
+  $t('[data-tab-panel="workspace"]').off('click.stEsgAnchorPreview').on('click.stEsgAnchorPreview', '.st-esg-anchor-preview-button', function () {
     showAnchorInsertionPreviewDialog();
   });
-  $t('.st-esg-generation-content').off('click.stEsgAnchorToggle').on('click.stEsgAnchorToggle', '#st-esg-anchor-plan [data-anchor-toggle]', function (event) {
+  $t('[data-tab-panel="workspace"]').off('click.stEsgAnchorToggle').on('click.stEsgAnchorToggle', '#st-esg-anchor-plan [data-anchor-toggle]', function (event) {
     event.preventDefault();
     event.stopPropagation();
     const toggle = $(this);
@@ -5848,7 +5874,7 @@ function bindPanelEvents() {
     updateAnchorPlanStatusUi();
     scheduleAnchorEditPersistence();
   });
-  $t('.st-esg-generation-content').off('input.stEsgAnchor change.stEsgAnchor').on('input.stEsgAnchor change.stEsgAnchor', '#st-esg-anchor-plan [data-anchor-field]', function () {
+  $t('[data-tab-panel="workspace"]').off('input.stEsgAnchor change.stEsgAnchor').on('input.stEsgAnchor change.stEsgAnchor', '#st-esg-anchor-plan [data-anchor-field]', function () {
     const field = $(this);
     const card = field.closest('.st-esg-anchor-plan-item');
     const index = Number(card.attr('data-anchor-item-index'));
