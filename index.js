@@ -52,13 +52,17 @@ import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.9';
 import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.1.9';
 import { loadGenerationHistory, recordGenerationResult, updateGenerationHistoryEntry } from './generation/generation-history.js?ver=0.1.9';
 import {
+  THEATER_DEFAULT_GROUP_ID,
   THEATER_RANDOM_MODE_ALL,
   THEATER_RANDOM_MODE_ENABLED,
   THEATER_RANDOM_MODE_FIXED_ENABLED,
   THEATER_RANDOM_MODE_OFF,
+  THEATER_RANDOM_SCOPE_GLOBAL,
+  THEATER_RANDOM_SCOPE_GROUPED,
   getTheaterLibraryFolders,
   normalizeTheaterRandomCount,
   normalizeTheaterRandomMode,
+  normalizeTheaterRandomScope,
   selectTheaterComponents,
 } from './sources/theater-library.js?ver=0.1.9';
 import {
@@ -249,8 +253,12 @@ const DEFAULT_SETTINGS = {
   theaterComponents: [],
   theaterGroups: [],
   theaterDefaultGroupEnabled: true,
+  theaterRandomScope: THEATER_RANDOM_SCOPE_GLOBAL,
   theaterRandomMode: THEATER_RANDOM_MODE_OFF,
   theaterRandomCount: 1,
+  theaterGroupedFallbackMode: THEATER_RANDOM_MODE_OFF,
+  theaterGroupedFallbackCount: 1,
+  theaterGroupRandomOverrides: [],
 };
 
 const targetWindow = (() => {
@@ -604,8 +612,18 @@ function loadSettings() {
   if (!Array.isArray(settings.theaterComponents)) settings.theaterComponents = [];
   if (!Array.isArray(settings.theaterGroups)) settings.theaterGroups = [];
   settings.theaterDefaultGroupEnabled = settings.theaterDefaultGroupEnabled !== false;
+  const hasStoredTheaterGroupedFallbackMode = Object.prototype.hasOwnProperty.call(storedSettings, 'theaterGroupedFallbackMode');
+  const hasStoredTheaterGroupedFallbackCount = Object.prototype.hasOwnProperty.call(storedSettings, 'theaterGroupedFallbackCount');
+  settings.theaterRandomScope = normalizeTheaterRandomScope(settings.theaterRandomScope);
   settings.theaterRandomMode = normalizeTheaterRandomMode(settings.theaterRandomMode);
   settings.theaterRandomCount = normalizeTheaterRandomCount(settings.theaterRandomCount);
+  settings.theaterGroupedFallbackMode = normalizeTheaterRandomMode(
+    hasStoredTheaterGroupedFallbackMode ? settings.theaterGroupedFallbackMode : settings.theaterRandomMode,
+  );
+  settings.theaterGroupedFallbackCount = normalizeTheaterRandomCount(
+    hasStoredTheaterGroupedFallbackCount ? settings.theaterGroupedFallbackCount : settings.theaterRandomCount,
+  );
+  if (!Array.isArray(settings.theaterGroupRandomOverrides)) settings.theaterGroupRandomOverrides = [];
   if (!settings.defaultGroupEnabled || typeof settings.defaultGroupEnabled !== 'object' || Array.isArray(settings.defaultGroupEnabled)) settings.defaultGroupEnabled = {};
   settings.componentGroups = settings.componentGroups
     .map((group, index) => ({ ...group, id: textOf(group?.id), name: textOf(group?.name), scope: normalizeComponentScope(group?.scope), enabled: group?.enabled !== false, order: Number.isFinite(Number(group?.order)) ? Number(group.order) : index }))
@@ -703,7 +721,7 @@ function loadSettings() {
     settings.theaterComponents.map((item) => ({ ...item, groupId: textOf(item?.groupId), enabled: item?.enabled !== false })),
     targetWindow.crypto,
   );
-  const theaterGroupIds = new Set();
+  const theaterGroupIds = new Set([THEATER_DEFAULT_GROUP_ID]);
   settings.theaterGroups = settings.theaterGroups
     .map((group, index) => {
       let id = textOf(group?.id);
@@ -712,6 +730,20 @@ function loadSettings() {
       return { ...group, id, name: textOf(group?.name), enabled: group?.enabled !== false, order: Number.isFinite(Number(group?.order)) ? Number(group.order) : index };
     })
     .filter((group) => group.name);
+  const validTheaterGroupIds = new Set(settings.theaterGroups.map((group) => textOf(group.id)));
+  validTheaterGroupIds.add(THEATER_DEFAULT_GROUP_ID);
+  const seenTheaterRandomOverrideIds = new Set();
+  settings.theaterGroupRandomOverrides = settings.theaterGroupRandomOverrides
+    .map((override) => ({
+      groupId: textOf(override?.groupId),
+      mode: normalizeTheaterRandomMode(override?.mode),
+      count: normalizeTheaterRandomCount(override?.count),
+    }))
+    .filter((override) => {
+      if (!validTheaterGroupIds.has(override.groupId) || seenTheaterRandomOverrideIds.has(override.groupId)) return false;
+      seenTheaterRandomOverrideIds.add(override.groupId);
+      return true;
+    });
   normalizePresetComponentBindings();
   if (hadTransientGenerationState) getContext().saveSettingsDebounced();
 }
@@ -837,8 +869,12 @@ function getEnabledComponents() {
 
 function getEnabledTheaterComponents() {
   return selectTheaterComponents(settings.theaterComponents, {
+    scope: settings.theaterRandomScope,
     mode: settings.theaterRandomMode,
     count: settings.theaterRandomCount,
+    groupedFallbackMode: settings.theaterGroupedFallbackMode,
+    groupedFallbackCount: settings.theaterGroupedFallbackCount,
+    groupOverrides: settings.theaterGroupRandomOverrides,
     groups: settings.theaterGroups,
     defaultGroupEnabled: settings.theaterDefaultGroupEnabled,
   });
@@ -3867,6 +3903,56 @@ function applyTheaterLibraryFilters() {
   host.find('.st-esg-theater-batch-move, .st-esg-theater-batch-delete').prop('disabled', selectedTheaterIds.size === 0);
 }
 
+function getTheaterRandomModeLabel(mode) {
+  const normalized = normalizeTheaterRandomMode(mode);
+  if (normalized === THEATER_RANDOM_MODE_OFF) return '关闭随机';
+  if (normalized === THEATER_RANDOM_MODE_ALL) return '全部随机';
+  if (normalized === THEATER_RANDOM_MODE_ENABLED) return '已启用条目随机';
+  return '启用固定 + 未启用随机';
+}
+
+function getTheaterRandomModeDescription(mode) {
+  const normalized = normalizeTheaterRandomMode(mode);
+  if (normalized === THEATER_RANDOM_MODE_OFF) return '关闭随机时只发送已启用的条目。';
+  if (normalized === THEATER_RANDOM_MODE_ALL) return '从当前随机池的全部条目中抽取。';
+  if (normalized === THEATER_RANDOM_MODE_ENABLED) return '只从当前随机池的已启用条目中抽取。';
+  return '已启用内容固定发送，再从未启用内容中随机抽取。';
+}
+
+function renderTheaterRandomModeOptions(mode) {
+  const normalized = normalizeTheaterRandomMode(mode);
+  return [
+    [THEATER_RANDOM_MODE_OFF, '关闭随机'],
+    [THEATER_RANDOM_MODE_ALL, '全部随机'],
+    [THEATER_RANDOM_MODE_ENABLED, '已启用条目随机'],
+    [THEATER_RANDOM_MODE_FIXED_ENABLED, '启用固定 + 未启用随机'],
+  ].map(([value, label]) => `<option value="${value}" ${normalized === value ? 'selected' : ''}>${label}</option>`).join('');
+}
+
+function theaterRandomCountMarkup(mode, count, className, dataAttributes = '') {
+  const normalized = normalizeTheaterRandomMode(mode);
+  if (normalized === THEATER_RANDOM_MODE_OFF) return '<span class="st-esg-theater-random-count-placeholder">无需设置数量</span>';
+  return `<input class="text_pole st-esg-theater-random-count ${className}" type="number" min="0" step="1" value="${normalizeTheaterRandomCount(count)}" ${dataAttributes} /> 条`;
+}
+
+function getTheaterRandomOverride(groupId) {
+  const cleanId = textOf(groupId);
+  return settings.theaterGroupRandomOverrides.find((override) => textOf(override?.groupId) === cleanId) || null;
+}
+
+function getTheaterGroupRandomDisplayName(group) {
+  const itemCount = Array.isArray(group?.items) ? group.items.length : 0;
+  return `${group?.name || '默认分组'} · ${itemCount} 条`;
+}
+
+function getTheaterRandomGroupCandidates(groups) {
+  const used = new Set(settings.theaterGroupRandomOverrides.map((override) => textOf(override?.groupId)));
+  return groups.filter((group) => {
+    const groupId = group.isDefault ? THEATER_DEFAULT_GROUP_ID : textOf(group.id);
+    return groupId && !used.has(groupId);
+  });
+}
+
 function renderTheaterLibrary() {
   const host = $t('#st-esg-theater-list');
   if (!host.length) return;
@@ -3882,21 +3968,27 @@ function renderTheaterLibrary() {
   const editToolbar = theaterEditMode
     ? '<div class="st-esg-component-edit-toolbar"><span class="st-esg-theater-selection-count">未选择项目</span><span class="st-esg-component-batch-actions"><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-batch-move" type="button" disabled><i class="fa-solid fa-folder-open"></i><span>移动</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger st-esg-theater-batch-delete" type="button" disabled><i class="fa-solid fa-trash"></i><span>删除</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-edit-exit" type="button"><i class="fa-solid fa-check"></i><span>退出</span></button></span></div>'
     : '';
-  const mode = normalizeTheaterRandomMode(settings.theaterRandomMode);
-  const modeDescription = mode === THEATER_RANDOM_MODE_OFF
-    ? '关闭随机时只发送已启用的条目。'
-    : mode === THEATER_RANDOM_MODE_ALL
-      ? '从小剧场库中的全部条目随机抽取。'
-      : mode === THEATER_RANDOM_MODE_ENABLED
-        ? '从已启用的条目中随机抽取。'
-      : '已启用内容固定发送，再从未启用内容中随机抽取。';
-  const modeLabel = mode === THEATER_RANDOM_MODE_OFF
-    ? '关闭随机'
-    : mode === THEATER_RANDOM_MODE_ALL
-      ? '全部随机'
-      : mode === THEATER_RANDOM_MODE_ENABLED
-        ? '已启用条目随机'
-      : '启用固定 + 未启用随机';
+  const randomScope = normalizeTheaterRandomScope(settings.theaterRandomScope);
+  const globalMode = normalizeTheaterRandomMode(settings.theaterRandomMode);
+  const groupedFallbackMode = normalizeTheaterRandomMode(settings.theaterGroupedFallbackMode);
+  const overrideGroups = groups
+    .map((group) => ({ ...group, randomGroupId: group.isDefault ? THEATER_DEFAULT_GROUP_ID : textOf(group.id) }))
+    .filter((group) => getTheaterRandomOverride(group.randomGroupId));
+  const groupCandidates = getTheaterRandomGroupCandidates(groups);
+  const globalRandomSettingsMarkup = `<div class="st-esg-theater-random-panel st-esg-theater-random-panel-global${randomScope === THEATER_RANDOM_SCOPE_GLOBAL ? '' : ' st-esg-hidden'}"><div class="st-esg-theater-random-fields"><span class="st-esg-theater-random-label">随机模式</span><select class="text_pole st-esg-theater-global-mode">${renderTheaterRandomModeOptions(globalMode)}</select><span class="st-esg-theater-random-label">随机数量</span>${theaterRandomCountMarkup(globalMode, settings.theaterRandomCount, 'st-esg-theater-global-count')}</div><span class="st-esg-card-desc st-esg-theater-random-description">${getTheaterRandomModeDescription(globalMode)}</span></div>`;
+  const overrideRows = overrideGroups.map((group) => {
+    const override = getTheaterRandomOverride(group.randomGroupId);
+    const groupLabel = getTheaterGroupRandomDisplayName(group);
+    return `<div class="st-esg-theater-random-group-row" data-group-id="${escapeHtml(group.randomGroupId)}"><span class="st-esg-theater-random-group-name">${escapeHtml(groupLabel)}</span><select class="text_pole st-esg-theater-group-mode" data-group-id="${escapeHtml(group.randomGroupId)}">${renderTheaterRandomModeOptions(override.mode)}</select><span class="st-esg-theater-random-group-count">${theaterRandomCountMarkup(override.mode, override.count, 'st-esg-theater-group-count', `data-group-id="${escapeHtml(group.randomGroupId)}"`)}</span><button class="st-esg-icon-btn st-esg-icon-danger st-esg-theater-random-remove-group" type="button" data-group-id="${escapeHtml(group.randomGroupId)}" title="移除指定规则" aria-label="移除指定规则"><i class="fa-solid fa-trash"></i></button></div>`;
+  }).join('');
+  const addGroupMarkup = groupCandidates.length
+    ? `<div class="st-esg-theater-random-add-group"><select class="text_pole st-esg-theater-random-add-group-select"><option value="">选择要单独设置的分组</option>${groupCandidates.map((group) => `<option value="${escapeHtml(group.isDefault ? THEATER_DEFAULT_GROUP_ID : textOf(group.id))}">${escapeHtml(getTheaterGroupRandomDisplayName(group))}</option>`).join('')}</select><button class="menu_button st-esg-secondary-action st-esg-theater-random-add-group-button" type="button"><i class="fa-solid fa-plus"></i><span>添加指定组</span></button></div>`
+    : '<span class="st-esg-card-desc st-esg-theater-random-empty-groups">所有分组都已单独设置。</span>';
+  const groupedRandomSettingsMarkup = `<div class="st-esg-theater-random-panel st-esg-theater-random-panel-grouped${randomScope === THEATER_RANDOM_SCOPE_GROUPED ? '' : ' st-esg-hidden'}"><div class="st-esg-theater-random-subsection"><strong>非指定组</strong><span>所有未单独设置的分组合并为一个随机池。</span></div><div class="st-esg-theater-random-fields"><span class="st-esg-theater-random-label">随机模式</span><select class="text_pole st-esg-theater-grouped-fallback-mode">${renderTheaterRandomModeOptions(groupedFallbackMode)}</select><span class="st-esg-theater-random-label">随机数量</span>${theaterRandomCountMarkup(groupedFallbackMode, settings.theaterGroupedFallbackCount, 'st-esg-theater-grouped-fallback-count')}</div><span class="st-esg-card-desc st-esg-theater-random-description">${getTheaterRandomModeDescription(groupedFallbackMode)}</span><div class="st-esg-theater-random-subsection st-esg-theater-random-subsection-specified"><strong>指定组</strong><span>单独设置的分组会从非指定组池中移出。</span></div><div class="st-esg-theater-random-group-list">${overrideRows || '<span class="st-esg-card-desc st-esg-theater-random-empty-groups">暂未添加指定组。</span>'}</div>${addGroupMarkup}</div>`;
+  const mode = globalMode;
+  const modeLabel = getTheaterRandomModeLabel(globalMode);
+  const modeDescription = getTheaterRandomModeDescription(globalMode);
+  const theaterRandomSettingsMarkupV2 = `<details class="st-esg-theater-random-settings" ${theaterRandomSettingsOpen ? 'open' : ''}><summary class="st-esg-theater-random-summary"><span>随机设置</span><em>${randomScope === THEATER_RANDOM_SCOPE_GLOBAL ? '全局随机' : '按组随机'}</em><i class="fa-solid fa-chevron-down st-esg-theater-random-caret"></i></summary><div class="st-esg-theater-random-body"><div class="st-esg-theater-random-scope-row"><span class="st-esg-theater-random-label">计算方式</span><select class="text_pole st-esg-theater-random-scope"><option value="global" ${randomScope === THEATER_RANDOM_SCOPE_GLOBAL ? 'selected' : ''}>全局随机</option><option value="grouped" ${randomScope === THEATER_RANDOM_SCOPE_GROUPED ? 'selected' : ''}>按组随机</option></select></div>${globalRandomSettingsMarkup}${groupedRandomSettingsMarkup}</div></details>`;
   const renderItem = (item) => {
     const isOpen = openItems.has(item.id);
     const controls = libraryExportMode
@@ -3940,6 +4032,7 @@ function renderTheaterLibrary() {
   const theaterRandomSettingsMarkup = `<details class="st-esg-theater-random-settings" ${theaterRandomSettingsOpen ? 'open' : ''}><summary class="st-esg-theater-random-summary"><span>随机设置</span><em>${modeLabel}</em><i class="fa-solid fa-chevron-down st-esg-theater-random-caret"></i></summary><div class="st-esg-theater-random-body"><div class="st-esg-theater-random-fields"><span class="st-esg-theater-random-label">随机模式</span><select class="text_pole st-esg-theater-random-mode"><option value="off" ${mode === THEATER_RANDOM_MODE_OFF ? 'selected' : ''}>关闭随机</option><option value="all" ${mode === THEATER_RANDOM_MODE_ALL ? 'selected' : ''}>全部随机</option><option value="enabled" ${mode === THEATER_RANDOM_MODE_ENABLED ? 'selected' : ''}>已启用条目随机</option><option value="fixed-enabled" ${mode === THEATER_RANDOM_MODE_FIXED_ENABLED ? 'selected' : ''}>启用固定 + 未启用随机</option></select><span class="st-esg-theater-random-label">随机数量</span><input class="text_pole st-esg-theater-random-count" type="number" min="0" step="1" value="${settings.theaterRandomCount}" /></div><span class="st-esg-card-desc st-esg-theater-random-description">${modeDescription}</span></div></details>`;
   host.html(`<details class="st-esg-card st-esg-component-library-card st-esg-library-collapsible st-esg-theater-library-card" ${theaterLibraryOpen ? 'open' : ''}><summary class="st-esg-library-card-summary"><div class="st-esg-card-head"><div><div class="st-esg-card-title">小剧场库</div><div class="st-esg-card-desc">独立管理格式要求和剧情小剧场；启用状态可用于随机抽取。</div></div>${editButton}</div></summary><div class="st-esg-library-card-body">${editToolbar}${theaterRandomSettingsMarkup}<div class="st-esg-list-toolbar st-esg-component-list-toolbar"><input type="text" class="st-esg-search-input st-esg-theater-search-input text_pole" placeholder="搜索条目..." value="${escapeHtml(theaterSearchQuery)}"><select class="st-esg-filter-select st-esg-theater-filter-select text_pole"><option value="all" ${theaterFilterMode === 'all' ? 'selected' : ''}>全部</option><option value="enabled" ${theaterFilterMode === 'enabled' ? 'selected' : ''}>仅启用</option><option value="disabled" ${theaterFilterMode === 'disabled' ? 'selected' : ''}>仅禁用</option></select><span class="st-esg-theater-count"></span></div><div class="st-esg-theater-folders">${folderHtml}</div></div></details>`);
 
+  host.find('.st-esg-theater-random-settings').replaceWith(theaterRandomSettingsMarkupV2);
   host.find('.st-esg-theater-library-card').on('toggle', function () { theaterLibraryOpen = this.open; });
   host.find('.st-esg-library-export-theater, .st-esg-library-export-theater-group').on('click', (event) => event.stopPropagation());
   host.find('.st-esg-library-export-theater').on('change', function () {
@@ -3959,8 +4052,15 @@ function renderTheaterLibrary() {
     $(this).prop('checked', ids.length > 0 && selectedCount === ids.length).prop('indeterminate', selectedCount > 0 && selectedCount < ids.length);
   });
   host.find('.st-esg-theater-random-settings').on('toggle', function () { theaterRandomSettingsOpen = this.open; });
-  host.find('.st-esg-theater-random-mode').on('change', function () { settings.theaterRandomMode = normalizeTheaterRandomMode($(this).val()); saveSettings(); renderTheaterLibrary(); });
-  host.find('.st-esg-theater-random-count').on('change', function () { settings.theaterRandomCount = normalizeTheaterRandomCount($(this).val()); $(this).val(settings.theaterRandomCount); saveSettings(); });
+  host.find('.st-esg-theater-random-scope').on('change', function () { settings.theaterRandomScope = normalizeTheaterRandomScope($(this).val()); saveSettings(); renderTheaterLibrary(); });
+  host.find('.st-esg-theater-global-mode').on('change', function () { settings.theaterRandomMode = normalizeTheaterRandomMode($(this).val()); saveSettings(); renderTheaterLibrary(); });
+  host.find('.st-esg-theater-global-count').on('change', function () { settings.theaterRandomCount = normalizeTheaterRandomCount($(this).val()); $(this).val(settings.theaterRandomCount); saveSettings(); renderTheaterLibrary(); });
+  host.find('.st-esg-theater-grouped-fallback-mode').on('change', function () { settings.theaterGroupedFallbackMode = normalizeTheaterRandomMode($(this).val()); saveSettings(); renderTheaterLibrary(); });
+  host.find('.st-esg-theater-grouped-fallback-count').on('change', function () { settings.theaterGroupedFallbackCount = normalizeTheaterRandomCount($(this).val()); $(this).val(settings.theaterGroupedFallbackCount); saveSettings(); renderTheaterLibrary(); });
+  host.find('.st-esg-theater-group-mode').on('change', function () { const groupId = textOf($(this).attr('data-group-id')); const override = getTheaterRandomOverride(groupId); if (!override) return; override.mode = normalizeTheaterRandomMode($(this).val()); saveSettings(); renderTheaterLibrary(); });
+  host.find('.st-esg-theater-group-count').on('change', function () { const groupId = textOf($(this).attr('data-group-id')); const override = getTheaterRandomOverride(groupId); if (!override) return; override.count = normalizeTheaterRandomCount($(this).val()); saveSettings(); renderTheaterLibrary(); });
+  host.find('.st-esg-theater-random-add-group-button').on('click', function (event) { event.preventDefault(); event.stopPropagation(); const select = host.find('.st-esg-theater-random-add-group-select'); const groupId = textOf(select.val()); if (!groupId || getTheaterRandomOverride(groupId)) return; settings.theaterGroupRandomOverrides.push({ groupId, mode: settings.theaterGroupedFallbackMode, count: settings.theaterGroupedFallbackCount }); saveSettings(); renderTheaterLibrary(); });
+  host.find('.st-esg-theater-random-remove-group').on('click', function (event) { event.preventDefault(); event.stopPropagation(); const groupId = textOf($(this).attr('data-group-id')); settings.theaterGroupRandomOverrides = settings.theaterGroupRandomOverrides.filter((override) => textOf(override?.groupId) !== groupId); saveSettings(); renderTheaterLibrary(); });
   host.find('.st-esg-theater-search-input').on('input', function () { theaterSearchQuery = String($(this).val() || ''); applyTheaterLibraryFilters(); });
   host.find('.st-esg-theater-filter-select').on('change', function () { theaterFilterMode = String($(this).val() || 'all'); applyTheaterLibraryFilters(); });
   host.find('.st-esg-theater-edit-toggle').on('click', (event) => { event.preventDefault(); event.stopPropagation(); theaterEditMode = true; renderTheaterLibrary(); });
@@ -3974,7 +4074,7 @@ function renderTheaterLibrary() {
   host.find('.st-esg-theater-group-create').on('click', async (event) => { event.preventDefault(); event.stopPropagation(); const name = await requestTextInputDialog({ title: '新建小剧场分组', label: '分组名', placeholder: '输入分组名' }); if (!name) return; const order = settings.theaterGroups.reduce((max, group) => Math.max(max, Number(group.order) || 0), -1) + 1; settings.theaterGroups.push({ id: createNewTheaterGroupId(), name, enabled: true, order }); saveSettings(); renderComponentList(); });
   host.find('.st-esg-theater-group-up, .st-esg-theater-group-down').on('click', function (event) { event.preventDefault(); event.stopPropagation(); if (moveTheaterGroupWithinLibrary($(this).attr('data-group-id'), $(this).hasClass('st-esg-theater-group-up') ? -1 : 1)) { saveSettings(); renderComponentList(); } });
   host.find('.st-esg-theater-group-rename').on('click', async function (event) { event.preventDefault(); event.stopPropagation(); const group = settings.theaterGroups.find((item) => textOf(item?.id) === textOf($(this).attr('data-group-id'))); if (!group) return; const name = await requestTextInputDialog({ title: '重命名小剧场分组', label: '分组名', value: group.name, placeholder: '输入分组名' }); if (!name) return; group.name = name; saveSettings(); renderComponentList(); });
-  host.find('.st-esg-theater-group-delete').on('click', function (event) { event.preventDefault(); event.stopPropagation(); const groupId = textOf($(this).attr('data-group-id')); const group = settings.theaterGroups.find((item) => textOf(item?.id) === groupId); if (!group || !targetWindow.confirm(`确认删除分组“${group.name}”？组内小剧场将移到默认分组。`)) return; settings.theaterComponents.forEach((item) => { if (textOf(item.groupId) === groupId) item.groupId = ''; }); settings.theaterGroups = settings.theaterGroups.filter((item) => textOf(item?.id) !== groupId); saveSettings(); renderComponentList(); });
+  host.find('.st-esg-theater-group-delete').on('click', function (event) { event.preventDefault(); event.stopPropagation(); const groupId = textOf($(this).attr('data-group-id')); const group = settings.theaterGroups.find((item) => textOf(item?.id) === groupId); if (!group || !targetWindow.confirm(`确认删除分组“${group.name}”？组内小剧场将移到默认分组。`)) return; settings.theaterComponents.forEach((item) => { if (textOf(item.groupId) === groupId) item.groupId = ''; }); settings.theaterGroups = settings.theaterGroups.filter((item) => textOf(item?.id) !== groupId); settings.theaterGroupRandomOverrides = settings.theaterGroupRandomOverrides.filter((override) => textOf(override?.groupId) !== groupId); saveSettings(); renderComponentList(); });
   host.find('.st-esg-theater-group-enabled').on('click', (event) => event.stopPropagation()).on('change', function () { const group = settings.theaterGroups.find((item) => textOf(item?.id) === textOf($(this).attr('data-group-id'))); if (!group) return; group.enabled = Boolean($(this).prop('checked')); saveSettings(); renderTheaterLibrary(); });
   host.find('.st-esg-theater-default-enabled').on('click', (event) => event.stopPropagation()).on('change', function () { settings.theaterDefaultGroupEnabled = Boolean($(this).prop('checked')); saveSettings(); renderTheaterLibrary(); });
   host.find('.st-esg-theater-enabled').on('click', (event) => event.stopPropagation()).on('change', function () { const item = findTheaterItemById($(this).closest('.st-esg-theater-item').attr('data-component-id')); if (!item) return; item.enabled = Boolean($(this).prop('checked')); saveSettings(); renderTheaterLibrary(); });

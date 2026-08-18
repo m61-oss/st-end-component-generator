@@ -2,6 +2,9 @@ export const THEATER_RANDOM_MODE_OFF = 'off';
 export const THEATER_RANDOM_MODE_ALL = 'all';
 export const THEATER_RANDOM_MODE_ENABLED = 'enabled';
 export const THEATER_RANDOM_MODE_FIXED_ENABLED = 'fixed-enabled';
+export const THEATER_RANDOM_SCOPE_GLOBAL = 'global';
+export const THEATER_RANDOM_SCOPE_GROUPED = 'grouped';
+export const THEATER_DEFAULT_GROUP_ID = '__theater_default_group__';
 
 const textOf = (value) => String(value ?? '').trim();
 
@@ -14,6 +17,12 @@ export function normalizeTheaterRandomMode(mode) {
 export function normalizeTheaterRandomCount(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : 0;
+}
+
+export function normalizeTheaterRandomScope(scope) {
+  return textOf(scope) === THEATER_RANDOM_SCOPE_GROUPED
+    ? THEATER_RANDOM_SCOPE_GROUPED
+    : THEATER_RANDOM_SCOPE_GLOBAL;
 }
 
 function normalizeTheaterGroups(groups) {
@@ -68,17 +77,68 @@ function chooseRandomItems(items, count, random = Math.random) {
   return items.filter((item) => selectedIds.has(item.id));
 }
 
-export function selectTheaterComponents(items, options = {}) {
-  const mode = normalizeTheaterRandomMode(options.mode);
-  const orderedItems = getTheaterLibraryItems(items, options.groups, options.defaultGroupEnabled !== false);
+function selectTheaterPool(items, mode, count, random) {
+  const normalizedMode = normalizeTheaterRandomMode(mode);
+  const orderedItems = Array.isArray(items) ? items : [];
   const enabledItems = orderedItems.filter((item) => item.theaterGroupEnabled !== false && item.enabled !== false);
-  if (mode === THEATER_RANDOM_MODE_OFF) return enabledItems;
-  if (mode === THEATER_RANDOM_MODE_ENABLED) return chooseRandomItems(enabledItems, options.count, options.random);
-  if (mode === THEATER_RANDOM_MODE_FIXED_ENABLED) {
+  if (normalizedMode === THEATER_RANDOM_MODE_OFF) return enabledItems;
+  if (normalizedMode === THEATER_RANDOM_MODE_ENABLED) return chooseRandomItems(enabledItems, count, random);
+  if (normalizedMode === THEATER_RANDOM_MODE_FIXED_ENABLED) {
     const disabledItems = orderedItems.filter((item) => item.theaterGroupEnabled === false || item.enabled === false);
-    const randomItems = chooseRandomItems(disabledItems, options.count, options.random);
+    const randomItems = chooseRandomItems(disabledItems, count, random);
     const selectedIds = new Set([...enabledItems, ...randomItems].map((item) => item.id));
     return orderedItems.filter((item) => selectedIds.has(item.id));
   }
-  return chooseRandomItems(orderedItems, options.count, options.random);
+  return chooseRandomItems(orderedItems, count, random);
+}
+
+function getTheaterItemGroupId(item, validGroupIds) {
+  const groupId = textOf(item?.groupId);
+  return groupId && validGroupIds.has(groupId) ? groupId : THEATER_DEFAULT_GROUP_ID;
+}
+
+function getTheaterGroupOverrides(overrides, validGroupIds) {
+  const seen = new Set();
+  return (Array.isArray(overrides) ? overrides : [])
+    .map((override) => ({
+      groupId: textOf(override?.groupId),
+      mode: normalizeTheaterRandomMode(override?.mode),
+      count: normalizeTheaterRandomCount(override?.count),
+    }))
+    .filter((override) => {
+      if (!override.groupId || (override.groupId !== THEATER_DEFAULT_GROUP_ID && !validGroupIds.has(override.groupId))) return false;
+      if (seen.has(override.groupId)) return false;
+      seen.add(override.groupId);
+      return true;
+    });
+}
+
+export function selectTheaterComponents(items, options = {}) {
+  const orderedItems = getTheaterLibraryItems(items, options.groups, options.defaultGroupEnabled !== false);
+  const scope = normalizeTheaterRandomScope(options.scope);
+  if (scope === THEATER_RANDOM_SCOPE_GLOBAL) {
+    return selectTheaterPool(orderedItems, options.mode, options.count, options.random);
+  }
+
+  const validGroups = normalizeTheaterGroups(options.groups);
+  const validGroupIds = new Set(validGroups.map((group) => group.id));
+  const overrides = getTheaterGroupOverrides(options.groupOverrides, validGroupIds);
+  const specifiedGroupIds = new Set(overrides.map((override) => override.groupId));
+  const fallbackItems = orderedItems.filter((item) => (
+    !specifiedGroupIds.has(getTheaterItemGroupId(item, validGroupIds))
+  ));
+  const selectedIds = new Set(selectTheaterPool(
+    fallbackItems,
+    options.groupedFallbackMode ?? options.mode,
+    options.groupedFallbackCount ?? options.count,
+    options.random,
+  ).map((item) => item.id));
+
+  overrides.forEach((override) => {
+    const groupItems = orderedItems.filter((item) => getTheaterItemGroupId(item, validGroupIds) === override.groupId);
+    selectTheaterPool(groupItems, override.mode, override.count, options.random)
+      .forEach((item) => selectedIds.add(item.id));
+  });
+
+  return orderedItems.filter((item) => selectedIds.has(item.id));
 }
