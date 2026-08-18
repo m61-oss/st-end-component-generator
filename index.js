@@ -4879,7 +4879,12 @@ function applyTheme() {
 
   const presentation = getThemePresentation(settings.theme);
   const toggle = $t('#st-esg-theme-toggle');
-  toggle.find('i').attr('class', `fa-solid ${presentation.icon}`);
+  toggle.html(`
+    <span class="st-esg-theme-glyph" aria-hidden="true">
+      <i class="fa-solid ${presentation.icon}"></i>
+      ${presentation.badgeIcon ? `<i class="fa-solid ${presentation.badgeIcon} st-esg-theme-glyph-badge"></i>` : ''}
+    </span>
+  `);
   toggle.attr({
     title: `主题：${presentation.label}（点击切换）`,
     'aria-label': `当前主题：${presentation.label}，点击切换`,
@@ -5840,7 +5845,7 @@ function renderPluginPanel() {
     const title = scheme?.parentElement?.querySelector('.st-esg-card-head');
     title?.insertAdjacentElement('afterend', scheme);
   });
-  dialog.querySelector('#st-esg-close')?.insertAdjacentHTML('beforebegin', '<div id="st-esg-theme-toggle" class="st-esg-header-btn" role="button" tabindex="0" title="切换主题"><i class="fa-solid fa-moon"></i></div>');
+  dialog.querySelector('#st-esg-close')?.insertAdjacentHTML('beforebegin', '<div id="st-esg-theme-toggle" class="st-esg-header-btn" role="button" tabindex="0" title="切换主题"><span class="st-esg-theme-glyph" aria-hidden="true"><i class="fa-solid fa-moon"></i></span></div>');
   targetDoc.body.appendChild(dialog);
   dialog.addEventListener('cancel', (event) => { event.preventDefault(); togglePanel(false); });
   dialog.addEventListener('keydown', (event) => {

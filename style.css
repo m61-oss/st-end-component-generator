@@ -47,6 +47,27 @@
   --esg-checkmark: var(--SmartThemeBodyColor, #FFFFFF);
   --esg-danger: #FF453A;
   --esg-shadow: 0 4px 14px var(--SmartThemeShadowColor, rgba(0, 0, 0, 0.2));
+  --esg-tavern-glass-guard: color-mix(in srgb, var(--SmartThemeBodyColor, #E0E0E0) 12%, transparent);
+  --esg-tavern-backdrop-filter: blur(16px) saturate(1.05);
+}
+
+.st-esg-theme-tavern .st-esg-shell,
+.st-esg-data-management-dialog.st-esg-theme-tavern .st-esg-data-dialog-shell {
+  background:
+    linear-gradient(var(--esg-tavern-glass-guard), var(--esg-tavern-glass-guard)),
+    var(--esg-bg-main);
+  backdrop-filter: var(--esg-tavern-backdrop-filter);
+  -webkit-backdrop-filter: var(--esg-tavern-backdrop-filter);
+}
+
+.st-esg-theme-tavern.st-esg-anchor-preview-dialog,
+.st-esg-theme-tavern.st-esg-scheme-name-dialog,
+.st-esg-theme-tavern.st-esg-api-additional-dialog {
+  background:
+    linear-gradient(var(--esg-tavern-glass-guard), var(--esg-tavern-glass-guard)),
+    var(--esg-bg-card);
+  backdrop-filter: var(--esg-tavern-backdrop-filter);
+  -webkit-backdrop-filter: var(--esg-tavern-backdrop-filter);
 }
 
 #st-esg-menu-button.selected {
@@ -415,6 +436,30 @@
 }
 
 .st-esg-header-btn { margin-left: auto; }
+
+.st-esg-theme-glyph {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  line-height: 1;
+}
+.st-esg-theme-glyph > i:first-child { font-size: 14px; }
+.st-esg-theme-glyph-badge {
+  position: absolute;
+  right: -4px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  color: var(--esg-primary);
+  background: var(--esg-bg-card);
+  font-size: 7px;
+  line-height: 1;
+}
 
 .st-esg-header-btn:hover,
 #st-esg-close:hover {
@@ -1127,8 +1172,8 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   --st-esg-ball-flow-mid: color-mix(in srgb, var(--SmartThemeQuoteColor, var(--SmartThemeBodyColor, #fff)) 72%, transparent);
   --st-esg-ball-flow-tail: color-mix(in srgb, var(--SmartThemeQuoteColor, var(--SmartThemeBodyColor, #fff)) 24%, transparent);
   --st-esg-ball-base-dim: color-mix(in srgb, var(--SmartThemeBodyColor, #fff) 32%, transparent);
-  --st-esg-ball-surface-top: color-mix(in srgb, var(--SmartThemeBodyColor, #fff) 8%, var(--SmartThemeChatTintColor, #242426));
-  --st-esg-ball-surface-bottom: var(--SmartThemeBlurTintColor, #1d1d1f);
+  --st-esg-ball-surface-top: color-mix(in srgb, var(--SmartThemeBodyColor, #fff) 16%, var(--SmartThemeChatTintColor, #242426));
+  --st-esg-ball-surface-bottom: color-mix(in srgb, var(--SmartThemeBodyColor, #fff) 12%, var(--SmartThemeBlurTintColor, #1d1d1f));
   --st-esg-ball-border: var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.24));
   --st-esg-ball-inset: color-mix(in srgb, var(--SmartThemeBodyColor, #fff) 16%, transparent);
   --st-esg-ball-edge: color-mix(in srgb, var(--SmartThemeShadowColor, #000) 30%, transparent);

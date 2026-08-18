@@ -20,6 +20,8 @@ export function getThemeClassName(theme) {
 export function getThemePresentation(theme) {
   const normalized = normalizeThemeMode(theme);
   if (normalized === THEME_MODE_LIGHT) return { icon: 'fa-sun', label: '日间' };
-  if (normalized === THEME_MODE_TAVERN) return { icon: 'fa-circle-half-stroke', label: '跟随酒馆' };
+  if (normalized === THEME_MODE_TAVERN) {
+    return { icon: 'fa-palette', badgeIcon: 'fa-arrows-rotate', label: '跟随酒馆' };
+  }
   return { icon: 'fa-moon', label: '夜间' };
 }

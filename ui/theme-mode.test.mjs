@@ -28,7 +28,8 @@ test('cycles from dark to light to tavern and back to dark', () => {
 test('provides a class, icon and accessible label for tavern-following mode', () => {
   assert.equal(getThemeClassName(THEME_MODE_TAVERN), 'st-esg-theme-tavern');
   assert.deepEqual(getThemePresentation(THEME_MODE_TAVERN), {
-    icon: 'fa-circle-half-stroke',
+    icon: 'fa-palette',
+    badgeIcon: 'fa-arrows-rotate',
     label: '跟随酒馆',
   });
 });
@@ -46,4 +47,11 @@ test('integrates tavern theme tokens with every extension surface', async () => 
   assert.match(styleSource, /--esg-text-main:\s*var\(--SmartThemeBodyColor/);
   assert.match(styleSource, /--esg-border:\s*var\(--SmartThemeBorderColor/);
   assert.match(styleSource, /--esg-primary:\s*var\(--SmartThemeQuoteColor/);
+  assert.match(styleSource, /--esg-tavern-glass-guard:\s*color-mix\(/);
+  assert.match(styleSource, /--esg-tavern-backdrop-filter:\s*blur\(16px\) saturate\(1\.05\)/);
+  assert.match(styleSource, /\.st-esg-theme-tavern\s+\.st-esg-shell/);
+  assert.match(styleSource, /\.st-esg-theme-tavern\.st-esg-anchor-preview-dialog/);
+  assert.match(styleSource, /--st-esg-ball-surface-bottom:\s*color-mix\([^;]+--SmartThemeBodyColor/);
+  assert.match(styleSource, /\.st-esg-theme-glyph-badge/);
+  assert.match(indexSource, /presentation\.badgeIcon/);
 });
