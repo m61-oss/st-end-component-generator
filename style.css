@@ -1324,12 +1324,12 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 
 /* Latest assistant floor panel: a quiet in-message surface that never becomes chat content. */
 .st-esg-message-floor-panel {
-  --floor-text: var(--SmartThemeBodyColor, #e0e0e0);
-  --floor-muted: var(--SmartThemeEmColor, #96969c);
-  --floor-border: color-mix(in srgb, var(--floor-text) 18%, transparent);
-  --floor-surface: color-mix(in srgb, var(--SmartThemeChatTintColor, #202024) 88%, var(--floor-text) 12%);
-  --floor-input: color-mix(in srgb, var(--SmartThemeBlurTintColor, #16161a) 78%, var(--floor-text) 8%);
-  --floor-accent: var(--SmartThemeQuoteColor, #b79c73);
+  --floor-text: var(--esg-text-main, var(--SmartThemeBodyColor, #e0e0e0));
+  --floor-muted: var(--esg-text-muted, var(--SmartThemeEmColor, #96969c));
+  --floor-border: color-mix(in srgb, var(--esg-border, var(--SmartThemeBorderColor, #38383a)) 72%, transparent);
+  --floor-surface: var(--esg-bg-card, var(--SmartThemeChatTintColor, #202024));
+  --floor-input: var(--esg-bg-input, var(--SmartThemeBlurTintColor, #16161a));
+  --floor-accent: var(--esg-primary, var(--SmartThemeQuoteColor, #b79c73));
   display: grid;
   grid-template-rows: auto auto;
   width: min(100%, 760px);
@@ -1337,12 +1337,22 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   border: 1px solid var(--floor-border);
   border-radius: 9px;
   color: var(--floor-text);
-  background: color-mix(in srgb, var(--floor-surface) 84%, transparent);
+  /* Keep the panel visually connected to the plugin theme without obscuring the message beneath it. */
+  background: color-mix(in srgb, var(--floor-surface) 58%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   line-height: 1.4;
   box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
+}
+.st-esg-message-floor-panel.st-esg-theme-tavern {
+  background:
+    linear-gradient(color-mix(in srgb, var(--esg-tavern-glass-guard, transparent) 48%, transparent), color-mix(in srgb, var(--esg-tavern-glass-guard, transparent) 48%, transparent)),
+    color-mix(in srgb, var(--floor-surface) 58%, transparent);
+  backdrop-filter: var(--esg-tavern-backdrop-filter, blur(8px));
+  -webkit-backdrop-filter: var(--esg-tavern-backdrop-filter, blur(8px));
 }
 .st-esg-floor-compact { display: flex; align-items: center; gap: 7px; min-height: 34px; padding: 4px 7px 4px 9px; }
 .st-esg-floor-brand { display: inline-flex; align-items: center; gap: 5px; color: var(--floor-text); font-size: 11px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; }
@@ -1370,7 +1380,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-floor-output { width: 100%; min-height: 120px; max-height: 360px; box-sizing: border-box; resize: vertical; border: 1px solid var(--floor-border) !important; border-radius: 7px !important; color: var(--floor-text) !important; background: var(--floor-input) !important; font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace) !important; font-size: 12px !important; line-height: 1.5; }
 .st-esg-floor-output[readonly] { opacity: .88; }
 .st-esg-floor-anchor-list { display: grid; gap: 6px; max-height: 380px; overflow: auto; }
-.st-esg-floor-anchor-item { overflow: hidden; border: 1px solid var(--floor-border); border-radius: 7px; background: color-mix(in srgb, var(--floor-surface) 75%, transparent); }
+.st-esg-floor-anchor-item { overflow: hidden; border: 1px solid var(--floor-border); border-radius: 7px; background: color-mix(in srgb, var(--floor-surface) 54%, transparent); }
 .st-esg-floor-anchor-item.st-esg-floor-anchor-disabled { opacity: .48; filter: saturate(.55); }
 .st-esg-floor-anchor-item > summary { display: flex; align-items: center; justify-content: space-between; min-height: 29px; padding: 3px 7px; color: var(--floor-text); cursor: pointer; font-size: 11px; }
 .st-esg-floor-anchor-toggle { width: 24px; height: 24px; padding: 0; border-radius: 5px; }

@@ -992,6 +992,7 @@ function renderMessageFloorPanel({ force = false } = {}) {
     messageText.insertAdjacentElement('afterend', panel);
     force = true;
   }
+  applyThemeClass(panel, settings.theme);
   if (force || !panel.dataset.rendered) {
     panel.innerHTML = buildMessageFloorPanelMarkup();
     panel.dataset.rendered = 'true';
@@ -5252,6 +5253,7 @@ function applyTheme() {
   const themedElements = [
     getDialog(),
     targetDoc.getElementById('st-esg-ball'),
+    ...targetDoc.querySelectorAll('.st-esg-message-floor-panel'),
     ...targetDoc.querySelectorAll(
       '.st-esg-anchor-preview-dialog, .st-esg-scheme-name-dialog, .st-esg-api-additional-dialog, .st-esg-data-management-dialog',
     ),
