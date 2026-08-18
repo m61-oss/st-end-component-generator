@@ -32,6 +32,23 @@
   --esg-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
 }
 
+.st-esg-theme-tavern {
+  --esg-bg-main: var(--SmartThemeBlurTintColor, #121212);
+  --esg-bg-card: var(--SmartThemeChatTintColor, var(--SmartThemeBlurTintColor, #1E1E1E));
+  --esg-bg-secondary: color-mix(in srgb, var(--SmartThemeBodyColor, #E0E0E0) 8%, var(--SmartThemeChatTintColor, #2C2C2E));
+  --esg-bg-input: color-mix(in srgb, var(--SmartThemeBodyColor, #E0E0E0) 4%, var(--SmartThemeBlurTintColor, #29292B));
+  --esg-bg-hover: color-mix(in srgb, var(--SmartThemeBodyColor, #E0E0E0) 14%, var(--SmartThemeChatTintColor, #2C2C2E));
+  --esg-text-main: var(--SmartThemeBodyColor, #E0E0E0);
+  --esg-text-muted: var(--SmartThemeEmColor, #8E8E93);
+  --esg-border: var(--SmartThemeBorderColor, #38383A);
+  --esg-primary: var(--SmartThemeQuoteColor, #0A84FF);
+  --esg-worldbook-blue: var(--SmartThemeQuoteColor, #0A84FF);
+  --esg-worldbook-green: #30D158;
+  --esg-checkmark: var(--SmartThemeBodyColor, #FFFFFF);
+  --esg-danger: #FF453A;
+  --esg-shadow: 0 4px 14px var(--SmartThemeShadowColor, rgba(0, 0, 0, 0.2));
+}
+
 #st-esg-menu-button.selected {
   color: var(--esg-text-main);
   background: var(--esg-bg-secondary);
@@ -1104,6 +1121,20 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   --st-esg-ball-shadow: rgba(0, 0, 0, 0.16);
   --st-esg-ball-error: #b93b36;
   --st-esg-ball-error-surface: #f5e8e7;
+}
+.st-esg-theme-tavern#st-esg-ball {
+  --st-esg-ball-flow: var(--SmartThemeQuoteColor, var(--SmartThemeBodyColor, #fff));
+  --st-esg-ball-flow-mid: color-mix(in srgb, var(--SmartThemeQuoteColor, var(--SmartThemeBodyColor, #fff)) 72%, transparent);
+  --st-esg-ball-flow-tail: color-mix(in srgb, var(--SmartThemeQuoteColor, var(--SmartThemeBodyColor, #fff)) 24%, transparent);
+  --st-esg-ball-base-dim: color-mix(in srgb, var(--SmartThemeBodyColor, #fff) 32%, transparent);
+  --st-esg-ball-surface-top: color-mix(in srgb, var(--SmartThemeBodyColor, #fff) 8%, var(--SmartThemeChatTintColor, #242426));
+  --st-esg-ball-surface-bottom: var(--SmartThemeBlurTintColor, #1d1d1f);
+  --st-esg-ball-border: var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.24));
+  --st-esg-ball-inset: color-mix(in srgb, var(--SmartThemeBodyColor, #fff) 16%, transparent);
+  --st-esg-ball-edge: color-mix(in srgb, var(--SmartThemeShadowColor, #000) 30%, transparent);
+  --st-esg-ball-shadow: color-mix(in srgb, var(--SmartThemeShadowColor, #000) 26%, transparent);
+  --st-esg-ball-error: #ff7770;
+  --st-esg-ball-error-surface: color-mix(in srgb, #ff7770 12%, var(--SmartThemeBlurTintColor, #2c2021));
 }
 #st-esg-ball::after {
   content: '';

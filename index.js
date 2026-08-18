@@ -81,6 +81,7 @@ import { normalizeFloatingBallVisualState, resolveFloatingBallRenderedState } fr
 import { isFloatingBallExternallyManaged, markFloatingBallCompatible } from './ui/floating-ball-compat.js?ver=0.1.9';
 import { renderBrandMark } from './ui/brand-mark.js?ver=0.1.9';
 import { getGenerationInjectionModeHelp } from './ui/generation-settings.js?ver=0.1.9';
+import { getThemeClassName, getThemePresentation, nextThemeMode, normalizeThemeMode } from './ui/theme-mode.js?ver=0.1.9';
 import {
   buildApiRequestParts,
   parseApiAdditionalParameters,
@@ -655,7 +656,7 @@ function loadSettings() {
   }
   settings.streamingEnabled = Boolean(settings.streamingEnabled);
   settings.apiRetryCount = normalizeApiRetryCount(settings.apiRetryCount);
-  if (!['dark', 'light'].includes(settings.theme)) settings.theme = 'dark';
+  settings.theme = normalizeThemeMode(settings.theme);
   if (settings.historyCleanupTags === undefined) settings.historyCleanupTags = String(settings.cleanupTags || '');
   if (!Array.isArray(storedSettings.historyCleanupRules)) {
     settings.historyCleanupRules = String(settings.historyCleanupTags || '').split('\n')
@@ -1203,7 +1204,7 @@ function showAnchorInsertionPreviewDialog() {
   targetDoc.getElementById('st-esg-anchor-preview-dialog')?.remove();
   const dialog = targetDoc.createElement('dialog');
   dialog.id = 'st-esg-anchor-preview-dialog';
-  dialog.className = `st-esg-anchor-preview-dialog st-esg-theme-${settings.theme === 'light' ? 'light' : 'dark'}`;
+  dialog.className = `st-esg-anchor-preview-dialog ${getThemeClassName(settings.theme)}`;
 
   const target = getAnchorTargetMessage();
   const targetText = String(target?.message?.mes ?? '');
@@ -2588,7 +2589,7 @@ async function restoreBoundWorldbookSchemeForCurrentChatNow() {
 function requestTextInputDialog({ title, label, placeholder = '', value = '', options = null }) {
   return new Promise((resolve) => {
     const dialog = targetDoc.createElement('dialog');
-    dialog.className = `st-esg-scheme-name-dialog st-esg-theme-${settings.theme === 'light' ? 'light' : 'dark'}`;
+    dialog.className = `st-esg-scheme-name-dialog ${getThemeClassName(settings.theme)}`;
     const field = Array.isArray(options)
       ? `<select class="text_pole" name="text-input">${options.map((option) => `<option value="${escapeHtml(option.value)}" ${textOf(option.value) === textOf(value) ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select>`
       : `<input class="text_pole" type="text" name="text-input" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(value)}" />`;
@@ -2625,7 +2626,7 @@ function showApiAdditionalParametersDialog() {
   targetDoc.getElementById('st-esg-api-additional-dialog')?.remove();
   const dialog = targetDoc.createElement('dialog');
   dialog.id = 'st-esg-api-additional-dialog';
-  dialog.className = `st-esg-api-additional-dialog st-esg-theme-${settings.theme === 'light' ? 'light' : 'dark'}`;
+  dialog.className = `st-esg-api-additional-dialog ${getThemeClassName(settings.theme)}`;
   dialog.innerHTML = `
     <form>
       <header class="st-esg-api-additional-header">
@@ -3230,8 +3231,7 @@ function renderFloatingBall() {
   markFloatingBallCompatible(ball);
   ball.title = `${BRAND_NAME} · ${BRAND_SUBTITLE}`;
   ball.innerHTML = renderBrandMark('ball');
-  const theme = settings.theme === 'light' ? 'light' : 'dark';
-  applyThemeClass(ball, theme);
+  applyThemeClass(ball, settings.theme);
   applyFloatingBallAppearance(ball);
   applyFloatingBallPosition(ball);
   ball.classList.toggle('st-esg-ball-under-panel', Boolean(getDialog()?.open));
@@ -4858,17 +4858,32 @@ function captureImportViewState() {
   };
 }
 
+const EXTENSION_THEME_CLASSES = ['st-esg-theme-dark', 'st-esg-theme-light', 'st-esg-theme-tavern'];
+
 function applyThemeClass(element, theme) {
   if (!element) return;
-  element.classList.toggle('st-esg-theme-dark', theme === 'dark');
-  element.classList.toggle('st-esg-theme-light', theme === 'light');
+  element.classList.remove(...EXTENSION_THEME_CLASSES);
+  element.classList.add(getThemeClassName(theme));
 }
 
 function applyTheme() {
-  const theme = settings.theme === 'light' ? 'light' : 'dark';
-  applyThemeClass(getDialog(), theme);
-  applyThemeClass(targetDoc.getElementById('st-esg-ball'), theme);
-  $t('#st-esg-theme-toggle i').attr('class', `fa-solid ${theme === 'dark' ? 'fa-moon' : 'fa-sun'}`);
+  settings.theme = normalizeThemeMode(settings.theme);
+  const themedElements = [
+    getDialog(),
+    targetDoc.getElementById('st-esg-ball'),
+    ...targetDoc.querySelectorAll(
+      '.st-esg-anchor-preview-dialog, .st-esg-scheme-name-dialog, .st-esg-api-additional-dialog, .st-esg-data-management-dialog',
+    ),
+  ];
+  themedElements.forEach((element) => applyThemeClass(element, settings.theme));
+
+  const presentation = getThemePresentation(settings.theme);
+  const toggle = $t('#st-esg-theme-toggle');
+  toggle.find('i').attr('class', `fa-solid ${presentation.icon}`);
+  toggle.attr({
+    title: `主题：${presentation.label}（点击切换）`,
+    'aria-label': `当前主题：${presentation.label}，点击切换`,
+  });
 }
 
 function restoreImportViewState(state) {
@@ -5524,7 +5539,7 @@ function openDataManagementDialog() {
   if (!dialog) {
     dialog = targetDoc.createElement('dialog');
     dialog.id = 'st-esg-data-management-dialog';
-    dialog.className = `st-esg-data-management-dialog st-esg-theme-${settings.theme === 'light' ? 'light' : 'dark'}`;
+    dialog.className = `st-esg-data-management-dialog ${getThemeClassName(settings.theme)}`;
     dialog.innerHTML = `<div class="st-esg-data-dialog-shell"><header><div><strong>数据管理</strong><span>查看织幕保存的数据，并按类别清空。</span></div><button class="st-esg-header-btn" type="button" data-data-dialog-close title="关闭" aria-label="关闭数据管理"><i class="fa-solid fa-xmark"></i></button></header><div id="st-esg-data-management" class="st-esg-data-dialog-body"></div></div>`;
     targetDoc.body.appendChild(dialog);
     dialog.addEventListener('cancel', (event) => { event.preventDefault(); dialog.close(); });
@@ -5555,7 +5570,7 @@ function openDataManagementDialog() {
       void clearDataManagementCategory($(this).data('clear-category'));
     });
   }
-  dialog.className = `st-esg-data-management-dialog st-esg-theme-${settings.theme === 'light' ? 'light' : 'dark'}`;
+  dialog.className = `st-esg-data-management-dialog ${getThemeClassName(settings.theme)}`;
   renderDataManagement();
   if (!dialog.open) dialog.showModal();
 }
@@ -5825,7 +5840,7 @@ function renderPluginPanel() {
     const title = scheme?.parentElement?.querySelector('.st-esg-card-head');
     title?.insertAdjacentElement('afterend', scheme);
   });
-  dialog.querySelector('#st-esg-close')?.insertAdjacentHTML('beforebegin', '<div id="st-esg-theme-toggle" class="st-esg-header-btn" title="切换主题"><i class="fa-solid fa-moon"></i></div>');
+  dialog.querySelector('#st-esg-close')?.insertAdjacentHTML('beforebegin', '<div id="st-esg-theme-toggle" class="st-esg-header-btn" role="button" tabindex="0" title="切换主题"><i class="fa-solid fa-moon"></i></div>');
   targetDoc.body.appendChild(dialog);
   dialog.addEventListener('cancel', (event) => { event.preventDefault(); togglePanel(false); });
   dialog.addEventListener('keydown', (event) => {
@@ -5984,7 +5999,18 @@ function bindPanelEvents() {
   renderAllSchemeOptions();
   renderComponentList(); renderPromptLog(); switchTab(settings.activeTab || 'workspace');
   $t('#st-esg-close').on('click', () => togglePanel(false));
-  $t('#st-esg-theme-toggle').on('click', () => { settings.theme = settings.theme === 'dark' ? 'light' : 'dark'; applyTheme(); saveSettings(); });
+  const cycleTheme = () => {
+    settings.theme = nextThemeMode(settings.theme);
+    applyTheme();
+    saveSettings();
+  };
+  $t('#st-esg-theme-toggle')
+    .on('click', cycleTheme)
+    .on('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      cycleTheme();
+    });
   $t('.st-esg-tab').on('click', function () { switchTab(String($(this).data('tab'))); });
   $t('.st-esg-collapsible').on('toggle.stEsgLayout', () => { void $t('.st-esg-panel-body').get(0)?.scrollHeight; });
   $t('#st-esg-add-component').on('click', addComponent);
