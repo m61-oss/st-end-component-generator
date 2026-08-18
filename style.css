@@ -682,6 +682,10 @@ select.st-esg-scheme-select {
 .st-esg-theater-random-fields input { min-width: 0; }
 .st-esg-theater-random-description { margin: 0; }
 .st-esg-theater-random-scope-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; }
+.st-esg-theater-random-scope-options { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.st-esg-theater-random-scope-option { display: inline-flex; align-items: center; gap: 5px; min-width: 0; min-height: 28px; padding: 4px 8px; border: 1px solid var(--esg-border); border-radius: 8px; color: var(--esg-text-main); background: var(--esg-bg-input); cursor: pointer; font-size: 12px; white-space: nowrap; }
+.st-esg-theater-random-scope-option > input { flex: 0 0 auto; margin: 0; accent-color: var(--esg-text-main); }
+.st-esg-theater-random-scope-option:has(input:checked) { border-color: var(--esg-text-main); background: var(--esg-bg-card); }
 .st-esg-theater-random-panel { display: grid; gap: 8px; }
 .st-esg-theater-random-subsection { display: flex; align-items: baseline; gap: 8px; color: var(--esg-text-main); font-size: 12px; }
 .st-esg-theater-random-subsection span { color: var(--esg-text-muted); font-size: 11px; }
@@ -696,9 +700,9 @@ select.st-esg-scheme-select {
 .st-esg-theater-random-add-group-button { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .st-esg-theater-random-empty-groups { display: block; margin: 0; }
 @media (max-width: 560px) {
-  .st-esg-theater-random-fields { grid-template-columns: auto minmax(0, 1fr); }
-  .st-esg-theater-random-group-row { grid-template-columns: minmax(0, 1fr) auto auto; }
-  .st-esg-theater-random-group-row .st-esg-theater-group-mode { grid-column: 1 / -1; grid-row: 2; }
+  .st-esg-theater-random-fields { grid-template-columns: auto minmax(0, 1fr) auto minmax(68px, 0.8fr); gap: 5px; }
+  .st-esg-theater-random-group-row { grid-template-columns: minmax(0, 1fr) minmax(92px, 1fr) auto 26px; gap: 4px; padding: 5px; }
+  .st-esg-theater-random-group-count .st-esg-theater-random-count-placeholder { min-width: 0; }
   .st-esg-theater-random-add-group { grid-template-columns: 1fr; }
 }
 .st-esg-theater-folder + .st-esg-theater-folder { border-top: 1px solid var(--esg-border); }
