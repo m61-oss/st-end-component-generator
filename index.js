@@ -3929,10 +3929,10 @@ function renderTheaterRandomModeOptions(mode) {
   ].map(([value, label]) => `<option value="${value}" ${normalized === value ? 'selected' : ''}>${label}</option>`).join('');
 }
 
-function theaterRandomCountMarkup(mode, count, className, dataAttributes = '') {
+function theaterRandomCountMarkup(mode, count, className, dataAttributes = '', prefix = '') {
   const normalized = normalizeTheaterRandomMode(mode);
   if (normalized === THEATER_RANDOM_MODE_OFF) return '<span class="st-esg-theater-random-count-placeholder">无需设置数量</span>';
-  return `<input class="text_pole st-esg-theater-random-count ${className}" type="number" min="0" step="1" value="${normalizeTheaterRandomCount(count)}" ${dataAttributes} /> 条`;
+  return `<span class="st-esg-theater-random-count-value">${prefix ? `<span>${escapeHtml(prefix)}</span>` : ''}<input class="text_pole st-esg-theater-random-count ${className}" type="number" min="0" step="1" value="${normalizeTheaterRandomCount(count)}" ${dataAttributes} /><span>条</span></span>`;
 }
 
 function getTheaterRandomOverride(groupId) {
@@ -3978,7 +3978,7 @@ function renderTheaterLibrary() {
   const overrideRows = overrideGroups.map((group) => {
     const override = getTheaterRandomOverride(group.randomGroupId);
     const groupLabel = getTheaterGroupRandomDisplayName(group);
-    return `<div class="st-esg-theater-random-group-row" data-group-id="${escapeHtml(group.randomGroupId)}"><span class="st-esg-theater-random-group-name">${escapeHtml(groupLabel)}</span><select class="text_pole st-esg-theater-group-mode" data-group-id="${escapeHtml(group.randomGroupId)}">${renderTheaterRandomModeOptions(override.mode)}</select><span class="st-esg-theater-random-group-count">${theaterRandomCountMarkup(override.mode, override.count, 'st-esg-theater-group-count', `data-group-id="${escapeHtml(group.randomGroupId)}"`)}</span><button class="st-esg-icon-btn st-esg-icon-danger st-esg-theater-random-remove-group" type="button" data-group-id="${escapeHtml(group.randomGroupId)}" title="移除指定规则" aria-label="移除指定规则"><i class="fa-solid fa-trash"></i></button></div>`;
+     return `<div class="st-esg-theater-random-group-row" data-group-id="${escapeHtml(group.randomGroupId)}"><span class="st-esg-theater-random-group-name">${escapeHtml(groupLabel)}</span><select class="text_pole st-esg-theater-group-mode" data-group-id="${escapeHtml(group.randomGroupId)}">${renderTheaterRandomModeOptions(override.mode)}</select><span class="st-esg-theater-random-group-count">${theaterRandomCountMarkup(override.mode, override.count, 'st-esg-theater-group-count', `data-group-id="${escapeHtml(group.randomGroupId)}"`, '随机')}</span><button class="st-esg-icon-btn st-esg-icon-danger st-esg-theater-random-remove-group" type="button" data-group-id="${escapeHtml(group.randomGroupId)}" title="移除指定规则" aria-label="移除指定规则"><i class="fa-solid fa-trash"></i></button></div>`;
   }).join('');
   const addGroupMarkup = groupCandidates.length
     ? `<div class="st-esg-theater-random-add-group"><select class="text_pole st-esg-theater-random-add-group-select"><option value="">选择要单独设置的分组</option>${groupCandidates.map((group) => `<option value="${escapeHtml(group.isDefault ? THEATER_DEFAULT_GROUP_ID : textOf(group.id))}">${escapeHtml(getTheaterGroupRandomDisplayName(group))}</option>`).join('')}</select><button class="menu_button st-esg-secondary-action st-esg-theater-random-add-group-button" type="button"><i class="fa-solid fa-plus"></i><span>添加指定组</span></button></div>`
