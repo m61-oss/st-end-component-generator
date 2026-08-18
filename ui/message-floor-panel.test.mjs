@@ -1,0 +1,66 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import {
+  FLOOR_PANEL_STATUS,
+  createFloorPanelState,
+  createFloorPanelTarget,
+  getFloorPanelActionModel,
+  getFloorPanelStatusLabel,
+  isFloorPanelGenerationCurrent,
+  isFloorPanelTargetCurrent,
+  canEditFloorPanelResult,
+  nextFloorPanelGeneration,
+} from './message-floor-panel.js';
+
+test('楼层面板默认折叠且空闲不显示状态文字', () => {
+  const state = createFloorPanelState();
+  assert.equal(state.expanded, false);
+  assert.equal(state.status, FLOOR_PANEL_STATUS.IDLE);
+  assert.equal(getFloorPanelStatusLabel(state.status), '');
+  assert.equal(state.target, null);
+});
+
+test('状态标签只有生成中、待注入、已注入、失败四种可见状态', () => {
+  assert.equal(getFloorPanelStatusLabel(FLOOR_PANEL_STATUS.GENERATING), '生成中');
+  assert.equal(getFloorPanelStatusLabel(FLOOR_PANEL_STATUS.READY), '生成完成 · 待注入');
+  assert.equal(getFloorPanelStatusLabel(FLOOR_PANEL_STATUS.INJECTED), '已注入');
+  assert.equal(getFloorPanelStatusLabel(FLOOR_PANEL_STATUS.ERROR), '生成失败');
+  assert.equal(getFloorPanelStatusLabel('unknown'), '');
+});
+
+test('折叠面板动作随状态变化，但不会自动展开', () => {
+  const state = createFloorPanelState();
+  assert.deepEqual(getFloorPanelActionModel(FLOOR_PANEL_STATUS.IDLE), { action: 'generate', icon: 'fa-sparkles', label: '生成组件' });
+  assert.deepEqual(getFloorPanelActionModel(FLOOR_PANEL_STATUS.GENERATING), { action: 'stop', icon: 'fa-stop', label: '停止生成' });
+  assert.deepEqual(getFloorPanelActionModel(FLOOR_PANEL_STATUS.READY), { action: 'inject', icon: 'fa-file-import', label: '注入回复' });
+  assert.deepEqual(getFloorPanelActionModel(FLOOR_PANEL_STATUS.INJECTED), { action: 'undo', icon: 'fa-rotate-left', label: '撤回注入' });
+  assert.deepEqual(getFloorPanelActionModel(FLOOR_PANEL_STATUS.ERROR), { action: 'retry', icon: 'fa-rotate-right', label: '重试' });
+  assert.equal(state.expanded, false);
+});
+
+test('目标校验同时要求聊天、assistant 索引和正文指纹一致', () => {
+  const target = createFloorPanelTarget({ chatId: 'chat-a', messageIndex: 7, messageText: '第一段\n第二段' });
+  assert.equal(isFloorPanelTargetCurrent(target, { chatId: 'chat-a', messageIndex: 7, messageText: '第一段\n第二段' }), true);
+  assert.equal(isFloorPanelTargetCurrent(target, { chatId: 'chat-a', messageIndex: 7, messageText: '第一段\n改动' }), false);
+  assert.equal(isFloorPanelTargetCurrent(target, { chatId: 'chat-b', messageIndex: 7, messageText: '第一段\n第二段' }), false);
+  assert.equal(isFloorPanelTargetCurrent(target, { chatId: 'chat-a', messageIndex: 8, messageText: '第一段\n第二段' }), false);
+});
+
+test('只有完成且未注入的结果可编辑', () => {
+  assert.equal(canEditFloorPanelResult({ status: FLOOR_PANEL_STATUS.READY, streaming: false }), true);
+  assert.equal(canEditFloorPanelResult({ status: FLOOR_PANEL_STATUS.GENERATING, streaming: true }), false);
+  assert.equal(canEditFloorPanelResult({ status: FLOOR_PANEL_STATUS.READY, streaming: true }), false);
+  assert.equal(canEditFloorPanelResult({ status: FLOOR_PANEL_STATUS.INJECTED, streaming: false }), false);
+});
+
+test('新一轮生成会递增世代，迟到响应不能覆盖新目标', () => {
+  const firstTarget = createFloorPanelTarget({ chatId: 'chat-a', messageIndex: 1, messageText: 'old' });
+  const first = nextFloorPanelGeneration(createFloorPanelState(), firstTarget);
+  const secondTarget = createFloorPanelTarget({ chatId: 'chat-a', messageIndex: 2, messageText: 'new' });
+  const second = nextFloorPanelGeneration(first, secondTarget);
+
+  assert.equal(second.generation, first.generation + 1);
+  assert.equal(isFloorPanelGenerationCurrent(second, first.generation, firstTarget), false);
+  assert.equal(isFloorPanelGenerationCurrent(second, second.generation, secondTarget), true);
+});

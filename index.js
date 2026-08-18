@@ -49,6 +49,17 @@ import { reconcilePresetEntryRecords, reconcilePresetSchemeRecords } from './sou
 import { getWorldInfoSettings } from '../../../world-info.js?ver=0.1.9';
 import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.1.9';
 import { getNotificationMethod } from './ui/notification-utils.js?ver=0.1.9';
+import {
+  FLOOR_PANEL_STATUS,
+  canEditFloorPanelResult,
+  createFloorPanelState,
+  createFloorPanelTarget,
+  getFloorPanelActionModel,
+  getFloorPanelStatusLabel,
+  isFloorPanelGenerationCurrent,
+  isFloorPanelTargetCurrent,
+  nextFloorPanelGeneration,
+} from './ui/message-floor-panel.js?ver=0.1.9';
 import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.1.9';
 import { loadGenerationHistory, recordGenerationResult, updateGenerationHistoryEntry } from './generation/generation-history.js?ver=0.1.9';
 import {
@@ -225,6 +236,7 @@ const DEFAULT_SETTINGS = {
   ballDock: 'none',
   qrGenerateEnabled: false,
   qrInjectEnabled: false,
+  messageFloorPanelEnabled: false,
   theme: 'dark',
   activeSourcePreset: '',
   sourceMode: SOURCE_MODE_PROMPT,
@@ -318,6 +330,9 @@ let worldbookCountRevision = 0;
 let magicWandMenuTimer = null;
 let yamlParserPromise = null;
 let temporaryTaskInstruction = '';
+let messageFloorPanelState = createFloorPanelState();
+let messageFloorPanelRefreshTimer = null;
+let messageFloorPanelSuppressRefresh = false;
 
 const $t = (selectorOrHtml) => $(selectorOrHtml, targetDoc);
 const textOf = (value) => String(value ?? '').trim();
@@ -709,6 +724,7 @@ function loadSettings() {
   settings.animaStatusAfterMessageEnabled = Boolean(settings.animaStatusAfterMessageEnabled);
   settings.qrGenerateEnabled = Boolean(settings.qrGenerateEnabled);
   settings.qrInjectEnabled = Boolean(settings.qrInjectEnabled);
+  settings.messageFloorPanelEnabled = Boolean(settings.messageFloorPanelEnabled);
   if (settings.ballPositionVersion !== 2) {
     settings.ballX = null;
     settings.ballY = null;
@@ -860,6 +876,307 @@ function getAssistantMessageAtIndex(chat, messageIndex) {
   return { index, message: item };
 }
 
+function getMessageFloorPanelElement(messageIndex) {
+  const index = Number(messageIndex);
+  if (!Number.isInteger(index)) return null;
+  return [...targetDoc.querySelectorAll('.st-esg-message-floor-panel')]
+    .find((element) => Number(element.dataset.messageIndex) === index) || null;
+}
+
+function getMessageElementForFloorPanel(messageIndex) {
+  const index = Number(messageIndex);
+  if (!Number.isInteger(index)) return null;
+  const messages = [...targetDoc.querySelectorAll('.mes')];
+  const attrNames = ['mesid', 'data-mesid', 'data-message-index', 'data-mes-index'];
+  const byAttribute = messages.find((element) => attrNames.some((name) => Number(element.getAttribute(name)) === index));
+  return byAttribute || messages[index] || null;
+}
+
+function removeMessageFloorPanels() {
+  targetDoc.querySelectorAll('.st-esg-message-floor-panel').forEach((element) => element.remove());
+}
+
+function getCurrentFloorPanelTarget() {
+  const context = getContext();
+  const latest = getLatestAssistantMessage(context.chat);
+  if (!latest) return null;
+  return createFloorPanelTarget({
+    chatId: getCurrentChatIdSafe(context),
+    messageIndex: latest.index,
+    messageText: latest.message.mes,
+  });
+}
+
+function isSameFloorPanelTarget(left, right) {
+  return Boolean(left && right
+    && left.chatId === right.chatId
+    && left.messageIndex === right.messageIndex
+    && left.fingerprint === right.fingerprint);
+}
+
+function scheduleMessageFloorPanelRefresh() {
+  if (!settings.messageFloorPanelEnabled) return;
+  if (messageFloorPanelRefreshTimer !== null) targetWindow.clearTimeout(messageFloorPanelRefreshTimer);
+  messageFloorPanelRefreshTimer = targetWindow.setTimeout(() => {
+    messageFloorPanelRefreshTimer = null;
+    refreshMessageFloorPanelTarget();
+  }, 80);
+}
+
+function buildMessageFloorAnchorMarkup(items) {
+  return (Array.isArray(items) ? items : []).map((item, index) => {
+    if (!item || !item.content) return '';
+    const enabled = isAnchorInsertionEnabled(item);
+    const position = item.position === 'start' ? '文首' : item.position === 'end' ? '文尾' : item.position === 'before' ? '锚点前' : '锚点后';
+    const readonly = canEditFloorPanelResult(messageFloorPanelState) ? '' : ' readonly';
+    const disabledClass = enabled ? '' : ' st-esg-floor-anchor-disabled';
+    return `<details class="st-esg-floor-anchor-item${disabledClass}" data-floor-anchor-index="${index}"${enabled ? '' : ' data-injection-disabled="true"'} open>
+      <summary><span>#${index + 1} · ${escapeHtml(position)}</span><button type="button" class="st-esg-floor-anchor-toggle" data-floor-anchor-toggle aria-label="${enabled ? '标记为不注入' : '恢复注入'}" title="${enabled ? '标记为不注入' : '恢复注入'}"><i class="fa-solid ${enabled ? 'fa-link' : 'fa-link-slash'}" aria-hidden="true"></i></button></summary>
+      <div class="st-esg-floor-anchor-fields">
+        ${item.position === 'before' || item.position === 'after' ? `<label>锚点<textarea class="text_pole" data-floor-anchor-field="anchor" rows="2"${readonly}>${escapeHtml(item.anchor || '')}</textarea></label>` : ''}
+        <label>插入内容<textarea class="text_pole" data-floor-anchor-field="content" rows="3"${readonly}>${escapeHtml(item.content || '')}</textarea></label>
+      </div>
+    </details>`;
+  }).join('');
+}
+
+function buildMessageFloorPanelMarkup() {
+  const state = messageFloorPanelState;
+  const statusLabel = getFloorPanelStatusLabel(state.status);
+  const compactAction = getFloorPanelActionModel(state.status);
+  const canEdit = canEditFloorPanelResult(state);
+  const output = state.output || '';
+  const anchorMode = state.resultMode === 'anchor';
+  const errorHtml = state.error
+    ? `<div class="st-esg-floor-error"><strong>生成失败</strong><span>${escapeHtml(state.error)}</span></div>`
+    : '';
+  const thinkingHtml = state.thinking
+    ? `<details class="st-esg-floor-thinking"><summary><span><i class="fa-solid fa-brain" aria-hidden="true"></i> 思考过程</span><em>不会注入</em></summary><pre>${escapeHtml(state.thinking)}</pre></details>`
+    : '';
+  const resultHtml = anchorMode
+    ? `<div class="st-esg-floor-anchor-list">${buildMessageFloorAnchorMarkup(state.anchorItems)}</div>`
+    : `<textarea class="text_pole st-esg-floor-output" data-floor-output rows="7"${canEdit ? '' : ' readonly'} placeholder="生成后的组件会显示在这里。">${escapeHtml(output)}</textarea>`;
+  const expandedActions = state.status === FLOOR_PANEL_STATUS.READY
+    ? '<button type="button" class="menu_button st-esg-floor-action" data-floor-action="generate"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i><span>重新生成</span></button><button type="button" class="menu_button st-esg-floor-action st-esg-floor-action-primary" data-floor-action="inject"><i class="fa-solid fa-file-import" aria-hidden="true"></i><span>注入回复</span></button>'
+    : state.status === FLOOR_PANEL_STATUS.INJECTED
+      ? '<button type="button" class="menu_button st-esg-floor-action" data-floor-action="generate"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i><span>重新生成</span></button><button type="button" class="menu_button st-esg-floor-action" data-floor-action="undo"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span>撤回注入</span></button>'
+      : `<button type="button" class="menu_button st-esg-floor-action st-esg-floor-action-primary" data-floor-action="${compactAction.action}"><i class="fa-solid ${compactAction.icon}" aria-hidden="true"></i><span>${escapeHtml(compactAction.label)}</span></button>`;
+  return `<div class="st-esg-floor-compact" role="status">
+    <span class="st-esg-floor-brand">${renderBrandMark('floor')}</span>
+    <span class="st-esg-floor-status" data-floor-status>${escapeHtml(statusLabel)}</span>
+    <button type="button" class="st-esg-floor-compact-action" data-floor-action="${compactAction.action}" aria-label="${escapeHtml(compactAction.label)}" title="${escapeHtml(compactAction.label)}"><i class="fa-solid ${compactAction.icon}" aria-hidden="true"></i></button>
+    <button type="button" class="st-esg-floor-expand" data-floor-expand aria-expanded="${state.expanded}" aria-label="${state.expanded ? '收起楼层面板' : '展开楼层面板'}"><i class="fa-solid ${state.expanded ? 'fa-chevron-up' : 'fa-chevron-down'}" aria-hidden="true"></i></button>
+  </div>
+  <div class="st-esg-floor-expanded"${state.expanded ? '' : ' hidden'}>
+    ${thinkingHtml}
+    ${errorHtml}
+    ${state.status === FLOOR_PANEL_STATUS.ERROR ? '' : resultHtml}
+    <div class="st-esg-floor-actions">${expandedActions}</div>
+  </div>`;
+}
+
+function renderMessageFloorPanel({ force = false } = {}) {
+  if (!settings.messageFloorPanelEnabled || !messageFloorPanelState.target) return;
+  const host = getMessageElementForFloorPanel(messageFloorPanelState.target.messageIndex);
+  if (!host) {
+    scheduleMessageFloorPanelRefresh();
+    return;
+  }
+  let panel = getMessageFloorPanelElement(messageFloorPanelState.target.messageIndex);
+  if (!panel) {
+    removeMessageFloorPanels();
+    panel = targetDoc.createElement('section');
+    panel.className = 'st-esg-message-floor-panel';
+    panel.dataset.messageIndex = String(messageFloorPanelState.target.messageIndex);
+    const messageText = host.querySelector('.mes_text, .mes_text_inner') || host;
+    messageText.insertAdjacentElement('afterend', panel);
+    force = true;
+  }
+  if (force || !panel.dataset.rendered) {
+    panel.innerHTML = buildMessageFloorPanelMarkup();
+    panel.dataset.rendered = 'true';
+  }
+  bindMessageFloorPanel(panel);
+  panel.dataset.status = messageFloorPanelState.status;
+  panel.dataset.expanded = String(messageFloorPanelState.expanded);
+  panel.querySelector('[data-floor-status]')?.replaceChildren(targetDoc.createTextNode(getFloorPanelStatusLabel(messageFloorPanelState.status)));
+  panel.querySelector('[data-floor-expand]')?.setAttribute('aria-expanded', String(messageFloorPanelState.expanded));
+  panel.querySelector('.st-esg-floor-expanded')?.toggleAttribute('hidden', !messageFloorPanelState.expanded);
+}
+
+function syncMessageFloorPanelResult({ status = FLOOR_PANEL_STATUS.READY } = {}) {
+  if (!settings.messageFloorPanelEnabled || !messageFloorPanelState.target) return;
+  const currentTarget = status === FLOOR_PANEL_STATUS.INJECTED ? getCurrentFloorPanelTarget() : null;
+  messageFloorPanelState = {
+    ...messageFloorPanelState,
+    status,
+    resultMode: settings.lastGeneratedResultMode === 'anchor' ? 'anchor' : 'standard',
+    thinking: Array.isArray(lastGeneratedThinking) ? lastGeneratedThinking.join('\n\n') : '',
+    output: String(settings.lastGenerated || ''),
+    anchorItems: Array.isArray(settings.lastGeneratedAnchorItems) ? settings.lastGeneratedAnchorItems.map((item) => ({ ...item })) : [],
+    error: null,
+    streaming: false,
+    injected: status === FLOOR_PANEL_STATUS.INJECTED,
+    target: currentTarget?.messageIndex === messageFloorPanelState.target.messageIndex ? currentTarget : messageFloorPanelState.target,
+  };
+  renderMessageFloorPanel({ force: true });
+}
+
+function updateMessageFloorPanelStream(streamed) {
+  if (!settings.messageFloorPanelEnabled || messageFloorPanelState.status !== FLOOR_PANEL_STATUS.GENERATING) return;
+  const value = normalizeStreamOutputPreview(streamed);
+  messageFloorPanelState.thinking = String(value.thinking || '');
+  messageFloorPanelState.output = String(value.text || '');
+  const existingPanel = getMessageFloorPanelElement(messageFloorPanelState.target?.messageIndex);
+  const needsThinkingStructure = messageFloorPanelState.expanded && Boolean(messageFloorPanelState.thinking) && !existingPanel?.querySelector('.st-esg-floor-thinking');
+  renderMessageFloorPanel({ force: needsThinkingStructure });
+  const panel = getMessageFloorPanelElement(messageFloorPanelState.target?.messageIndex);
+  if (!panel || !messageFloorPanelState.expanded) return;
+  const thinking = panel.querySelector('.st-esg-floor-thinking pre');
+  if (thinking) thinking.textContent = messageFloorPanelState.thinking;
+  const output = panel.querySelector('[data-floor-output]');
+  if (output && output.value !== messageFloorPanelState.output) output.value = messageFloorPanelState.output;
+}
+
+function setMessageFloorPanelError(error) {
+  if (!settings.messageFloorPanelEnabled || !messageFloorPanelState.target) return;
+  messageFloorPanelState = {
+    ...messageFloorPanelState,
+    status: FLOOR_PANEL_STATUS.ERROR,
+    error: String(error?.message || error || '未知错误'),
+    streaming: false,
+  };
+  renderMessageFloorPanel({ force: true });
+}
+
+function prepareMessageFloorPanelGeneration(latest) {
+  if (!settings.messageFloorPanelEnabled || !latest) return null;
+  const target = createFloorPanelTarget({
+    chatId: getCurrentChatIdSafe(getContext()),
+    messageIndex: latest.index,
+    messageText: latest.message.mes,
+  });
+  messageFloorPanelState = nextFloorPanelGeneration(messageFloorPanelState, target);
+  messageFloorPanelState.enabled = true;
+  renderMessageFloorPanel({ force: true });
+  return { generation: messageFloorPanelState.generation, target };
+}
+
+function isCurrentMessageFloorPanelGeneration(generation, target) {
+  return settings.messageFloorPanelEnabled
+    && isFloorPanelGenerationCurrent(messageFloorPanelState, generation, target);
+}
+
+function refreshMessageFloorPanelTarget() {
+  if (messageFloorPanelSuppressRefresh) return;
+  if (!settings.messageFloorPanelEnabled) {
+    removeMessageFloorPanels();
+    messageFloorPanelState = createFloorPanelState();
+    return;
+  }
+  const target = getCurrentFloorPanelTarget();
+  if (!target) {
+    removeMessageFloorPanels();
+    messageFloorPanelState = createFloorPanelState({ enabled: true });
+    return;
+  }
+  if (!isSameFloorPanelTarget(messageFloorPanelState.target, target)) {
+    if (messageFloorPanelState.status === FLOOR_PANEL_STATUS.GENERATING) generationAbortController?.abort();
+    const previousGeneration = Number(messageFloorPanelState.generation || 0);
+    messageFloorPanelState = { ...createFloorPanelState({ enabled: true }), target, generation: previousGeneration + 1 };
+    removeMessageFloorPanels();
+  }
+  renderMessageFloorPanel({ force: !getMessageFloorPanelElement(target.messageIndex) });
+}
+
+function getMessageFloorPanelActionTarget() {
+  const context = getContext();
+  const target = messageFloorPanelState.target;
+  if (!target) return null;
+  const latest = getAssistantMessageAtIndex(context.chat, target.messageIndex);
+  if (!latest || !isFloorPanelTargetCurrent(target, { chatId: getCurrentChatIdSafe(context), messageIndex: latest.index, messageText: latest.message.mes })) {
+    setMessageFloorPanelError('目标楼层已变化，请重新生成');
+    return null;
+  }
+  return latest;
+}
+
+async function runMessageFloorPanelAction(action) {
+  if (action === 'stop') {
+    generationAbortController?.abort();
+    return;
+  }
+  const latest = getMessageFloorPanelActionTarget();
+  if (!latest) return;
+  if (action === 'generate' || action === 'retry') {
+    await generateStatusbar('floor', latest.index);
+  } else if (action === 'inject') {
+    await injectGeneratedStatusbar(latest.index);
+  } else if (action === 'undo') {
+    const undone = await restoreLatestInjection({ targetMessageIndex: latest.index });
+    if (undone) syncMessageFloorPanelResult({ status: FLOOR_PANEL_STATUS.READY });
+  }
+}
+
+function bindMessageFloorPanel(panel) {
+  if (panel.dataset.bound === 'true') return;
+  panel.dataset.bound = 'true';
+  panel.addEventListener('click', (event) => {
+    const expand = event.target.closest('[data-floor-expand]');
+    if (expand) {
+      event.preventDefault();
+      messageFloorPanelState.expanded = !messageFloorPanelState.expanded;
+      renderMessageFloorPanel({ force: true });
+      return;
+    }
+    const actionButton = event.target.closest('[data-floor-action]');
+    if (!actionButton) return;
+    event.preventDefault();
+    actionButton.blur?.();
+    void runMessageFloorPanelAction(String(actionButton.dataset.floorAction || ''));
+  });
+  panel.addEventListener('input', (event) => {
+    if (!canEditFloorPanelResult(messageFloorPanelState)) return;
+    const output = event.target.closest('[data-floor-output]');
+    if (output) {
+      settings.lastGeneratedResultMode = 'standard';
+      settings.lastGenerated = String(output.value || '');
+      settings.lastGeneratedAnchorItems = [];
+      settings.lastGeneratedAnchorWarnings = [];
+      messageFloorPanelState.output = settings.lastGenerated;
+      $t('#st-esg-preview').val(settings.lastGenerated);
+      renderAnchorInsertionPlan([], []);
+      saveSettings();
+      return;
+    }
+    const field = event.target.closest('[data-floor-anchor-field]');
+    if (!field) return;
+    const card = field.closest('[data-floor-anchor-index]');
+    const index = Number(card?.dataset.floorAnchorIndex);
+    const item = settings.lastGeneratedAnchorItems?.[index];
+    const fieldName = String(field.dataset.floorAnchorField || '');
+    if (!item || !['anchor', 'content'].includes(fieldName)) return;
+    item[fieldName] = String(field.value || '');
+    messageFloorPanelState.anchorItems = settings.lastGeneratedAnchorItems.map((entry) => ({ ...entry }));
+    updateAnchorPlanStatusUi();
+    scheduleAnchorEditPersistence();
+  });
+  panel.addEventListener('click', (event) => {
+    const toggle = event.target.closest('[data-floor-anchor-toggle]');
+    if (!toggle || !canEditFloorPanelResult(messageFloorPanelState)) return;
+    event.preventDefault();
+    const card = toggle.closest('[data-floor-anchor-index]');
+    const index = Number(card?.dataset.floorAnchorIndex);
+    const item = settings.lastGeneratedAnchorItems?.[index];
+    if (!item) return;
+    item.injectionEnabled = !isAnchorInsertionEnabled(item);
+    messageFloorPanelState.anchorItems = settings.lastGeneratedAnchorItems.map((entry) => ({ ...entry }));
+    updateAnchorPlanStatusUi();
+    scheduleAnchorEditPersistence();
+    renderMessageFloorPanel({ force: true });
+  });
+}
+
 function getEnabledComponents() {
   return getActiveComponentsForContext(settings.components, targetWindow, getContext(), {
     presetSchemeId: getActiveSchemeId('preset'),
@@ -1003,8 +1320,9 @@ function resizeGeneratedPreview({ followBottom = false, preserveScrollTop = null
 
 function updateStreamedPreview(text) {
   const preview = $t('#st-esg-preview').get(0);
-  if (!preview) return;
   const streamed = normalizeStreamOutputPreview(text);
+  updateMessageFloorPanelStream(text);
+  if (!preview) return;
   updateStreamedThinking(streamed.thinking);
   if (preview.value === streamed.text) return;
   const followBottom = isPreviewNearBottom(preview);
@@ -1310,6 +1628,7 @@ function loadGenerationHistoryEntry(id) {
   renderAnchorInsertionPlan(settings.lastGeneratedAnchorItems, settings.lastGeneratedAnchorWarnings);
   renderGenerationResultPanel();
   resizeGeneratedPreview();
+  syncMessageFloorPanelResult({ status: FLOOR_PANEL_STATUS.READY });
   saveSettings();
   notifyStatus('已载入最近生成记录。');
   return true;
@@ -1352,6 +1671,7 @@ function applyGeneratedResult(rawText) {
   renderGeneratedThinking();
   renderGenerationResultPanel();
   resizeGeneratedPreview();
+  if (messageFloorPanelState.status === FLOOR_PANEL_STATUS.GENERATING) syncMessageFloorPanelResult({ status: FLOOR_PANEL_STATUS.READY });
   return settings.lastGenerated;
 }
 
@@ -1674,18 +1994,29 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     return '';
   }
   const panelScrollTop = capturePanelScrollTop();
+  let floorGeneration = prepareMessageFloorPanelGeneration(latest);
   clearGeneratedResultState();
   settings.lastGeneratedAnchorTargetIndex = latest.index;
   saveSettings();
   notifyStatus('正在生成文尾组件……', 'info');
-  generationAbortController = new AbortController();
+  const requestController = new AbortController();
+  generationAbortController = requestController;
   stopAnimaWorldbookCapture();
   if (entryType === 'automatic') activeAutomaticTarget = automaticTarget;
   setGeneratingState(true);
   await waitForInteractionPaint();
   let result = '';
   try {
-    if (settings.rollbackBeforeGeneration) await restoreLatestInjection({ targetMessageIndex: latest.index });
+    if (settings.rollbackBeforeGeneration) {
+      messageFloorPanelSuppressRefresh = true;
+      try {
+        await restoreLatestInjection({ targetMessageIndex: latest.index });
+      } finally {
+        messageFloorPanelSuppressRefresh = false;
+      }
+      const rolledBackLatest = getAssistantMessageAtIndex(getContext().chat, latest.index);
+      if (rolledBackLatest) floorGeneration = prepareMessageFloorPanelGeneration(rolledBackLatest);
+    }
     clearGeneratedThinking();
     restorePanelScrollTop(panelScrollTop);
     logAutomaticGenerationStage('target-ready', `message ${latest.index}`);
@@ -1694,20 +2025,25 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     if (apiMode === 'custom' && (!settings.apiUrl || !settings.apiModel)) {
       const error = new Error('请先在“API 配置”里填写 API 地址和模型名称。');
       logAutomaticGenerationStage('generation-error');
-      recordGenerationError('生成', error);
+      if (!floorGeneration || isCurrentMessageFloorPanelGeneration(floorGeneration.generation, floorGeneration.target)) {
+        recordGenerationError('生成', error);
+      }
       notifyStatus(error.message, 'warning');
       return '';
     }
     if (apiMode === 'tavern' && !settings.tavernProfile) {
       const error = new Error('请先选择酒馆预设。');
       logAutomaticGenerationStage('generation-error');
-      recordGenerationError('生成', error);
+      if (!floorGeneration || isCurrentMessageFloorPanelGeneration(floorGeneration.generation, floorGeneration.target)) {
+        recordGenerationError('生成', error);
+      }
       notifyStatus(error.message, 'warning');
       return '';
     }
     logAutomaticGenerationStage('prompt-build-start');
     beginPromptLogBuild();
-    result = await callExternalApi(latest.message, generationAbortController.signal);
+    result = await callExternalApi(latest.message, requestController.signal);
+    if (floorGeneration && !isCurrentMessageFloorPanelGeneration(floorGeneration.generation, floorGeneration.target)) return '';
     logAutomaticGenerationStage('api-returned', result ? 'received content' : 'empty response');
   }
   catch (error) {
@@ -1719,10 +2055,17 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
         restorePanelScrollTop(partialResultPanelScrollTop);
         saveSettings();
       }
+      if (floorGeneration && isCurrentMessageFloorPanelGeneration(floorGeneration.generation, floorGeneration.target)) {
+        messageFloorPanelState.streaming = false;
+        messageFloorPanelState.status = messageFloorPanelState.output ? FLOOR_PANEL_STATUS.READY : FLOOR_PANEL_STATUS.IDLE;
+        renderMessageFloorPanel({ force: true });
+      }
       notifyStatus('已停止生成。提示词查看器内容已保留。', 'warning');
     } else {
       logAutomaticGenerationStage('generation-error');
-      recordGenerationError('生成', error);
+      if (!floorGeneration || isCurrentMessageFloorPanelGeneration(floorGeneration.generation, floorGeneration.target)) {
+        recordGenerationError('生成', error);
+      }
       notifyStatus(error?.message || '生成失败。', 'error');
     }
     return '';
@@ -1731,11 +2074,14 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
       promptLogBuilding = false;
       renderPromptLogIfVisible();
     }
-    generationAbortController = null;
-    if (entryType === 'automatic') activeAutomaticTarget = null;
-    logAutomaticGenerationStage('api-finished', result ? 'response handling complete' : 'no generated content');
-    setGeneratingState(false);
+    if (generationAbortController === requestController) {
+      generationAbortController = null;
+      if (entryType === 'automatic') activeAutomaticTarget = null;
+      logAutomaticGenerationStage('api-finished', result ? 'response handling complete' : 'no generated content');
+      setGeneratingState(false);
+    }
   }
+  if (floorGeneration && !isCurrentMessageFloorPanelGeneration(floorGeneration.generation, floorGeneration.target)) return '';
   logAutomaticGenerationStage('result-apply', 'updating preview');
   const resultPanelScrollTop = capturePanelScrollTop();
   applyGeneratedResult(result);
@@ -1775,6 +2121,18 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
     logAutomaticGenerationStage('inject-skip', error.message);
     notifyStatus(error.message, 'warning');
     return;
+  }
+  if (settings.messageFloorPanelEnabled && messageFloorPanelState.target && targetMessageIndex !== null) {
+    const currentTarget = createFloorPanelTarget({
+      chatId: getCurrentChatIdSafe(context),
+      messageIndex: latest.index,
+      messageText: latest.message.mes,
+    });
+    if (!isFloorPanelTargetCurrent(messageFloorPanelState.target, currentTarget)) {
+      setMessageFloorPanelError('目标楼层已变化，请重新生成');
+      notifyStatus('目标楼层已变化，请重新生成', 'warning');
+      return;
+    }
   }
   try {
     let text = settings.lastGenerated || $t('#st-esg-preview').val();
@@ -1861,6 +2219,7 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
       notifyStatus('已注入，但聊天保存失败，刷新后可能丢失。', 'warning');
     }
     setFloatingBallVisualState('idle');
+    syncMessageFloorPanelResult({ status: FLOOR_PANEL_STATUS.INJECTED });
   } catch (error) {
     logAutomaticGenerationStage('inject-error', error?.message || 'injection failed');
     recordGenerationError('注入', error);
@@ -1933,6 +2292,9 @@ async function restoreLatestInjection({ requireConfirmation = false, targetMessa
     logAutomaticGenerationStage('undo-save-warning', 'restore complete, chat save failed');
   }
   logAutomaticGenerationStage('undo-finished', 'undo complete');
+  if (settings.messageFloorPanelEnabled && messageFloorPanelState.target?.messageIndex === snapshot.targetIndex) {
+    syncMessageFloorPanelResult({ status: FLOOR_PANEL_STATUS.READY });
+  }
   return true;
 }
 
@@ -1952,6 +2314,24 @@ function registerInjectionUndoInvalidation(context) {
     });
   });
   bind('CHAT_CHANGED', clearInjectionUndoSnapshot);
+}
+
+function registerMessageFloorPanelEvents(context) {
+  const bind = (eventName) => {
+    const eventType = context.eventTypes?.[eventName];
+    if (eventType && context.eventSource?.on) context.eventSource.on(eventType, () => {
+      refreshMessageFloorPanelTarget();
+      scheduleMessageFloorPanelRefresh();
+    });
+  };
+  ['MESSAGE_SENT', 'MESSAGE_RECEIVED', 'MESSAGE_EDITED', 'MESSAGE_UPDATED', 'MESSAGE_DELETED', 'MESSAGE_SWIPED', 'MESSAGE_SWIPE_DELETED', 'CHARACTER_MESSAGE_RENDERED'].forEach(bind);
+  const chatChanged = context.eventTypes?.CHAT_CHANGED;
+  if (chatChanged && context.eventSource?.on) context.eventSource.on(chatChanged, () => {
+    messageFloorPanelState = createFloorPanelState({ enabled: settings.messageFloorPanelEnabled });
+    removeMessageFloorPanels();
+    refreshMessageFloorPanelTarget();
+    scheduleMessageFloorPanelRefresh();
+  });
 }
 
 function invalidatePendingAutomaticGeneration({ abortActive = false } = {}) {
@@ -2152,6 +2532,7 @@ function recordGenerationError(action, error) {
   setFloatingBallVisualState('error');
   saveSettings();
   renderGenerationResultPanel();
+  setMessageFloorPanelError(error);
 }
 
 function renderGenerationResultPanel() {
@@ -5794,7 +6175,7 @@ function renderPluginPanel() {
   if (runtimePanel) {
     const shortcutDetails = targetDoc.createElement('details');
     shortcutDetails.className = 'st-esg-card st-esg-collapsible st-esg-shortcut-settings';
-    shortcutDetails.innerHTML = '<summary class="st-esg-collapsible-summary">界面与快捷入口</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox"><input id="st-esg-ball-visible" type="checkbox" /><span>悬浮球</span></label><div class="st-esg-ball-controls"><label class="st-esg-range-control"><span>大小 <output id="st-esg-ball-size-value">38px</output></span><input id="st-esg-ball-size" type="range" min="28" max="72" step="1" /></label><label class="st-esg-range-control"><span>透明度 <output id="st-esg-ball-opacity-value">82%</output></span><input id="st-esg-ball-opacity" type="range" min="20" max="100" step="1" /></label><label class="st-esg-checkbox st-esg-ball-animation-toggle"><input id="st-esg-ball-animation-enabled" type="checkbox" /><span>状态动画</span></label><label class="st-esg-checkbox"><input id="st-esg-ball-snap-enabled" type="checkbox" /><span>贴边吸附</span></label></div><label class="st-esg-checkbox"><input id="st-esg-qr-generate-enabled" type="checkbox" /><span>QR 栏显示“点击生成”</span></label><label class="st-esg-checkbox"><input id="st-esg-qr-inject-enabled" type="checkbox" /><span>QR 栏显示“点击注入”</span></label></div>';
+    shortcutDetails.innerHTML = '<summary class="st-esg-collapsible-summary">界面与快捷入口</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox"><input id="st-esg-ball-visible" type="checkbox" /><span>悬浮球</span></label><div class="st-esg-ball-controls"><label class="st-esg-range-control"><span>大小 <output id="st-esg-ball-size-value">38px</output></span><input id="st-esg-ball-size" type="range" min="28" max="72" step="1" /></label><label class="st-esg-range-control"><span>透明度 <output id="st-esg-ball-opacity-value">82%</output></span><input id="st-esg-ball-opacity" type="range" min="20" max="100" step="1" /></label><label class="st-esg-checkbox st-esg-ball-animation-toggle"><input id="st-esg-ball-animation-enabled" type="checkbox" /><span>状态动画</span></label><label class="st-esg-checkbox"><input id="st-esg-ball-snap-enabled" type="checkbox" /><span>贴边吸附</span></label></div><label class="st-esg-checkbox"><input id="st-esg-qr-generate-enabled" type="checkbox" /><span>QR 栏显示“点击生成”</span></label><label class="st-esg-checkbox"><input id="st-esg-qr-inject-enabled" type="checkbox" /><span>QR 栏显示“点击注入”</span></label><label class="st-esg-checkbox st-esg-floor-panel-setting"><input id="st-esg-message-floor-panel-enabled" type="checkbox" /><span>最新楼层面板</span><em>在最新 assistant 楼层下显示折叠的生成与注入面板，不会写入聊天正文。</em></label></div>';
     runtimePanel.appendChild(shortcutDetails);
   }
   if (runtimePanel) {
@@ -5967,6 +6348,7 @@ function bindPanelEvents() {
   if (floatingBallControls) floatingBallControls.hidden = !settings.ballVisible;
   $t('#st-esg-qr-generate-enabled').prop('checked', settings.qrGenerateEnabled);
   $t('#st-esg-qr-inject-enabled').prop('checked', settings.qrInjectEnabled);
+  $t('#st-esg-message-floor-panel-enabled').prop('checked', settings.messageFloorPanelEnabled);
   renderGenerationSettings();
   renderHistoryRangeUi();
   $t('#st-esg-task').val(settings.taskPrompt);
@@ -6059,6 +6441,10 @@ function bindPanelEvents() {
     if (!item) return;
     item.injectionEnabled = !isAnchorInsertionEnabled(item);
     updateAnchorPlanStatusUi();
+    if (settings.messageFloorPanelEnabled) {
+      messageFloorPanelState.anchorItems = settings.lastGeneratedAnchorItems.map((entry) => ({ ...entry }));
+      renderMessageFloorPanel({ force: true });
+    }
     scheduleAnchorEditPersistence();
   });
   $t('[data-tab-panel="workspace"]').off('input.stEsgAnchor change.stEsgAnchor').on('input.stEsgAnchor change.stEsgAnchor', '#st-esg-anchor-plan [data-anchor-field]', function () {
@@ -6069,6 +6455,10 @@ function bindPanelEvents() {
     const fieldName = String(field.attr('data-anchor-field') || '');
     if (!item || !['anchor', 'content'].includes(fieldName)) return;
     item[fieldName] = String(field.val() ?? '');
+    if (settings.messageFloorPanelEnabled) {
+      messageFloorPanelState.anchorItems = settings.lastGeneratedAnchorItems.map((entry) => ({ ...entry }));
+      renderMessageFloorPanel({ force: true });
+    }
     updateAnchorPlanStatusUi();
     scheduleAnchorEditPersistence();
   });
@@ -6124,6 +6514,15 @@ function bindPanelEvents() {
     settings.qrInjectEnabled = Boolean(this.checked);
     saveSettings();
     void syncQuickReplyShortcuts({ notifyOnUnavailable: true });
+  });
+  targetDoc.getElementById('st-esg-message-floor-panel-enabled')?.addEventListener('change', function () {
+    settings.messageFloorPanelEnabled = Boolean(this.checked);
+    saveSettings();
+    if (settings.messageFloorPanelEnabled) refreshMessageFloorPanelTarget();
+    else {
+      removeMessageFloorPanels();
+      messageFloorPanelState = createFloorPanelState();
+    }
   });
   $t('#st-esg-auto-generate').on('change', function () {
     settings.autoGenerate = Boolean($(this).prop('checked'));
@@ -6236,6 +6635,12 @@ function bindPanelEvents() {
     settings.lastGeneratedStatusPlaceholderPresent = containsStatusPlaceholder(settings.lastGenerated);
     resizeGeneratedPreview();
     renderAnchorInsertionPlan([], []);
+    if (settings.messageFloorPanelEnabled && messageFloorPanelState.target) {
+      messageFloorPanelState.resultMode = 'standard';
+      messageFloorPanelState.output = settings.lastGenerated;
+      messageFloorPanelState.anchorItems = [];
+      renderMessageFloorPanel({ force: true });
+    }
     saveSettings();
   });
   $t('#st-esg-api-url').on('input', function () { settings.apiUrl = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
@@ -6325,6 +6730,7 @@ function bindPanelEvents() {
 function mountUi() {
   if (!targetDoc.body) { targetWindow.setTimeout(mountUi, 500); return; }
   renderMagicWandMenuButton(); renderFloatingBall(); renderPluginPanel();
+  refreshMessageFloorPanelTarget();
 }
 
 function mountUiWhenDocumentReady() {
@@ -6358,6 +6764,7 @@ function init() {
   const context = getContext();
   registerPromptSourceCacheInvalidation(context);
   registerInjectionUndoInvalidation(context);
+  registerMessageFloorPanelEvents(context);
   if (context.eventTypes.GENERATION_STARTED) context.eventSource.on(context.eventTypes.GENERATION_STARTED, handleGenerationStarted);
   if (context.eventTypes.GENERATION_ENDED) context.eventSource.on(context.eventTypes.GENERATION_ENDED, handleGenerationEnded);
   if (context.eventTypes.GENERATION_STOPPED) context.eventSource.on(context.eventTypes.GENERATION_STOPPED, handleGenerationStopped);
@@ -6372,6 +6779,7 @@ function init() {
     }
     if (currentChatId) animaWorldbookSnapshotChatId = currentChatId;
     seedLastAutomaticTargetFromCurrentChat();
+    refreshMessageFloorPanelTarget();
     void restoreBoundWorldbookSchemeForCurrentChat();
   });
   console.log(`[${EXTENSION_ID}] 已加载，dialog top layer，UI 挂载文档：${targetWindow === window ? 'current' : 'parent'}`);
