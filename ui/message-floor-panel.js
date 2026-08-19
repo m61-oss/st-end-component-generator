@@ -21,6 +21,20 @@ const ACTION_MODELS = Object.freeze({
   [FLOOR_PANEL_STATUS.ERROR]: Object.freeze({ action: 'retry', icon: 'fa-rotate-right', label: '重试' }),
 });
 
+const ACTION_MODEL_GROUPS = Object.freeze({
+  [FLOOR_PANEL_STATUS.IDLE]: Object.freeze([ACTION_MODELS[FLOOR_PANEL_STATUS.IDLE]]),
+  [FLOOR_PANEL_STATUS.GENERATING]: Object.freeze([ACTION_MODELS[FLOOR_PANEL_STATUS.GENERATING]]),
+  [FLOOR_PANEL_STATUS.READY]: Object.freeze([
+    Object.freeze({ action: 'generate', icon: 'fa-rotate-right', label: '重新生成' }),
+    ACTION_MODELS[FLOOR_PANEL_STATUS.READY],
+  ]),
+  [FLOOR_PANEL_STATUS.INJECTED]: Object.freeze([
+    Object.freeze({ action: 'generate', icon: 'fa-rotate-right', label: '重新生成' }),
+    ACTION_MODELS[FLOOR_PANEL_STATUS.INJECTED],
+  ]),
+  [FLOOR_PANEL_STATUS.ERROR]: Object.freeze([ACTION_MODELS[FLOOR_PANEL_STATUS.ERROR]]),
+});
+
 function normalizeStatus(status) {
   return Object.values(FLOOR_PANEL_STATUS).includes(status) ? status : FLOOR_PANEL_STATUS.IDLE;
 }
@@ -50,6 +64,12 @@ function isFloorPanelTargetCurrent(target, { chatId = '', messageIndex = null, m
   return target.chatId === current.chatId
     && target.messageIndex === current.messageIndex
     && target.fingerprint === current.fingerprint;
+}
+
+function isFloorPanelTargetAddressable(target, current) {
+  if (!target || !current) return false;
+  return target.chatId === current.chatId
+    && target.messageIndex === current.messageIndex;
 }
 
 function createFloorPanelState({ enabled = false } = {}) {
@@ -104,6 +124,10 @@ function getFloorPanelActionModel(status) {
   return ACTION_MODELS[normalizeStatus(status)] || ACTION_MODELS[FLOOR_PANEL_STATUS.IDLE];
 }
 
+function getFloorPanelActionModels(status) {
+  return ACTION_MODEL_GROUPS[normalizeStatus(status)] || ACTION_MODEL_GROUPS[FLOOR_PANEL_STATUS.IDLE];
+}
+
 function canEditFloorPanelResult({ status, streaming = false } = {}) {
   return normalizeStatus(status) === FLOOR_PANEL_STATUS.READY && streaming !== true;
 }
@@ -115,8 +139,10 @@ export {
   createFloorPanelTarget,
   fingerprintMessageText,
   getFloorPanelActionModel,
+  getFloorPanelActionModels,
   getFloorPanelStatusLabel,
   isFloorPanelGenerationCurrent,
+  isFloorPanelTargetAddressable,
   isFloorPanelTargetCurrent,
   nextFloorPanelGeneration,
 };

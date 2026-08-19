@@ -6,8 +6,10 @@ import {
   createFloorPanelState,
   createFloorPanelTarget,
   getFloorPanelActionModel,
+  getFloorPanelActionModels,
   getFloorPanelStatusLabel,
   isFloorPanelGenerationCurrent,
+  isFloorPanelTargetAddressable,
   isFloorPanelTargetCurrent,
   canEditFloorPanelResult,
   nextFloorPanelGeneration,
@@ -39,12 +41,29 @@ test('折叠面板动作随状态变化，但不会自动展开', () => {
   assert.equal(state.expanded, false);
 });
 
+test('顶部折叠栏提供当前状态的全部快捷操作', () => {
+  assert.deepEqual(getFloorPanelActionModels(FLOOR_PANEL_STATUS.IDLE).map((item) => item.action), ['generate']);
+  assert.deepEqual(getFloorPanelActionModels(FLOOR_PANEL_STATUS.GENERATING).map((item) => item.action), ['stop']);
+  assert.deepEqual(getFloorPanelActionModels(FLOOR_PANEL_STATUS.READY).map((item) => item.action), ['generate', 'inject']);
+  assert.deepEqual(getFloorPanelActionModels(FLOOR_PANEL_STATUS.INJECTED).map((item) => item.action), ['generate', 'undo']);
+  assert.deepEqual(getFloorPanelActionModels(FLOOR_PANEL_STATUS.ERROR).map((item) => item.action), ['retry']);
+});
+
 test('目标校验同时要求聊天、assistant 索引和正文指纹一致', () => {
   const target = createFloorPanelTarget({ chatId: 'chat-a', messageIndex: 7, messageText: '第一段\n第二段' });
   assert.equal(isFloorPanelTargetCurrent(target, { chatId: 'chat-a', messageIndex: 7, messageText: '第一段\n第二段' }), true);
   assert.equal(isFloorPanelTargetCurrent(target, { chatId: 'chat-a', messageIndex: 7, messageText: '第一段\n改动' }), false);
   assert.equal(isFloorPanelTargetCurrent(target, { chatId: 'chat-b', messageIndex: 7, messageText: '第一段\n第二段' }), false);
   assert.equal(isFloorPanelTargetCurrent(target, { chatId: 'chat-a', messageIndex: 8, messageText: '第一段\n第二段' }), false);
+});
+
+test('注入定址只要求同一聊天与同一楼层，不被正文的非结构性变化误拦截', () => {
+  const target = createFloorPanelTarget({ chatId: 'chat-a', messageIndex: 7, messageText: '原文' });
+  const changedText = createFloorPanelTarget({ chatId: 'chat-a', messageIndex: 7, messageText: '原文\n<!-- updated -->' });
+  const otherFloor = createFloorPanelTarget({ chatId: 'chat-a', messageIndex: 8, messageText: '原文' });
+
+  assert.equal(isFloorPanelTargetAddressable(target, changedText), true);
+  assert.equal(isFloorPanelTargetAddressable(target, otherFloor), false);
 });
 
 test('只有完成且未注入的结果可编辑', () => {

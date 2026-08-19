@@ -54,10 +54,10 @@ import {
   canEditFloorPanelResult,
   createFloorPanelState,
   createFloorPanelTarget,
-  getFloorPanelActionModel,
+  getFloorPanelActionModels,
   getFloorPanelStatusLabel,
   isFloorPanelGenerationCurrent,
-  isFloorPanelTargetCurrent,
+  isFloorPanelTargetAddressable,
   nextFloorPanelGeneration,
 } from './ui/message-floor-panel.js?ver=0.1.9';
 import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.1.9';
@@ -332,6 +332,8 @@ let yamlParserPromise = null;
 let temporaryTaskInstruction = '';
 let messageFloorPanelState = createFloorPanelState();
 let messageFloorPanelRefreshTimer = null;
+let messageFloorPanelFollowBottom = true;
+let messageFloorPanelResizeObserver = null;
 let messageFloorPanelSuppressRefresh = false;
 
 const $t = (selectorOrHtml) => $(selectorOrHtml, targetDoc);
@@ -893,7 +895,15 @@ function getMessageElementForFloorPanel(messageIndex) {
 }
 
 function removeMessageFloorPanels() {
+  messageFloorPanelResizeObserver?.disconnect();
+  messageFloorPanelResizeObserver = null;
   targetDoc.querySelectorAll('.st-esg-message-floor-panel').forEach((element) => element.remove());
+}
+
+function syncMessageFloorPanelWidth(panel, messageText) {
+  if (!panel || !messageText) return;
+  const width = Math.floor(messageText.getBoundingClientRect?.().width || 0);
+  if (width > 0) panel.style.width = `${width}px`;
 }
 
 function getCurrentFloorPanelTarget() {
@@ -908,10 +918,7 @@ function getCurrentFloorPanelTarget() {
 }
 
 function isSameFloorPanelTarget(left, right) {
-  return Boolean(left && right
-    && left.chatId === right.chatId
-    && left.messageIndex === right.messageIndex
-    && left.fingerprint === right.fingerprint);
+  return isFloorPanelTargetAddressable(left, right);
 }
 
 function scheduleMessageFloorPanelRefresh() {
@@ -930,7 +937,7 @@ function buildMessageFloorAnchorMarkup(items) {
     const position = item.position === 'start' ? '文首' : item.position === 'end' ? '文尾' : item.position === 'before' ? '锚点前' : '锚点后';
     const readonly = canEditFloorPanelResult(messageFloorPanelState) ? '' : ' readonly';
     const disabledClass = enabled ? '' : ' st-esg-floor-anchor-disabled';
-    return `<details class="st-esg-floor-anchor-item${disabledClass}" data-floor-anchor-index="${index}"${enabled ? '' : ' data-injection-disabled="true"'} open>
+    return `<details class="st-esg-floor-anchor-item${disabledClass}" data-floor-anchor-index="${index}" data-floor-anchor-position="${escapeHtml(item.position || 'after')}"${enabled ? '' : ' data-injection-disabled="true"'} open>
       <summary><span>#${index + 1} · ${escapeHtml(position)}</span><button type="button" class="st-esg-floor-anchor-toggle" data-floor-anchor-toggle aria-label="${enabled ? '标记为不注入' : '恢复注入'}" title="${enabled ? '标记为不注入' : '恢复注入'}"><i class="fa-solid ${enabled ? 'fa-link' : 'fa-link-slash'}" aria-hidden="true"></i></button></summary>
       <div class="st-esg-floor-anchor-fields">
         ${item.position === 'before' || item.position === 'after' ? `<label>锚点<textarea class="text_pole" data-floor-anchor-field="anchor" rows="2"${readonly}>${escapeHtml(item.anchor || '')}</textarea></label>` : ''}
@@ -943,7 +950,7 @@ function buildMessageFloorAnchorMarkup(items) {
 function buildMessageFloorPanelMarkup() {
   const state = messageFloorPanelState;
   const statusLabel = getFloorPanelStatusLabel(state.status);
-  const compactAction = getFloorPanelActionModel(state.status);
+  const compactActions = getFloorPanelActionModels(state.status);
   const canEdit = canEditFloorPanelResult(state);
   const output = state.output || '';
   const anchorMode = state.resultMode === 'anchor';
@@ -956,22 +963,19 @@ function buildMessageFloorPanelMarkup() {
   const resultHtml = anchorMode
     ? `<div class="st-esg-floor-anchor-list">${buildMessageFloorAnchorMarkup(state.anchorItems)}</div>`
     : `<textarea class="text_pole st-esg-floor-output" data-floor-output rows="7"${canEdit ? '' : ' readonly'} placeholder="生成后的组件会显示在这里。">${escapeHtml(output)}</textarea>`;
-  const expandedActions = state.status === FLOOR_PANEL_STATUS.READY
-    ? '<button type="button" class="menu_button st-esg-floor-action" data-floor-action="generate"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i><span>重新生成</span></button><button type="button" class="menu_button st-esg-floor-action st-esg-floor-action-primary" data-floor-action="inject"><i class="fa-solid fa-file-import" aria-hidden="true"></i><span>注入回复</span></button>'
-    : state.status === FLOOR_PANEL_STATUS.INJECTED
-      ? '<button type="button" class="menu_button st-esg-floor-action" data-floor-action="generate"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i><span>重新生成</span></button><button type="button" class="menu_button st-esg-floor-action" data-floor-action="undo"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span>撤回注入</span></button>'
-      : `<button type="button" class="menu_button st-esg-floor-action st-esg-floor-action-primary" data-floor-action="${compactAction.action}"><i class="fa-solid ${compactAction.icon}" aria-hidden="true"></i><span>${escapeHtml(compactAction.label)}</span></button>`;
-  return `<div class="st-esg-floor-compact" role="status">
+  const compactActionHtml = compactActions.map((action) => `<button type="button" class="st-esg-floor-compact-action${action.action === 'inject' ? ' st-esg-floor-compact-action-primary' : ''}" data-floor-action="${action.action}" aria-label="${escapeHtml(action.label)}" title="${escapeHtml(action.label)}"><i class="fa-solid ${action.icon}" aria-hidden="true"></i></button>`).join('');
+  return `<div class="st-esg-floor-compact" data-floor-compact-toggle role="group" tabindex="0" aria-expanded="${state.expanded}" aria-label="织幕楼层面板">
     <span class="st-esg-floor-brand">${renderBrandMark('floor')}</span>
     <span class="st-esg-floor-status" data-floor-status>${escapeHtml(statusLabel)}</span>
-    <button type="button" class="st-esg-floor-compact-action" data-floor-action="${compactAction.action}" aria-label="${escapeHtml(compactAction.label)}" title="${escapeHtml(compactAction.label)}"><i class="fa-solid ${compactAction.icon}" aria-hidden="true"></i></button>
+    <span class="st-esg-floor-motion" aria-hidden="true"><span></span><span></span><span></span></span>
+    <span class="st-esg-floor-action-group" data-floor-action-group>${compactActionHtml}</span>
     <button type="button" class="st-esg-floor-expand" data-floor-expand aria-expanded="${state.expanded}" aria-label="${state.expanded ? '收起楼层面板' : '展开楼层面板'}"><i class="fa-solid ${state.expanded ? 'fa-chevron-up' : 'fa-chevron-down'}" aria-hidden="true"></i></button>
   </div>
   <div class="st-esg-floor-expanded"${state.expanded ? '' : ' hidden'}>
     ${thinkingHtml}
     ${errorHtml}
     ${state.status === FLOOR_PANEL_STATUS.ERROR ? '' : resultHtml}
-    <div class="st-esg-floor-actions">${expandedActions}</div>
+    <button type="button" class="st-esg-floor-collapse" data-floor-collapse aria-label="收起楼层面板" title="收起"><i class="fa-solid fa-chevron-up" aria-hidden="true"></i></button>
   </div>`;
 }
 
@@ -982,16 +986,22 @@ function renderMessageFloorPanel({ force = false } = {}) {
     scheduleMessageFloorPanelRefresh();
     return;
   }
+  const messageText = host.querySelector('.mes_text, .mes_text_inner') || host;
   let panel = getMessageFloorPanelElement(messageFloorPanelState.target.messageIndex);
   if (!panel) {
     removeMessageFloorPanels();
     panel = targetDoc.createElement('section');
     panel.className = 'st-esg-message-floor-panel';
     panel.dataset.messageIndex = String(messageFloorPanelState.target.messageIndex);
-    const messageText = host.querySelector('.mes_text, .mes_text_inner') || host;
     messageText.insertAdjacentElement('afterend', panel);
+    if (typeof targetWindow.ResizeObserver === 'function') {
+      messageFloorPanelResizeObserver?.disconnect();
+      messageFloorPanelResizeObserver = new targetWindow.ResizeObserver(() => syncMessageFloorPanelWidth(panel, messageText));
+      messageFloorPanelResizeObserver.observe(messageText);
+    }
     force = true;
   }
+  syncMessageFloorPanelWidth(panel, messageText);
   applyThemeClass(panel, settings.theme);
   if (force || !panel.dataset.rendered) {
     panel.innerHTML = buildMessageFloorPanelMarkup();
@@ -1001,8 +1011,15 @@ function renderMessageFloorPanel({ force = false } = {}) {
   panel.dataset.status = messageFloorPanelState.status;
   panel.dataset.expanded = String(messageFloorPanelState.expanded);
   panel.querySelector('[data-floor-status]')?.replaceChildren(targetDoc.createTextNode(getFloorPanelStatusLabel(messageFloorPanelState.status)));
+  panel.querySelector('[data-floor-compact-toggle]')?.setAttribute('aria-expanded', String(messageFloorPanelState.expanded));
   panel.querySelector('[data-floor-expand]')?.setAttribute('aria-expanded', String(messageFloorPanelState.expanded));
   panel.querySelector('.st-esg-floor-expanded')?.toggleAttribute('hidden', !messageFloorPanelState.expanded);
+  const output = panel.querySelector('[data-floor-output]');
+  if (output && messageFloorPanelState.expanded && messageFloorPanelFollowBottom) {
+    const scrollToBottom = () => { output.scrollTop = output.scrollHeight; };
+    if (typeof targetWindow.requestAnimationFrame === 'function') targetWindow.requestAnimationFrame(scrollToBottom);
+    else scrollToBottom();
+  }
 }
 
 function syncMessageFloorPanelResult({ status = FLOOR_PANEL_STATUS.READY } = {}) {
@@ -1036,7 +1053,17 @@ function updateMessageFloorPanelStream(streamed) {
   const thinking = panel.querySelector('.st-esg-floor-thinking pre');
   if (thinking) thinking.textContent = messageFloorPanelState.thinking;
   const output = panel.querySelector('[data-floor-output]');
-  if (output && output.value !== messageFloorPanelState.output) output.value = messageFloorPanelState.output;
+  if (output && output.value !== messageFloorPanelState.output) {
+    const previousScrollTop = output.scrollTop;
+    const followBottom = messageFloorPanelFollowBottom;
+    output.value = messageFloorPanelState.output;
+    const restoreScroll = () => {
+      if (followBottom) output.scrollTop = output.scrollHeight;
+      else output.scrollTop = previousScrollTop;
+    };
+    if (typeof targetWindow.requestAnimationFrame === 'function') targetWindow.requestAnimationFrame(restoreScroll);
+    else restoreScroll();
+  }
 }
 
 function setMessageFloorPanelError(error) {
@@ -1058,6 +1085,7 @@ function prepareMessageFloorPanelGeneration(latest) {
     messageText: latest.message.mes,
   });
   messageFloorPanelState = nextFloorPanelGeneration(messageFloorPanelState, target);
+  messageFloorPanelFollowBottom = true;
   messageFloorPanelState.enabled = true;
   renderMessageFloorPanel({ force: true });
   return { generation: messageFloorPanelState.generation, target };
@@ -1095,10 +1123,16 @@ function getMessageFloorPanelActionTarget() {
   const target = messageFloorPanelState.target;
   if (!target) return null;
   const latest = getAssistantMessageAtIndex(context.chat, target.messageIndex);
-  if (!latest || !isFloorPanelTargetCurrent(target, { chatId: getCurrentChatIdSafe(context), messageIndex: latest.index, messageText: latest.message.mes })) {
+  const currentTarget = latest ? createFloorPanelTarget({
+    chatId: getCurrentChatIdSafe(context),
+    messageIndex: latest.index,
+    messageText: latest.message.mes,
+  }) : null;
+  if (!latest || !isFloorPanelTargetAddressable(target, currentTarget)) {
     setMessageFloorPanelError('目标楼层已变化，请重新生成');
     return null;
   }
+  messageFloorPanelState.target = currentTarget;
   return latest;
 }
 
@@ -1127,14 +1161,42 @@ function bindMessageFloorPanel(panel) {
     if (expand) {
       event.preventDefault();
       messageFloorPanelState.expanded = !messageFloorPanelState.expanded;
+      if (messageFloorPanelState.expanded) messageFloorPanelFollowBottom = true;
+      renderMessageFloorPanel({ force: true });
+      return;
+    }
+    const collapse = event.target.closest('[data-floor-collapse]');
+    if (collapse) {
+      event.preventDefault();
+      messageFloorPanelState.expanded = false;
       renderMessageFloorPanel({ force: true });
       return;
     }
     const actionButton = event.target.closest('[data-floor-action]');
-    if (!actionButton) return;
+    if (actionButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      actionButton.blur?.();
+      void runMessageFloorPanelAction(String(actionButton.dataset.floorAction || ''));
+      return;
+    }
+    if (event.target.closest('[data-floor-compact-toggle]')) {
+      messageFloorPanelState.expanded = !messageFloorPanelState.expanded;
+      if (messageFloorPanelState.expanded) messageFloorPanelFollowBottom = true;
+      renderMessageFloorPanel({ force: true });
+    }
+  });
+  panel.addEventListener('scroll', (event) => {
+    const output = event.target.closest?.('[data-floor-output]');
+    if (output) messageFloorPanelFollowBottom = isPreviewNearBottom(output);
+  }, true);
+  panel.addEventListener('keydown', (event) => {
+    const compact = event.target.closest?.('[data-floor-compact-toggle]');
+    if (!compact || event.target !== compact || !['Enter', ' '].includes(event.key)) return;
     event.preventDefault();
-    actionButton.blur?.();
-    void runMessageFloorPanelAction(String(actionButton.dataset.floorAction || ''));
+    messageFloorPanelState.expanded = !messageFloorPanelState.expanded;
+    if (messageFloorPanelState.expanded) messageFloorPanelFollowBottom = true;
+    renderMessageFloorPanel({ force: true });
   });
   panel.addEventListener('input', (event) => {
     if (!canEditFloorPanelResult(messageFloorPanelState)) return;
@@ -1166,6 +1228,7 @@ function bindMessageFloorPanel(panel) {
     const toggle = event.target.closest('[data-floor-anchor-toggle]');
     if (!toggle || !canEditFloorPanelResult(messageFloorPanelState)) return;
     event.preventDefault();
+    event.stopPropagation();
     const card = toggle.closest('[data-floor-anchor-index]');
     const index = Number(card?.dataset.floorAnchorIndex);
     const item = settings.lastGeneratedAnchorItems?.[index];
@@ -2129,11 +2192,12 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
       messageIndex: latest.index,
       messageText: latest.message.mes,
     });
-    if (!isFloorPanelTargetCurrent(messageFloorPanelState.target, currentTarget)) {
+    if (!isFloorPanelTargetAddressable(messageFloorPanelState.target, currentTarget)) {
       setMessageFloorPanelError('目标楼层已变化，请重新生成');
       notifyStatus('目标楼层已变化，请重新生成', 'warning');
       return;
     }
+    messageFloorPanelState.target = currentTarget;
   }
   try {
     let text = settings.lastGenerated || $t('#st-esg-preview').val();
@@ -3535,14 +3599,6 @@ function togglePanel(forceOpen) {
   $t('#st-esg-ball').toggleClass('selected', shouldOpen);
 }
 
-function suppressNextClickAfterFloatingBallOpen() {
-  // The browser dispatches click after pointerup. By then the modal exists at the same coordinates.
-  targetDoc.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  }, { capture: true, once: true });
-}
-
 function renderMagicWandMenuButton() {
   if (targetDoc.getElementById('st-esg-menu-button')) return;
   const menu = targetDoc.getElementById('extensions_menu') || targetDoc.getElementById('extensionsMenu');
@@ -3676,8 +3732,7 @@ function renderFloatingBall() {
       targetWindow.setTimeout(() => { suppressClick = false; }, 300);
     } else if (!cancelled) {
       dragging = false;
-      suppressNextClickAfterFloatingBallOpen();
-      openPanelFromFloatingBall();
+      targetWindow.setTimeout(() => openPanelFromFloatingBall(), 0);
     }
   };
   ball.addEventListener('pointerdown', (event) => {
