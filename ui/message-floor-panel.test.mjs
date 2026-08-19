@@ -7,6 +7,7 @@ import {
   createFloorPanelTarget,
   getFloorPanelActionModel,
   getFloorPanelActionModels,
+  getFloorPanelStatusStage,
   getFloorPanelStatusLabel,
   isFloorPanelGenerationCurrent,
   isFloorPanelTargetAddressable,
@@ -47,6 +48,25 @@ test('顶部折叠栏提供当前状态的全部快捷操作', () => {
   assert.deepEqual(getFloorPanelActionModels(FLOOR_PANEL_STATUS.READY).map((item) => item.action), ['generate', 'inject']);
   assert.deepEqual(getFloorPanelActionModels(FLOOR_PANEL_STATUS.INJECTED).map((item) => item.action), ['generate', 'undo']);
   assert.deepEqual(getFloorPanelActionModels(FLOOR_PANEL_STATUS.ERROR).map((item) => item.action), ['retry']);
+});
+
+test('状态舞台用文字、颜文字和符号共同表达五种状态', () => {
+  assert.deepEqual(getFloorPanelStatusStage(FLOOR_PANEL_STATUS.IDLE), {
+    label: '空闲', lead: '｡･ﾟ', shuttle: '', text: '织幕在打盹', face: '(˘ω˘)', tail: 'ﾟ･｡', motion: 'dozing',
+  });
+  assert.deepEqual(getFloorPanelStatusStage(FLOOR_PANEL_STATUS.GENERATING), {
+    label: '生成中', lead: '✦･ﾟ', shuttle: '⋈', text: '正在编织', face: '(ง •̀ω•́)ง', tail: '･ﾟ✧', motion: 'weaving',
+  });
+  assert.deepEqual(getFloorPanelStatusStage(FLOOR_PANEL_STATUS.READY), {
+    label: '生成完成，待注入', lead: '｡･:*:･ﾟ✦', shuttle: '', text: '织好啦', face: '(｡•̀ᴗ-)✧', tail: 'ﾟ･:*:･｡', motion: 'ready',
+  });
+  assert.deepEqual(getFloorPanelStatusStage(FLOOR_PANEL_STATUS.INJECTED), {
+    label: '已注入', lead: '◇ ･ﾟ', shuttle: '', text: '内容嵌好啦', face: '(๑˃ᴗ˂)ﻭ', tail: 'ﾟ･ ◈', motion: 'embedded',
+  });
+  assert.deepEqual(getFloorPanelStatusStage(FLOOR_PANEL_STATUS.ERROR), {
+    label: '生成失败', lead: '⌁ ･ﾟ', shuttle: '', text: '线团打结了', face: '(｡•́︿•̀｡)', tail: 'ﾟ･ ⌁', motion: 'tangled',
+  });
+  assert.doesNotMatch(JSON.stringify(getFloorPanelStatusStage(FLOOR_PANEL_STATUS.INJECTED)), /✓/);
 });
 
 test('目标校验同时要求聊天、assistant 索引和正文指纹一致', () => {

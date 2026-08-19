@@ -55,7 +55,7 @@ import {
   createFloorPanelState,
   createFloorPanelTarget,
   getFloorPanelActionModels,
-  getFloorPanelStatusLabel,
+  getFloorPanelStatusStage,
   isFloorPanelGenerationCurrent,
   isFloorPanelTargetAddressable,
   nextFloorPanelGeneration,
@@ -903,7 +903,25 @@ function removeMessageFloorPanels() {
 function syncMessageFloorPanelWidth(panel, messageText) {
   if (!panel || !messageText) return;
   const width = Math.floor(messageText.getBoundingClientRect?.().width || 0);
-  if (width > 0) panel.style.width = `${width}px`;
+  panel.style.width = '100%';
+  if (width > 0) panel.style.maxWidth = `${width}px`;
+}
+
+function resizeMessageFloorTextarea(textarea) {
+  if (!textarea) return;
+  const styles = targetWindow.getComputedStyle?.(textarea);
+  const minHeight = Math.max(0, Number.parseFloat(styles?.minHeight) || 0);
+  const parsedMaxHeight = Number.parseFloat(styles?.maxHeight);
+  const maxHeight = Number.isFinite(parsedMaxHeight) && parsedMaxHeight > 0 ? parsedMaxHeight : Number.POSITIVE_INFINITY;
+  textarea.style.height = 'auto';
+  const contentHeight = Math.max(minHeight, Number(textarea.scrollHeight || 0));
+  const nextHeight = Math.min(contentHeight, maxHeight);
+  if (Number.isFinite(nextHeight) && nextHeight > 0) textarea.style.height = `${Math.ceil(nextHeight)}px`;
+  textarea.style.setProperty(
+    'overflow-y',
+    contentHeight > maxHeight + 1 ? 'auto' : 'hidden',
+    'important',
+  );
 }
 
 function getCurrentFloorPanelTarget() {
@@ -949,7 +967,7 @@ function buildMessageFloorAnchorMarkup(items) {
 
 function buildMessageFloorPanelMarkup() {
   const state = messageFloorPanelState;
-  const statusLabel = getFloorPanelStatusLabel(state.status);
+  const statusStage = getFloorPanelStatusStage(state.status);
   const compactActions = getFloorPanelActionModels(state.status);
   const canEdit = canEditFloorPanelResult(state);
   const output = state.output || '';
@@ -962,12 +980,17 @@ function buildMessageFloorPanelMarkup() {
     : '';
   const resultHtml = anchorMode
     ? `<div class="st-esg-floor-anchor-list">${buildMessageFloorAnchorMarkup(state.anchorItems)}</div>`
-    : `<textarea class="text_pole st-esg-floor-output" data-floor-output rows="7"${canEdit ? '' : ' readonly'} placeholder="生成后的组件会显示在这里。">${escapeHtml(output)}</textarea>`;
+    : `<textarea class="text_pole st-esg-floor-output" data-floor-output rows="3"${canEdit ? '' : ' readonly'} placeholder="生成后的组件会显示在这里。">${escapeHtml(output)}</textarea>`;
   const compactActionHtml = compactActions.map((action) => `<button type="button" class="st-esg-floor-compact-action${action.action === 'inject' ? ' st-esg-floor-compact-action-primary' : ''}" data-floor-action="${action.action}" aria-label="${escapeHtml(action.label)}" title="${escapeHtml(action.label)}"><i class="fa-solid ${action.icon}" aria-hidden="true"></i></button>`).join('');
   return `<div class="st-esg-floor-compact" data-floor-compact-toggle role="group" tabindex="0" aria-expanded="${state.expanded}" aria-label="织幕楼层面板">
     <span class="st-esg-floor-brand">${renderBrandMark('floor')}</span>
-    <span class="st-esg-floor-status" data-floor-status>${escapeHtml(statusLabel)}</span>
-    <span class="st-esg-floor-motion" aria-hidden="true"><span></span><span></span><span></span></span>
+    <span class="st-esg-floor-stage" data-floor-stage data-floor-stage-motion="${escapeHtml(statusStage.motion)}" role="status" aria-label="${escapeHtml(statusStage.label)}">
+      <span class="st-esg-floor-stage-lead" aria-hidden="true">${escapeHtml(statusStage.lead)}</span>
+      <span class="st-esg-floor-stage-shuttle" aria-hidden="true">${escapeHtml(statusStage.shuttle)}</span>
+      <span class="st-esg-floor-stage-text" aria-hidden="true">${escapeHtml(statusStage.text)}</span>
+      <span class="st-esg-floor-stage-face" aria-hidden="true">${escapeHtml(statusStage.face)}</span>
+      <span class="st-esg-floor-stage-tail" aria-hidden="true">${escapeHtml(statusStage.tail)}</span>
+    </span>
     <span class="st-esg-floor-action-group" data-floor-action-group>${compactActionHtml}</span>
     <button type="button" class="st-esg-floor-expand" data-floor-expand aria-expanded="${state.expanded}" aria-label="${state.expanded ? '收起楼层面板' : '展开楼层面板'}"><i class="fa-solid ${state.expanded ? 'fa-chevron-up' : 'fa-chevron-down'}" aria-hidden="true"></i></button>
   </div>
@@ -1010,10 +1033,10 @@ function renderMessageFloorPanel({ force = false } = {}) {
   bindMessageFloorPanel(panel);
   panel.dataset.status = messageFloorPanelState.status;
   panel.dataset.expanded = String(messageFloorPanelState.expanded);
-  panel.querySelector('[data-floor-status]')?.replaceChildren(targetDoc.createTextNode(getFloorPanelStatusLabel(messageFloorPanelState.status)));
   panel.querySelector('[data-floor-compact-toggle]')?.setAttribute('aria-expanded', String(messageFloorPanelState.expanded));
   panel.querySelector('[data-floor-expand]')?.setAttribute('aria-expanded', String(messageFloorPanelState.expanded));
   panel.querySelector('.st-esg-floor-expanded')?.toggleAttribute('hidden', !messageFloorPanelState.expanded);
+  panel.querySelectorAll('[data-floor-output], [data-floor-anchor-field]').forEach(resizeMessageFloorTextarea);
   const output = panel.querySelector('[data-floor-output]');
   if (output && messageFloorPanelState.expanded && messageFloorPanelFollowBottom) {
     const scrollToBottom = () => { output.scrollTop = output.scrollHeight; };
@@ -1057,6 +1080,7 @@ function updateMessageFloorPanelStream(streamed) {
     const previousScrollTop = output.scrollTop;
     const followBottom = messageFloorPanelFollowBottom;
     output.value = messageFloorPanelState.output;
+    resizeMessageFloorTextarea(output);
     const restoreScroll = () => {
       if (followBottom) output.scrollTop = output.scrollHeight;
       else output.scrollTop = previousScrollTop;
@@ -1210,6 +1234,7 @@ function bindMessageFloorPanel(panel) {
       $t('#st-esg-preview').val(settings.lastGenerated);
       renderAnchorInsertionPlan([], []);
       saveSettings();
+      resizeMessageFloorTextarea(output);
       return;
     }
     const field = event.target.closest('[data-floor-anchor-field]');
@@ -1220,6 +1245,7 @@ function bindMessageFloorPanel(panel) {
     const fieldName = String(field.dataset.floorAnchorField || '');
     if (!item || !['anchor', 'content'].includes(fieldName)) return;
     item[fieldName] = String(field.value || '');
+    resizeMessageFloorTextarea(field);
     messageFloorPanelState.anchorItems = settings.lastGeneratedAnchorItems.map((entry) => ({ ...entry }));
     updateAnchorPlanStatusUi();
     scheduleAnchorEditPersistence();
