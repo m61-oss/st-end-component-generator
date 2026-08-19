@@ -22,8 +22,11 @@ test('楼层流式预览只在用户原本位于底部时跟随新文本', () =>
 
 test('楼层面板使用边框盒并把正文宽度作为真正的最大宽度', () => {
   assert.match(styleSource, /\.st-esg-message-floor-panel\s*\{[^}]*box-sizing:\s*border-box[^}]*max-width:\s*100%[^}]*min-width:\s*0/s);
-  assert.match(indexSource, /panel\.style\.width\s*=\s*'100%'/);
-  assert.match(indexSource, /panel\.style\.maxWidth\s*=\s*`\$\{width\}px`/);
+  assert.match(indexSource, /const targetRect\s*=\s*messageText\.getBoundingClientRect/);
+  assert.match(indexSource, /const parentRect\s*=\s*parent\.getBoundingClientRect/);
+  assert.match(indexSource, /panel\.style\.setProperty\('box-sizing',\s*'border-box',\s*'important'\)/);
+  assert.match(indexSource, /panel\.style\.setProperty\('width',\s*`\$\{width\}px`,\s*'important'\)/);
+  assert.match(indexSource, /panel\.style\.setProperty\('margin-left',\s*`\$\{inlineOffset\}px`,\s*'important'\)/);
 });
 
 test('短内容自然收紧，长内容达到上限后才在字段内部滚动', () => {
@@ -58,8 +61,28 @@ test('状态舞台按状态编排符号动画且操作图标视觉尺寸更小',
   assert.match(styleSource, /@keyframes st-esg-floor-tangle/);
   assert.match(styleSource, /@keyframes st-esg-floor-tangle-tail/);
   assert.match(styleSource, /\.st-esg-floor-compact-action\s*\{[^}]*width:\s*28px[^}]*height:\s*28px/s);
-  assert.match(styleSource, /\.st-esg-floor-compact-action i\s*\{[^}]*font-size:\s*10px/s);
+  assert.match(styleSource, /\.st-esg-floor-compact-action i\s*\{[^}]*font-size:\s*12px/s);
   assert.match(styleSource, /prefers-reduced-motion:[\s\S]*\.st-esg-floor-stage \*/);
+});
+
+test('floor panel toggles from the whole compact row without a dedicated expand button', () => {
+  assert.match(indexSource, /data-floor-compact-toggle/);
+  assert.doesNotMatch(indexSource, /data-floor-expand/);
+  assert.doesNotMatch(indexSource, /class="st-esg-floor-expand"/);
+  assert.match(indexSource, /event\.target\.closest\('\[data-floor-compact-toggle\]'\)/);
+});
+
+test('adaptive symbol tracks preserve the status core and fixed action area', () => {
+  assert.match(indexSource, /st-esg-floor-stage-track-left/);
+  assert.match(indexSource, /st-esg-floor-stage-core/);
+  assert.match(indexSource, /st-esg-floor-stage-track-right/);
+  assert.match(indexSource, /data-floor-stage-pattern=/);
+  assert.match(styleSource, /\.st-esg-floor-compact\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*auto minmax\(0,\s*1fr\) auto/s);
+  assert.match(styleSource, /\.st-esg-floor-action-group\s*\{[^}]*flex-shrink:\s*0/s);
+  assert.match(styleSource, /\.st-esg-floor-action-group\s*\{[^}]*visibility:\s*visible\s*!important[^}]*opacity:\s*1\s*!important/s);
+  assert.match(styleSource, /\.st-esg-floor-stage-track\s*\{[^}]*overflow:\s*hidden[^}]*min-width:\s*0/s);
+  assert.match(styleSource, /\.st-esg-floor-stage-core\s*\{[^}]*flex:\s*0 0 auto/s);
+  assert.doesNotMatch(styleSource, /@media \(max-width:\s*640px\)[\s\S]*?\.st-esg-floor-stage\s*\{[^}]*font-size:\s*9\.5px/);
 });
 
 test('floor panel textarea overflow overrides host styles after adaptive resizing', () => {
