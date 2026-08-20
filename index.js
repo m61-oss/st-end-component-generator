@@ -2814,7 +2814,7 @@ function renderModelOptions() {
     const usingManualModel = currentModel && !options.includes(currentModel);
     picker.html(`${options.map((model) => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join('')}<option value="__manual__">手动填写模型名称</option>`);
     picker.val(usingManualModel ? '__manual__' : (currentModel || options[0]));
-    picker.show();
+    picker.toggle(!usingManualModel);
     input.toggle(usingManualModel);
   } else {
     picker.hide();
@@ -2925,7 +2925,7 @@ async function fetchApiModels() {
     const models = extractModelIds(await response.json());
     if (!models.length) throw new Error('没有从接口返回中识别到模型。');
     settings.apiModelOptions = models;
-    if (!textOf(settings.apiModel)) settings.apiModel = models[0];
+    settings.apiModel = models[0];
     saveSettings();
     renderModelOptions();
     $t('#st-esg-api-model').val(settings.apiModel);
@@ -6829,6 +6829,7 @@ function bindPanelEvents() {
   $t('#st-esg-api-model-picker').on('change', function () {
     const selected = String($(this).val() || '');
     if (selected === '__manual__') {
+      $(this).hide();
       $t('#st-esg-api-model').show().trigger('focus');
       return;
     }
@@ -6836,7 +6837,6 @@ function bindPanelEvents() {
     $t('#st-esg-api-model').val(selected);
     markSchemeDirty('api');
     saveSettings();
-    renderModelOptions();
   });
   $t('#st-esg-max-tokens').on('input', function () { settings.maxTokens = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
   $t('#st-esg-temperature').on('input', function () { settings.temperature = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
