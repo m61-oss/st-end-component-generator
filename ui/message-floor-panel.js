@@ -14,7 +14,7 @@ const STATUS_LABELS = Object.freeze({
 });
 
 const ACTION_MODELS = Object.freeze({
-  [FLOOR_PANEL_STATUS.IDLE]: Object.freeze({ action: 'generate', icon: 'fa-sparkles', label: '生成组件' }),
+  [FLOOR_PANEL_STATUS.IDLE]: Object.freeze({ action: 'generate', icon: 'fa-wand-magic-sparkles', label: '生成组件' }),
   [FLOOR_PANEL_STATUS.GENERATING]: Object.freeze({ action: 'stop', icon: 'fa-stop', label: '停止生成' }),
   [FLOOR_PANEL_STATUS.READY]: Object.freeze({ action: 'inject', icon: 'fa-file-import', label: '注入回复' }),
   [FLOOR_PANEL_STATUS.INJECTED]: Object.freeze({ action: 'undo', icon: 'fa-rotate-left', label: '撤回注入' }),

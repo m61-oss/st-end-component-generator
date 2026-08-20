@@ -900,6 +900,21 @@ function removeMessageFloorPanels() {
   targetDoc.querySelectorAll('.st-esg-message-floor-panel').forEach((element) => element.remove());
 }
 
+function getHorizontalContentBounds(element) {
+  if (!element) return null;
+  const rect = element.getBoundingClientRect?.();
+  if (!rect) return null;
+  const styles = targetWindow.getComputedStyle?.(element);
+  const borderLeft = Number.parseFloat(styles?.borderLeftWidth) || 0;
+  const borderRight = Number.parseFloat(styles?.borderRightWidth) || 0;
+  const paddingLeft = Number.parseFloat(styles?.paddingLeft) || 0;
+  const paddingRight = Number.parseFloat(styles?.paddingRight) || 0;
+  return {
+    left: rect.left + borderLeft + paddingLeft,
+    right: rect.right - borderRight - paddingRight,
+  };
+}
+
 function syncMessageFloorPanelWidth(panel, messageText) {
   if (!panel || !messageText) return;
   const parent = panel.parentElement;
@@ -907,15 +922,14 @@ function syncMessageFloorPanelWidth(panel, messageText) {
   const targetRect = messageText.getBoundingClientRect?.();
   const parentRect = parent.getBoundingClientRect?.();
   if (!targetRect || !parentRect) return;
-  const parentStyles = targetWindow.getComputedStyle?.(parent);
-  const borderLeft = Number.parseFloat(parentStyles?.borderLeftWidth) || 0;
-  const borderRight = Number.parseFloat(parentStyles?.borderRightWidth) || 0;
-  const paddingLeft = Number.parseFloat(parentStyles?.paddingLeft) || 0;
-  const paddingRight = Number.parseFloat(parentStyles?.paddingRight) || 0;
-  const parentContentLeft = parentRect.left + borderLeft + paddingLeft;
-  const parentContentWidth = Math.max(0, parentRect.width - borderLeft - borderRight - paddingLeft - paddingRight);
-  const inlineOffset = Math.max(0, Math.round(targetRect.left - parentContentLeft));
-  const width = Math.max(0, Math.floor(Math.min(targetRect.width || 0, parentContentWidth - inlineOffset)));
+  const messageHost = messageText.closest?.('.mes');
+  const targetBounds = { left: targetRect.left, right: targetRect.right };
+  const parentBounds = getHorizontalContentBounds(parent) || targetBounds;
+  const messageBounds = getHorizontalContentBounds(messageHost) || targetBounds;
+  const boundedLeft = Math.max(targetBounds.left, parentBounds.left, messageBounds.left);
+  const boundedRight = Math.min(targetBounds.right, parentBounds.right, messageBounds.right);
+  const inlineOffset = Math.max(0, Math.round(boundedLeft - parentBounds.left));
+  const width = Math.max(0, Math.floor(boundedRight - boundedLeft));
   panel.style.setProperty('box-sizing', 'border-box', 'important');
   panel.style.setProperty('margin-left', `${inlineOffset}px`, 'important');
   panel.style.setProperty('margin-right', '0', 'important');

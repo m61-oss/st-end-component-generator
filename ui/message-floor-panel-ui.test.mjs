@@ -20,10 +20,14 @@ test('楼层流式预览只在用户原本位于底部时跟随新文本', () =>
   assert.match(indexSource, /output\.scrollTop\s*=\s*output\.scrollHeight/);
 });
 
-test('楼层面板使用边框盒并把正文宽度作为真正的最大宽度', () => {
+test('楼层面板取正文、直接容器与气泡内容区的交集', () => {
   assert.match(styleSource, /\.st-esg-message-floor-panel\s*\{[^}]*box-sizing:\s*border-box[^}]*max-width:\s*100%[^}]*min-width:\s*0/s);
   assert.match(indexSource, /const targetRect\s*=\s*messageText\.getBoundingClientRect/);
   assert.match(indexSource, /const parentRect\s*=\s*parent\.getBoundingClientRect/);
+  assert.match(indexSource, /const messageHost\s*=\s*messageText\.closest\?\.\('\.mes'\)/);
+  assert.match(indexSource, /const messageBounds\s*=\s*getHorizontalContentBounds\(messageHost\)/);
+  assert.match(indexSource, /Math\.max\(targetBounds\.left,\s*parentBounds\.left,\s*messageBounds\.left\)/);
+  assert.match(indexSource, /Math\.min\(targetBounds\.right,\s*parentBounds\.right,\s*messageBounds\.right\)/);
   assert.match(indexSource, /panel\.style\.setProperty\('box-sizing',\s*'border-box',\s*'important'\)/);
   assert.match(indexSource, /panel\.style\.setProperty\('width',\s*`\$\{width\}px`,\s*'important'\)/);
   assert.match(indexSource, /panel\.style\.setProperty\('margin-left',\s*`\$\{inlineOffset\}px`,\s*'important'\)/);
@@ -54,13 +58,13 @@ test('状态舞台取代独立状态文字和抽象线条并保留可访问状�
   assert.doesNotMatch(indexSource, /class="st-esg-floor-motion"/);
 });
 
-test('状态舞台按状态编排符号动画且操作图标视觉尺寸更小', () => {
+test('状态舞台按状态编排符号动画且操作图标使用透明无框小热区', () => {
   assert.match(styleSource, /@keyframes st-esg-floor-shuttle-weave/);
   assert.match(styleSource, /@keyframes st-esg-floor-ready-bloom/);
   assert.match(styleSource, /@keyframes st-esg-floor-embed/);
   assert.match(styleSource, /@keyframes st-esg-floor-tangle/);
   assert.match(styleSource, /@keyframes st-esg-floor-tangle-tail/);
-  assert.match(styleSource, /\.st-esg-floor-compact-action\s*\{[^}]*width:\s*28px[^}]*height:\s*28px/s);
+  assert.match(styleSource, /\.st-esg-floor-compact-action\s*\{[^}]*width:\s*24px[^}]*height:\s*24px[^}]*background:\s*transparent/s);
   assert.match(styleSource, /\.st-esg-floor-compact-action i\s*\{[^}]*font-size:\s*12px/s);
   assert.match(styleSource, /prefers-reduced-motion:[\s\S]*\.st-esg-floor-stage \*/);
 });

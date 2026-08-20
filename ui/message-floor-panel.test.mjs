@@ -34,7 +34,7 @@ test('状态标签只有生成中、待注入、已注入、失败四种可见�
 
 test('折叠面板动作随状态变化，但不会自动展开', () => {
   const state = createFloorPanelState();
-  assert.deepEqual(getFloorPanelActionModel(FLOOR_PANEL_STATUS.IDLE), { action: 'generate', icon: 'fa-sparkles', label: '生成组件' });
+  assert.deepEqual(getFloorPanelActionModel(FLOOR_PANEL_STATUS.IDLE), { action: 'generate', icon: 'fa-wand-magic-sparkles', label: '生成组件' });
   assert.deepEqual(getFloorPanelActionModel(FLOOR_PANEL_STATUS.GENERATING), { action: 'stop', icon: 'fa-stop', label: '停止生成' });
   assert.deepEqual(getFloorPanelActionModel(FLOOR_PANEL_STATUS.READY), { action: 'inject', icon: 'fa-file-import', label: '注入回复' });
   assert.deepEqual(getFloorPanelActionModel(FLOOR_PANEL_STATUS.INJECTED), { action: 'undo', icon: 'fa-rotate-left', label: '撤回注入' });
