@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import test from 'node:test';
+
+const indexSource = await readFile(new URL('../index.js', import.meta.url), 'utf8');
+const styleSource = await readFile(new URL('../style.css', import.meta.url), 'utf8');
+const schemeSource = await readFile(new URL('../settings/scheme-utils.js', import.meta.url), 'utf8');
+
+test('task page exposes independent protocol mode, role, editor, and reset controls', () => {
+  assert.match(indexSource, /id="st-esg-output-protocol-mode"/);
+  assert.match(indexSource, /id="st-esg-output-protocol-role"/);
+  assert.match(indexSource, /id="st-esg-output-protocol-text"/);
+  assert.match(indexSource, /id="st-esg-reset-output-protocol"/);
+  assert.match(indexSource, /data-output-protocol-mode="standard"/);
+  assert.match(indexSource, /data-output-protocol-mode="anchor"/);
+});
+
+test('stores separate standard and anchor prompt text and roles', () => {
+  for (const key of [
+    'standardOutputProtocol',
+    'standardOutputProtocolRole',
+    'anchorOutputProtocol',
+    'anchorOutputProtocolRole',
+  ]) assert.match(indexSource, new RegExp(key));
+  assert.match(indexSource, /function renderOutputProtocolEditor\(/);
+});
+
+test('generation passes the active protocol override without adding it to task schemes', () => {
+  assert.match(indexSource, /outputProtocol:\s*getActiveOutputProtocolSettings\(outputMode\)/);
+  assert.doesNotMatch(schemeSource, /standardOutputProtocol|anchorOutputProtocol/);
+});
+
+test('protocol controls use scoped task-page styling', () => {
+  assert.match(styleSource, /\.st-esg-output-protocol-card/);
+  assert.match(styleSource, /#st-esg-output-protocol-text/);
+});

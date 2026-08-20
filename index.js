@@ -24,6 +24,7 @@ import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from
 import { containsStatusPlaceholder, injectStatusbarText, normalizeStatusPlaceholder, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.1.9';
 import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.1.9';
 import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.1.9';
+import { ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, OUTPUT_PROTOCOL_SYSTEM_PROMPT } from './generation/output-protocol.js?ver=0.1.9';
 import { normalizeGeneratedResult } from './generation/output-result.js?ver=0.1.9';
 import { applyAnchorInsertions, buildAnchorPreviewSegments, isAnchorInsertionEnabled, locateAnchorInsertions } from './injection/anchor-insertion.js?ver=0.1.9';
 import { normalizeStreamOutputPreview } from './generation/stream-output-preview.js?ver=0.1.9';
@@ -183,6 +184,10 @@ const DEFAULT_SETTINGS = {
     '{{external_components}}',
     '上方为需要补充的内容，现在开始输出思考过程并按规则和格式输出需要补充的内容，禁止额外生成正文。',
   ].join('\n'),
+  standardOutputProtocol: OUTPUT_PROTOCOL_SYSTEM_PROMPT,
+  standardOutputProtocolRole: 'system',
+  anchorOutputProtocol: ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT,
+  anchorOutputProtocolRole: 'system',
   apiUrl: '',
   apiKey: '',
   apiModel: '',
@@ -282,6 +287,7 @@ const targetWindow = (() => {
 const targetDoc = targetWindow.document;
 let initialized = false;
 let settings = { ...DEFAULT_SETTINGS };
+let outputProtocolEditorMode = 'standard';
 let importCandidates = [];
 let importGroups = [];
 const promptSourceCache = createPromptSourceCacheState();
@@ -603,6 +609,10 @@ function loadSettings() {
     settings.injectMode = settings.injectMode === 'rollbackAppend' ? 'append' : 'replace';
   }
   if (!['replace', 'append', 'anchor'].includes(settings.injectMode)) settings.injectMode = 'replace';
+  if (typeof settings.standardOutputProtocol !== 'string') settings.standardOutputProtocol = OUTPUT_PROTOCOL_SYSTEM_PROMPT;
+  if (typeof settings.anchorOutputProtocol !== 'string') settings.anchorOutputProtocol = ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT;
+  settings.standardOutputProtocolRole = normalizeOutputProtocolRole(settings.standardOutputProtocolRole);
+  settings.anchorOutputProtocolRole = normalizeOutputProtocolRole(settings.anchorOutputProtocolRole);
   if (typeof settings.rollbackBeforeGeneration !== 'boolean') settings.rollbackBeforeGeneration = false;
   if (!Array.isArray(settings.lastGeneratedAnchorItems)) settings.lastGeneratedAnchorItems = [];
   if (!Array.isArray(settings.lastGeneratedAnchorWarnings)) settings.lastGeneratedAnchorWarnings = [];
@@ -878,6 +888,35 @@ function getAssistantMessageAtIndex(chat, messageIndex) {
   const item = chat?.[index];
   if (!item || item.is_user === true || item.is_system === true || !String(item.mes || '').trim()) return null;
   return { index, message: item };
+}
+
+function normalizeOutputProtocolRole(value) {
+  return ['system', 'user', 'assistant'].includes(value) ? value : 'system';
+}
+
+function getOutputProtocolSettingKeys(mode = outputProtocolEditorMode) {
+  return mode === 'anchor'
+    ? { text: 'anchorOutputProtocol', role: 'anchorOutputProtocolRole' }
+    : { text: 'standardOutputProtocol', role: 'standardOutputProtocolRole' };
+}
+
+function getActiveOutputProtocolSettings(outputMode) {
+  const keys = getOutputProtocolSettingKeys(outputMode);
+  return {
+    content: typeof settings[keys.text] === 'string' ? settings[keys.text] : DEFAULT_SETTINGS[keys.text],
+    role: normalizeOutputProtocolRole(settings[keys.role]),
+  };
+}
+
+function renderOutputProtocolEditor() {
+  const keys = getOutputProtocolSettingKeys();
+  const $t = targetWindow.jQuery || targetWindow.$;
+  $t?.('[data-output-protocol-mode]').removeClass('active').attr('aria-pressed', 'false');
+  $t?.(`[data-output-protocol-mode="${outputProtocolEditorMode}"]`).addClass('active').attr('aria-pressed', 'true');
+  $t?.('#st-esg-output-protocol-role').val(normalizeOutputProtocolRole(settings[keys.role]));
+  $t?.('#st-esg-output-protocol-text').val(
+    typeof settings[keys.text] === 'string' ? settings[keys.text] : DEFAULT_SETTINGS[keys.text],
+  );
 }
 
 function getMessageFloorPanelElement(messageIndex) {
@@ -1851,6 +1890,7 @@ async function buildMessages(latestMessage) {
     ? await ensurePromptSourceItemsForGeneration({ animaWorldbookEntries })
     : await ensurePromptSourceItemsForGeneration();
   const templateStats = { enabled: Boolean(settings.promptTemplateCompatEnabled), renderCount: 0, changedCount: 0 };
+  const outputMode = settings.injectMode === 'anchor' ? 'anchor' : 'standard';
   const messages = await buildExternalStatusbarMessages({
     targetWindow,
     context,
@@ -1879,7 +1919,8 @@ async function buildMessages(latestMessage) {
       includeHistory: settings.baiBaiBookHistoryEnabled,
       includeState: settings.baiBaiBookStateEnabled,
       } : null,
-    outputMode: settings.injectMode === 'anchor' ? 'anchor' : 'standard',
+    outputMode,
+    outputProtocol: getActiveOutputProtocolSettings(outputMode),
    });
   if (settings.promptTemplateCompatEnabled) {
     for (const message of messages) {
@@ -6317,6 +6358,32 @@ function renderPluginPanel() {
   apiModel?.insertAdjacentHTML('afterend', '<select id="st-esg-api-model-picker" class="text_pole st-esg-api-model-picker st-esg-api-custom-fields" style="display:none;"></select><div id="st-esg-api-model-feedback" class="st-esg-model-feedback st-esg-api-custom-fields"></div>');
   const taskInput = dialog.querySelector('#st-esg-task');
   taskInput?.insertAdjacentHTML('afterend', '<div class="st-esg-task-components-help"><code>{{external_components}}</code> 会在生成时替换为当前启用的组件；不写则不会发送组件。</div>');
+  dialog.querySelector('.st-esg-task-components-help')?.insertAdjacentHTML('afterend', `
+    <div class="st-esg-output-protocol-card">
+      <div class="st-esg-card-head">
+        <div>
+          <div class="st-esg-card-title">自定义输出格式（测试）</div>
+          <div class="st-esg-card-desc">分别修改普通生成与锚点插入的末尾协议；这里的设置不随任务方案保存。</div>
+        </div>
+      </div>
+      <div class="st-esg-output-protocol-toolbar">
+        <div id="st-esg-output-protocol-mode" class="st-esg-output-protocol-mode" role="group" aria-label="输出协议模式">
+          <button type="button" class="st-esg-output-protocol-mode-button" data-output-protocol-mode="standard">普通模式</button>
+          <button type="button" class="st-esg-output-protocol-mode-button" data-output-protocol-mode="anchor">锚点模式</button>
+        </div>
+        <label class="st-esg-output-protocol-role-label">消息角色
+          <select id="st-esg-output-protocol-role" class="text_pole">
+            <option value="system">system</option>
+            <option value="user">user</option>
+            <option value="assistant">assistant</option>
+          </select>
+        </label>
+      </div>
+      <textarea id="st-esg-output-protocol-text" class="text_pole textarea_compact st-esg-textarea" rows="12" spellcheck="false"></textarea>
+      <div class="st-esg-actions-row">
+        <button id="st-esg-reset-output-protocol" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-rotate-left"></i><span>恢复当前内置协议</span></button>
+      </div>
+    </div>`);
   const tagTextarea = dialog.querySelector('#st-esg-history-cleanup-tags');
   const tagCard = tagTextarea?.closest('.st-esg-card');
   const tagGrid = tagCard?.querySelector('.st-esg-grid');
@@ -6518,6 +6585,7 @@ function bindPanelEvents() {
   renderGenerationSettings();
   renderHistoryRangeUi();
   $t('#st-esg-task').val(settings.taskPrompt);
+  renderOutputProtocolEditor();
   $t('#st-esg-task-placement-enabled').prop('checked', settings.taskPlacementEnabled);
   $t('#st-esg-replace-last-user-message').prop('checked', settings.replaceLastUserMessageWithTask);
   $t('#st-esg-omit-original-user-messages').prop('checked', settings.omitOriginalUserMessages);
@@ -6732,6 +6800,34 @@ function bindPanelEvents() {
     settings.taskPrompt = String($(this).val());
     if (!settings.dirtySchemeTypes.task) markSchemeDirty('task');
     else saveSettings();
+  });
+  $t('[data-output-protocol-mode]').on('click', function (event) {
+    event.preventDefault();
+    const nextMode = String($(this).attr('data-output-protocol-mode') || 'standard');
+    if (!['standard', 'anchor'].includes(nextMode) || nextMode === outputProtocolEditorMode) return;
+    outputProtocolEditorMode = nextMode;
+    renderOutputProtocolEditor();
+    event.currentTarget.blur();
+  });
+  $t('#st-esg-output-protocol-text').on('input', function () {
+    const keys = getOutputProtocolSettingKeys();
+    settings[keys.text] = String($(this).val() ?? '');
+    saveSettings();
+  });
+  $t('#st-esg-output-protocol-role').on('change', function () {
+    const keys = getOutputProtocolSettingKeys();
+    settings[keys.role] = normalizeOutputProtocolRole(String($(this).val() || 'system'));
+    saveSettings();
+  });
+  $t('#st-esg-reset-output-protocol').on('click', function (event) {
+    event.preventDefault();
+    const keys = getOutputProtocolSettingKeys();
+    settings[keys.text] = DEFAULT_SETTINGS[keys.text];
+    settings[keys.role] = 'system';
+    renderOutputProtocolEditor();
+    saveSettings();
+    setStatus(outputProtocolEditorMode === 'anchor' ? '已恢复锚点模式内置协议。' : '已恢复普通模式内置协议。');
+    event.currentTarget.blur();
   });
   $t('#st-esg-temporary-task-instruction').on('input', function () {
     temporaryTaskInstruction = String($(this).val() ?? '');
