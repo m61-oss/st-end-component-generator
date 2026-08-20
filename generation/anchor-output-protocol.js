@@ -39,8 +39,10 @@ function parseLooseAnchorOutput(source) {
   const body = source.slice(outputMatch.index + outputMatch[0].length);
   const itemPattern = /\{\s*"position"\s*:\s*"(start|end|before|after)"\s*,\s*(?:"anchor"\s*:\s*"([\s\S]*?)"\s*,\s*)?"content"\s*:\s*"([\s\S]*?)"\s*(?=\}|,\s*\{|$)/gi;
   const items = [];
+  const completedItemStarts = new Set();
   let match;
   while ((match = itemPattern.exec(body))) {
+    completedItemStarts.add(match.index);
     const item = normalizeAnchorInsertionItem({
       position: match[1],
       anchor: match[2] === undefined ? undefined : decodeLooseString(match[2]),
@@ -48,17 +50,19 @@ function parseLooseAnchorOutput(source) {
     });
     if (item) items.push(item);
   }
-  if (!items.length) {
-    const partialPattern = /\{\s*"position"\s*:\s*"(start|end|before|after)"\s*,\s*(?:"anchor"\s*:\s*"([\s\S]*?)"\s*,\s*)?"content"\s*:\s*"([\s\S]*)$/i;
-    const partial = partialPattern.exec(body);
-    if (partial) {
-      const item = normalizeAnchorInsertionItem({
-        position: partial[1],
-        anchor: partial[2] === undefined ? undefined : decodeLooseString(partial[2]),
-        content: decodeLooseString(partial[3]),
-      });
-      if (item) items.push(item);
-    }
+
+  const itemStartPattern = /\{\s*"position"\s*:\s*"(?:start|end|before|after)"/gi;
+  let trailingItemStart = -1;
+  while ((match = itemStartPattern.exec(body))) trailingItemStart = match.index;
+  if (trailingItemStart >= 0 && !completedItemStarts.has(trailingItemStart)) {
+    const partialPattern = /^\{\s*"position"\s*:\s*"(start|end|before|after)"\s*,\s*(?:"anchor"\s*:\s*"([\s\S]*?)"\s*,\s*)?"content"\s*:\s*"([\s\S]*)$/i;
+    const partial = partialPattern.exec(body.slice(trailingItemStart));
+    const item = partial && normalizeAnchorInsertionItem({
+      position: partial[1],
+      anchor: partial[2] === undefined ? undefined : decodeLooseString(partial[2]),
+      content: decodeLooseString(partial[3]),
+    });
+    if (item) items.push(item);
   }
   if (!items.length) return null;
   return {

@@ -54,8 +54,10 @@ import {
   canEditFloorPanelResult,
   createFloorPanelState,
   createFloorPanelTarget,
+  getEndedFloorPanelStatus,
   getFloorPanelActionModels,
   getFloorPanelStatusStage,
+  hasInjectableFloorPanelResult,
   isFloorPanelGenerationCurrent,
   isFloorPanelTargetAddressable,
   nextFloorPanelGeneration,
@@ -1808,7 +1810,15 @@ function applyGeneratedResult(rawText) {
   renderGeneratedThinking();
   renderGenerationResultPanel();
   resizeGeneratedPreview();
-  if (messageFloorPanelState.status === FLOOR_PANEL_STATUS.GENERATING) syncMessageFloorPanelResult({ status: FLOOR_PANEL_STATUS.READY });
+  const floorResult = {
+    resultMode: settings.lastGeneratedResultMode,
+    output: settings.lastGenerated,
+    anchorItems: settings.lastGeneratedAnchorItems,
+  };
+  if (
+    messageFloorPanelState.status === FLOOR_PANEL_STATUS.GENERATING
+    && hasInjectableFloorPanelResult(floorResult)
+  ) syncMessageFloorPanelResult({ status: FLOOR_PANEL_STATUS.READY });
   return settings.lastGenerated;
 }
 
@@ -2184,20 +2194,32 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     logAutomaticGenerationStage('api-returned', result ? 'received content' : 'empty response');
   }
   catch (error) {
+    const partialStreamText = String(error?.streamedText ?? '');
+    if (partialStreamText.trim()) {
+      const partialResultPanelScrollTop = capturePanelScrollTop();
+      applyGeneratedResult(partialStreamText);
+      restorePanelScrollTop(partialResultPanelScrollTop);
+      saveSettings();
+    }
+    const retainedFloorResult = {
+      resultMode: settings.lastGeneratedResultMode,
+      output: settings.lastGenerated,
+      anchorItems: settings.lastGeneratedAnchorItems,
+    };
+    const retainedPartialResult = hasInjectableFloorPanelResult(retainedFloorResult);
+    if (floorGeneration && isCurrentMessageFloorPanelGeneration(floorGeneration.generation, floorGeneration.target)) {
+      messageFloorPanelState.streaming = false;
+      messageFloorPanelState.status = getEndedFloorPanelStatus(retainedFloorResult, {
+        failed: error?.name !== 'AbortError',
+      });
+      if (retainedPartialResult) messageFloorPanelState.error = null;
+      renderMessageFloorPanel({ force: true });
+    }
     if (error?.name === 'AbortError') {
-      const partialStreamText = String(error?.streamedText ?? '');
-      if (partialStreamText.trim()) {
-        const partialResultPanelScrollTop = capturePanelScrollTop();
-        applyGeneratedResult(partialStreamText);
-        restorePanelScrollTop(partialResultPanelScrollTop);
-        saveSettings();
-      }
-      if (floorGeneration && isCurrentMessageFloorPanelGeneration(floorGeneration.generation, floorGeneration.target)) {
-        messageFloorPanelState.streaming = false;
-        messageFloorPanelState.status = messageFloorPanelState.output ? FLOOR_PANEL_STATUS.READY : FLOOR_PANEL_STATUS.IDLE;
-        renderMessageFloorPanel({ force: true });
-      }
       notifyStatus('已停止生成。提示词查看器内容已保留。', 'warning');
+    } else if (retainedPartialResult) {
+      logAutomaticGenerationStage('generation-error', 'request ended; partial result retained');
+      notifyStatus('生成请求异常结束，已保留当前可注入内容。', 'warning');
     } else {
       logAutomaticGenerationStage('generation-error');
       if (!floorGeneration || isCurrentMessageFloorPanelGeneration(floorGeneration.generation, floorGeneration.target)) {

@@ -154,6 +154,23 @@ function canEditFloorPanelResult({ status, streaming = false } = {}) {
   return normalizeStatus(status) === FLOOR_PANEL_STATUS.READY && streaming !== true;
 }
 
+function hasInjectableFloorPanelResult({ resultMode = 'standard', output = '', anchorItems = [] } = {}) {
+  if (resultMode === 'anchor') {
+    return Array.isArray(anchorItems) && anchorItems.some((item) => (
+      item
+      && typeof item === 'object'
+      && typeof item.content === 'string'
+      && item.content.trim().length > 0
+    ));
+  }
+  return String(output ?? '').trim().length > 0;
+}
+
+function getEndedFloorPanelStatus(result, { failed = false } = {}) {
+  if (hasInjectableFloorPanelResult(result)) return FLOOR_PANEL_STATUS.READY;
+  return failed ? FLOOR_PANEL_STATUS.ERROR : FLOOR_PANEL_STATUS.IDLE;
+}
+
 export {
   FLOOR_PANEL_STATUS,
   canEditFloorPanelResult,
@@ -162,8 +179,10 @@ export {
   fingerprintMessageText,
   getFloorPanelActionModel,
   getFloorPanelActionModels,
+  getEndedFloorPanelStatus,
   getFloorPanelStatusStage,
   getFloorPanelStatusLabel,
+  hasInjectableFloorPanelResult,
   isFloorPanelGenerationCurrent,
   isFloorPanelTargetAddressable,
   isFloorPanelTargetCurrent,
