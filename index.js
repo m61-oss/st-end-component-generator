@@ -2814,7 +2814,7 @@ function renderModelOptions() {
     const usingManualModel = currentModel && !options.includes(currentModel);
     picker.html(`${options.map((model) => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join('')}<option value="__manual__">手动填写模型名称</option>`);
     picker.val(usingManualModel ? '__manual__' : (currentModel || options[0]));
-    picker.toggle(!usingManualModel);
+    picker.show();
     input.toggle(usingManualModel);
   } else {
     picker.hide();
@@ -6829,7 +6829,6 @@ function bindPanelEvents() {
   $t('#st-esg-api-model-picker').on('change', function () {
     const selected = String($(this).val() || '');
     if (selected === '__manual__') {
-      $(this).hide();
       $t('#st-esg-api-model').show().trigger('focus');
       return;
     }
@@ -6837,6 +6836,7 @@ function bindPanelEvents() {
     $t('#st-esg-api-model').val(selected);
     markSchemeDirty('api');
     saveSettings();
+    renderModelOptions();
   });
   $t('#st-esg-max-tokens').on('input', function () { settings.maxTokens = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
   $t('#st-esg-temperature').on('input', function () { settings.temperature = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
