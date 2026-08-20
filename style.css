@@ -1350,15 +1350,11 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   line-height: 1.4;
   box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
 }
-.st-esg-message-floor-panel.st-esg-theme-dark {
-  color: var(--floor-text) !important;
-  border-color: var(--floor-border) !important;
-  background: color-mix(in srgb, var(--floor-surface) 88%, transparent) !important;
-}
+.st-esg-message-floor-panel.st-esg-theme-dark,
 .st-esg-message-floor-panel.st-esg-theme-light {
+  --floor-muted: var(--floor-text);
   color: var(--floor-text) !important;
   border-color: var(--floor-border) !important;
-  background: color-mix(in srgb, var(--floor-surface) 88%, transparent) !important;
 }
 .st-esg-message-floor-panel.st-esg-theme-tavern {
   background:

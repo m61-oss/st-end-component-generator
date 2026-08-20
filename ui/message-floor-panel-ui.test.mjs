@@ -97,9 +97,9 @@ test('floor actions use extension-owned SVG icons and inherit the panel text col
   assert.match(styleSource, /\.st-esg-floor-action-icon\s*\{[^}]*stroke:\s*currentColor\s*!important/s);
 });
 
-test('fixed light and dark floor themes keep readable surfaces over opposite host themes', () => {
-  assert.match(styleSource, /\.st-esg-message-floor-panel\.st-esg-theme-dark\s*\{[^}]*background:[^}]*88%[^}]*!important/s);
-  assert.match(styleSource, /\.st-esg-message-floor-panel\.st-esg-theme-light\s*\{[^}]*background:[^}]*88%[^}]*!important/s);
+test('fixed light and dark floor themes keep the transparent surface and use their primary text color', () => {
+  assert.doesNotMatch(styleSource, /\.st-esg-message-floor-panel\.st-esg-theme-(?:dark|light)\s*\{[^}]*background:/s);
+  assert.match(styleSource, /\.st-esg-message-floor-panel\.st-esg-theme-dark,\s*\.st-esg-message-floor-panel\.st-esg-theme-light\s*\{[^}]*--floor-muted:\s*var\(--floor-text\)[^}]*color:\s*var\(--floor-text\)\s*!important/s);
   assert.match(styleSource, /\.st-esg-message-floor-panel\.st-esg-theme-tavern\s*\{[^}]*42%/s);
 });
 
