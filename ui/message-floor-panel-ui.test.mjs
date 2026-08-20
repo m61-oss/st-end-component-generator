@@ -97,7 +97,7 @@ test('floor actions use extension-owned SVG icons and inherit the panel text col
 });
 
 test('brand, status copy and action icons share one foreground color and opacity', () => {
-  assert.match(styleSource, /--floor-foreground-opacity:\s*1/);
+  assert.match(styleSource, /--floor-foreground-opacity:\s*\.72/);
   assert.match(styleSource, /\.st-esg-floor-brand,\s*\.st-esg-floor-stage-core,\s*\.st-esg-floor-compact-action\s*\{[^}]*color:\s*var\(--floor-text\)\s*!important[^}]*opacity:\s*var\(--floor-foreground-opacity\)\s*!important/s);
 });
 
