@@ -13,11 +13,14 @@ test('keeps the extension display name and public version metadata aligned', asy
   const manifest = JSON.parse(manifestText);
   const packageJson = JSON.parse(packageText);
 
-  assert.equal(manifest.display_name, '织幕·组件生成器');
+  assert.equal(manifest.display_name, '织幕·外置组件');
   assert.equal(manifest.version, expectedVersion);
   assert.equal(manifest.js, `index.js?ver=${expectedVersion}`);
   assert.equal(packageJson.version, expectedVersion);
   assert.match(indexText, new RegExp(`const EXTENSION_VERSION = '${expectedVersion.replaceAll('.', '\\.')}'`));
+  assert.match(indexText, /const BRAND_NAME = '织幕'/);
+  assert.match(indexText, /const BRAND_SUBTITLE = '外置组件生成器'/);
+  assert.match(indexText, /const QR_SHORTCUT_SET_NAME = '织幕快捷键'/);
 
   const cacheVersions = [...indexText.matchAll(/\?ver=(\d+\.\d+\.\d+)/g)].map((match) => match[1]);
   assert.ok(cacheVersions.length > 0);
