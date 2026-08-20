@@ -141,3 +141,22 @@ test('日间与夜间主题的通用强调色不再使用高饱和系统蓝', ()
   assert.doesNotMatch(styleSource, /\.st-esg-theme-dark\s*\{[^}]*--esg-primary:\s*#0A84FF/s);
   assert.doesNotMatch(styleSource, /\.st-esg-theme-light\s*\{[^}]*--esg-primary:\s*#007AFF/s);
 });
+
+test('楼层面板只在首次迁移时默认开启，之后尊重用户设置', () => {
+  assert.match(indexSource, /messageFloorPanelDefaultApplied/);
+  assert.match(indexSource, /if \(!Object\.prototype\.hasOwnProperty\.call\(storedSettings, 'messageFloorPanelDefaultApplied'\)\)/);
+  assert.match(indexSource, /settings\.messageFloorPanelEnabled = true/);
+  assert.match(indexSource, /settings\.messageFloorPanelDefaultApplied = true/);
+});
+
+test('每次渲染都让楼层面板紧邻正文并位于其他插件面板之前', () => {
+  assert.match(indexSource, /function placeMessageFloorPanelAfterText\(panel, messageText\)/);
+  assert.match(indexSource, /messageText\.insertAdjacentElement\('afterend', panel\)/);
+  assert.match(indexSource, /placeMessageFloorPanelAfterText\(panel, messageText\)/);
+});
+
+test('楼层面板设置不再显示旁注且面板完整继承酒馆字体', () => {
+  assert.doesNotMatch(indexSource, /在最新 assistant 楼层下显示折叠的生成与注入面板/);
+  assert.match(styleSource, /\.st-esg-message-floor-panel\s*\{[^}]*font-family:\s*inherit/s);
+  assert.match(styleSource, /\.st-esg-message-floor-panel :is\(button, input, textarea, select\)\s*\{[^}]*font-family:\s*inherit\s*!important/s);
+});

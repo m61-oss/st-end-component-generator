@@ -1337,10 +1337,13 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: inherit;
   font-size: 12px;
   line-height: 1.4;
   box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
+}
+.st-esg-message-floor-panel :is(button, input, textarea, select) {
+  font-family: inherit !important;
 }
 .st-esg-message-floor-panel.st-esg-theme-dark,
 .st-esg-message-floor-panel.st-esg-theme-light {

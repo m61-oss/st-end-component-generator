@@ -243,7 +243,8 @@ const DEFAULT_SETTINGS = {
   ballDock: 'none',
   qrGenerateEnabled: false,
   qrInjectEnabled: false,
-  messageFloorPanelEnabled: false,
+  messageFloorPanelEnabled: true,
+  messageFloorPanelDefaultApplied: false,
   theme: 'dark',
   activeSourcePreset: '',
   sourceMode: SOURCE_MODE_PROMPT,
@@ -589,6 +590,7 @@ function loadSettings() {
   const isFreshInstall = Object.keys(storedSettings).length === 0;
   const hadActiveSchemeIds = Object.prototype.hasOwnProperty.call(storedSettings, 'activeSchemeIds');
   const hadTransientGenerationState = removeTransientGenerationSettings(storedSettings);
+  const shouldApplyMessageFloorPanelDefault = !Object.prototype.hasOwnProperty.call(storedSettings, 'messageFloorPanelDefaultApplied');
   settings = Object.assign({ ...DEFAULT_SETTINGS }, storedSettings);
   resetTransientGenerationState(settings);
   // Prompt-source snapshots were only a bridge for the old import-mode generator.
@@ -738,6 +740,12 @@ function loadSettings() {
   settings.animaStatusAfterMessageEnabled = Boolean(settings.animaStatusAfterMessageEnabled);
   settings.qrGenerateEnabled = Boolean(settings.qrGenerateEnabled);
   settings.qrInjectEnabled = Boolean(settings.qrInjectEnabled);
+  if (!Object.prototype.hasOwnProperty.call(storedSettings, 'messageFloorPanelDefaultApplied')) {
+    settings.messageFloorPanelEnabled = true;
+    settings.messageFloorPanelDefaultApplied = true;
+    storedSettings.messageFloorPanelEnabled = true;
+    storedSettings.messageFloorPanelDefaultApplied = true;
+  }
   settings.messageFloorPanelEnabled = Boolean(settings.messageFloorPanelEnabled);
   if (settings.ballPositionVersion !== 2) {
     settings.ballX = null;
@@ -776,7 +784,7 @@ function loadSettings() {
       return true;
     });
   normalizePresetComponentBindings();
-  if (hadTransientGenerationState) getContext().saveSettingsDebounced();
+  if (hadTransientGenerationState || shouldApplyMessageFloorPanelDefault) getContext().saveSettingsDebounced();
 }
 
 function saveSettings() {
@@ -1105,6 +1113,11 @@ function buildMessageFloorPanelMarkup() {
   </div>`;
 }
 
+function placeMessageFloorPanelAfterText(panel, messageText) {
+  if (!panel || !messageText || panel.previousElementSibling === messageText) return;
+  messageText.insertAdjacentElement('afterend', panel);
+}
+
 function renderMessageFloorPanel({ force = false } = {}) {
   if (!settings.messageFloorPanelEnabled || !messageFloorPanelState.target) return;
   const host = getMessageElementForFloorPanel(messageFloorPanelState.target.messageIndex);
@@ -1119,7 +1132,6 @@ function renderMessageFloorPanel({ force = false } = {}) {
     panel = targetDoc.createElement('section');
     panel.className = 'st-esg-message-floor-panel';
     panel.dataset.messageIndex = String(messageFloorPanelState.target.messageIndex);
-    messageText.insertAdjacentElement('afterend', panel);
     if (typeof targetWindow.ResizeObserver === 'function') {
       messageFloorPanelResizeObserver?.disconnect();
       messageFloorPanelResizeObserver = new targetWindow.ResizeObserver(() => syncMessageFloorPanelWidth(panel, messageText));
@@ -1127,6 +1139,7 @@ function renderMessageFloorPanel({ force = false } = {}) {
     }
     force = true;
   }
+  placeMessageFloorPanelAfterText(panel, messageText);
   syncMessageFloorPanelWidth(panel, messageText);
   applyThemeClass(panel, settings.theme);
   if (force || !panel.dataset.rendered) {
@@ -6410,7 +6423,7 @@ function renderPluginPanel() {
   if (runtimePanel) {
     const shortcutDetails = targetDoc.createElement('details');
     shortcutDetails.className = 'st-esg-card st-esg-collapsible st-esg-shortcut-settings';
-    shortcutDetails.innerHTML = '<summary class="st-esg-collapsible-summary">界面与快捷入口</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox"><input id="st-esg-ball-visible" type="checkbox" /><span>悬浮球</span></label><div class="st-esg-ball-controls"><label class="st-esg-range-control"><span>大小 <output id="st-esg-ball-size-value">38px</output></span><input id="st-esg-ball-size" type="range" min="28" max="72" step="1" /></label><label class="st-esg-range-control"><span>透明度 <output id="st-esg-ball-opacity-value">82%</output></span><input id="st-esg-ball-opacity" type="range" min="20" max="100" step="1" /></label><label class="st-esg-checkbox st-esg-ball-animation-toggle"><input id="st-esg-ball-animation-enabled" type="checkbox" /><span>状态动画</span></label><label class="st-esg-checkbox"><input id="st-esg-ball-snap-enabled" type="checkbox" /><span>贴边吸附</span></label></div><label class="st-esg-checkbox"><input id="st-esg-qr-generate-enabled" type="checkbox" /><span>QR 栏显示“点击生成”</span></label><label class="st-esg-checkbox"><input id="st-esg-qr-inject-enabled" type="checkbox" /><span>QR 栏显示“点击注入”</span></label><label class="st-esg-checkbox st-esg-floor-panel-setting"><input id="st-esg-message-floor-panel-enabled" type="checkbox" /><span>最新楼层面板</span><em>在最新 assistant 楼层下显示折叠的生成与注入面板，不会写入聊天正文。</em></label></div>';
+    shortcutDetails.innerHTML = '<summary class="st-esg-collapsible-summary">界面与快捷入口</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox"><input id="st-esg-ball-visible" type="checkbox" /><span>悬浮球</span></label><div class="st-esg-ball-controls"><label class="st-esg-range-control"><span>大小 <output id="st-esg-ball-size-value">38px</output></span><input id="st-esg-ball-size" type="range" min="28" max="72" step="1" /></label><label class="st-esg-range-control"><span>透明度 <output id="st-esg-ball-opacity-value">82%</output></span><input id="st-esg-ball-opacity" type="range" min="20" max="100" step="1" /></label><label class="st-esg-checkbox st-esg-ball-animation-toggle"><input id="st-esg-ball-animation-enabled" type="checkbox" /><span>状态动画</span></label><label class="st-esg-checkbox"><input id="st-esg-ball-snap-enabled" type="checkbox" /><span>贴边吸附</span></label></div><label class="st-esg-checkbox"><input id="st-esg-qr-generate-enabled" type="checkbox" /><span>QR 栏显示“点击生成”</span></label><label class="st-esg-checkbox"><input id="st-esg-qr-inject-enabled" type="checkbox" /><span>QR 栏显示“点击注入”</span></label><label class="st-esg-checkbox st-esg-floor-panel-setting"><input id="st-esg-message-floor-panel-enabled" type="checkbox" /><span>最新楼层面板</span></label></div>';
     runtimePanel.appendChild(shortcutDetails);
   }
   if (runtimePanel) {
