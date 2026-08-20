@@ -115,6 +115,23 @@ test('floor panel textarea overflow overrides host styles after adaptive resizin
   );
 });
 
+test('anchor cards use type-specific fixed heights while the list grows with card count', () => {
+  assert.match(indexSource, /buildMessageFloorAnchorMarkup\(items\)[\s\S]*resolveAnchorPlanForDisplay\(items\)/);
+  assert.match(indexSource, /data-floor-anchor-match/);
+  assert.match(indexSource, /describeAnchorMatch\(item,\s*matches\.get\(index\),\s*skipped\.get\(index\),\s*Boolean\(target\)\)/);
+  assert.match(styleSource, /\.st-esg-floor-anchor-list\s*\{[^}]*overflow:\s*visible/s);
+  assert.doesNotMatch(styleSource, /\.st-esg-floor-anchor-list\s*\{[^}]*max-height:/s);
+  assert.match(styleSource, /\.st-esg-floor-anchor-item\[open\]\s*\{[^}]*height:\s*124px[^}]*max-height:\s*none/s);
+  assert.match(styleSource, /\.st-esg-floor-anchor-item\[data-floor-anchor-position="before"\]\[open\],[\s\S]*\.st-esg-floor-anchor-item\[data-floor-anchor-position="after"\]\[open\]\s*\{[^}]*height:\s*216px/s);
+  assert.match(styleSource, /\.st-esg-floor-anchor-fields textarea\s*\{[^}]*height:\s*100%\s*!important[^}]*max-height:\s*none[^}]*resize:\s*none[^}]*overflow-y:\s*auto\s*!important/s);
+  assert.match(indexSource, /querySelectorAll\('\[data-floor-output\]'\)\.forEach\(resizeMessageFloorTextarea\)/);
+  assert.doesNotMatch(indexSource, /resizeMessageFloorTextarea\(field\)/);
+});
+
+test('floor anchor match labels share the subdued compact foreground treatment', () => {
+  assert.match(styleSource, /\.st-esg-floor-anchor-match\s*\{[^}]*color:\s*var\(--floor-text\)\s*!important[^}]*opacity:\s*var\(--floor-foreground-opacity\)\s*!important/s);
+});
+
 test('打开悬浮球不再吞掉页面的下一次真实点击', () => {
   assert.doesNotMatch(indexSource, /function suppressNextClickAfterFloatingBallOpen/);
   assert.match(indexSource, /targetWindow\.setTimeout\(\(\) => openPanelFromFloatingBall\(\),\s*0\)/);

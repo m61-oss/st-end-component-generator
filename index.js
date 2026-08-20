@@ -981,14 +981,16 @@ function scheduleMessageFloorPanelRefresh() {
 }
 
 function buildMessageFloorAnchorMarkup(items) {
+  const { target, matches, skipped } = resolveAnchorPlanForDisplay(items);
   return (Array.isArray(items) ? items : []).map((item, index) => {
     if (!item || !item.content) return '';
     const enabled = isAnchorInsertionEnabled(item);
+    const matchState = describeAnchorMatch(item, matches.get(index), skipped.get(index), Boolean(target));
     const position = item.position === 'start' ? '文首' : item.position === 'end' ? '文尾' : item.position === 'before' ? '锚点前' : '锚点后';
     const readonly = canEditFloorPanelResult(messageFloorPanelState) ? '' : ' readonly';
     const disabledClass = enabled ? '' : ' st-esg-floor-anchor-disabled';
     return `<details class="st-esg-floor-anchor-item${disabledClass}" data-floor-anchor-index="${index}" data-floor-anchor-position="${escapeHtml(item.position || 'after')}"${enabled ? '' : ' data-injection-disabled="true"'} open>
-      <summary><span>#${index + 1} · ${escapeHtml(position)}</span><button type="button" class="st-esg-floor-anchor-toggle" data-floor-anchor-toggle aria-label="${enabled ? '标记为不注入' : '恢复注入'}" title="${enabled ? '标记为不注入' : '恢复注入'}"><i class="fa-solid ${enabled ? 'fa-link' : 'fa-link-slash'}" aria-hidden="true"></i></button></summary>
+      <summary><span>#${index + 1} · ${escapeHtml(position)}</span><span class="st-esg-floor-anchor-summary-controls"><span data-floor-anchor-match class="st-esg-floor-anchor-match st-esg-floor-anchor-match-${escapeHtml(matchState.className)}">${escapeHtml(matchState.label)}</span><button type="button" class="st-esg-floor-anchor-toggle" data-floor-anchor-toggle aria-label="${enabled ? '标记为不注入' : '恢复注入'}" title="${enabled ? '标记为不注入' : '恢复注入'}"><i class="fa-solid ${enabled ? 'fa-link' : 'fa-link-slash'}" aria-hidden="true"></i></button></span></summary>
       <div class="st-esg-floor-anchor-fields">
         ${item.position === 'before' || item.position === 'after' ? `<label>锚点<textarea class="text_pole" data-floor-anchor-field="anchor" rows="2"${readonly}>${escapeHtml(item.anchor || '')}</textarea></label>` : ''}
         <label>插入内容<textarea class="text_pole" data-floor-anchor-field="content" rows="3"${readonly}>${escapeHtml(item.content || '')}</textarea></label>
@@ -1083,7 +1085,7 @@ function renderMessageFloorPanel({ force = false } = {}) {
   panel.dataset.expanded = String(messageFloorPanelState.expanded);
   panel.querySelector('[data-floor-compact-toggle]')?.setAttribute('aria-expanded', String(messageFloorPanelState.expanded));
   panel.querySelector('.st-esg-floor-expanded')?.toggleAttribute('hidden', !messageFloorPanelState.expanded);
-  panel.querySelectorAll('[data-floor-output], [data-floor-anchor-field]').forEach(resizeMessageFloorTextarea);
+  panel.querySelectorAll('[data-floor-output]').forEach(resizeMessageFloorTextarea);
   const output = panel.querySelector('[data-floor-output]');
   if (output && messageFloorPanelState.expanded && messageFloorPanelFollowBottom) {
     const scrollToBottom = () => { output.scrollTop = output.scrollHeight; };
@@ -1284,8 +1286,14 @@ function bindMessageFloorPanel(panel) {
     const fieldName = String(field.dataset.floorAnchorField || '');
     if (!item || !['anchor', 'content'].includes(fieldName)) return;
     item[fieldName] = String(field.value || '');
-    resizeMessageFloorTextarea(field);
     messageFloorPanelState.anchorItems = settings.lastGeneratedAnchorItems.map((entry) => ({ ...entry }));
+    const { target, matches, skipped } = resolveAnchorPlanForDisplay(settings.lastGeneratedAnchorItems);
+    const matchState = describeAnchorMatch(item, matches.get(index), skipped.get(index), Boolean(target));
+    const matchLabel = card.querySelector('[data-floor-anchor-match]');
+    if (matchLabel) {
+      matchLabel.className = `st-esg-floor-anchor-match st-esg-floor-anchor-match-${matchState.className}`;
+      matchLabel.textContent = matchState.label;
+    }
     updateAnchorPlanStatusUi();
     scheduleAnchorEditPersistence();
   });
