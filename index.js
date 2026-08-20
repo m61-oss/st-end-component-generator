@@ -185,9 +185,10 @@ const DEFAULT_SETTINGS = {
     '上方为需要补充的内容，现在开始输出思考过程并按规则和格式输出需要补充的内容，禁止额外生成正文。',
   ].join('\n'),
   standardOutputProtocol: OUTPUT_PROTOCOL_SYSTEM_PROMPT,
-  standardOutputProtocolRole: 'system',
+  standardOutputProtocolRole: 'assistant',
   anchorOutputProtocol: ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT,
-  anchorOutputProtocolRole: 'system',
+  anchorOutputProtocolRole: 'assistant',
+  outputProtocolAssistantDefaultApplied: false,
   apiUrl: '',
   apiKey: '',
   apiModel: '',
@@ -591,6 +592,7 @@ function loadSettings() {
   const hadActiveSchemeIds = Object.prototype.hasOwnProperty.call(storedSettings, 'activeSchemeIds');
   const hadTransientGenerationState = removeTransientGenerationSettings(storedSettings);
   const shouldApplyMessageFloorPanelDefault = !Object.prototype.hasOwnProperty.call(storedSettings, 'messageFloorPanelDefaultApplied');
+  const shouldApplyOutputProtocolAssistantDefault = !Object.prototype.hasOwnProperty.call(storedSettings, 'outputProtocolAssistantDefaultApplied');
   settings = Object.assign({ ...DEFAULT_SETTINGS }, storedSettings);
   resetTransientGenerationState(settings);
   // Prompt-source snapshots were only a bridge for the old import-mode generator.
@@ -615,6 +617,14 @@ function loadSettings() {
   if (typeof settings.anchorOutputProtocol !== 'string') settings.anchorOutputProtocol = ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT;
   settings.standardOutputProtocolRole = normalizeOutputProtocolRole(settings.standardOutputProtocolRole);
   settings.anchorOutputProtocolRole = normalizeOutputProtocolRole(settings.anchorOutputProtocolRole);
+  if (shouldApplyOutputProtocolAssistantDefault) {
+    settings.standardOutputProtocolRole = 'assistant';
+    settings.anchorOutputProtocolRole = 'assistant';
+    settings.outputProtocolAssistantDefaultApplied = true;
+    storedSettings.standardOutputProtocolRole = 'assistant';
+    storedSettings.anchorOutputProtocolRole = 'assistant';
+    storedSettings.outputProtocolAssistantDefaultApplied = true;
+  }
   if (typeof settings.rollbackBeforeGeneration !== 'boolean') settings.rollbackBeforeGeneration = false;
   if (!Array.isArray(settings.lastGeneratedAnchorItems)) settings.lastGeneratedAnchorItems = [];
   if (!Array.isArray(settings.lastGeneratedAnchorWarnings)) settings.lastGeneratedAnchorWarnings = [];
@@ -784,7 +794,11 @@ function loadSettings() {
       return true;
     });
   normalizePresetComponentBindings();
-  if (hadTransientGenerationState || shouldApplyMessageFloorPanelDefault) getContext().saveSettingsDebounced();
+  if (
+    hadTransientGenerationState
+    || shouldApplyMessageFloorPanelDefault
+    || shouldApplyOutputProtocolAssistantDefault
+  ) getContext().saveSettingsDebounced();
 }
 
 function saveSettings() {
@@ -6838,7 +6852,6 @@ function bindPanelEvents() {
     event.preventDefault();
     const keys = getOutputProtocolSettingKeys();
     settings[keys.text] = DEFAULT_SETTINGS[keys.text];
-    settings[keys.role] = 'system';
     renderOutputProtocolEditor();
     saveSettings();
     setStatus(outputProtocolEditorMode === 'anchor' ? '已恢复锚点模式内置协议。' : '已恢复普通模式内置协议。');

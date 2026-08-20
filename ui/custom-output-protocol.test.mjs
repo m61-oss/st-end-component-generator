@@ -45,3 +45,17 @@ test('renders tail constraints as the final task-page disclosure', () => {
 test('does not leave a duplicate testing title inside the disclosure', () => {
   assert.doesNotMatch(indexSource, /自定义输出格式（测试）/);
 });
+
+test('defaults and migrates both output protocol roles to assistant once', () => {
+  assert.match(indexSource, /standardOutputProtocolRole:\s*'assistant'/);
+  assert.match(indexSource, /anchorOutputProtocolRole:\s*'assistant'/);
+  assert.match(indexSource, /outputProtocolAssistantDefaultApplied/);
+  assert.match(indexSource, /settings\.standardOutputProtocolRole = 'assistant'/);
+  assert.match(indexSource, /settings\.anchorOutputProtocolRole = 'assistant'/);
+});
+
+test('reset restores only protocol text and preserves the selected role', () => {
+  const handler = indexSource.match(/\$t\('#st-esg-reset-output-protocol'\)\.on\('click',[\s\S]*?\n  \}\);/)?.[0] || '';
+  assert.match(handler, /settings\[keys\.text\] = DEFAULT_SETTINGS\[keys\.text\]/);
+  assert.doesNotMatch(handler, /settings\[keys\.role\]\s*=/);
+});
