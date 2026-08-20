@@ -789,8 +789,8 @@ function markLatestAssistantTarget(messages, context, latestMessage, outputMode 
   messages.splice(targetIndex + 2, 0, { role: 'system', content: ANCHOR_TARGET_CLOSE });
 }
 
-function insertTaskMessage(messages, taskMessage, taskPlacement, outputMode = 'standard') {
-  const protocolMessage = buildOutputProtocolMessage({ mode: outputMode });
+function insertTaskMessage(messages, taskMessage, taskPlacement, outputMode = 'standard', outputProtocol = {}) {
+  const protocolMessage = buildOutputProtocolMessage({ mode: outputMode, ...outputProtocol });
   const afterSourceId = textOf(taskPlacement?.enabled ? taskPlacement?.afterSourceId : '');
   if (!afterSourceId) {
     messages.push(taskMessage, protocolMessage);
@@ -817,7 +817,7 @@ function stripInternalMessageFields(messages) {
   return messages;
 }
 
-export async function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, theaterComponents, promptSourceItems, worldbookSourceControlled = false, historyCleanupTags = '', historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE, recentMessageCount = 10, substituteParams, taskPlacement, replaceLastUserMessageWithTask = false, omitOriginalUserMessages = false, baiBaiBook = null, animaStatus = null, animaStatusMessageIndex = null, animaWorldbookEntries = [], animaYaml = null, renderTemplate = null, outputMode = 'standard' }) {
+export async function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, theaterComponents, promptSourceItems, worldbookSourceControlled = false, historyCleanupTags = '', historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE, recentMessageCount = 10, substituteParams, taskPlacement, replaceLastUserMessageWithTask = false, omitOriginalUserMessages = false, baiBaiBook = null, animaStatus = null, animaStatusMessageIndex = null, animaWorldbookEntries = [], animaYaml = null, renderTemplate = null, outputMode = 'standard', outputProtocol = {} }) {
   const hasSelectedPromptSources = Array.isArray(promptSourceItems) && promptSourceItems.length > 0;
   const preset = getCurrentPreset(targetWindow, context);
   const worldbooks = worldbookSourceControlled
@@ -866,7 +866,7 @@ export async function buildExternalStatusbarMessages({ targetWindow, context, la
   messages.promptSourceItems = promptSourceItemsForBuild;
   messages.runtimeInsertions = applyRuntimeTemplateInsertions(messages, { context, worldbooks });
   markLatestAssistantTarget(messages, context, latestMessage, outputMode);
-  insertTaskMessage(messages, { role: 'user', content: taskContent }, taskPlacement, outputMode);
+  insertTaskMessage(messages, { role: 'user', content: taskContent }, taskPlacement, outputMode, outputProtocol);
   return stripInternalMessageFields(messages);
 }
 import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from '../settings/task-placement.js';

@@ -77,6 +77,21 @@ test('uses the anchor protocol only when anchor output mode is requested', async
   assert.notDeepEqual(messages.at(-1), buildOutputProtocolMessage());
 });
 
+test('places a custom standard protocol and role at the message-list end', async () => {
+  const messages = await build({
+    outputProtocol: { content: 'STANDARD CUSTOM', role: 'assistant' },
+  });
+  assert.deepEqual(messages.at(-1), { role: 'assistant', content: 'STANDARD CUSTOM' });
+});
+
+test('places a custom anchor protocol and role at the message-list end', async () => {
+  const messages = await build({
+    outputMode: 'anchor',
+    outputProtocol: { content: 'ANCHOR CUSTOM', role: 'user' },
+  });
+  assert.deepEqual(messages.at(-1), { role: 'user', content: 'ANCHOR CUSTOM' });
+});
+
 test('places anchor boundary tags in adjacent system messages without mutating assistant content', async () => {
   const messages = await build({ outputMode: 'anchor' });
   const targetIndex = messages.findIndex((message) => message?.role === 'assistant' && message?.content === '助手消息');

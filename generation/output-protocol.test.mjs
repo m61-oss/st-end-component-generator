@@ -56,6 +56,20 @@ test('publishes a variable-length anchor plan only in anchor mode', () => {
   assert.doesNotMatch(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /织幕/);
 });
 
+test('uses a custom protocol and accepted role verbatim', () => {
+  assert.deepEqual(
+    buildOutputProtocolMessage({ mode: 'anchor', content: 'CUSTOM', role: 'assistant' }),
+    { role: 'assistant', content: 'CUSTOM' },
+  );
+});
+
+test('falls back to system role and built-in text for invalid overrides', () => {
+  assert.deepEqual(buildOutputProtocolMessage({ mode: 'anchor', role: 'tool' }), {
+    role: 'system',
+    content: ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT,
+  });
+});
+
 test('parses a strict JSON envelope and preserves both fields', () => {
   const parsed = parseOutputProtocolResponse(JSON.stringify({
     thinking: 'Phase.0\nPhase.1',

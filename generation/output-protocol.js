@@ -304,12 +304,15 @@ function parsePartialEnvelope(candidate) {
 
 export { OUTPUT_PROTOCOL_SYSTEM_PROMPT, ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT };
 
-export function buildOutputProtocolMessage({ mode = 'standard' } = {}) {
+const OUTPUT_PROTOCOL_ROLES = new Set(['system', 'user', 'assistant']);
+
+export function buildOutputProtocolMessage({ mode = 'standard', content, role = 'system' } = {}) {
+  const defaultContent = mode === 'anchor'
+    ? ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT
+    : OUTPUT_PROTOCOL_SYSTEM_PROMPT;
   return {
-    role: 'system',
-    content: mode === 'anchor'
-      ? ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT
-      : OUTPUT_PROTOCOL_SYSTEM_PROMPT,
+    role: OUTPUT_PROTOCOL_ROLES.has(role) ? role : 'system',
+    content: typeof content === 'string' ? content : defaultContent,
   };
 }
 
