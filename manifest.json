@@ -1,11 +1,11 @@
 {
-  "display_name": "织幕·组件生成器",
+  "display_name": "外置组件生成器",
   "loading_order": 100,
   "requires": [],
   "optional": [],
-  "js": "index.js?ver=0.2.0",
+  "js": "index.js?ver=0.2.1",
   "author": "m61-oss",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "homePage": "https://github.com/m61-oss/st-end-component-generator",
   "auto_update": true,
   "minimum_client_version": "1.12.13"

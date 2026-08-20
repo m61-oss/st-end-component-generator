@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const expectedVersion = '0.2.0';
+const expectedVersion = '0.2.1';
 
 test('keeps the extension display name and public version metadata aligned', async () => {
   const [manifestText, packageText, indexText] = await Promise.all([
@@ -13,7 +13,7 @@ test('keeps the extension display name and public version metadata aligned', asy
   const manifest = JSON.parse(manifestText);
   const packageJson = JSON.parse(packageText);
 
-  assert.equal(manifest.display_name, '织幕·组件生成器');
+  assert.equal(manifest.display_name, '外置组件生成器');
   assert.equal(manifest.version, expectedVersion);
   assert.equal(manifest.js, `index.js?ver=${expectedVersion}`);
   assert.equal(packageJson.version, expectedVersion);
