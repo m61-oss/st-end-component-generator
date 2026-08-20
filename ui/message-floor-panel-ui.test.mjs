@@ -160,3 +160,21 @@ test('楼层面板设置不再显示旁注且面板完整继承酒馆字体', ()
   assert.match(styleSource, /\.st-esg-message-floor-panel\s*\{[^}]*font-family:\s*inherit/s);
   assert.match(styleSource, /\.st-esg-message-floor-panel :is\(button, input, textarea, select\)\s*\{[^}]*font-family:\s*inherit\s*!important/s);
 });
+
+test('展开和收起只切换面板显隐，不重建状态动画', () => {
+  assert.match(indexSource, /function setMessageFloorPanelExpanded\(expanded\)/);
+  const helper = indexSource.match(/function setMessageFloorPanelExpanded\(expanded\)\s*\{[\s\S]*?\n\}/)?.[0] || '';
+  assert.match(helper, /renderMessageFloorPanel\(\)/);
+  assert.doesNotMatch(helper, /force:\s*true/);
+  assert.match(indexSource, /setMessageFloorPanelExpanded\(false\)/);
+  assert.match(indexSource, /setMessageFloorPanelExpanded\(!messageFloorPanelState\.expanded\)/);
+});
+
+test('思维链、普通预览和锚点字段都继承酒馆主题字体', () => {
+  assert.match(
+    styleSource,
+    /\.st-esg-floor-thinking pre,\s*\.st-esg-floor-output,\s*\.st-esg-floor-anchor-fields textarea\s*\{[^}]*font-family:\s*inherit\s*!important/s,
+  );
+  assert.doesNotMatch(styleSource, /\.st-esg-floor-thinking pre\s*\{[^}]*font-family:\s*var\(--monoFontFamily/s);
+  assert.doesNotMatch(styleSource, /\.st-esg-floor-anchor-fields textarea\s*\{[^}]*font-family:\s*var\(--monoFontFamily/s);
+});

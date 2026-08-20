@@ -42,6 +42,15 @@ test('renders tail constraints as the final task-page disclosure', () => {
   assert.match(indexSource, /taskPanel\.appendChild\(outputProtocolDetails\)/);
 });
 
+test('keeps the tail constraint explanation intact when compacting task-page descriptions', () => {
+  assert.match(indexSource, /st-esg-output-protocol-help/);
+  assert.match(indexSource, /\[data-tab-panel="task"\] > \.st-esg-card:not\(\.st-esg-output-protocol-details\) \.st-esg-card-desc/);
+  assert.doesNotMatch(
+    indexSource,
+    /\['\[data-tab-panel="task"\] \.st-esg-card-desc',\s*'编辑发送给模型的任务指令/,
+  );
+});
+
 test('does not leave a duplicate testing title inside the disclosure', () => {
   assert.doesNotMatch(indexSource, /自定义输出格式（测试）/);
 });

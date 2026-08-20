@@ -1175,6 +1175,12 @@ function renderMessageFloorPanel({ force = false } = {}) {
   }
 }
 
+function setMessageFloorPanelExpanded(expanded) {
+  messageFloorPanelState.expanded = Boolean(expanded);
+  if (messageFloorPanelState.expanded) messageFloorPanelFollowBottom = true;
+  renderMessageFloorPanel();
+}
+
 function syncMessageFloorPanelResult({ status = FLOOR_PANEL_STATUS.READY } = {}) {
   if (!settings.messageFloorPanelEnabled || !messageFloorPanelState.target) return;
   const currentTarget = status === FLOOR_PANEL_STATUS.INJECTED ? getCurrentFloorPanelTarget() : null;
@@ -1314,8 +1320,7 @@ function bindMessageFloorPanel(panel) {
     const collapse = event.target.closest('[data-floor-collapse]');
     if (collapse) {
       event.preventDefault();
-      messageFloorPanelState.expanded = false;
-      renderMessageFloorPanel({ force: true });
+      setMessageFloorPanelExpanded(false);
       return;
     }
     const actionButton = event.target.closest('[data-floor-action]');
@@ -1327,9 +1332,7 @@ function bindMessageFloorPanel(panel) {
       return;
     }
     if (event.target.closest('[data-floor-compact-toggle]')) {
-      messageFloorPanelState.expanded = !messageFloorPanelState.expanded;
-      if (messageFloorPanelState.expanded) messageFloorPanelFollowBottom = true;
-      renderMessageFloorPanel({ force: true });
+      setMessageFloorPanelExpanded(!messageFloorPanelState.expanded);
     }
   });
   panel.addEventListener('scroll', (event) => {
@@ -1340,9 +1343,7 @@ function bindMessageFloorPanel(panel) {
     const compact = event.target.closest?.('[data-floor-compact-toggle]');
     if (!compact || event.target !== compact || !['Enter', ' '].includes(event.key)) return;
     event.preventDefault();
-    messageFloorPanelState.expanded = !messageFloorPanelState.expanded;
-    if (messageFloorPanelState.expanded) messageFloorPanelFollowBottom = true;
-    renderMessageFloorPanel({ force: true });
+    setMessageFloorPanelExpanded(!messageFloorPanelState.expanded);
   });
   panel.addEventListener('input', (event) => {
     if (!canEditFloorPanelResult(messageFloorPanelState)) return;
@@ -6520,7 +6521,7 @@ function collapseManualComponentCard() {
 
 function refreshHelpText() {
   const descriptions = [
-    ['[data-tab-panel="task"] .st-esg-card-desc', '编辑发送给模型的任务指令；组件占位符会在发送前替换为当前启用的组件内容。'],
+    ['[data-tab-panel="task"] > .st-esg-card:not(.st-esg-output-protocol-details) .st-esg-card-desc', '编辑发送给模型的任务指令；组件占位符会在发送前替换为当前启用的组件内容。'],
     ['[data-tab-panel="preset"] > .st-esg-card:nth-child(2) .st-esg-card-desc', '选择要查看和编辑的预设；提示词编辑中的启用状态与内容会保存到当前方案。'],
     ['[data-tab-panel="worldbook"] > .st-esg-card:nth-child(2) .st-esg-card-desc', '选择方案后查看当前世界书状态；提示词编辑中可调整条目启用状态、内容和蓝绿灯。'],
     ['[data-tab-panel="debug"] .st-esg-card-desc', '查看本次生成流程、注入结果，以及发送给外置 API 的完整消息。'],
@@ -6550,7 +6551,7 @@ function refreshHelpText() {
 function bindPanelEvents() {
   collapseManualComponentCard();
   $t([
-    '[data-tab-panel="task"] > .st-esg-card .st-esg-card-desc',
+    '[data-tab-panel="task"] > .st-esg-card:not(.st-esg-output-protocol-details) .st-esg-card-desc',
     '[data-tab-panel="preset"] > .st-esg-card:nth-child(2) .st-esg-card-desc',
     '[data-tab-panel="worldbook"] > .st-esg-card:nth-child(2) .st-esg-card-desc',
     '.st-esg-manual-component-card .st-esg-card-desc',
