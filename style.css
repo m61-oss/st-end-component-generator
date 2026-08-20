@@ -1377,6 +1377,10 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-floor-stage-lead, .st-esg-floor-stage-tail { color: color-mix(in srgb, currentColor 72%, transparent); letter-spacing: .02em; }
 .st-esg-floor-stage-text { font-weight: 620; letter-spacing: .01em; }
 .st-esg-floor-stage-face { min-width: max-content; }
+.st-esg-message-floor-panel.st-esg-theme-dark .st-esg-floor-stage-text,
+.st-esg-message-floor-panel.st-esg-theme-dark .st-esg-floor-stage-face,
+.st-esg-message-floor-panel.st-esg-theme-light .st-esg-floor-stage-text,
+.st-esg-message-floor-panel.st-esg-theme-light .st-esg-floor-stage-face { color: var(--floor-text) !important; }
 .st-esg-floor-stage-shuttle:empty { display: none; }
 .st-esg-floor-stage[data-floor-stage-motion="dozing"] .st-esg-floor-stage-lead { animation: st-esg-floor-drift 3.8s ease-in-out infinite alternate; }
 .st-esg-floor-stage[data-floor-stage-motion="dozing"] .st-esg-floor-stage-tail { animation: st-esg-floor-drift 3.8s ease-in-out -1.9s infinite alternate-reverse; }

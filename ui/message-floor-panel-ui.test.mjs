@@ -100,6 +100,7 @@ test('floor actions use extension-owned SVG icons and inherit the panel text col
 test('fixed light and dark floor themes keep the transparent surface and use their primary text color', () => {
   assert.doesNotMatch(styleSource, /\.st-esg-message-floor-panel\.st-esg-theme-(?:dark|light)\s*\{[^}]*background:/s);
   assert.match(styleSource, /\.st-esg-message-floor-panel\.st-esg-theme-dark,\s*\.st-esg-message-floor-panel\.st-esg-theme-light\s*\{[^}]*--floor-muted:\s*var\(--floor-text\)[^}]*color:\s*var\(--floor-text\)\s*!important/s);
+  assert.match(styleSource, /\.st-esg-message-floor-panel\.st-esg-theme-dark\s+\.st-esg-floor-stage-text,\s*\.st-esg-message-floor-panel\.st-esg-theme-dark\s+\.st-esg-floor-stage-face,\s*\.st-esg-message-floor-panel\.st-esg-theme-light\s+\.st-esg-floor-stage-text,\s*\.st-esg-message-floor-panel\.st-esg-theme-light\s+\.st-esg-floor-stage-face\s*\{[^}]*color:\s*var\(--floor-text\)\s*!important/s);
   assert.match(styleSource, /\.st-esg-message-floor-panel\.st-esg-theme-tavern\s*\{[^}]*42%/s);
 });
 
