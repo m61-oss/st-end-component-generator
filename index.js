@@ -19,37 +19,37 @@ import {
   normalizeComponent,
   normalizeComponentIds,
   normalizeComponentScope,
-} from './sources/component-sources.js?ver=0.2.1';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.2.1';
-import { containsStatusPlaceholder, injectStatusbarText, normalizeStatusPlaceholder, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.2.1';
-import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.2.1';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.2.1';
-import { ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, OUTPUT_PROTOCOL_SYSTEM_PROMPT } from './generation/output-protocol.js?ver=0.2.1';
-import { normalizeGeneratedResult } from './generation/output-result.js?ver=0.2.1';
-import { applyAnchorInsertions, buildAnchorPreviewSegments, isAnchorInsertionEnabled, locateAnchorInsertions } from './injection/anchor-insertion.js?ver=0.2.1';
-import { normalizeStreamOutputPreview } from './generation/stream-output-preview.js?ver=0.2.1';
-import { composeTaskInstruction } from './generation/task-instruction.js?ver=0.2.1';
-import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.2.1';
-import { renderPromptTemplate } from './generation/template-compat.js?ver=0.2.1';
-import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.2.1';
-import { applyAnimaWorldbookOverrides, captureAnimaWorldbookEntries, captureAnimaWorldbookUntil, filterAnimaWorldbookEntries, getAnimaChatId, mergeAnimaWorldbookSnapshots, readLatestAnimaStatus, shouldClearAnimaSnapshotForChat } from './sources/anima-memory.js?ver=0.2.1';
-import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './generation/prompt-log.js?ver=0.2.1';
+} from './sources/component-sources.js?ver=0.2.0';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.2.0';
+import { containsStatusPlaceholder, injectStatusbarText, normalizeStatusPlaceholder, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.2.0';
+import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.2.0';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './generation/prompt-builder.js?ver=0.2.0';
+import { ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, OUTPUT_PROTOCOL_SYSTEM_PROMPT } from './generation/output-protocol.js?ver=0.2.0';
+import { normalizeGeneratedResult } from './generation/output-result.js?ver=0.2.0';
+import { applyAnchorInsertions, buildAnchorPreviewSegments, isAnchorInsertionEnabled, locateAnchorInsertions } from './injection/anchor-insertion.js?ver=0.2.0';
+import { normalizeStreamOutputPreview } from './generation/stream-output-preview.js?ver=0.2.0';
+import { composeTaskInstruction } from './generation/task-instruction.js?ver=0.2.0';
+import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.2.0';
+import { renderPromptTemplate } from './generation/template-compat.js?ver=0.2.0';
+import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.2.0';
+import { applyAnimaWorldbookOverrides, captureAnimaWorldbookEntries, captureAnimaWorldbookUntil, filterAnimaWorldbookEntries, getAnimaChatId, mergeAnimaWorldbookSnapshots, readLatestAnimaStatus, shouldClearAnimaSnapshotForChat } from './sources/anima-memory.js?ver=0.2.0';
+import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './generation/prompt-log.js?ver=0.2.0';
 import {
   clearImportSelectionsForScope,
   collectSelectedPromptSourceItems,
   normalizePromptSourceType,
   syncPromptSelectionsFromGroups,
-} from './sources/source-selection.js?ver=0.2.1';
-import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hydrateTavernWorldbookSelections, isWorldbookSchemeSnapshotUsable, normalizeSchemeList, resolveWorldbookPromptSelectionsForLoad, saveScheme } from './settings/scheme-utils.js?ver=0.2.1';
-import { readOpenAiStream } from './api/stream-utils.js?ver=0.2.1';
-import { normalizeApiRetryCount, withApiRetries } from './api/api-retry.js?ver=0.2.1';
-import { stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.2.1';
-import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.2.1';
-import { getWorldbookGenerationIssue, getWorldbookRawName, reconcileWorldbookEntryRecords, removeWorldbookEntryRecord, removeWorldbookSourceRecords } from './sources/worldbook-identity.js?ver=0.2.1';
-import { reconcilePresetEntryRecords, reconcilePresetSchemeRecords } from './sources/preset-identity.js?ver=0.2.1';
-import { getWorldInfoSettings } from '../../../world-info.js?ver=0.2.1';
-import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.2.1';
-import { getNotificationMethod } from './ui/notification-utils.js?ver=0.2.1';
+} from './sources/source-selection.js?ver=0.2.0';
+import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hydrateTavernWorldbookSelections, isWorldbookSchemeSnapshotUsable, normalizeSchemeList, resolveWorldbookPromptSelectionsForLoad, saveScheme } from './settings/scheme-utils.js?ver=0.2.0';
+import { readOpenAiStream } from './api/stream-utils.js?ver=0.2.0';
+import { normalizeApiRetryCount, withApiRetries } from './api/api-retry.js?ver=0.2.0';
+import { stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.2.0';
+import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.2.0';
+import { getWorldbookGenerationIssue, getWorldbookRawName, reconcileWorldbookEntryRecords, removeWorldbookEntryRecord, removeWorldbookSourceRecords } from './sources/worldbook-identity.js?ver=0.2.0';
+import { reconcilePresetEntryRecords, reconcilePresetSchemeRecords } from './sources/preset-identity.js?ver=0.2.0';
+import { getWorldInfoSettings } from '../../../world-info.js?ver=0.2.0';
+import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.2.0';
+import { getNotificationMethod } from './ui/notification-utils.js?ver=0.2.0';
 import {
   FLOOR_PANEL_STATUS,
   canEditFloorPanelResult,
@@ -62,9 +62,9 @@ import {
   isFloorPanelGenerationCurrent,
   isFloorPanelTargetAddressable,
   nextFloorPanelGeneration,
-} from './ui/message-floor-panel.js?ver=0.2.1';
-import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.2.1';
-import { loadGenerationHistory, recordGenerationResult, updateGenerationHistoryEntry } from './generation/generation-history.js?ver=0.2.1';
+} from './ui/message-floor-panel.js?ver=0.2.0';
+import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.2.0';
+import { loadGenerationHistory, recordGenerationResult, updateGenerationHistoryEntry } from './generation/generation-history.js?ver=0.2.0';
 import {
   THEATER_DEFAULT_GROUP_ID,
   THEATER_RANDOM_MODE_ALL,
@@ -78,7 +78,7 @@ import {
   normalizeTheaterRandomMode,
   normalizeTheaterRandomScope,
   selectTheaterComponents,
-} from './sources/theater-library.js?ver=0.2.1';
+} from './sources/theater-library.js?ver=0.2.0';
 import {
   captureAutomaticAssistantTarget,
   captureAutomaticGenerationBaseline,
@@ -88,30 +88,30 @@ import {
   isAutomaticTargetAfterGenerationStart,
   matchesAutomaticGenerationTrigger,
   resolveReadyAutomaticAssistantTarget,
-} from './generation/auto-generation-trigger.js?ver=0.2.1';
-import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.2.1';
-import { hasFloatingBallDragStarted, resolveFloatingBallDock } from './ui/floating-ball-gesture.js?ver=0.2.1';
-import { normalizeFloatingBallVisualState, resolveFloatingBallRenderedState } from './ui/floating-ball-state.js?ver=0.2.1';
-import { isFloatingBallExternallyManaged, markFloatingBallCompatible } from './ui/floating-ball-compat.js?ver=0.2.1';
-import { renderBrandMark } from './ui/brand-mark.js?ver=0.2.1';
-import { getGenerationInjectionModeHelp } from './ui/generation-settings.js?ver=0.2.1';
-import { getThemeClassName, getThemePresentation, nextThemeMode, normalizeThemeMode } from './ui/theme-mode.js?ver=0.2.1';
+} from './generation/auto-generation-trigger.js?ver=0.2.0';
+import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.2.0';
+import { hasFloatingBallDragStarted, resolveFloatingBallDock } from './ui/floating-ball-gesture.js?ver=0.2.0';
+import { normalizeFloatingBallVisualState, resolveFloatingBallRenderedState } from './ui/floating-ball-state.js?ver=0.2.0';
+import { isFloatingBallExternallyManaged, markFloatingBallCompatible } from './ui/floating-ball-compat.js?ver=0.2.0';
+import { renderBrandMark } from './ui/brand-mark.js?ver=0.2.0';
+import { getGenerationInjectionModeHelp } from './ui/generation-settings.js?ver=0.2.0';
+import { getThemeClassName, getThemePresentation, nextThemeMode, normalizeThemeMode } from './ui/theme-mode.js?ver=0.2.0';
 import {
   buildApiRequestParts,
   parseApiAdditionalParameters,
   parseApiNumericSettings,
   serializeRequestHeadersYaml,
-} from './api/api-request-parameters.js?ver=0.2.1';
+} from './api/api-request-parameters.js?ver=0.2.0';
 import {
   createPromptSourceCacheState,
   loadWorldbookSourceGroups,
   markPromptSourceStructureDirty,
   markWorldbookSourceDirty,
   takeDirtyWorldbookSources,
-} from './sources/prompt-source-cache.js?ver=0.2.1';
-import { TASK_PLACEMENT_AFTER_CHAT_HISTORY, resolveTaskPlacementSelection } from './settings/task-placement.js?ver=0.2.1';
-import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.2.1';
-import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.2.1';
+} from './sources/prompt-source-cache.js?ver=0.2.0';
+import { TASK_PLACEMENT_AFTER_CHAT_HISTORY, resolveTaskPlacementSelection } from './settings/task-placement.js?ver=0.2.0';
+import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.2.0';
+import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.2.0';
 import {
   WORLDBOOK_RUNTIME_DRAFT,
   WORLDBOOK_RUNTIME_NATIVE,
@@ -120,10 +120,10 @@ import {
   isWorldbookSourceEnabled,
   resolveWorldbookEntryRuntimeState,
   resolveWorldbookSourceDisplayCategory,
-} from './sources/worldbook-runtime-state.js?ver=0.2.1';
-import { buildLibraryExportFilename, createLibraryExportPackage, importLibraryPackage, toggleLibraryExportSelection } from './sources/library-transfer.js?ver=0.2.1';
-import { buildEditedPresetExport, buildPresetExportFilename, getNativeTavernPreset } from './sources/preset-export.js?ver=0.2.1';
-import { resolveTavernProfile } from './generation/tavern-profile.js?ver=0.2.1';
+} from './sources/worldbook-runtime-state.js?ver=0.2.0';
+import { buildLibraryExportFilename, createLibraryExportPackage, importLibraryPackage, toggleLibraryExportSelection } from './sources/library-transfer.js?ver=0.2.0';
+import { buildEditedPresetExport, buildPresetExportFilename, getNativeTavernPreset } from './sources/preset-export.js?ver=0.2.0';
+import { resolveTavernProfile } from './generation/tavern-profile.js?ver=0.2.0';
 import {
   cancelChatBindingIndex,
   getChatWorldbookSchemeId,
@@ -131,13 +131,13 @@ import {
   resolveChatBinding,
   setChatWorldbookSchemeId,
   upsertChatBindingIndex,
-} from './settings/chat-worldbook-binding.js?ver=0.2.1';
-import { buildDataManagementModel, clearSettingsDataCategory, formatByteSize } from './settings/data-management.js?ver=0.2.1';
+} from './settings/chat-worldbook-binding.js?ver=0.2.0';
+import { buildDataManagementModel, clearSettingsDataCategory, formatByteSize } from './settings/data-management.js?ver=0.2.0';
 
 const EXTENSION_ID = 'st-end-component-generator';
-const EXTENSION_VERSION = '0.2.1';
+const EXTENSION_VERSION = '0.2.0';
 const BRAND_NAME = '织幕';
-const BRAND_SUBTITLE = '外置组件';
+const BRAND_SUBTITLE = '组件生成器';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
 const GENERATION_HISTORY_STORAGE_KEY = `${EXTENSION_ID}.recentGenerationHistory`;
 // 生成页当前结果只属于本次页面运行会话；跨刷新查看应使用最近生成记录。
@@ -161,7 +161,7 @@ const FLOATING_BALL_MIN_SIZE = 28;
 const FLOATING_BALL_MAX_SIZE = 72;
 const FLOATING_BALL_MIN_OPACITY = 0.2;
 const FLOATING_BALL_MAX_OPACITY = 1;
-const QR_SHORTCUT_SET_NAME = '织幕外置组件快捷键';
+const QR_SHORTCUT_SET_NAME = '织幕组件生成器快捷键';
 const QR_SHORTCUT_ACTIONS_KEY = '__stEsgQuickReplyActions';
 const WORLDBOOK_CATEGORY_ORDER = [
   ['global', '全局世界书'],
@@ -6022,7 +6022,7 @@ function importCheckedCandidates(sourceType) {
 
 function buildPluginPanelMarkup() {
   const importAction = (id, label) => `<div class="st-esg-actions-row st-esg-source-import-action"><div id="${id}" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>${label}</span></div></div>`;
-  return `<div class="st-esg-shell"><div class="st-esg-panel-header"><div class="st-esg-panel-title"><div class="st-esg-title-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div><div><div class="st-esg-kicker">SillyTavern 插件</div><div class="st-esg-title-text">织幕·外置组件</div></div></div><div id="st-esg-close" class="menu_button fa-solid fa-xmark" title="关闭面板"></div></div><div class="st-esg-panel-body"><nav class="st-esg-tabs" aria-label="织幕·外置组件分页"><button class="st-esg-tab" type="button" data-tab="workspace"><i class="fa-solid fa-sparkles"></i><span>生成</span></button><button class="st-esg-tab" type="button" data-tab="task"><i class="fa-solid fa-pen-to-square"></i><span>任务指令</span></button><button class="st-esg-tab" type="button" data-tab="preset"><i class="fa-solid fa-list-check"></i><span>预设</span></button><button class="st-esg-tab" type="button" data-tab="worldbook"><i class="fa-solid fa-book-open"></i><span>世界书</span></button><button class="st-esg-tab" type="button" data-tab="runtime"><i class="fa-solid fa-sliders"></i><span>运行设置</span></button><button class="st-esg-tab" type="button" data-tab="components"><i class="fa-solid fa-layer-group"></i><span>组件库</span></button><button class="st-esg-tab" type="button" data-tab="debug"><i class="fa-solid fa-list"></i><span>提示词日志</span></button></nav><section class="st-esg-tab-panel" data-tab-panel="workspace">${buildGenerationSettingsMarkup()}<div class="st-esg-card st-esg-temporary-task-card"><label for="st-esg-temporary-task-instruction">额外指令</label><div class="st-esg-temporary-task-row"><input id="st-esg-temporary-task-instruction" class="text_pole" type="text" autocomplete="off" placeholder="临时追加到任务指令末尾" /><button id="st-esg-clear-temporary-task-instruction" class="menu_button st-esg-secondary-action" type="button">清空</button></div></div><div class="st-esg-card st-esg-generation-content"><div id="st-esg-thinking-panel" class="st-esg-hidden"></div><div id="st-esg-generation-error" class="st-esg-generation-error st-esg-hidden"></div><textarea id="st-esg-preview" class="text_pole textarea_compact st-esg-textarea st-esg-preview" rows="11" placeholder="生成后的组件会出现在这里。"></textarea></div><div class="st-esg-card st-esg-generation-history-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">最近生成记录</div><div class="st-esg-card-desc">保留最近三次成功生成；载入后可在上方预览框检查或编辑。</div></div></div><div id="st-esg-generation-history" class="st-esg-generation-history"></div></div></section><section class="st-esg-tab-panel" data-tab-panel="task"><div class="st-esg-card">${renderSchemeManager('task')}<div class="st-esg-card-head"><div><div class="st-esg-card-title">生成任务指令</div><div class="st-esg-card-desc">编辑最终发送给模型的任务指令；{{external_components}} 的位置会插入组件库内容，不写则不发送组件。</div></div></div><textarea id="st-esg-task" class="text_pole textarea_compact st-esg-textarea" rows="7"></textarea><div class="st-esg-actions-row"><div id="st-esg-reset-task" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-rotate-left"></i><span>恢复默认提示词</span></div></div></div></section><section class="st-esg-tab-panel" data-tab-panel="preset"><div class="st-esg-card st-esg-import-tools"><div class="st-esg-card-head"><div><div id="st-esg-source-mode-title" class="st-esg-card-title">提示词模式</div><div id="st-esg-source-mode-desc" class="st-esg-card-desc">当前勾选会作为外置生成时启用的来源，不会导入组件库。</div></div></div><div class="st-esg-grid"><label>来源模式<select id="st-esg-source-mode" class="text_pole"><option value="prompt">提示词模式</option><option value="import">导入组件库模式</option></select></label><label>导入到<select id="st-esg-import-target-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div>${importAction('st-esg-import-preset-components', '导入预设勾选')}</div><div class="st-esg-card">${renderSchemeManager('preset')}<div class="st-esg-card-head"><div><div class="st-esg-card-title">预设</div><div class="st-esg-card-desc">用选择框切换预设；下方只显示当前选择的预设条目。</div></div></div><div class="st-esg-grid"><label>选择预设<select id="st-esg-source-preset" class="text_pole"></select></label></div><div id="st-esg-preset-placement-slot" class="st-esg-scheme-box"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-task-placement-enabled" type="checkbox" /><span>自定义任务指令插入位置</span><em>开启后插入到指定预设条目之后；关闭时仍追加到末尾。</em></label><div id="st-esg-task-placement-row" class="st-esg-grid"><label>插入到这条预设之后<select id="st-esg-task-placement-after" class="text_pole"></select></label></div><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-replace-last-user-message" type="checkbox" /><span>用任务指令替换 {{LastUserMessage}}</span><em>开启后预设里的 {{LastUserMessage}} 会使用当前任务指令内容。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-omit-original-user-messages" type="checkbox" /><span>不发送原用户输入</span><em>开启后聊天历史里的 user 消息不会发送给外置 API。</em></label></div><div id="st-esg-preset-candidates" class="st-esg-import-list"></div></div></section><section class="st-esg-tab-panel" data-tab-panel="worldbook"><div class="st-esg-card st-esg-import-tools st-esg-worldbook-mode-card"><div class="st-esg-card-head"><div><div id="st-esg-source-mode-title-worldbook" class="st-esg-card-title">提示词模式</div><div id="st-esg-source-mode-desc-worldbook" class="st-esg-card-desc">当前勾选会作为外置生成时启用的来源，不会导入组件库。</div></div></div><div class="st-esg-grid"><label>世界书来源模式<select id="st-esg-source-mode-worldbook" class="text_pole"><option value="prompt">提示词模式</option><option value="import">导入组件库模式</option></select></label></div>${importAction('st-esg-import-worldbook-components', '导入世界书勾选')}</div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">世界书</div><div class="st-esg-card-desc">这里是独立的世界书列表；点进某本世界书后只替换这张卡片。</div></div></div>${renderSchemeManager('worldbook')}<div id="st-esg-worldbook-candidates" class="st-esg-import-list"></div></div></section><section class="st-esg-tab-panel" data-tab-panel="runtime"><details class="st-esg-card st-esg-collapsible"><summary class="st-esg-collapsible-summary">API配置</summary><div class="st-esg-collapsible-body">${renderSchemeManager('api')}<div class="st-esg-grid"><label>API 地址<input id="st-esg-api-url" class="text_pole" type="text" placeholder="例如 https://api.openai.com/v1" /></label><label>模型名称<input id="st-esg-api-model" class="text_pole" type="text" list="st-esg-model-options" placeholder="例如 gpt-4o-mini / deepseek-chat" /><datalist id="st-esg-model-options"></datalist></label><label>最大输出<input id="st-esg-max-tokens" class="text_pole" type="number" min="1" step="1" /></label><label>温度<input id="st-esg-temperature" class="text_pole" type="number" min="0" max="2" step="0.1" /></label></div><label class="st-esg-secret-label">API Key<input id="st-esg-api-key" class="text_pole" type="password" placeholder="可选。多数独立 API 需要填写。" /></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-streaming-enabled" type="checkbox" /><span>启用流式传输</span><em>开启后生成结果会随着 API 返回逐步显示。</em></label><div class="st-esg-actions-row"><div id="st-esg-fetch-models" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-cloud-arrow-down"></i><span>拉取模型</span></div></div></div></details><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">标签清理</div><div class="st-esg-card-desc">分别处理拼接提示词时的聊天历史，以及生成内容注入前的思维链标签。</div></div></div><div class="st-esg-grid"><label>聊天历史清理标签<textarea id="st-esg-history-cleanup-tags" class="text_pole textarea_compact st-esg-textarea" rows="4"></textarea></label><label>生成内容剥离标签<textarea id="st-esg-output-cleanup-tags" class="text_pole textarea_compact st-esg-textarea" rows="4"></textarea></label></div></div><details class="st-esg-card st-esg-collapsible"><summary class="st-esg-collapsible-summary">柏宝书记忆库</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-baibai-history-enabled" type="checkbox" /><span>注入此前剧情</span><em>注入柏宝书整理的历史记忆。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-baibai-state-enabled" type="checkbox" /><span>注入故事现状</span><em>注入人物、物品、相关人物、未结束事项和持续记录的变量。</em></label></div></details></section><section class="st-esg-tab-panel" data-tab-panel="components"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">手动添加组件</div><div class="st-esg-card-desc">组件库只管理最终会发送的组件；从预设和世界书导入请去“预设/世界书”页。</div></div></div><div class="st-esg-grid"><label>组件名<input id="st-esg-component-name" class="text_pole" type="text" /></label><label>归属<select id="st-esg-component-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div><textarea id="st-esg-component-content" class="text_pole textarea_compact st-esg-textarea" rows="5"></textarea><div class="st-esg-actions-row"><div id="st-esg-add-component" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-plus"></i><span>添加到组件库</span></div></div></div><div id="st-esg-component-list" class="st-esg-component-list"></div></section><section class="st-esg-tab-panel" data-tab-panel="debug"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">提示词日志</div><div class="st-esg-card-desc">按 API messages 分栏查看；复制日志仍会复制完整 JSON，不保存 API Key。</div></div></div><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-compress-system" type="checkbox" /><span>压缩连续系统消息</span><em>将连续 system 合并为一条，遇到 user/assistant 会断开。</em></label><div id="st-esg-prompt-log-summary" class="st-esg-prompt-log-summary"></div><div id="st-esg-prompt-log-view" class="st-esg-prompt-log-view"></div><textarea id="st-esg-prompt-log" class="st-esg-hidden-log" readonly></textarea><div class="st-esg-actions-row"><div id="st-esg-copy-prompt-log" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-copy"></i><span>复制完整日志</span></div><div id="st-esg-clear-prompt-log" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-eraser"></i><span>清空日志</span></div></div></div></section></div><div class="st-esg-panel-footer"><div id="st-esg-status" class="st-esg-status-pill"><span class="st-esg-dot"></span><span>准备就绪</span></div><div class="st-esg-footer-actions"><div id="st-esg-generate" class="menu_button menu_button_icon st-esg-primary-action"><i class="fa-solid fa-sparkles"></i><span>生成组件</span></div><div id="st-esg-inject" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>注入回复</span></div></div></div></div>`;
+  return `<div class="st-esg-shell"><div class="st-esg-panel-header"><div class="st-esg-panel-title"><div class="st-esg-title-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div><div><div class="st-esg-kicker">SillyTavern 插件</div><div class="st-esg-title-text">织幕·组件生成器</div></div></div><div id="st-esg-close" class="menu_button fa-solid fa-xmark" title="关闭面板"></div></div><div class="st-esg-panel-body"><nav class="st-esg-tabs" aria-label="织幕·组件生成器分页"><button class="st-esg-tab" type="button" data-tab="workspace"><i class="fa-solid fa-sparkles"></i><span>生成</span></button><button class="st-esg-tab" type="button" data-tab="task"><i class="fa-solid fa-pen-to-square"></i><span>任务指令</span></button><button class="st-esg-tab" type="button" data-tab="preset"><i class="fa-solid fa-list-check"></i><span>预设</span></button><button class="st-esg-tab" type="button" data-tab="worldbook"><i class="fa-solid fa-book-open"></i><span>世界书</span></button><button class="st-esg-tab" type="button" data-tab="runtime"><i class="fa-solid fa-sliders"></i><span>运行设置</span></button><button class="st-esg-tab" type="button" data-tab="components"><i class="fa-solid fa-layer-group"></i><span>组件库</span></button><button class="st-esg-tab" type="button" data-tab="debug"><i class="fa-solid fa-list"></i><span>提示词日志</span></button></nav><section class="st-esg-tab-panel" data-tab-panel="workspace">${buildGenerationSettingsMarkup()}<div class="st-esg-card st-esg-temporary-task-card"><label for="st-esg-temporary-task-instruction">额外指令</label><div class="st-esg-temporary-task-row"><input id="st-esg-temporary-task-instruction" class="text_pole" type="text" autocomplete="off" placeholder="临时追加到任务指令末尾" /><button id="st-esg-clear-temporary-task-instruction" class="menu_button st-esg-secondary-action" type="button">清空</button></div></div><div class="st-esg-card st-esg-generation-content"><div id="st-esg-thinking-panel" class="st-esg-hidden"></div><div id="st-esg-generation-error" class="st-esg-generation-error st-esg-hidden"></div><textarea id="st-esg-preview" class="text_pole textarea_compact st-esg-textarea st-esg-preview" rows="11" placeholder="生成后的组件会出现在这里。"></textarea></div><div class="st-esg-card st-esg-generation-history-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">最近生成记录</div><div class="st-esg-card-desc">保留最近三次成功生成；载入后可在上方预览框检查或编辑。</div></div></div><div id="st-esg-generation-history" class="st-esg-generation-history"></div></div></section><section class="st-esg-tab-panel" data-tab-panel="task"><div class="st-esg-card">${renderSchemeManager('task')}<div class="st-esg-card-head"><div><div class="st-esg-card-title">生成任务指令</div><div class="st-esg-card-desc">编辑最终发送给模型的任务指令；{{external_components}} 的位置会插入组件库内容，不写则不发送组件。</div></div></div><textarea id="st-esg-task" class="text_pole textarea_compact st-esg-textarea" rows="7"></textarea><div class="st-esg-actions-row"><div id="st-esg-reset-task" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-rotate-left"></i><span>恢复默认提示词</span></div></div></div></section><section class="st-esg-tab-panel" data-tab-panel="preset"><div class="st-esg-card st-esg-import-tools"><div class="st-esg-card-head"><div><div id="st-esg-source-mode-title" class="st-esg-card-title">提示词模式</div><div id="st-esg-source-mode-desc" class="st-esg-card-desc">当前勾选会作为外置生成时启用的来源，不会导入组件库。</div></div></div><div class="st-esg-grid"><label>来源模式<select id="st-esg-source-mode" class="text_pole"><option value="prompt">提示词模式</option><option value="import">导入组件库模式</option></select></label><label>导入到<select id="st-esg-import-target-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div>${importAction('st-esg-import-preset-components', '导入预设勾选')}</div><div class="st-esg-card">${renderSchemeManager('preset')}<div class="st-esg-card-head"><div><div class="st-esg-card-title">预设</div><div class="st-esg-card-desc">用选择框切换预设；下方只显示当前选择的预设条目。</div></div></div><div class="st-esg-grid"><label>选择预设<select id="st-esg-source-preset" class="text_pole"></select></label></div><div id="st-esg-preset-placement-slot" class="st-esg-scheme-box"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-task-placement-enabled" type="checkbox" /><span>自定义任务指令插入位置</span><em>开启后插入到指定预设条目之后；关闭时仍追加到末尾。</em></label><div id="st-esg-task-placement-row" class="st-esg-grid"><label>插入到这条预设之后<select id="st-esg-task-placement-after" class="text_pole"></select></label></div><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-replace-last-user-message" type="checkbox" /><span>用任务指令替换 {{LastUserMessage}}</span><em>开启后预设里的 {{LastUserMessage}} 会使用当前任务指令内容。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-omit-original-user-messages" type="checkbox" /><span>不发送原用户输入</span><em>开启后聊天历史里的 user 消息不会发送给外置 API。</em></label></div><div id="st-esg-preset-candidates" class="st-esg-import-list"></div></div></section><section class="st-esg-tab-panel" data-tab-panel="worldbook"><div class="st-esg-card st-esg-import-tools st-esg-worldbook-mode-card"><div class="st-esg-card-head"><div><div id="st-esg-source-mode-title-worldbook" class="st-esg-card-title">提示词模式</div><div id="st-esg-source-mode-desc-worldbook" class="st-esg-card-desc">当前勾选会作为外置生成时启用的来源，不会导入组件库。</div></div></div><div class="st-esg-grid"><label>世界书来源模式<select id="st-esg-source-mode-worldbook" class="text_pole"><option value="prompt">提示词模式</option><option value="import">导入组件库模式</option></select></label></div>${importAction('st-esg-import-worldbook-components', '导入世界书勾选')}</div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">世界书</div><div class="st-esg-card-desc">这里是独立的世界书列表；点进某本世界书后只替换这张卡片。</div></div></div>${renderSchemeManager('worldbook')}<div id="st-esg-worldbook-candidates" class="st-esg-import-list"></div></div></section><section class="st-esg-tab-panel" data-tab-panel="runtime"><details class="st-esg-card st-esg-collapsible"><summary class="st-esg-collapsible-summary">API配置</summary><div class="st-esg-collapsible-body">${renderSchemeManager('api')}<div class="st-esg-grid"><label>API 地址<input id="st-esg-api-url" class="text_pole" type="text" placeholder="例如 https://api.openai.com/v1" /></label><label>模型名称<input id="st-esg-api-model" class="text_pole" type="text" list="st-esg-model-options" placeholder="例如 gpt-4o-mini / deepseek-chat" /><datalist id="st-esg-model-options"></datalist></label><label>最大输出<input id="st-esg-max-tokens" class="text_pole" type="number" min="1" step="1" /></label><label>温度<input id="st-esg-temperature" class="text_pole" type="number" min="0" max="2" step="0.1" /></label></div><label class="st-esg-secret-label">API Key<input id="st-esg-api-key" class="text_pole" type="password" placeholder="可选。多数独立 API 需要填写。" /></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-streaming-enabled" type="checkbox" /><span>启用流式传输</span><em>开启后生成结果会随着 API 返回逐步显示。</em></label><div class="st-esg-actions-row"><div id="st-esg-fetch-models" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-cloud-arrow-down"></i><span>拉取模型</span></div></div></div></details><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">标签清理</div><div class="st-esg-card-desc">分别处理拼接提示词时的聊天历史，以及生成内容注入前的思维链标签。</div></div></div><div class="st-esg-grid"><label>聊天历史清理标签<textarea id="st-esg-history-cleanup-tags" class="text_pole textarea_compact st-esg-textarea" rows="4"></textarea></label><label>生成内容剥离标签<textarea id="st-esg-output-cleanup-tags" class="text_pole textarea_compact st-esg-textarea" rows="4"></textarea></label></div></div><details class="st-esg-card st-esg-collapsible"><summary class="st-esg-collapsible-summary">柏宝书记忆库</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-baibai-history-enabled" type="checkbox" /><span>注入此前剧情</span><em>注入柏宝书整理的历史记忆。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-baibai-state-enabled" type="checkbox" /><span>注入故事现状</span><em>注入人物、物品、相关人物、未结束事项和持续记录的变量。</em></label></div></details></section><section class="st-esg-tab-panel" data-tab-panel="components"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">手动添加组件</div><div class="st-esg-card-desc">组件库只管理最终会发送的组件；从预设和世界书导入请去“预设/世界书”页。</div></div></div><div class="st-esg-grid"><label>组件名<input id="st-esg-component-name" class="text_pole" type="text" /></label><label>归属<select id="st-esg-component-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div><textarea id="st-esg-component-content" class="text_pole textarea_compact st-esg-textarea" rows="5"></textarea><div class="st-esg-actions-row"><div id="st-esg-add-component" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-plus"></i><span>添加到组件库</span></div></div></div><div id="st-esg-component-list" class="st-esg-component-list"></div></section><section class="st-esg-tab-panel" data-tab-panel="debug"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">提示词日志</div><div class="st-esg-card-desc">按 API messages 分栏查看；复制日志仍会复制完整 JSON，不保存 API Key。</div></div></div><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-compress-system" type="checkbox" /><span>压缩连续系统消息</span><em>将连续 system 合并为一条，遇到 user/assistant 会断开。</em></label><div id="st-esg-prompt-log-summary" class="st-esg-prompt-log-summary"></div><div id="st-esg-prompt-log-view" class="st-esg-prompt-log-view"></div><textarea id="st-esg-prompt-log" class="st-esg-hidden-log" readonly></textarea><div class="st-esg-actions-row"><div id="st-esg-copy-prompt-log" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-copy"></i><span>复制完整日志</span></div><div id="st-esg-clear-prompt-log" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-eraser"></i><span>清空日志</span></div></div></div></section></div><div class="st-esg-panel-footer"><div id="st-esg-status" class="st-esg-status-pill"><span class="st-esg-dot"></span><span>准备就绪</span></div><div class="st-esg-footer-actions"><div id="st-esg-generate" class="menu_button menu_button_icon st-esg-primary-action"><i class="fa-solid fa-sparkles"></i><span>生成组件</span></div><div id="st-esg-inject" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>注入回复</span></div></div></div></div>`;
 }
 
 function buildGenerationSettingsMarkup() {

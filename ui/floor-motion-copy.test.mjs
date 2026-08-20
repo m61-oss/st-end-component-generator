@@ -44,7 +44,7 @@ test('status glints and copy glow use floor theme colors at subdued opacity', ()
 
 test('public runtime copy no longer describes the product as end-only', () => {
   const manifest = JSON.parse(manifestText);
-  assert.equal(manifest.display_name, '外置组件生成器');
+  assert.equal(manifest.display_name, '织幕·组件生成器');
   assert.doesNotMatch(indexSource, /文尾/);
   assert.doesNotMatch(manifestText, /文尾/);
   assert.doesNotMatch(readmeSource, /文尾/);
