@@ -6358,14 +6358,14 @@ function renderPluginPanel() {
   apiModel?.insertAdjacentHTML('afterend', '<select id="st-esg-api-model-picker" class="text_pole st-esg-api-model-picker st-esg-api-custom-fields" style="display:none;"></select><div id="st-esg-api-model-feedback" class="st-esg-model-feedback st-esg-api-custom-fields"></div>');
   const taskInput = dialog.querySelector('#st-esg-task');
   taskInput?.insertAdjacentHTML('afterend', '<div class="st-esg-task-components-help"><code>{{external_components}}</code> 会在生成时替换为当前启用的组件；不写则不会发送组件。</div>');
-  dialog.querySelector('.st-esg-task-components-help')?.insertAdjacentHTML('afterend', `
-    <div class="st-esg-output-protocol-card">
-      <div class="st-esg-card-head">
-        <div>
-          <div class="st-esg-card-title">自定义输出格式（测试）</div>
-          <div class="st-esg-card-desc">分别修改普通生成与锚点插入的末尾协议；这里的设置不随任务方案保存。</div>
-        </div>
-      </div>
+  const taskPanel = dialog.querySelector('[data-tab-panel="task"]');
+  if (taskPanel) {
+    const outputProtocolDetails = targetDoc.createElement('details');
+    outputProtocolDetails.className = 'st-esg-card st-esg-collapsible st-esg-output-protocol-details';
+    outputProtocolDetails.innerHTML = `
+      <summary class="st-esg-collapsible-summary">尾部格式约束</summary>
+      <div class="st-esg-collapsible-body">
+        <div class="st-esg-card-desc st-esg-output-protocol-help">按所选身份原样作为提示词最后一条消息发送；留空则不插入。普通与锚点模式分别保存，不随任务方案保存。</div>
       <div class="st-esg-output-protocol-toolbar">
         <div id="st-esg-output-protocol-mode" class="st-esg-output-protocol-mode" role="group" aria-label="输出协议模式">
           <button type="button" class="st-esg-output-protocol-mode-button" data-output-protocol-mode="standard">普通模式</button>
@@ -6383,7 +6383,9 @@ function renderPluginPanel() {
       <div class="st-esg-actions-row">
         <button id="st-esg-reset-output-protocol" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-rotate-left"></i><span>恢复当前内置协议</span></button>
       </div>
-    </div>`);
+      </div>`;
+    taskPanel.appendChild(outputProtocolDetails);
+  }
   const tagTextarea = dialog.querySelector('#st-esg-history-cleanup-tags');
   const tagCard = tagTextarea?.closest('.st-esg-card');
   const tagGrid = tagCard?.querySelector('.st-esg-grid');
