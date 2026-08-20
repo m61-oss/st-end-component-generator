@@ -1350,6 +1350,16 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   line-height: 1.4;
   box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
 }
+.st-esg-message-floor-panel.st-esg-theme-dark {
+  color: var(--floor-text) !important;
+  border-color: var(--floor-border) !important;
+  background: color-mix(in srgb, var(--floor-surface) 88%, transparent) !important;
+}
+.st-esg-message-floor-panel.st-esg-theme-light {
+  color: var(--floor-text) !important;
+  border-color: var(--floor-border) !important;
+  background: color-mix(in srgb, var(--floor-surface) 88%, transparent) !important;
+}
 .st-esg-message-floor-panel.st-esg-theme-tavern {
   background:
     linear-gradient(color-mix(in srgb, var(--esg-tavern-glass-guard, transparent) 34%, transparent), color-mix(in srgb, var(--esg-tavern-glass-guard, transparent) 34%, transparent)),
@@ -1359,8 +1369,9 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 }
 .st-esg-floor-compact { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 5px; min-width: 0; min-height: 32px; padding: 1px 6px 1px 7px; cursor: pointer; }
 .st-esg-floor-brand { display: inline-flex; align-items: center; gap: 5px; color: var(--floor-text); font-size: 11px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; }
+.st-esg-floor-brand, .st-esg-floor-compact-action { color: var(--floor-text) !important; }
 .st-esg-floor-brand .st-esg-brand-mark { width: 21px; height: 21px; flex: 0 0 auto; color: currentColor; }
-.st-esg-floor-brand .st-esg-brand-mark-menu-path, .st-esg-floor-brand .st-esg-brand-mark-bridge { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+.st-esg-floor-brand .st-esg-brand-mark-menu-path, .st-esg-floor-brand .st-esg-brand-mark-bridge { fill: none; stroke: currentColor !important; stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
 .st-esg-floor-stage { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; min-width: 0; height: 29px; gap: 5px; overflow: hidden; color: color-mix(in srgb, var(--floor-muted) 90%, var(--floor-text)); font-size: 12px; line-height: 1; white-space: nowrap; pointer-events: none; isolation: isolate; }
 .st-esg-floor-stage > span { transform-origin: center; }
 .st-esg-floor-stage-track { display: block; overflow: hidden; min-width: 0; white-space: nowrap; opacity: .74; }
@@ -1392,7 +1403,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-floor-action-group { position: relative; z-index: 3; display: inline-flex; align-items: center; flex-shrink: 0; gap: 2px; visibility: visible !important; opacity: 1 !important; }
 .st-esg-floor-compact-action, .st-esg-floor-anchor-toggle { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; border: 0; color: color-mix(in srgb, var(--floor-muted) 88%, var(--floor-text)); background: color-mix(in srgb, var(--floor-text) 4%, transparent); cursor: pointer; }
 .st-esg-floor-compact-action { width: 24px; height: 24px; padding: 0; border-radius: 0; background: transparent; box-shadow: none; }
-.st-esg-floor-compact-action i { font-size: 12px; }
+.st-esg-floor-action-icon { display: block; width: 14px; height: 14px; fill: none !important; stroke: currentColor !important; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; overflow: visible; }
 .st-esg-floor-compact-action-primary { color: var(--floor-accent); }
 .st-esg-floor-compact-action:hover, .st-esg-floor-compact-action:focus-visible { color: var(--floor-text); background: transparent; }
 .st-esg-floor-compact-action:active { transform: scale(.94); }

@@ -923,7 +923,7 @@ function syncMessageFloorPanelWidth(panel, messageText) {
   const parentRect = parent.getBoundingClientRect?.();
   if (!targetRect || !parentRect) return;
   const messageHost = messageText.closest?.('.mes');
-  const targetBounds = { left: targetRect.left, right: targetRect.right };
+  const targetBounds = getHorizontalContentBounds(messageText) || { left: targetRect.left, right: targetRect.right };
   const parentBounds = getHorizontalContentBounds(parent) || targetBounds;
   const messageBounds = getHorizontalContentBounds(messageHost) || targetBounds;
   const boundedLeft = Math.max(targetBounds.left, parentBounds.left, messageBounds.left);
@@ -997,6 +997,22 @@ function buildMessageFloorAnchorMarkup(items) {
   }).join('');
 }
 
+function renderFloorActionIcon(action) {
+  let glyph = '';
+  if (action === 'generate') {
+    glyph = '<path d="m4 20 10.5-10.5"></path><path d="m12.5 5.5 6 6"></path><path d="M18 2v3M22 6h-3M6 2v2M8 4H4"></path>';
+  } else if (action === 'stop') {
+    glyph = '<rect x="7" y="7" width="10" height="10" rx="1"></rect>';
+  } else if (action === 'inject') {
+    glyph = '<path d="M12 3v12M7 10l5 5 5-5M5 20h14"></path>';
+  } else if (action === 'undo') {
+    glyph = '<path d="m9 7-5 5 5 5M5 12h8a6 6 0 0 1 6 6"></path>';
+  } else {
+    glyph = '<path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7"></path>';
+  }
+  return `<svg class="st-esg-floor-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${glyph}</svg>`;
+}
+
 function buildMessageFloorPanelMarkup() {
   const state = messageFloorPanelState;
   const statusStage = getFloorPanelStatusStage(state.status);
@@ -1013,7 +1029,7 @@ function buildMessageFloorPanelMarkup() {
   const resultHtml = anchorMode
     ? `<div class="st-esg-floor-anchor-list">${buildMessageFloorAnchorMarkup(state.anchorItems)}</div>`
     : `<textarea class="text_pole st-esg-floor-output" data-floor-output rows="3"${canEdit ? '' : ' readonly'} placeholder="生成后的组件会显示在这里。">${escapeHtml(output)}</textarea>`;
-  const compactActionHtml = compactActions.map((action) => `<button type="button" class="st-esg-floor-compact-action${action.action === 'inject' ? ' st-esg-floor-compact-action-primary' : ''}" data-floor-action="${action.action}" aria-label="${escapeHtml(action.label)}" title="${escapeHtml(action.label)}"><i class="fa-solid ${action.icon}" aria-hidden="true"></i></button>`).join('');
+  const compactActionHtml = compactActions.map((action) => `<button type="button" class="st-esg-floor-compact-action${action.action === 'inject' ? ' st-esg-floor-compact-action-primary' : ''}" data-floor-action="${action.action}" aria-label="${escapeHtml(action.label)}" title="${escapeHtml(action.label)}">${renderFloorActionIcon(action.action)}</button>`).join('');
   const stagePattern = [statusStage.lead, statusStage.tail].filter(Boolean).join(' ');
   const stagePatternRun = Array.from({ length: 10 }, () => stagePattern).join('  ');
   return `<div class="st-esg-floor-compact" data-floor-compact-toggle role="group" tabindex="0" aria-expanded="${state.expanded}" aria-label="织幕楼层面板">

@@ -25,6 +25,7 @@ test('楼层面板取正文、直接容器与气泡内容区的交集', () => {
   assert.match(indexSource, /const targetRect\s*=\s*messageText\.getBoundingClientRect/);
   assert.match(indexSource, /const parentRect\s*=\s*parent\.getBoundingClientRect/);
   assert.match(indexSource, /const messageHost\s*=\s*messageText\.closest\?\.\('\.mes'\)/);
+  assert.match(indexSource, /const targetBounds\s*=\s*getHorizontalContentBounds\(messageText\)/);
   assert.match(indexSource, /const messageBounds\s*=\s*getHorizontalContentBounds\(messageHost\)/);
   assert.match(indexSource, /Math\.max\(targetBounds\.left,\s*parentBounds\.left,\s*messageBounds\.left\)/);
   assert.match(indexSource, /Math\.min\(targetBounds\.right,\s*parentBounds\.right,\s*messageBounds\.right\)/);
@@ -65,7 +66,7 @@ test('状态舞台按状态编排符号动画且操作图标使用透明无框�
   assert.match(styleSource, /@keyframes st-esg-floor-tangle/);
   assert.match(styleSource, /@keyframes st-esg-floor-tangle-tail/);
   assert.match(styleSource, /\.st-esg-floor-compact-action\s*\{[^}]*width:\s*24px[^}]*height:\s*24px[^}]*background:\s*transparent/s);
-  assert.match(styleSource, /\.st-esg-floor-compact-action i\s*\{[^}]*font-size:\s*12px/s);
+  assert.match(styleSource, /\.st-esg-floor-action-icon\s*\{[^}]*width:\s*14px[^}]*height:\s*14px/s);
   assert.match(styleSource, /prefers-reduced-motion:[\s\S]*\.st-esg-floor-stage \*/);
 });
 
@@ -87,6 +88,19 @@ test('adaptive symbol tracks preserve the status core and fixed action area', ()
   assert.match(styleSource, /\.st-esg-floor-stage-track\s*\{[^}]*overflow:\s*hidden[^}]*min-width:\s*0/s);
   assert.match(styleSource, /\.st-esg-floor-stage-core\s*\{[^}]*flex:\s*0 0 auto/s);
   assert.doesNotMatch(styleSource, /@media \(max-width:\s*640px\)[\s\S]*?\.st-esg-floor-stage\s*\{[^}]*font-size:\s*9\.5px/);
+});
+
+test('floor actions use extension-owned SVG icons and inherit the panel text color', () => {
+  assert.match(indexSource, /renderFloorActionIcon\(action\.action\)/);
+  assert.doesNotMatch(indexSource, /class="fa-solid \$\{action\.icon\}"/);
+  assert.match(styleSource, /\.st-esg-floor-brand,\s*\.st-esg-floor-compact-action\s*\{[^}]*color:\s*var\(--floor-text\)\s*!important/s);
+  assert.match(styleSource, /\.st-esg-floor-action-icon\s*\{[^}]*stroke:\s*currentColor\s*!important/s);
+});
+
+test('fixed light and dark floor themes keep readable surfaces over opposite host themes', () => {
+  assert.match(styleSource, /\.st-esg-message-floor-panel\.st-esg-theme-dark\s*\{[^}]*background:[^}]*88%[^}]*!important/s);
+  assert.match(styleSource, /\.st-esg-message-floor-panel\.st-esg-theme-light\s*\{[^}]*background:[^}]*88%[^}]*!important/s);
+  assert.match(styleSource, /\.st-esg-message-floor-panel\.st-esg-theme-tavern\s*\{[^}]*42%/s);
 });
 
 test('floor panel textarea overflow overrides host styles after adaptive resizing', () => {
