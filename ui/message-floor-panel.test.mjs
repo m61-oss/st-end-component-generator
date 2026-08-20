@@ -61,7 +61,7 @@ test('状态舞台用文字、颜文字和符号共同表达五种状态', () =>
     label: '生成完成，待注入', lead: '｡･:*:･ﾟ✦', shuttle: '', text: '织好啦', face: '(｡•̀ᴗ-)✧', tail: 'ﾟ･:*:･｡', motion: 'ready',
   });
   assert.deepEqual(getFloorPanelStatusStage(FLOOR_PANEL_STATUS.INJECTED), {
-    label: '已注入', lead: '◇ ･ﾟ', shuttle: '', text: '内容嵌好啦', face: '(๑˃ᴗ˂)ﻭ', tail: 'ﾟ･ ◈', motion: 'embedded',
+    label: '已注入', lead: '◇ ･ﾟ', shuttle: '', text: '内容注入好啦', face: '(๑˃ᴗ˂)ﻭ', tail: 'ﾟ･ ◈', motion: 'embedded',
   });
   assert.deepEqual(getFloorPanelStatusStage(FLOOR_PANEL_STATUS.ERROR), {
     label: '生成失败', lead: '⌁ ･ﾟ', shuttle: '', text: '线团打结了', face: '(｡•́︿•̀｡)', tail: 'ﾟ･ ⌁', motion: 'tangled',

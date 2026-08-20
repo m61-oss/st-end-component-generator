@@ -46,7 +46,7 @@ const STATUS_STAGE_MODELS = Object.freeze({
     label: '生成完成，待注入', lead: '｡･:*:･ﾟ✦', shuttle: '', text: '织好啦', face: '(｡•̀ᴗ-)✧', tail: 'ﾟ･:*:･｡', motion: 'ready',
   }),
   [FLOOR_PANEL_STATUS.INJECTED]: Object.freeze({
-    label: '已注入', lead: '◇ ･ﾟ', shuttle: '', text: '内容嵌好啦', face: '(๑˃ᴗ˂)ﻭ', tail: 'ﾟ･ ◈', motion: 'embedded',
+    label: '已注入', lead: '◇ ･ﾟ', shuttle: '', text: '内容注入好啦', face: '(๑˃ᴗ˂)ﻭ', tail: 'ﾟ･ ◈', motion: 'embedded',
   }),
   [FLOOR_PANEL_STATUS.ERROR]: Object.freeze({
     label: '生成失败', lead: '⌁ ･ﾟ', shuttle: '', text: '线团打结了', face: '(｡•́︿•̀｡)', tail: 'ﾟ･ ⌁', motion: 'tangled',

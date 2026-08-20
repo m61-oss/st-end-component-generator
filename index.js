@@ -136,7 +136,7 @@ import { buildDataManagementModel, clearSettingsDataCategory, formatByteSize } f
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.1.9';
 const BRAND_NAME = '织幕';
-const BRAND_SUBTITLE = '外置文尾组件生成器';
+const BRAND_SUBTITLE = '组件生成器';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
 const GENERATION_HISTORY_STORAGE_KEY = `${EXTENSION_ID}.recentGenerationHistory`;
 // 生成页当前结果只属于本次页面运行会话；跨刷新查看应使用最近生成记录。
@@ -160,7 +160,7 @@ const FLOATING_BALL_MIN_SIZE = 28;
 const FLOATING_BALL_MAX_SIZE = 72;
 const FLOATING_BALL_MIN_OPACITY = 0.2;
 const FLOATING_BALL_MAX_OPACITY = 1;
-const QR_SHORTCUT_SET_NAME = '外置文尾组件生成器快捷键';
+const QR_SHORTCUT_SET_NAME = '织幕组件生成器快捷键';
 const QR_SHORTCUT_ACTIONS_KEY = '__stEsgQuickReplyActions';
 const WORLDBOOK_CATEGORY_ORDER = [
   ['global', '全局世界书'],
@@ -447,7 +447,7 @@ async function runConfiguredApiRequest(operation, signal) {
     onRetry: ({ retryNumber, delayMs, classification }) => {
       const seconds = Math.max(0, Math.ceil(delayMs / 1000));
       logAutomaticGenerationStage('api-retry', `第 ${retryNumber}/${maxRetries} 次，${seconds} 秒后重试（${classification.reason}）`);
-      notifyStatus(`【文尾组件生成器】失败自动重试中...（${retryNumber}/${maxRetries}）`, 'warning');
+      notifyStatus(`【织幕】失败自动重试中...（${retryNumber}/${maxRetries}）`, 'warning');
       updateStreamedPreview('');
     },
   });
@@ -484,15 +484,15 @@ function getQuickReplyShortcutEntries() {
     {
       enabled: settings.qrGenerateEnabled,
       label: '点击生成',
-      title: '生成文尾组件',
-      message: '生成文尾组件快捷操作',
+      title: '生成组件',
+      message: '生成组件快捷操作',
       action: 'generate',
     },
     {
       enabled: settings.qrInjectEnabled,
       label: '点击注入',
-      title: '注入回复文尾',
-      message: '注入文尾组件快捷操作',
+      title: '注入回复',
+      message: '注入组件快捷操作',
       action: 'inject',
     },
   ];
@@ -958,6 +958,18 @@ function resizeMessageFloorTextarea(textarea) {
   );
 }
 
+function resizeMessageFloorAnchorTextarea(textarea) {
+  if (!textarea) return;
+  const styles = targetWindow.getComputedStyle?.(textarea);
+  const minHeight = Number.parseFloat(styles?.minHeight) || 31;
+  const maxHeight = Number.parseFloat(styles?.maxHeight) || 72;
+  textarea.style.setProperty('height', 'auto', 'important');
+  const contentHeight = Math.max(minHeight, Number(textarea.scrollHeight || 0));
+  const nextHeight = Math.min(contentHeight, maxHeight);
+  textarea.style.setProperty('height', `${Math.ceil(nextHeight)}px`, 'important');
+  textarea.style.setProperty('overflow-y', contentHeight > maxHeight + 1 ? 'auto' : 'hidden', 'important');
+}
+
 function getCurrentFloorPanelTarget() {
   const context = getContext();
   const latest = getLatestAssistantMessage(context.chat);
@@ -988,13 +1000,13 @@ function buildMessageFloorAnchorMarkup(items) {
     if (!item || !item.content) return '';
     const enabled = isAnchorInsertionEnabled(item);
     const matchState = describeAnchorMatch(item, matches.get(index), skipped.get(index), Boolean(target));
-    const position = item.position === 'start' ? '文首' : item.position === 'end' ? '文尾' : item.position === 'before' ? '锚点前' : '锚点后';
+    const position = item.position === 'start' ? '文首' : item.position === 'end' ? '文末' : item.position === 'before' ? '锚点前' : '锚点后';
     const readonly = canEditFloorPanelResult(messageFloorPanelState) ? '' : ' readonly';
     const disabledClass = enabled ? '' : ' st-esg-floor-anchor-disabled';
     return `<details class="st-esg-floor-anchor-item${disabledClass}" data-floor-anchor-index="${index}" data-floor-anchor-position="${escapeHtml(item.position || 'after')}"${enabled ? '' : ' data-injection-disabled="true"'} open>
       <summary><span>#${index + 1} · ${escapeHtml(position)}</span><span class="st-esg-floor-anchor-summary-controls"><span data-floor-anchor-match class="st-esg-floor-anchor-match st-esg-floor-anchor-match-${escapeHtml(matchState.className)}">${escapeHtml(matchState.label)}</span><button type="button" class="st-esg-floor-anchor-toggle" data-floor-anchor-toggle aria-label="${enabled ? '标记为不注入' : '恢复注入'}" title="${enabled ? '标记为不注入' : '恢复注入'}"><i class="fa-solid ${enabled ? 'fa-link' : 'fa-link-slash'}" aria-hidden="true"></i></button></span></summary>
       <div class="st-esg-floor-anchor-fields">
-        ${item.position === 'before' || item.position === 'after' ? `<label>锚点<textarea class="text_pole" data-floor-anchor-field="anchor" rows="2"${readonly}>${escapeHtml(item.anchor || '')}</textarea></label>` : ''}
+        ${item.position === 'before' || item.position === 'after' ? `<label>锚点<textarea class="text_pole" data-floor-anchor-field="anchor" rows="1"${readonly}>${escapeHtml(item.anchor || '')}</textarea></label>` : ''}
         <label>插入内容<textarea class="text_pole" data-floor-anchor-field="content" rows="3"${readonly}>${escapeHtml(item.content || '')}</textarea></label>
       </div>
     </details>`;
@@ -1088,6 +1100,7 @@ function renderMessageFloorPanel({ force = false } = {}) {
   panel.querySelector('[data-floor-compact-toggle]')?.setAttribute('aria-expanded', String(messageFloorPanelState.expanded));
   panel.querySelector('.st-esg-floor-expanded')?.toggleAttribute('hidden', !messageFloorPanelState.expanded);
   panel.querySelectorAll('[data-floor-output]').forEach(resizeMessageFloorTextarea);
+  panel.querySelectorAll('[data-floor-anchor-field="anchor"]').forEach(resizeMessageFloorAnchorTextarea);
   const output = panel.querySelector('[data-floor-output]');
   if (output && messageFloorPanelState.expanded && messageFloorPanelFollowBottom) {
     const scrollToBottom = () => { output.scrollTop = output.scrollHeight; };
@@ -1288,6 +1301,7 @@ function bindMessageFloorPanel(panel) {
     const fieldName = String(field.dataset.floorAnchorField || '');
     if (!item || !['anchor', 'content'].includes(fieldName)) return;
     item[fieldName] = String(field.value || '');
+    if (fieldName === 'anchor') resizeMessageFloorAnchorTextarea(field);
     messageFloorPanelState.anchorItems = settings.lastGeneratedAnchorItems.map((entry) => ({ ...entry }));
     const { target, matches, skipped } = resolveAnchorPlanForDisplay(settings.lastGeneratedAnchorItems);
     const matchState = describeAnchorMatch(item, matches.get(index), skipped.get(index), Boolean(target));
@@ -1566,7 +1580,7 @@ function describeAnchorMatch(item, match, skipped, hasTarget) {
   if (!hasTarget) return { label: '等待目标正文', className: 'pending' };
   if (match?.matchType === 'boundary') {
     return {
-      label: item.position === 'start' ? '文首定位' : '文尾定位',
+      label: item.position === 'start' ? '文首定位' : '文末定位',
       className: 'boundary',
     };
   }
@@ -1738,7 +1752,7 @@ function renderGenerationHistory() {
      const isAnchor = entry.kind === 'anchor';
      const countLabel = isAnchor ? `${entry.anchorItems.length} 项锚点` : `${entry.content.length} 字`;
      const body = isAnchor
-       ? `<div class="st-esg-generation-history-anchor-list">${entry.anchorItems.map((item, index) => `<div><span>#${index + 1} · ${escapeHtml(item.position === 'start' ? '文首' : item.position === 'end' ? '文尾' : item.position === 'before' ? '锚点前' : '锚点后')}</span><pre>${escapeHtml(item.content)}</pre></div>`).join('')}</div>`
+       ? `<div class="st-esg-generation-history-anchor-list">${entry.anchorItems.map((item, index) => `<div><span>#${index + 1} · ${escapeHtml(item.position === 'start' ? '文首' : item.position === 'end' ? '文末' : item.position === 'before' ? '锚点前' : '锚点后')}</span><pre>${escapeHtml(item.content)}</pre></div>`).join('')}</div>`
        : `<pre>${escapeHtml(entry.content)}</pre>`;
      return `
        <details class="st-esg-generation-history-entry" data-history-id="${escapeHtml(entry.id)}">
@@ -2145,7 +2159,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   clearGeneratedResultState();
   settings.lastGeneratedAnchorTargetIndex = latest.index;
   saveSettings();
-  notifyStatus('正在生成文尾组件……', 'info');
+  notifyStatus('正在生成组件……', 'info');
   const requestController = new AbortController();
   generationAbortController = requestController;
   stopAnimaWorldbookCapture();
@@ -2265,7 +2279,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     logAutomaticGenerationStage('inject-queued', 'auto-inject enabled');
     await injectGeneratedStatusbar(latest.index);
   }
-  else notifyStatus('已生成文尾组件内容，等待检查或注入。');
+  else notifyStatus('已生成组件内容，等待检查或注入。');
   return settings.lastGenerated;
 }
 
@@ -2745,7 +2759,7 @@ function renderPromptLog() {
   }
   if (!lastPromptLogText) {
     summaryBox.html('<span>暂无提示词查看记录</span>');
-    viewBox.html('<div class="st-esg-empty st-esg-empty-small">生成一次文尾组件后，这里会按消息分栏显示最终发送给 API 的提示词。</div>');
+    viewBox.html('<div class="st-esg-empty st-esg-empty-small">生成一次组件后，这里会按消息分栏显示最终发送给 API 的提示词。</div>');
     return;
   }
   const viewModel = createPromptLogViewModel(lastPromptLogText);
@@ -3969,7 +3983,7 @@ function renderComponentList() {
   const editToolbar = componentEditMode ? '<div class="st-esg-component-edit-toolbar"><span class="st-esg-component-edit-selection-count">未选择项目</span><span class="st-esg-component-batch-actions"><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-batch-move" type="button" title="移动到分组" aria-label="移动到分组" disabled><i class="fa-solid fa-folder-open"></i><span>移动到</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger st-esg-component-batch-delete" type="button" title="删除选中组件" aria-label="删除选中组件" disabled><i class="fa-solid fa-trash"></i><span>删除</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-edit-exit" type="button" title="退出编辑" aria-label="退出编辑"><i class="fa-solid fa-check"></i><span>退出</span></button></span></div>' : '';
   const wrapLibrary = (content) => `<details class="st-esg-card st-esg-component-library-card st-esg-library-collapsible" ${componentLibraryOpen ? 'open' : ''}><summary class="st-esg-library-card-summary"><div class="st-esg-card-head"><div><div class="st-esg-card-title">组件库</div></div>${editButton}</div></summary><div class="st-esg-library-card-body">${editToolbar}${renderComponentListToolbar()}${content}</div></details>`;
   const sections = [
-    { scope: COMPONENT_SCOPE_GLOBAL, title: '全局组件', desc: '启用后始终参与文尾组件生成。' },
+    { scope: COMPONENT_SCOPE_GLOBAL, title: '全局组件', desc: '启用后始终参与组件生成。' },
     { scope: COMPONENT_SCOPE_PRESET, title: '预设组件', desc: '仅当前已绑定预设方案时参与生成；未保存方案不会显示预设组件。' },
     { scope: COMPONENT_SCOPE_CHARACTER, title: '角色组件', desc: '仅当前角色卡绑定的组件会参与生成。' },
   ];
@@ -5939,7 +5953,7 @@ function importCheckedCandidates(sourceType) {
 
 function buildPluginPanelMarkup() {
   const importAction = (id, label) => `<div class="st-esg-actions-row st-esg-source-import-action"><div id="${id}" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>${label}</span></div></div>`;
-  return `<div class="st-esg-shell"><div class="st-esg-panel-header"><div class="st-esg-panel-title"><div class="st-esg-title-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div><div><div class="st-esg-kicker">SillyTavern 插件</div><div class="st-esg-title-text">外置文尾组件生成器</div></div></div><div id="st-esg-close" class="menu_button fa-solid fa-xmark" title="关闭面板"></div></div><div class="st-esg-panel-body"><nav class="st-esg-tabs" aria-label="外置文尾组件生成器分页"><button class="st-esg-tab" type="button" data-tab="workspace"><i class="fa-solid fa-sparkles"></i><span>生成</span></button><button class="st-esg-tab" type="button" data-tab="task"><i class="fa-solid fa-pen-to-square"></i><span>任务指令</span></button><button class="st-esg-tab" type="button" data-tab="preset"><i class="fa-solid fa-list-check"></i><span>预设</span></button><button class="st-esg-tab" type="button" data-tab="worldbook"><i class="fa-solid fa-book-open"></i><span>世界书</span></button><button class="st-esg-tab" type="button" data-tab="runtime"><i class="fa-solid fa-sliders"></i><span>运行设置</span></button><button class="st-esg-tab" type="button" data-tab="components"><i class="fa-solid fa-layer-group"></i><span>组件库</span></button><button class="st-esg-tab" type="button" data-tab="debug"><i class="fa-solid fa-list"></i><span>提示词日志</span></button></nav><section class="st-esg-tab-panel" data-tab-panel="workspace">${buildGenerationSettingsMarkup()}<div class="st-esg-card st-esg-temporary-task-card"><label for="st-esg-temporary-task-instruction">额外指令</label><div class="st-esg-temporary-task-row"><input id="st-esg-temporary-task-instruction" class="text_pole" type="text" autocomplete="off" placeholder="临时追加到任务指令末尾" /><button id="st-esg-clear-temporary-task-instruction" class="menu_button st-esg-secondary-action" type="button">清空</button></div></div><div class="st-esg-card st-esg-generation-content"><div id="st-esg-thinking-panel" class="st-esg-hidden"></div><div id="st-esg-generation-error" class="st-esg-generation-error st-esg-hidden"></div><textarea id="st-esg-preview" class="text_pole textarea_compact st-esg-textarea st-esg-preview" rows="11" placeholder="生成后的文尾组件会出现在这里。"></textarea></div><div class="st-esg-card st-esg-generation-history-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">最近生成记录</div><div class="st-esg-card-desc">保留最近三次成功生成；载入后可在上方预览框检查或编辑。</div></div></div><div id="st-esg-generation-history" class="st-esg-generation-history"></div></div></section><section class="st-esg-tab-panel" data-tab-panel="task"><div class="st-esg-card">${renderSchemeManager('task')}<div class="st-esg-card-head"><div><div class="st-esg-card-title">生成任务指令</div><div class="st-esg-card-desc">编辑最终发送给模型的任务指令；{{external_components}} 的位置会插入组件库内容，不写则不发送组件。</div></div></div><textarea id="st-esg-task" class="text_pole textarea_compact st-esg-textarea" rows="7"></textarea><div class="st-esg-actions-row"><div id="st-esg-reset-task" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-rotate-left"></i><span>恢复默认提示词</span></div></div></div></section><section class="st-esg-tab-panel" data-tab-panel="preset"><div class="st-esg-card st-esg-import-tools"><div class="st-esg-card-head"><div><div id="st-esg-source-mode-title" class="st-esg-card-title">提示词模式</div><div id="st-esg-source-mode-desc" class="st-esg-card-desc">当前勾选会作为外置生成时启用的来源，不会导入组件库。</div></div></div><div class="st-esg-grid"><label>来源模式<select id="st-esg-source-mode" class="text_pole"><option value="prompt">提示词模式</option><option value="import">导入组件库模式</option></select></label><label>导入到<select id="st-esg-import-target-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div>${importAction('st-esg-import-preset-components', '导入预设勾选')}</div><div class="st-esg-card">${renderSchemeManager('preset')}<div class="st-esg-card-head"><div><div class="st-esg-card-title">预设</div><div class="st-esg-card-desc">用选择框切换预设；下方只显示当前选择的预设条目。</div></div></div><div class="st-esg-grid"><label>选择预设<select id="st-esg-source-preset" class="text_pole"></select></label></div><div id="st-esg-preset-placement-slot" class="st-esg-scheme-box"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-task-placement-enabled" type="checkbox" /><span>自定义任务指令插入位置</span><em>开启后插入到指定预设条目之后；关闭时仍追加到末尾。</em></label><div id="st-esg-task-placement-row" class="st-esg-grid"><label>插入到这条预设之后<select id="st-esg-task-placement-after" class="text_pole"></select></label></div><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-replace-last-user-message" type="checkbox" /><span>用任务指令替换 {{LastUserMessage}}</span><em>开启后预设里的 {{LastUserMessage}} 会使用当前任务指令内容。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-omit-original-user-messages" type="checkbox" /><span>不发送原用户输入</span><em>开启后聊天历史里的 user 消息不会发送给外置 API。</em></label></div><div id="st-esg-preset-candidates" class="st-esg-import-list"></div></div></section><section class="st-esg-tab-panel" data-tab-panel="worldbook"><div class="st-esg-card st-esg-import-tools st-esg-worldbook-mode-card"><div class="st-esg-card-head"><div><div id="st-esg-source-mode-title-worldbook" class="st-esg-card-title">提示词模式</div><div id="st-esg-source-mode-desc-worldbook" class="st-esg-card-desc">当前勾选会作为外置生成时启用的来源，不会导入组件库。</div></div></div><div class="st-esg-grid"><label>世界书来源模式<select id="st-esg-source-mode-worldbook" class="text_pole"><option value="prompt">提示词模式</option><option value="import">导入组件库模式</option></select></label></div>${importAction('st-esg-import-worldbook-components', '导入世界书勾选')}</div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">世界书</div><div class="st-esg-card-desc">这里是独立的世界书列表；点进某本世界书后只替换这张卡片。</div></div></div>${renderSchemeManager('worldbook')}<div id="st-esg-worldbook-candidates" class="st-esg-import-list"></div></div></section><section class="st-esg-tab-panel" data-tab-panel="runtime"><details class="st-esg-card st-esg-collapsible"><summary class="st-esg-collapsible-summary">API配置</summary><div class="st-esg-collapsible-body">${renderSchemeManager('api')}<div class="st-esg-grid"><label>API 地址<input id="st-esg-api-url" class="text_pole" type="text" placeholder="例如 https://api.openai.com/v1" /></label><label>模型名称<input id="st-esg-api-model" class="text_pole" type="text" list="st-esg-model-options" placeholder="例如 gpt-4o-mini / deepseek-chat" /><datalist id="st-esg-model-options"></datalist></label><label>最大输出<input id="st-esg-max-tokens" class="text_pole" type="number" min="1" step="1" /></label><label>温度<input id="st-esg-temperature" class="text_pole" type="number" min="0" max="2" step="0.1" /></label></div><label class="st-esg-secret-label">API Key<input id="st-esg-api-key" class="text_pole" type="password" placeholder="可选。多数独立 API 需要填写。" /></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-streaming-enabled" type="checkbox" /><span>启用流式传输</span><em>开启后生成结果会随着 API 返回逐步显示。</em></label><div class="st-esg-actions-row"><div id="st-esg-fetch-models" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-cloud-arrow-down"></i><span>拉取模型</span></div></div></div></details><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">标签清理</div><div class="st-esg-card-desc">分别处理拼接提示词时的聊天历史，以及生成内容注入前的思维链标签。</div></div></div><div class="st-esg-grid"><label>聊天历史清理标签<textarea id="st-esg-history-cleanup-tags" class="text_pole textarea_compact st-esg-textarea" rows="4"></textarea></label><label>生成内容剥离标签<textarea id="st-esg-output-cleanup-tags" class="text_pole textarea_compact st-esg-textarea" rows="4"></textarea></label></div></div><details class="st-esg-card st-esg-collapsible"><summary class="st-esg-collapsible-summary">柏宝书记忆库</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-baibai-history-enabled" type="checkbox" /><span>注入此前剧情</span><em>注入柏宝书整理的历史记忆。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-baibai-state-enabled" type="checkbox" /><span>注入故事现状</span><em>注入人物、物品、相关人物、未结束事项和持续记录的变量。</em></label></div></details></section><section class="st-esg-tab-panel" data-tab-panel="components"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">手动添加组件</div><div class="st-esg-card-desc">组件库只管理最终会发送的组件；从预设和世界书导入请去“预设/世界书”页。</div></div></div><div class="st-esg-grid"><label>组件名<input id="st-esg-component-name" class="text_pole" type="text" /></label><label>归属<select id="st-esg-component-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div><textarea id="st-esg-component-content" class="text_pole textarea_compact st-esg-textarea" rows="5"></textarea><div class="st-esg-actions-row"><div id="st-esg-add-component" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-plus"></i><span>添加到组件库</span></div></div></div><div id="st-esg-component-list" class="st-esg-component-list"></div></section><section class="st-esg-tab-panel" data-tab-panel="debug"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">提示词日志</div><div class="st-esg-card-desc">按 API messages 分栏查看；复制日志仍会复制完整 JSON，不保存 API Key。</div></div></div><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-compress-system" type="checkbox" /><span>压缩连续系统消息</span><em>将连续 system 合并为一条，遇到 user/assistant 会断开。</em></label><div id="st-esg-prompt-log-summary" class="st-esg-prompt-log-summary"></div><div id="st-esg-prompt-log-view" class="st-esg-prompt-log-view"></div><textarea id="st-esg-prompt-log" class="st-esg-hidden-log" readonly></textarea><div class="st-esg-actions-row"><div id="st-esg-copy-prompt-log" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-copy"></i><span>复制完整日志</span></div><div id="st-esg-clear-prompt-log" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-eraser"></i><span>清空日志</span></div></div></div></section></div><div class="st-esg-panel-footer"><div id="st-esg-status" class="st-esg-status-pill"><span class="st-esg-dot"></span><span>准备就绪</span></div><div class="st-esg-footer-actions"><div id="st-esg-generate" class="menu_button menu_button_icon st-esg-primary-action"><i class="fa-solid fa-sparkles"></i><span>生成文尾组件</span></div><div id="st-esg-inject" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>注入回复文尾</span></div></div></div></div>`;
+  return `<div class="st-esg-shell"><div class="st-esg-panel-header"><div class="st-esg-panel-title"><div class="st-esg-title-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div><div><div class="st-esg-kicker">SillyTavern 插件</div><div class="st-esg-title-text">织幕·组件生成器</div></div></div><div id="st-esg-close" class="menu_button fa-solid fa-xmark" title="关闭面板"></div></div><div class="st-esg-panel-body"><nav class="st-esg-tabs" aria-label="织幕·组件生成器分页"><button class="st-esg-tab" type="button" data-tab="workspace"><i class="fa-solid fa-sparkles"></i><span>生成</span></button><button class="st-esg-tab" type="button" data-tab="task"><i class="fa-solid fa-pen-to-square"></i><span>任务指令</span></button><button class="st-esg-tab" type="button" data-tab="preset"><i class="fa-solid fa-list-check"></i><span>预设</span></button><button class="st-esg-tab" type="button" data-tab="worldbook"><i class="fa-solid fa-book-open"></i><span>世界书</span></button><button class="st-esg-tab" type="button" data-tab="runtime"><i class="fa-solid fa-sliders"></i><span>运行设置</span></button><button class="st-esg-tab" type="button" data-tab="components"><i class="fa-solid fa-layer-group"></i><span>组件库</span></button><button class="st-esg-tab" type="button" data-tab="debug"><i class="fa-solid fa-list"></i><span>提示词日志</span></button></nav><section class="st-esg-tab-panel" data-tab-panel="workspace">${buildGenerationSettingsMarkup()}<div class="st-esg-card st-esg-temporary-task-card"><label for="st-esg-temporary-task-instruction">额外指令</label><div class="st-esg-temporary-task-row"><input id="st-esg-temporary-task-instruction" class="text_pole" type="text" autocomplete="off" placeholder="临时追加到任务指令末尾" /><button id="st-esg-clear-temporary-task-instruction" class="menu_button st-esg-secondary-action" type="button">清空</button></div></div><div class="st-esg-card st-esg-generation-content"><div id="st-esg-thinking-panel" class="st-esg-hidden"></div><div id="st-esg-generation-error" class="st-esg-generation-error st-esg-hidden"></div><textarea id="st-esg-preview" class="text_pole textarea_compact st-esg-textarea st-esg-preview" rows="11" placeholder="生成后的组件会出现在这里。"></textarea></div><div class="st-esg-card st-esg-generation-history-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">最近生成记录</div><div class="st-esg-card-desc">保留最近三次成功生成；载入后可在上方预览框检查或编辑。</div></div></div><div id="st-esg-generation-history" class="st-esg-generation-history"></div></div></section><section class="st-esg-tab-panel" data-tab-panel="task"><div class="st-esg-card">${renderSchemeManager('task')}<div class="st-esg-card-head"><div><div class="st-esg-card-title">生成任务指令</div><div class="st-esg-card-desc">编辑最终发送给模型的任务指令；{{external_components}} 的位置会插入组件库内容，不写则不发送组件。</div></div></div><textarea id="st-esg-task" class="text_pole textarea_compact st-esg-textarea" rows="7"></textarea><div class="st-esg-actions-row"><div id="st-esg-reset-task" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-rotate-left"></i><span>恢复默认提示词</span></div></div></div></section><section class="st-esg-tab-panel" data-tab-panel="preset"><div class="st-esg-card st-esg-import-tools"><div class="st-esg-card-head"><div><div id="st-esg-source-mode-title" class="st-esg-card-title">提示词模式</div><div id="st-esg-source-mode-desc" class="st-esg-card-desc">当前勾选会作为外置生成时启用的来源，不会导入组件库。</div></div></div><div class="st-esg-grid"><label>来源模式<select id="st-esg-source-mode" class="text_pole"><option value="prompt">提示词模式</option><option value="import">导入组件库模式</option></select></label><label>导入到<select id="st-esg-import-target-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div>${importAction('st-esg-import-preset-components', '导入预设勾选')}</div><div class="st-esg-card">${renderSchemeManager('preset')}<div class="st-esg-card-head"><div><div class="st-esg-card-title">预设</div><div class="st-esg-card-desc">用选择框切换预设；下方只显示当前选择的预设条目。</div></div></div><div class="st-esg-grid"><label>选择预设<select id="st-esg-source-preset" class="text_pole"></select></label></div><div id="st-esg-preset-placement-slot" class="st-esg-scheme-box"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-task-placement-enabled" type="checkbox" /><span>自定义任务指令插入位置</span><em>开启后插入到指定预设条目之后；关闭时仍追加到末尾。</em></label><div id="st-esg-task-placement-row" class="st-esg-grid"><label>插入到这条预设之后<select id="st-esg-task-placement-after" class="text_pole"></select></label></div><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-replace-last-user-message" type="checkbox" /><span>用任务指令替换 {{LastUserMessage}}</span><em>开启后预设里的 {{LastUserMessage}} 会使用当前任务指令内容。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-omit-original-user-messages" type="checkbox" /><span>不发送原用户输入</span><em>开启后聊天历史里的 user 消息不会发送给外置 API。</em></label></div><div id="st-esg-preset-candidates" class="st-esg-import-list"></div></div></section><section class="st-esg-tab-panel" data-tab-panel="worldbook"><div class="st-esg-card st-esg-import-tools st-esg-worldbook-mode-card"><div class="st-esg-card-head"><div><div id="st-esg-source-mode-title-worldbook" class="st-esg-card-title">提示词模式</div><div id="st-esg-source-mode-desc-worldbook" class="st-esg-card-desc">当前勾选会作为外置生成时启用的来源，不会导入组件库。</div></div></div><div class="st-esg-grid"><label>世界书来源模式<select id="st-esg-source-mode-worldbook" class="text_pole"><option value="prompt">提示词模式</option><option value="import">导入组件库模式</option></select></label></div>${importAction('st-esg-import-worldbook-components', '导入世界书勾选')}</div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">世界书</div><div class="st-esg-card-desc">这里是独立的世界书列表；点进某本世界书后只替换这张卡片。</div></div></div>${renderSchemeManager('worldbook')}<div id="st-esg-worldbook-candidates" class="st-esg-import-list"></div></div></section><section class="st-esg-tab-panel" data-tab-panel="runtime"><details class="st-esg-card st-esg-collapsible"><summary class="st-esg-collapsible-summary">API配置</summary><div class="st-esg-collapsible-body">${renderSchemeManager('api')}<div class="st-esg-grid"><label>API 地址<input id="st-esg-api-url" class="text_pole" type="text" placeholder="例如 https://api.openai.com/v1" /></label><label>模型名称<input id="st-esg-api-model" class="text_pole" type="text" list="st-esg-model-options" placeholder="例如 gpt-4o-mini / deepseek-chat" /><datalist id="st-esg-model-options"></datalist></label><label>最大输出<input id="st-esg-max-tokens" class="text_pole" type="number" min="1" step="1" /></label><label>温度<input id="st-esg-temperature" class="text_pole" type="number" min="0" max="2" step="0.1" /></label></div><label class="st-esg-secret-label">API Key<input id="st-esg-api-key" class="text_pole" type="password" placeholder="可选。多数独立 API 需要填写。" /></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-streaming-enabled" type="checkbox" /><span>启用流式传输</span><em>开启后生成结果会随着 API 返回逐步显示。</em></label><div class="st-esg-actions-row"><div id="st-esg-fetch-models" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-cloud-arrow-down"></i><span>拉取模型</span></div></div></div></details><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">标签清理</div><div class="st-esg-card-desc">分别处理拼接提示词时的聊天历史，以及生成内容注入前的思维链标签。</div></div></div><div class="st-esg-grid"><label>聊天历史清理标签<textarea id="st-esg-history-cleanup-tags" class="text_pole textarea_compact st-esg-textarea" rows="4"></textarea></label><label>生成内容剥离标签<textarea id="st-esg-output-cleanup-tags" class="text_pole textarea_compact st-esg-textarea" rows="4"></textarea></label></div></div><details class="st-esg-card st-esg-collapsible"><summary class="st-esg-collapsible-summary">柏宝书记忆库</summary><div class="st-esg-collapsible-body"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-baibai-history-enabled" type="checkbox" /><span>注入此前剧情</span><em>注入柏宝书整理的历史记忆。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-baibai-state-enabled" type="checkbox" /><span>注入故事现状</span><em>注入人物、物品、相关人物、未结束事项和持续记录的变量。</em></label></div></details></section><section class="st-esg-tab-panel" data-tab-panel="components"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">手动添加组件</div><div class="st-esg-card-desc">组件库只管理最终会发送的组件；从预设和世界书导入请去“预设/世界书”页。</div></div></div><div class="st-esg-grid"><label>组件名<input id="st-esg-component-name" class="text_pole" type="text" /></label><label>归属<select id="st-esg-component-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div><textarea id="st-esg-component-content" class="text_pole textarea_compact st-esg-textarea" rows="5"></textarea><div class="st-esg-actions-row"><div id="st-esg-add-component" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-plus"></i><span>添加到组件库</span></div></div></div><div id="st-esg-component-list" class="st-esg-component-list"></div></section><section class="st-esg-tab-panel" data-tab-panel="debug"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">提示词日志</div><div class="st-esg-card-desc">按 API messages 分栏查看；复制日志仍会复制完整 JSON，不保存 API Key。</div></div></div><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-compress-system" type="checkbox" /><span>压缩连续系统消息</span><em>将连续 system 合并为一条，遇到 user/assistant 会断开。</em></label><div id="st-esg-prompt-log-summary" class="st-esg-prompt-log-summary"></div><div id="st-esg-prompt-log-view" class="st-esg-prompt-log-view"></div><textarea id="st-esg-prompt-log" class="st-esg-hidden-log" readonly></textarea><div class="st-esg-actions-row"><div id="st-esg-copy-prompt-log" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-copy"></i><span>复制完整日志</span></div><div id="st-esg-clear-prompt-log" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-eraser"></i><span>清空日志</span></div></div></div></section></div><div class="st-esg-panel-footer"><div id="st-esg-status" class="st-esg-status-pill"><span class="st-esg-dot"></span><span>准备就绪</span></div><div class="st-esg-footer-actions"><div id="st-esg-generate" class="menu_button menu_button_icon st-esg-primary-action"><i class="fa-solid fa-sparkles"></i><span>生成组件</span></div><div id="st-esg-inject" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>注入回复</span></div></div></div></div>`;
 }
 
 function buildGenerationSettingsMarkup() {
@@ -6302,7 +6316,7 @@ function renderPluginPanel() {
   const apiModel = dialog.querySelector('#st-esg-api-model');
   apiModel?.insertAdjacentHTML('afterend', '<select id="st-esg-api-model-picker" class="text_pole st-esg-api-model-picker st-esg-api-custom-fields" style="display:none;"></select><div id="st-esg-api-model-feedback" class="st-esg-model-feedback st-esg-api-custom-fields"></div>');
   const taskInput = dialog.querySelector('#st-esg-task');
-  taskInput?.insertAdjacentHTML('afterend', '<div class="st-esg-task-components-help"><code>{{external_components}}</code> 会在生成时替换为当前启用的文尾组件；不写则不会发送组件。</div>');
+  taskInput?.insertAdjacentHTML('afterend', '<div class="st-esg-task-components-help"><code>{{external_components}}</code> 会在生成时替换为当前启用的组件；不写则不会发送组件。</div>');
   const tagTextarea = dialog.querySelector('#st-esg-history-cleanup-tags');
   const tagCard = tagTextarea?.closest('.st-esg-card');
   const tagGrid = tagCard?.querySelector('.st-esg-grid');

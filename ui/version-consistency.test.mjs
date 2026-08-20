@@ -13,7 +13,7 @@ test('keeps the extension display name and public version metadata aligned', asy
   const manifest = JSON.parse(manifestText);
   const packageJson = JSON.parse(packageText);
 
-  assert.equal(manifest.display_name, '织幕·文尾组件');
+  assert.equal(manifest.display_name, '织幕·组件生成器');
   assert.equal(manifest.version, expectedVersion);
   assert.equal(manifest.js, `index.js?ver=${expectedVersion}`);
   assert.equal(packageJson.version, expectedVersion);
