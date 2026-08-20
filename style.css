@@ -1330,6 +1330,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   --floor-surface: var(--esg-bg-card, var(--SmartThemeChatTintColor, #202024));
   --floor-input: var(--esg-bg-input, var(--SmartThemeBlurTintColor, #16161a));
   --floor-accent: var(--esg-primary, var(--SmartThemeQuoteColor, #b79c73));
+  --floor-foreground-opacity: 1;
   display: grid;
   grid-template-rows: auto auto;
   box-sizing: border-box;
@@ -1365,7 +1366,6 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 }
 .st-esg-floor-compact { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 5px; min-width: 0; min-height: 32px; padding: 1px 6px 1px 7px; cursor: pointer; }
 .st-esg-floor-brand { display: inline-flex; align-items: center; gap: 5px; color: var(--floor-text); font-size: 11px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; }
-.st-esg-floor-brand, .st-esg-floor-compact-action { color: var(--floor-text) !important; }
 .st-esg-floor-brand .st-esg-brand-mark { width: 21px; height: 21px; flex: 0 0 auto; color: currentColor; }
 .st-esg-floor-brand .st-esg-brand-mark-menu-path, .st-esg-floor-brand .st-esg-brand-mark-bridge { fill: none; stroke: currentColor !important; stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
 .st-esg-floor-stage { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; min-width: 0; height: 29px; gap: 5px; overflow: hidden; color: color-mix(in srgb, var(--floor-muted) 90%, var(--floor-text)); font-size: 12px; line-height: 1; white-space: nowrap; pointer-events: none; isolation: isolate; }
@@ -1404,6 +1404,9 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-floor-compact-action, .st-esg-floor-anchor-toggle { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; border: 0; color: color-mix(in srgb, var(--floor-muted) 88%, var(--floor-text)); background: color-mix(in srgb, var(--floor-text) 4%, transparent); cursor: pointer; }
 .st-esg-floor-compact-action { width: 24px; height: 24px; padding: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .st-esg-floor-action-icon { display: block; width: 14px; height: 14px; fill: none !important; stroke: currentColor !important; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; overflow: visible; }
+.st-esg-floor-brand,
+.st-esg-floor-stage-core,
+.st-esg-floor-compact-action { color: var(--floor-text) !important; opacity: var(--floor-foreground-opacity) !important; }
 .st-esg-floor-compact-action-primary { color: var(--floor-accent); }
 .st-esg-floor-compact-action:hover, .st-esg-floor-compact-action:focus-visible { color: var(--floor-text); background: transparent; }
 .st-esg-floor-compact-action:active { transform: scale(.94); }

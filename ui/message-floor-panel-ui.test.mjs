@@ -93,8 +93,12 @@ test('adaptive symbol tracks preserve the status core and fixed action area', ()
 test('floor actions use extension-owned SVG icons and inherit the panel text color', () => {
   assert.match(indexSource, /renderFloorActionIcon\(action\.action\)/);
   assert.doesNotMatch(indexSource, /class="fa-solid \$\{action\.icon\}"/);
-  assert.match(styleSource, /\.st-esg-floor-brand,\s*\.st-esg-floor-compact-action\s*\{[^}]*color:\s*var\(--floor-text\)\s*!important/s);
   assert.match(styleSource, /\.st-esg-floor-action-icon\s*\{[^}]*stroke:\s*currentColor\s*!important/s);
+});
+
+test('brand, status copy and action icons share one foreground color and opacity', () => {
+  assert.match(styleSource, /--floor-foreground-opacity:\s*1/);
+  assert.match(styleSource, /\.st-esg-floor-brand,\s*\.st-esg-floor-stage-core,\s*\.st-esg-floor-compact-action\s*\{[^}]*color:\s*var\(--floor-text\)\s*!important[^}]*opacity:\s*var\(--floor-foreground-opacity\)\s*!important/s);
 });
 
 test('fixed light and dark floor themes keep the transparent surface and use their primary text color', () => {
