@@ -92,6 +92,15 @@ test('places a custom anchor protocol and role at the message-list end', async (
   assert.deepEqual(messages.at(-1), { role: 'user', content: 'ANCHOR CUSTOM' });
 });
 
+test('omits an empty tail constraint without moving or duplicating the task', async () => {
+  const messages = await build({
+    outputProtocol: { content: '', role: 'assistant' },
+  });
+  assert.equal(messages.some((message) => message.role === 'assistant' && message.content === ''), false);
+  assert.equal(messages.filter((message) => message.role === 'user' && message.content === 'TASK').length, 1);
+  assert.equal(messages.at(-1)?.content, 'TASK');
+});
+
 test('places anchor boundary tags in adjacent system messages without mutating assistant content', async () => {
   const messages = await build({ outputMode: 'anchor' });
   const targetIndex = messages.findIndex((message) => message?.role === 'assistant' && message?.content === '助手消息');

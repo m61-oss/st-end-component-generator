@@ -30,6 +30,9 @@ test('publishes the fixed two-field protocol as a system message', () => {
   assert.match(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /完整回复的第一个字符必须是/);
   assert.doesNotMatch(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /"content"\s*:/);
   assert.doesNotMatch(OUTPUT_PROTOCOL_SYSTEM_PROMPT, /织幕固定输出协议/);
+  assert.ok(OUTPUT_PROTOCOL_SYSTEM_PROMPT.endsWith(`<think>
+我已详细阅读格式输出规则，我将直接输出json，并在json内部输出推演步骤及内容。
+</think>`));
 });
 
 test('publishes a variable-length anchor plan only in anchor mode', () => {
@@ -43,14 +46,16 @@ test('publishes a variable-length anchor plan only in anchor mode', () => {
   assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /本协议只规定完整回复的外层 JSON 封装与锚点插入计划/);
   assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /全部思考、推演与插入规划，使用中文/);
   assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /唯一目标范围/);
-  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /仅两个标记之间的完整原文属于目标范围/);
+  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /是<latest_assistant_target>后的正文内容/);
   assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /output[\s\S]*可为空或包含任意数量插入项/);
   assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /若\s*"anchor"\s*重复/);
   assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /完整回复必须以\s*"\{"\s*开始/);
   assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /忽略续写正文要求/);
   assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /唯一允许匹配和插入的目标/);
-  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /<latest_assistant_target>/);
-  assert.match(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /<\/latest_assistant_target>/);
+  assert.doesNotMatch(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /<\/latest_assistant_target>/);
+  assert.ok(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT.endsWith(`<think>
+我已详细阅读格式输出规则，我将直接输出json，并在json内部输出推演步骤及内容。
+</think>`));
   assert.doesNotMatch(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /紧邻本次任务之前/);
   assert.doesNotMatch(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /找不到就省略/);
   assert.doesNotMatch(ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, /织幕/);
@@ -61,6 +66,10 @@ test('uses a custom protocol and accepted role verbatim', () => {
     buildOutputProtocolMessage({ mode: 'anchor', content: 'CUSTOM', role: 'assistant' }),
     { role: 'assistant', content: 'CUSTOM' },
   );
+});
+
+test('omits an explicitly empty custom protocol', () => {
+  assert.equal(buildOutputProtocolMessage({ content: '', role: 'assistant' }), null);
 });
 
 test('falls back to system role and built-in text for invalid overrides', () => {

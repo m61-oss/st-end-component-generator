@@ -29,7 +29,10 @@ const OUTPUT_PROTOCOL_SYSTEM_PROMPT = `【固定输出协议｜最高优先级�
 - 添加第三个字段、额外对象、数组外壳或元数据；
 - 混淆 "thinking" 与 "output" 的内容归属。
 
-完整回复的第一个字符必须是 "{"，最后一个字符必须是 "}"。`;
+完整回复的第一个字符必须是 "{"，最后一个字符必须是 "}"。
+<think>
+我已详细阅读格式输出规则，我将直接输出json，并在json内部输出推演步骤及内容。
+</think>`;
 
 function normalizeText(value) {
   return value === null || value === undefined ? '' : String(value);
@@ -41,12 +44,7 @@ const ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT = `【固定输出协议｜锚点插�
 
 【唯一目标范围】
 
-唯一允许匹配和插入的目标，是：
-<latest_assistant_target>
-……
-</latest_assistant_target>
-
-仅两个标记之间的完整原文属于目标范围。更早的楼层只能作为背景，不得从中复制文字、生成 "anchor" 或规划插入。 "anchor" 或 "content"。
+唯一允许匹配和插入的目标，是<latest_assistant_target>后的正文内容，更早的正文只能作为背景，不得从中复制文字、生成 "anchor" 或规划插入。 "anchor" 或 "content"。
 
 完整回复必须且只能是：
 {
@@ -70,7 +68,10 @@ const ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT = `【固定输出协议｜锚点插�
 6. "content" 只包含本次新增的实际内容及其既定格式，不得重复写入 "anchor"、说明或思考。
 7. 所有思考只放入 "thinking"，所有实际交付只放入对应项的 "content"。
 8. JSON 外不得输出任何字符、解释、标题或代码围栏；严格按 JSON 规则转义双引号、反斜杠和换行。
-9. 完整回复必须以 "{" 开始、以 "}" 结束。`;
+9. 完整回复必须以 "{" 开始、以 "}" 结束。
+<think>
+我已详细阅读格式输出规则，我将直接输出json，并在json内部输出推演步骤及内容。
+</think>`;
 
 function normalizeField(value) {
   if (value === null || value === undefined) return '';
@@ -310,9 +311,11 @@ export function buildOutputProtocolMessage({ mode = 'standard', content, role = 
   const defaultContent = mode === 'anchor'
     ? ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT
     : OUTPUT_PROTOCOL_SYSTEM_PROMPT;
+  const resolvedContent = typeof content === 'string' ? content : defaultContent;
+  if (resolvedContent === '') return null;
   return {
     role: OUTPUT_PROTOCOL_ROLES.has(role) ? role : 'system',
-    content: typeof content === 'string' ? content : defaultContent,
+    content: resolvedContent,
   };
 }
 

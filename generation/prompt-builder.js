@@ -793,14 +793,15 @@ function insertTaskMessage(messages, taskMessage, taskPlacement, outputMode = 's
   const protocolMessage = buildOutputProtocolMessage({ mode: outputMode, ...outputProtocol });
   const afterSourceId = textOf(taskPlacement?.enabled ? taskPlacement?.afterSourceId : '');
   if (!afterSourceId) {
-    messages.push(taskMessage, protocolMessage);
+    messages.push(taskMessage);
+    if (protocolMessage) messages.push(protocolMessage);
     return;
   }
   const index = afterSourceId === TASK_PLACEMENT_AFTER_CHAT_HISTORY
     ? messages.findLastIndex((message) => textOf(message?.sourceMarkerType) === 'chatHistory')
     : messages.findLastIndex((message) => textOf(message?.sourceItemId) === afterSourceId);
   messages.splice(index >= 0 ? index + 1 : messages.length, 0, taskMessage);
-  messages.push(protocolMessage);
+  if (protocolMessage) messages.push(protocolMessage);
 }
 
 function stripInternalMessageFields(messages) {
