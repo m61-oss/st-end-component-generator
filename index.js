@@ -20,6 +20,7 @@ import {
   normalizeComponentIds,
   normalizeComponentScope,
 } from './sources/component-sources.js?ver=0.2.0';
+import { applyComponentPositionMove } from './sources/component-order.js?ver=0.2.0';
 import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.2.0';
 import { containsStatusPlaceholder, injectStatusbarText, normalizeStatusPlaceholder, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.2.0';
 import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.2.0';
@@ -323,6 +324,7 @@ let listFilterMode = 'all';
 let componentSearchQuery = '';
 let componentFilterMode = 'all';
 let componentEditMode = false;
+let componentMoveState = null;
 let selectedComponentIds = new Set();
 let componentLibraryOpen = true;
 let componentLibraryContextKey = '';
@@ -3970,8 +3972,42 @@ function applyFloatingBallAppearance(ball) {
   ball.style.setProperty('--st-esg-ball-opacity', String(getFloatingBallOpacity()));
 }
 
-function renderComponentListToolbar() {
-  return `<div class="st-esg-list-toolbar st-esg-component-list-toolbar"><input type="text" class="st-esg-search-input st-esg-component-search-input text_pole" placeholder="搜索组件..." value="${escapeHtml(componentSearchQuery)}"><select class="st-esg-filter-select st-esg-component-filter-select text_pole"><option value="all" ${componentFilterMode === 'all' ? 'selected' : ''}>全部</option><option value="enabled" ${componentFilterMode === 'enabled' ? 'selected' : ''}>仅启用</option><option value="disabled" ${componentFilterMode === 'disabled' ? 'selected' : ''}>仅禁用</option></select><span class="st-esg-list-count"></span></div>`;
+function getComponentPositionMoveResult() {
+  if (!componentMoveState) return { moved: false, components: settings.components };
+  return applyComponentPositionMove(
+    settings.components,
+    settings.componentGroups,
+    componentMoveState.sourceId,
+    componentMoveState.target,
+  );
+}
+
+function renderComponentPositionMoveFooter() {
+  const footer = $t('.st-esg-panel-footer');
+  if (!footer.length) return;
+  footer.find('.st-esg-component-position-footer').remove();
+  footer.toggleClass('st-esg-component-position-footer-active', Boolean(componentMoveState));
+  if (!componentMoveState) return;
+
+  const moveResult = getComponentPositionMoveResult();
+  footer.append(`<div class="st-esg-component-position-footer"><button class="menu_button st-esg-secondary-action st-esg-component-position-cancel" type="button">取消移动</button><button class="menu_button st-esg-primary-action st-esg-component-position-confirm" type="button" ${moveResult.moved ? '' : 'disabled'}>确认移动</button></div>`);
+  footer.find('.st-esg-component-position-cancel').on('click', () => {
+    componentMoveState = null;
+    renderComponentList();
+  });
+  footer.find('.st-esg-component-position-confirm').on('click', () => {
+    const moveResult = getComponentPositionMoveResult();
+    if (!moveResult.moved) return;
+    settings.components = moveResult.components;
+    saveSettings();
+    componentMoveState = null;
+    renderComponentList();
+  });
+}
+
+function renderComponentListToolbar(componentMoveActive = false) {
+  const disabled = componentMoveActive ? 'disabled' : '';
+  return `<div class="st-esg-list-toolbar st-esg-component-list-toolbar"><input type="text" class="st-esg-search-input st-esg-component-search-input text_pole" placeholder="搜索组件..." value="${escapeHtml(componentSearchQuery)}" ${disabled}><select class="st-esg-filter-select st-esg-component-filter-select text_pole" ${disabled}><option value="all" ${componentFilterMode === 'all' ? 'selected' : ''}>全部</option><option value="enabled" ${componentFilterMode === 'enabled' ? 'selected' : ''}>仅启用</option><option value="disabled" ${componentFilterMode === 'disabled' ? 'selected' : ''}>仅禁用</option></select><span class="st-esg-list-count"></span></div>`;
 }
 
 function getFloatingBallPosition() {
@@ -4041,7 +4077,14 @@ function renderComponentList() {
   ensureComponentLibraryEnhancements();
   const list = $t('#st-esg-component-list');
   if (!list.length) return;
-  componentLibraryContextKey = getComponentLibraryContextKey();
+  const nextComponentLibraryContextKey = getComponentLibraryContextKey();
+  if (componentMoveState && componentLibraryContextKey && componentLibraryContextKey !== nextComponentLibraryContextKey) componentMoveState = null;
+  componentLibraryContextKey = nextComponentLibraryContextKey;
+  const moveSource = componentMoveState ? findComponentById(componentMoveState.sourceId) : null;
+  if (componentMoveState && !moveSource) componentMoveState = null;
+  const componentMoveActive = Boolean(componentMoveState && moveSource);
+  const moveSourceScope = componentMoveActive ? normalizeComponentScope(moveSource.scope) : '';
+  const moveSourceName = componentMoveActive ? (moveSource.name || '未命名组件') : '';
   pruneSelectedComponentIds();
   const componentViewState = captureComponentLibraryViewState();
   const currentLibraryOpen = list.find('.st-esg-component-library-card').prop('open');
@@ -4049,8 +4092,8 @@ function renderComponentList() {
   const openFolderStateIds = componentViewState.openFolders;
   const openComponentIds = componentViewState.openItems;
   const editButton = componentEditMode || libraryExportMode ? '' : '<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-edit-toggle" type="button"><i class="fa-solid fa-pen-to-square"></i><span>编辑</span></button>';
-  const editToolbar = componentEditMode ? '<div class="st-esg-component-edit-toolbar"><span class="st-esg-component-edit-selection-count">未选择项目</span><span class="st-esg-component-batch-actions"><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-batch-move" type="button" title="移动到分组" aria-label="移动到分组" disabled><i class="fa-solid fa-folder-open"></i><span>移动到</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger st-esg-component-batch-delete" type="button" title="删除选中组件" aria-label="删除选中组件" disabled><i class="fa-solid fa-trash"></i><span>删除</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-edit-exit" type="button" title="退出编辑" aria-label="退出编辑"><i class="fa-solid fa-check"></i><span>退出</span></button></span></div>' : '';
-  const wrapLibrary = (content) => `<details class="st-esg-card st-esg-component-library-card st-esg-library-collapsible" ${componentLibraryOpen ? 'open' : ''}><summary class="st-esg-library-card-summary"><div class="st-esg-card-head"><div><div class="st-esg-card-title">组件库</div></div>${editButton}</div></summary><div class="st-esg-library-card-body">${editToolbar}${renderComponentListToolbar()}${content}</div></details>`;
+  const editToolbar = componentMoveActive ? '' : componentEditMode ? '<div class="st-esg-component-edit-toolbar"><span class="st-esg-component-edit-selection-count">未选择项目</span><span class="st-esg-component-batch-actions"><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-batch-move" type="button" title="移动到分组" aria-label="移动到分组" disabled><i class="fa-solid fa-folder-open"></i><span>移动到</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger st-esg-component-batch-delete" type="button" title="删除选中组件" aria-label="删除选中组件" disabled><i class="fa-solid fa-trash"></i><span>删除</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-edit-exit" type="button" title="退出编辑" aria-label="退出编辑"><i class="fa-solid fa-check"></i><span>退出</span></button></span></div>' : '';
+  const wrapLibrary = (content) => `<details class="st-esg-card st-esg-component-library-card st-esg-library-collapsible${componentMoveActive ? ' st-esg-component-position-mode' : ''}" ${componentLibraryOpen ? 'open' : ''}><summary class="st-esg-library-card-summary"><div class="st-esg-card-head"><div><div class="st-esg-card-title">组件库</div></div>${editButton}</div></summary><div class="st-esg-library-card-body">${editToolbar}${renderComponentListToolbar(componentMoveActive)}${content}</div></details>`;
   const sections = [
     { scope: COMPONENT_SCOPE_GLOBAL, title: '全局组件', desc: '启用后始终参与组件生成。' },
     { scope: COMPONENT_SCOPE_PRESET, title: '预设组件', desc: '仅当前已绑定预设方案时参与生成；未保存方案不会显示预设组件。' },
@@ -4066,23 +4109,38 @@ function renderComponentList() {
     const renderComponentItem = (item) => {
       const { sourceIndex, siblingIndexes } = getComponentSiblingIndexes(item.id);
       const siblingPosition = siblingIndexes.indexOf(sourceIndex);
-      const isOpen = openComponentIds.has(item.id);
-      const control = libraryExportMode
+      const isOpen = !componentMoveActive && openComponentIds.has(item.id);
+      const itemScopeMatches = componentMoveActive && normalizeComponentScope(item.scope) === moveSourceScope;
+      const canSelectPosition = itemScopeMatches && textOf(item.id) !== textOf(componentMoveState?.sourceId);
+      const isPositionTarget = canSelectPosition
+        && componentMoveState?.target?.kind === 'after'
+        && textOf(componentMoveState.target.componentId) === textOf(item.id);
+      const itemPositionClasses = componentMoveActive
+        ? ` ${canSelectPosition ? 'is-position-candidate' : 'is-position-unavailable'}${isPositionTarget ? ' is-position-target' : ''}`
+        : '';
+      const positionAttribute = canSelectPosition ? ` data-component-position-after="${escapeHtml(item.id)}"` : '';
+      const control = componentMoveActive ? '' : libraryExportMode
         ? `<label class="st-esg-checkbox st-esg-library-export-select-label" title="选择导出"><input class="st-esg-library-export-component" type="checkbox" data-component-id="${escapeHtml(item.id)}" aria-label="选择导出" ${exportSelectedComponentIds.has(item.id) ? 'checked' : ''} /></label>`
         : componentEditMode
           ? `<label class="st-esg-checkbox st-esg-component-select-label" title="选择组件"><input class="st-esg-component-select" type="checkbox" data-component-id="${escapeHtml(item.id)}" aria-label="选择组件" ${selectedComponentIds.has(item.id) ? 'checked' : ''} /></label>`
           : `<label class="st-esg-switch st-esg-switch-sm"><input class="st-esg-component-enabled" type="checkbox" ${item.enabled === false ? '' : 'checked'} /><span></span></label>`;
-      const actions = componentEditMode
-        ? `<span class="st-esg-component-item-actions"><button class="st-esg-icon-btn st-esg-component-move-up" type="button" title="上移" aria-label="上移" ${siblingPosition <= 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-up"></i></button><button class="st-esg-icon-btn st-esg-component-move-down" type="button" title="下移" aria-label="下移" ${siblingPosition < 0 || siblingPosition >= siblingIndexes.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-down"></i></button><button class="st-esg-icon-btn st-esg-component-move-to" type="button" title="移动到分组" aria-label="移动到分组"><i class="fa-solid fa-folder-open"></i></button><button class="st-esg-icon-btn st-esg-icon-danger st-esg-component-delete" type="button" title="删除组件" aria-label="删除组件"><i class="fa-solid fa-trash"></i></button></span>`
+      const actions = componentMoveActive ? '' : componentEditMode
+        ? `<span class="st-esg-component-item-actions"><button class="st-esg-icon-btn st-esg-component-move-up" type="button" title="上移" aria-label="上移" ${siblingPosition <= 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-up"></i></button><button class="st-esg-icon-btn st-esg-component-move-down" type="button" title="下移" aria-label="下移" ${siblingPosition < 0 || siblingPosition >= siblingIndexes.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-down"></i></button><button class="st-esg-icon-btn st-esg-component-move-to" type="button" title="移动到指定位置" aria-label="移动到指定位置"><i class="fa-solid fa-arrow-down-wide-short"></i></button><button class="st-esg-icon-btn st-esg-icon-danger st-esg-component-delete" type="button" title="删除组件" aria-label="删除组件"><i class="fa-solid fa-trash"></i></button></span>`
         : '';
-      return `<details class="st-esg-component-item" data-component-id="${escapeHtml(item.id)}" ${isOpen ? 'open' : ''}><summary class="st-esg-component-item-head"><span class="st-esg-component-name">${escapeHtml(item.name || '未命名组件')}</span>${control}${actions}</summary><div class="st-esg-component-preview" data-loaded="${isOpen ? 'true' : 'false'}">${isOpen ? renderComponentPreview(item) : ''}</div></details>`;
+      const positionPreview = isPositionTarget ? `<div class="st-esg-component-position-preview">↓「${escapeHtml(moveSourceName)}」将插入到这里</div>` : '';
+      return `<details class="st-esg-component-item${itemPositionClasses}" data-component-id="${escapeHtml(item.id)}" ${isOpen ? 'open' : ''}><summary class="st-esg-component-item-head"${positionAttribute}><span class="st-esg-component-name">${escapeHtml(item.name || '未命名组件')}</span>${control}${actions}</summary><div class="st-esg-component-preview" data-loaded="${isOpen ? 'true' : 'false'}">${isOpen ? renderComponentPreview(item) : ''}</div></details>${positionPreview}`;
     };
     const defaultGroup = { groupId: '', name: '默认分组', enabled: settings.defaultGroupEnabled?.[section.scope] !== false, items: library.ungrouped, isDefault: true };
     const groupHtml = [...library.groups, defaultGroup].map((group) => {
       const folderStateId = `${section.scope}::${group.isDefault ? '__default__' : group.groupId}`;
       const groupEnabled = group.enabled !== false;
       const enabledCount = group.items.filter((item) => item.enabled !== false).length;
-      const control = libraryExportMode
+      const groupScopeMatches = componentMoveActive && normalizeComponentScope(section.scope) === moveSourceScope;
+      const groupStartSelected = groupScopeMatches
+        && componentMoveState?.target?.kind === 'group-start'
+        && normalizeComponentScope(componentMoveState.target.scope) === moveSourceScope
+        && textOf(componentMoveState.target.groupId) === textOf(group.groupId);
+      const control = componentMoveActive ? '' : libraryExportMode
         ? `<label class="st-esg-checkbox st-esg-library-export-select-label" title="选择本组导出"><input class="st-esg-library-export-component-group" type="checkbox" data-group-id="${escapeHtml(group.groupId)}" aria-label="选择本组导出" /></label>`
         : componentEditMode
           ? `<label class="st-esg-checkbox st-esg-component-select-label" title="选择本组"><input class="st-esg-component-group-select" type="checkbox" data-group-id="${escapeHtml(group.groupId)}" data-default-group-scope="${group.isDefault ? escapeHtml(section.scope) : ''}" aria-label="选择本组" /></label>`
@@ -4090,18 +4148,21 @@ function renderComponentList() {
           ? `<label class="st-esg-switch st-esg-switch-sm" title="启用默认分组"><input class="st-esg-component-default-group-enabled" type="checkbox" data-scope="${escapeHtml(section.scope)}" ${groupEnabled ? 'checked' : ''} /><span></span></label>`
           : `<label class="st-esg-switch st-esg-switch-sm" title="启用此分组"><input class="st-esg-component-group-enabled" type="checkbox" data-group-id="${escapeHtml(group.groupId)}" ${groupEnabled ? 'checked' : ''} /><span></span></label>`;
       const { groupPosition, siblingGroups } = group.isDefault ? { groupPosition: -1, siblingGroups: [] } : getComponentGroupSiblingGroups(group.groupId);
-      const actions = componentEditMode ? (group.isDefault ? '' : `<span class="st-esg-component-group-actions"><button class="st-esg-icon-btn st-esg-component-group-move-up" type="button" data-group-id="${escapeHtml(group.groupId)}" title="上移分组" aria-label="上移分组" ${groupPosition <= 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-up"></i></button><button class="st-esg-icon-btn st-esg-component-group-move-down" type="button" data-group-id="${escapeHtml(group.groupId)}" title="下移分组" aria-label="下移分组" ${groupPosition < 0 || groupPosition >= siblingGroups.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-down"></i></button><button class="st-esg-icon-btn st-esg-component-group-rename" type="button" data-group-id="${escapeHtml(group.groupId)}" title="重命名分组" aria-label="重命名分组"><i class="fa-solid fa-pen"></i></button><button class="st-esg-icon-btn st-esg-icon-danger st-esg-component-group-delete" type="button" data-group-id="${escapeHtml(group.groupId)}" title="删除分组" aria-label="删除分组"><i class="fa-solid fa-trash"></i></button></span>`) : '';
+      const actions = componentMoveActive ? '' : componentEditMode ? (group.isDefault ? '' : `<span class="st-esg-component-group-actions"><button class="st-esg-icon-btn st-esg-component-group-move-up" type="button" data-group-id="${escapeHtml(group.groupId)}" title="上移分组" aria-label="上移分组" ${groupPosition <= 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-up"></i></button><button class="st-esg-icon-btn st-esg-component-group-move-down" type="button" data-group-id="${escapeHtml(group.groupId)}" title="下移分组" aria-label="下移分组" ${groupPosition < 0 || groupPosition >= siblingGroups.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-down"></i></button><button class="st-esg-icon-btn st-esg-component-group-rename" type="button" data-group-id="${escapeHtml(group.groupId)}" title="重命名分组" aria-label="重命名分组"><i class="fa-solid fa-pen"></i></button><button class="st-esg-icon-btn st-esg-icon-danger st-esg-component-group-delete" type="button" data-group-id="${escapeHtml(group.groupId)}" title="删除分组" aria-label="删除分组"><i class="fa-solid fa-trash"></i></button></span>`) : '';
       const body = group.items.length ? group.items.map(renderComponentItem).join('') : '<div class="st-esg-empty st-esg-empty-small">暂无组件</div>';
       const allItemsEnabled = group.items.length > 0 && enabledCount === group.items.length;
       const toggleItemsButton = group.items.length
-        && !libraryExportMode ? `<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-group-toggle-items" type="button" data-group-id="${escapeHtml(group.groupId)}"><i class="fa-solid ${allItemsEnabled ? 'fa-toggle-off' : 'fa-toggle-on'}"></i><span>${allItemsEnabled ? '关闭全部条目' : '开启全部条目'}</span></button>`
+        && !libraryExportMode && !componentMoveActive ? `<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-group-toggle-items" type="button" data-group-id="${escapeHtml(group.groupId)}"><i class="fa-solid ${allItemsEnabled ? 'fa-toggle-off' : 'fa-toggle-on'}"></i><span>${allItemsEnabled ? '关闭全部条目' : '开启全部条目'}</span></button>`
         : '';
-      const groupContent = `<div class="st-esg-component-group-content"><div class="st-esg-component-group-toolbar">${toggleItemsButton}</div><div class="st-esg-component-group-items">${body}</div></div>`;
+      const groupStartPreview = groupStartSelected ? `<div class="st-esg-component-position-preview">↓「${escapeHtml(moveSourceName)}」将插入到这里</div>` : '';
+      const groupStartTarget = groupScopeMatches ? `<button class="st-esg-component-position-target st-esg-component-position-target-top${groupStartSelected ? ' is-position-target' : ''}" type="button" data-component-position-group-start="${escapeHtml(group.groupId)}" data-component-position-scope="${escapeHtml(section.scope)}">插入到本组顶部</button>${groupStartPreview}` : '';
+      const groupContent = `<div class="st-esg-component-group-content"><div class="st-esg-component-group-toolbar">${toggleItemsButton}</div><div class="st-esg-component-group-items">${groupStartTarget}${body}</div></div>`;
       return `<details class="st-esg-component-folder${groupEnabled ? '' : ' st-esg-component-folder-is-disabled'}" data-group-id="${escapeHtml(group.groupId)}" data-default-group="${group.isDefault ? 'true' : 'false'}" data-folder-state-id="${escapeHtml(folderStateId)}" ${openFolderStateIds.has(folderStateId) ? 'open' : ''}><summary class="st-esg-component-folder-head"><span class="st-esg-component-folder-title">${escapeHtml(group.name)}</span><em class="st-esg-component-folder-count${groupEnabled ? '' : ' is-disabled'}">${enabledCount}/${group.items.length}</em>${control}${actions}<i class="fa-solid fa-chevron-down st-esg-component-folder-caret"></i></summary><div class="st-esg-component-folder-body">${groupContent}</div></details>`;
     }).join('');
     const sectionContent = groupHtml;
-    const createGroupButton = componentEditMode ? `<button class="st-esg-icon-btn st-esg-component-group-create" type="button" data-scope="${escapeHtml(section.scope)}" title="新建分组" aria-label="新建分组"><i class="fa-solid fa-folder-plus"></i></button>` : '';
-    return `<details class="st-esg-component-section" open><summary class="st-esg-component-section-head"><div><span class="st-esg-import-group-title">${section.title}</span><i class="fa-solid fa-circle-question st-esg-component-section-info" title="${escapeHtml(section.desc)}"></i>${createGroupButton}</div><em>${count} 个</em></summary><div class="st-esg-component-section-body">${sectionContent}</div></details>`;
+    const createGroupButton = componentMoveActive ? '' : componentEditMode ? `<button class="st-esg-icon-btn st-esg-component-group-create" type="button" data-scope="${escapeHtml(section.scope)}" title="新建分组" aria-label="新建分组"><i class="fa-solid fa-folder-plus"></i></button>` : '';
+    const unavailableClass = componentMoveActive && normalizeComponentScope(section.scope) !== moveSourceScope ? ' is-position-unavailable' : '';
+    return `<details class="st-esg-component-section${unavailableClass}" open><summary class="st-esg-component-section-head"><div><span class="st-esg-import-group-title">${section.title}</span><i class="fa-solid fa-circle-question st-esg-component-section-info" title="${escapeHtml(section.desc)}"></i>${createGroupButton}</div><em>${count} 个</em></summary><div class="st-esg-component-section-body">${sectionContent}</div></details>`;
   }).join('')));
   list.find('.st-esg-component-section-info').remove();
   const currentPresetSchemeName = getPresetSchemeById(getActiveSchemeId('preset'))?.name || '未保存方案';
@@ -4145,6 +4206,24 @@ function renderComponentList() {
   list.find('.st-esg-component-filter-select').on('change', function () {
     componentFilterMode = String($(this).val() || 'all');
     applyComponentListFilters();
+  });
+  list.find('[data-component-position-after]').on('click', function (event) {
+    if (!componentMoveState) return;
+    event.preventDefault();
+    event.stopPropagation();
+    componentMoveState.target = { kind: 'after', componentId: textOf($(this).attr('data-component-position-after')) };
+    renderComponentList();
+  });
+  list.find('[data-component-position-group-start]').on('click', function (event) {
+    if (!componentMoveState) return;
+    event.preventDefault();
+    event.stopPropagation();
+    componentMoveState.target = {
+      kind: 'group-start',
+      scope: normalizeComponentScope($(this).attr('data-component-position-scope')),
+      groupId: textOf($(this).attr('data-component-position-group-start')),
+    };
+    renderComponentList();
   });
   list.find('.st-esg-component-batch-move').on('click', async (event) => {
     event.preventDefault();
@@ -4286,24 +4365,14 @@ function renderComponentList() {
     saveSettings();
     renderComponentList();
   });
-  list.find('.st-esg-component-move-to').on('click', async function (event) {
+  list.find('.st-esg-component-move-to').on('click', function (event) {
     event.preventDefault();
     const componentId = textOf($(this).closest('.st-esg-component-item').attr('data-component-id'));
     const component = findComponentById(componentId);
     if (!component) return;
-    const scope = normalizeComponentScope(component.scope);
-    const groups = settings.componentGroups.filter((group) => normalizeComponentScope(group?.scope) === scope);
-    if (!groups.length && !textOf(component.groupId)) { notifyStatus('组件已在默认分组中，请先创建其他分组。', 'warning'); return; }
-    const currentValue = textOf(component.groupId) || DEFAULT_COMPONENT_GROUP_VALUE;
-    const selected = await requestTextInputDialog({
-      title: '移动组件',
-      label: '目标分组',
-      value: currentValue,
-      options: [{ value: DEFAULT_COMPONENT_GROUP_VALUE, label: '默认分组' }, ...groups.map((group) => ({ value: group.id, label: group.name }))],
-    });
-    if (!selected) return;
-    if (!moveComponentToGroup(componentId, selected === DEFAULT_COMPONENT_GROUP_VALUE ? '' : selected)) return;
-    saveSettings();
+    selectedComponentIds.clear();
+    resetComponentLibraryFilters();
+    componentMoveState = { sourceId: componentId, target: null };
     renderComponentList();
   });
   $t('.st-esg-component-folder-head .st-esg-switch').on('click', (event) => event.stopPropagation());
@@ -4348,6 +4417,7 @@ function renderComponentList() {
     notifyStatus('已删除组件。');
   });
   $t('.st-esg-component-item').on('toggle', function () {
+    if (componentMoveState) { this.open = false; return; }
     if (!this.open) return;
     const preview = this.querySelector('.st-esg-component-preview');
     if (!preview || preview.dataset.loaded === 'true') return;
@@ -4382,6 +4452,7 @@ function renderComponentList() {
   });
   restoreComponentLibraryViewState(componentViewState);
   applyComponentListFilters();
+  renderComponentPositionMoveFooter();
   renderTheaterLibrary();
   bindLibraryTransferControls();
 }
@@ -4745,7 +4816,9 @@ function getImportTarget(sourceType = 'preset') {
 
 function resetComponentEditMode() {
   componentEditMode = false;
+  componentMoveState = null;
   selectedComponentIds.clear();
+  renderComponentPositionMoveFooter();
 }
 
 function resetComponentLibraryFilters() {
@@ -4834,24 +4907,6 @@ function moveComponentGroupWithinScope(groupId, direction) {
   const group = siblingGroups[groupPosition];
   if (!group || !targetGroup) return false;
   [group.order, targetGroup.order] = [targetGroup.order, group.order];
-  return true;
-}
-
-function moveComponentToGroup(componentId, targetGroupId) {
-  const sourceIndex = settings.components.findIndex((item) => textOf(item?.id) === textOf(componentId));
-  const component = settings.components[sourceIndex];
-  if (!component) return false;
-  const scope = normalizeComponentScope(component.scope);
-  const groupId = textOf(targetGroupId);
-  if (groupId && !settings.componentGroups.some((group) => textOf(group?.id) === groupId && normalizeComponentScope(group?.scope) === scope)) return false;
-  if (textOf(component.groupId) === groupId) return false;
-  settings.components.splice(sourceIndex, 1);
-  component.groupId = groupId;
-  let insertIndex = settings.components.length;
-  settings.components.forEach((item, index) => {
-    if (normalizeComponentScope(item?.scope) === scope && textOf(item?.groupId) === groupId) insertIndex = index + 1;
-  });
-  settings.components.splice(insertIndex, 0, component);
   return true;
 }
 
@@ -5058,7 +5113,7 @@ function bindLibraryTransferControls() {
     libraryExportMode = true;
     exportSelectedComponentIds.clear();
     exportSelectedTheaterIds.clear();
-    componentEditMode = false;
+    resetComponentEditMode();
     theaterEditMode = false;
     selectedComponentIds.clear();
     selectedTheaterIds.clear();

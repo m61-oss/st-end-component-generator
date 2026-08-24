@@ -866,6 +866,16 @@ select.st-esg-scheme-select {
 #st-esg-dialog .st-esg-component-item-head { box-sizing: content-box; min-height: 32px; height: 32px; padding: 6px 8px; }
 #st-esg-dialog .st-esg-component-item-head .st-esg-component-delete { min-height: 24px !important; height: 24px !important; padding: 0 7px !important; line-height: 1 !important; }
 .st-esg-component-item-head em { max-width: 120px; overflow: hidden; color: var(--esg-text-muted); font-style: normal; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.st-esg-component-position-mode .st-esg-component-list-toolbar :is(input, select):disabled { opacity: 0.48; cursor: not-allowed; }
+.st-esg-component-position-mode .st-esg-component-section.is-position-unavailable { opacity: 0.35; pointer-events: none; }
+.st-esg-component-position-mode .st-esg-component-folder-is-disabled .st-esg-component-folder-body { opacity: 1; }
+.st-esg-component-position-mode .st-esg-component-item { opacity: .35; transition: opacity 140ms ease, background 140ms ease; }
+.st-esg-component-position-mode .st-esg-component-item.is-position-candidate .st-esg-component-item-head { cursor: pointer; }
+.st-esg-component-position-mode .st-esg-component-item.is-position-unavailable .st-esg-component-item-head { cursor: default; }
+.st-esg-component-position-mode .st-esg-component-item.is-position-target { opacity: 1; background: var(--esg-bg-hover); outline: 1px solid var(--esg-text-main); outline-offset: -1px; }
+.st-esg-component-position-target { width: 100%; min-height: 32px; padding: 6px 8px; border: 0; border-bottom: 1px dashed var(--esg-border); border-radius: 0; color: var(--esg-text-muted); background: var(--esg-bg-secondary); text-align: center; cursor: pointer; }
+.st-esg-component-position-target.is-position-target { color: var(--esg-text-main); background: var(--esg-bg-hover); outline: 1px solid var(--esg-text-main); outline-offset: -1px; }
+.st-esg-component-position-preview { padding: 7px 9px; border: 1px dashed var(--esg-text-main); border-width: 1px 0; color: var(--esg-text-main); background: var(--esg-bg-secondary); font-size: 11px; text-align: center; }
 .st-esg-import-item { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 32px; padding: 6px 8px; overflow: hidden; }
 details.st-esg-import-item { display: block; padding: 0; overflow: visible; }
 details.st-esg-import-item > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; min-height: 32px; padding: 6px 8px; cursor: pointer; list-style-position: inside; }
@@ -1030,6 +1040,10 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 
 .st-esg-panel-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--esg-border); }
 .st-esg-footer-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.st-esg-panel-footer.st-esg-component-position-footer-active { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+.st-esg-component-position-footer-active > :not(.st-esg-component-position-footer) { display: none !important; }
+.st-esg-component-position-footer { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; }
+.st-esg-component-position-footer .menu_button { display: inline-flex !important; align-items: center; justify-content: center; min-height: 34px; }
 .st-esg-primary-action,
 .st-esg-secondary-action { min-height: 28px; padding-inline: 10px !important; border-radius: 6px !important; }
 .st-esg-primary-action { color: var(--esg-bg-card) !important; border-color: var(--esg-text-main) !important; background: var(--esg-text-main) !important; }
