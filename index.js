@@ -3713,7 +3713,7 @@ function switchTab(tabName) {
   if (settings.activeTab === nextTab && nextTabButton.hasClass('active')) return;
   const leavingComponentLibrary = nextTab !== 'components';
   const shouldRefreshComponentLibrary = leavingComponentLibrary
-    && (componentEditMode || componentMoveState || componentSearchQuery || componentFilterMode !== 'all');
+    && (componentEditMode || componentMoveState || theaterMoveState || componentSearchQuery || componentFilterMode !== 'all');
   if (leavingComponentLibrary) {
     resetComponentEditMode();
     resetComponentLibraryFilters();
@@ -3752,7 +3752,7 @@ function togglePanel(forceOpen) {
   if (!dialog) return;
   const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !dialog.open;
   const shouldRefreshComponentList = Boolean(
-    componentEditMode || componentMoveState || componentSearchQuery || componentFilterMode !== 'all',
+    componentEditMode || componentMoveState || theaterMoveState || componentSearchQuery || componentFilterMode !== 'all',
   );
   targetDoc.getElementById('st-esg-ball')?.classList.toggle('st-esg-ball-under-panel', shouldOpen);
   applyTheme();
@@ -4415,6 +4415,7 @@ function renderComponentList() {
     if (!component) return;
     selectedComponentIds.clear();
     resetComponentLibraryFilters();
+    theaterMoveState = null;
     componentMoveState = {
       sourceId: componentId,
       target: null,
@@ -4834,7 +4835,7 @@ function renderTheaterLibrary() {
     renderTheaterLibrary();
   });
   host.find('.st-esg-theater-edit-toggle').on('click', (event) => { event.preventDefault(); event.stopPropagation(); theaterEditMode = true; renderTheaterLibrary(); });
-  host.find('.st-esg-theater-edit-exit').on('click', (event) => { event.preventDefault(); event.stopPropagation(); theaterEditMode = false; selectedTheaterIds.clear(); renderTheaterLibrary(); });
+  host.find('.st-esg-theater-edit-exit').on('click', (event) => { event.preventDefault(); event.stopPropagation(); theaterEditMode = false; theaterMoveState = null; selectedTheaterIds.clear(); renderTheaterLibrary(); });
   host.find('.st-esg-theater-select, .st-esg-theater-group-select').on('click', (event) => event.stopPropagation());
   host.find('.st-esg-theater-select').on('change', function (event) { event.stopPropagation(); const id = textOf($(this).attr('data-component-id')); if ($(this).prop('checked')) selectedTheaterIds.add(id); else selectedTheaterIds.delete(id); applyTheaterLibraryFilters(); });
   host.find('.st-esg-theater-group-select').on('change', function (event) { event.stopPropagation(); const ids = $(this).closest('.st-esg-theater-folder').find('.st-esg-theater-item').map((_, item) => textOf($(item).attr('data-component-id'))).get(); const allSelected = ids.length > 0 && ids.every((id) => selectedTheaterIds.has(id)); ids.forEach((id) => { if (allSelected) selectedTheaterIds.delete(id); else selectedTheaterIds.add(id); }); applyTheaterLibraryFilters(); });
@@ -4857,6 +4858,7 @@ function renderTheaterLibrary() {
     selectedTheaterIds.clear();
     theaterSearchQuery = '';
     theaterFilterMode = 'all';
+    componentMoveState = null;
     theaterMoveState = { sourceId: item.id, target: null };
     renderTheaterLibrary();
   });
@@ -4912,6 +4914,7 @@ function getImportTarget(sourceType = 'preset') {
 function resetComponentEditMode() {
   componentEditMode = false;
   componentMoveState = null;
+  theaterMoveState = null;
   selectedComponentIds.clear();
   renderComponentPositionMoveFooter();
 }
