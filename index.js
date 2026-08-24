@@ -1920,10 +1920,9 @@ function applyGeneratedResult(rawText) {
     output: settings.lastGenerated,
     anchorItems: settings.lastGeneratedAnchorItems,
   };
-  if (
-    messageFloorPanelState.status === FLOOR_PANEL_STATUS.GENERATING
-    && hasInjectableFloorPanelResult(floorResult)
-  ) syncMessageFloorPanelResult({ status: FLOOR_PANEL_STATUS.READY });
+  if (messageFloorPanelState.status === FLOOR_PANEL_STATUS.GENERATING) {
+    syncMessageFloorPanelResult({ status: getEndedFloorPanelStatus(floorResult) });
+  }
   return settings.lastGenerated;
 }
 

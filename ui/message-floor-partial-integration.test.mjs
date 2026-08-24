@@ -17,10 +17,11 @@ test('generation errors normalize retained stream text before choosing floor act
   assert.match(catchSource, /hasInjectableFloorPanelResult\(retainedFloorResult\)/);
 });
 
-test('applying a generated result does not mark unusable protocol fragments ready', () => {
+test('applying a generated result always settles the current floor generation', () => {
   const applyStart = indexSource.indexOf('function applyGeneratedResult');
   const applyEnd = indexSource.indexOf('async function buildMessages', applyStart);
   const applySource = indexSource.slice(applyStart, applyEnd);
 
-  assert.match(applySource, /hasInjectableFloorPanelResult\(floorResult\)/);
+  assert.match(applySource, /messageFloorPanelState\.status === FLOOR_PANEL_STATUS\.GENERATING[\s\S]*getEndedFloorPanelStatus\(floorResult\)/);
+  assert.doesNotMatch(applySource, /messageFloorPanelState\.status === FLOOR_PANEL_STATUS\.GENERATING\s*&&\s*hasInjectableFloorPanelResult\(floorResult\)/);
 });
