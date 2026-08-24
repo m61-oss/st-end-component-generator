@@ -3768,6 +3768,7 @@ function togglePanel(forceOpen) {
     } else {
       dialog.setAttribute('open', '');
     }
+    dialog.focus({ preventScroll: true });
     if (!importGroups.length || promptSourceCache.structureDirty) scanImportCandidates().catch(() => {});
     if (settings.activeTab === 'workspace') scheduleGeneratedPreviewResize();
   } else if (dialog.open && typeof dialog.close === 'function') {
@@ -6507,6 +6508,7 @@ function renderPluginPanel() {
   const dialog = targetDoc.createElement('dialog');
   dialog.id = 'st-esg-dialog';
   dialog.className = 'st-esg-dialog';
+  dialog.tabIndex = -1;
   dialog.innerHTML = buildPluginPanelMarkup();
   upgradePanelActionToButton(dialog, '#st-esg-generate');
   upgradePanelActionToButton(dialog, '#st-esg-inject');

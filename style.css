@@ -92,6 +92,8 @@
   z-index: 2147483647 !important;
 }
 
+.st-esg-dialog:focus { outline: none; }
+
 /* Keep every extension-owned dialog and reused Tavern control independent from Tavern typography. */
 .st-esg-dialog,
 .st-esg-scheme-name-dialog {
@@ -1060,6 +1062,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-dialog .st-esg-icon-btn:active { transform: translateY(1px); }
 .st-esg-dialog .menu_button:focus-visible,
 .st-esg-dialog .st-esg-tab:focus-visible,
+.st-esg-dialog .st-esg-header-btn:focus-visible,
 .st-esg-dialog .st-esg-icon-btn:focus-visible { outline: 2px solid var(--esg-primary); outline-offset: 2px; }
 .st-esg-scheme-name-dialog .st-esg-primary-action,
 .st-esg-scheme-name-dialog .st-esg-secondary-action { border-radius: 8px !important; }
