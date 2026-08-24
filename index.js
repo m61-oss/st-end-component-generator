@@ -3983,7 +3983,7 @@ function getComponentPositionMoveResult() {
   return applyComponentPositionMove(
     settings.components,
     settings.componentGroups,
-    componentMoveState.sourceId,
+    componentMoveState.sourceIds,
     componentMoveState.target,
     { eligibleComponentIds: componentMoveState.eligibleComponentIds },
   );
@@ -3994,7 +3994,7 @@ function getTheaterPositionMoveResult() {
   return applyComponentPositionMove(
     settings.theaterComponents,
     settings.theaterGroups,
-    theaterMoveState.sourceId,
+    theaterMoveState.sourceIds,
     theaterMoveState.target,
   );
 }
@@ -4036,11 +4036,19 @@ function renderComponentPositionMoveFooter() {
     if (!confirmedResult.moved) return;
     if (activeLibrary === 'components') {
       settings.components = confirmedResult.components;
+      if (componentMoveState?.batch) {
+        selectedComponentIds.clear();
+        componentEditMode = false;
+      }
       componentMoveState = null;
       saveSettings();
       renderComponentList();
     } else {
       settings.theaterComponents = confirmedResult.components;
+      if (theaterMoveState?.batch) {
+        selectedTheaterIds.clear();
+        theaterEditMode = false;
+      }
       theaterMoveState = null;
       saveSettings();
       renderTheaterLibrary();
@@ -4126,11 +4134,13 @@ function renderComponentList() {
     theaterMoveState = null;
   }
   componentLibraryContextKey = nextComponentLibraryContextKey;
-  const moveSource = componentMoveState ? findComponentById(componentMoveState.sourceId) : null;
-  if (componentMoveState && !moveSource) componentMoveState = null;
-  const componentMoveActive = Boolean(componentMoveState && moveSource);
-  const moveSourceScope = componentMoveActive ? normalizeComponentScope(moveSource.scope) : '';
-  const moveSourceName = componentMoveActive ? (moveSource.name || '未命名组件') : '';
+  const moveSources = componentMoveState?.sourceIds?.map(findComponentById).filter(Boolean) || [];
+  if (componentMoveState && moveSources.length !== componentMoveState.sourceIds.length) componentMoveState = null;
+  const componentMoveActive = Boolean(componentMoveState && moveSources.length);
+  const moveSourceScope = componentMoveActive ? normalizeComponentScope(moveSources[0].scope) : '';
+  const moveSourceName = componentMoveActive ? (moveSources[0].name || '未命名组件') : '';
+  const moveSourceIdSet = new Set(componentMoveState?.sourceIds || []);
+  const moveSourceLabel = componentMoveState?.batch ? `${componentMoveState.sourceIds.length} 个选中条目` : `「${moveSourceName}」`;
   pruneSelectedComponentIds();
   const componentViewState = captureComponentLibraryViewState();
   const currentLibraryOpen = list.find('.st-esg-component-library-card').prop('open');
@@ -4138,7 +4148,7 @@ function renderComponentList() {
   const openFolderStateIds = componentViewState.openFolders;
   const openComponentIds = componentViewState.openItems;
   const editButton = componentEditMode || libraryExportMode ? '' : '<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-edit-toggle" type="button"><i class="fa-solid fa-pen-to-square"></i><span>编辑</span></button>';
-  const editToolbar = componentMoveActive ? '' : componentEditMode ? '<div class="st-esg-component-edit-toolbar"><span class="st-esg-component-edit-selection-count">未选择项目</span><span class="st-esg-component-batch-actions"><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-batch-move" type="button" title="移动到分组" aria-label="移动到分组" disabled><i class="fa-solid fa-folder-open"></i><span>移动到</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger st-esg-component-batch-delete" type="button" title="删除选中组件" aria-label="删除选中组件" disabled><i class="fa-solid fa-trash"></i><span>删除</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-edit-exit" type="button" title="退出编辑" aria-label="退出编辑"><i class="fa-solid fa-check"></i><span>退出</span></button></span></div>' : '';
+  const editToolbar = componentMoveActive ? '' : componentEditMode ? '<div class="st-esg-component-edit-toolbar"><span class="st-esg-component-edit-selection-count">未选择项目</span><span class="st-esg-component-batch-actions"><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-batch-move" type="button" title="移动到指定位置" aria-label="移动到指定位置" disabled><i class="fa-solid fa-arrow-down-wide-short"></i><span>移动到</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger st-esg-component-batch-delete" type="button" title="删除选中组件" aria-label="删除选中组件" disabled><i class="fa-solid fa-trash"></i><span>删除</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-edit-exit" type="button" title="退出编辑" aria-label="退出编辑"><i class="fa-solid fa-check"></i><span>退出</span></button></span></div>' : '';
   const wrapLibrary = (content) => `<details class="st-esg-card st-esg-component-library-card st-esg-library-collapsible${componentMoveActive ? ' st-esg-component-position-mode' : ''}" ${componentLibraryOpen ? 'open' : ''}><summary class="st-esg-library-card-summary"><div class="st-esg-card-head"><div><div class="st-esg-card-title">组件库</div></div>${editButton}</div></summary><div class="st-esg-library-card-body">${editToolbar}${renderComponentListToolbar(componentMoveActive)}${content}</div></details>`;
   const sections = [
     { scope: COMPONENT_SCOPE_GLOBAL, title: '全局组件', desc: '启用后始终参与组件生成。' },
@@ -4157,7 +4167,7 @@ function renderComponentList() {
       const siblingPosition = siblingIndexes.indexOf(sourceIndex);
       const isOpen = !componentMoveActive && openComponentIds.has(item.id);
       const itemScopeMatches = componentMoveActive && normalizeComponentScope(item.scope) === moveSourceScope;
-      const canSelectPosition = itemScopeMatches && textOf(item.id) !== textOf(componentMoveState?.sourceId);
+      const canSelectPosition = itemScopeMatches && !moveSourceIdSet.has(textOf(item.id));
       const isPositionTarget = canSelectPosition
         && componentMoveState?.target?.kind === 'after'
         && textOf(componentMoveState.target.componentId) === textOf(item.id);
@@ -4173,7 +4183,7 @@ function renderComponentList() {
       const actions = componentMoveActive ? '' : componentEditMode
         ? `<span class="st-esg-component-item-actions"><button class="st-esg-icon-btn st-esg-component-move-up" type="button" title="上移" aria-label="上移" ${siblingPosition <= 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-up"></i></button><button class="st-esg-icon-btn st-esg-component-move-down" type="button" title="下移" aria-label="下移" ${siblingPosition < 0 || siblingPosition >= siblingIndexes.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-down"></i></button><button class="st-esg-icon-btn st-esg-component-move-to" type="button" title="移动到指定位置" aria-label="移动到指定位置"><i class="fa-solid fa-arrow-down-wide-short"></i></button><button class="st-esg-icon-btn st-esg-icon-danger st-esg-component-delete" type="button" title="删除组件" aria-label="删除组件"><i class="fa-solid fa-trash"></i></button></span>`
         : '';
-      const positionPreview = isPositionTarget ? `<div class="st-esg-component-position-preview">↓「${escapeHtml(moveSourceName)}」将插入到这里</div>` : '';
+      const positionPreview = isPositionTarget ? `<div class="st-esg-component-position-preview">↓ ${escapeHtml(moveSourceLabel)}将插入到这里</div>` : '';
       return `<details class="st-esg-component-item${itemPositionClasses}" data-component-id="${escapeHtml(item.id)}" ${isOpen ? 'open' : ''}><summary class="st-esg-component-item-head"${positionAttribute}><span class="st-esg-component-name">${escapeHtml(item.name || '未命名组件')}</span>${control}${actions}</summary><div class="st-esg-component-preview" data-loaded="${isOpen ? 'true' : 'false'}">${isOpen ? renderComponentPreview(item) : ''}</div></details>${positionPreview}`;
     };
     const defaultGroup = { groupId: '', name: '默认分组', enabled: settings.defaultGroupEnabled?.[section.scope] !== false, items: library.ungrouped, isDefault: true };
@@ -4200,7 +4210,7 @@ function renderComponentList() {
       const toggleItemsButton = group.items.length
         && !libraryExportMode && !componentMoveActive ? `<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-group-toggle-items" type="button" data-group-id="${escapeHtml(group.groupId)}"><i class="fa-solid ${allItemsEnabled ? 'fa-toggle-off' : 'fa-toggle-on'}"></i><span>${allItemsEnabled ? '关闭全部条目' : '开启全部条目'}</span></button>`
         : '';
-      const groupStartPreview = groupStartSelected ? `<div class="st-esg-component-position-preview">↓「${escapeHtml(moveSourceName)}」将插入到这里</div>` : '';
+      const groupStartPreview = groupStartSelected ? `<div class="st-esg-component-position-preview">↓ ${escapeHtml(moveSourceLabel)}将插入到这里</div>` : '';
       const groupStartTarget = groupScopeMatches ? `<button class="st-esg-component-position-target st-esg-component-position-target-top${groupStartSelected ? ' is-position-target' : ''}" type="button" data-component-position-group-start="${escapeHtml(group.groupId)}" data-component-position-scope="${escapeHtml(section.scope)}">插入到本组顶部</button>${groupStartPreview}` : '';
       const groupContent = `<div class="st-esg-component-group-content"><div class="st-esg-component-group-toolbar">${toggleItemsButton}</div><div class="st-esg-component-group-items">${groupStartTarget}${body}</div></div>`;
       return `<details class="st-esg-component-folder${groupEnabled ? '' : ' st-esg-component-folder-is-disabled'}" data-group-id="${escapeHtml(group.groupId)}" data-default-group="${group.isDefault ? 'true' : 'false'}" data-folder-state-id="${escapeHtml(folderStateId)}" ${openFolderStateIds.has(folderStateId) ? 'open' : ''}><summary class="st-esg-component-folder-head"><span class="st-esg-component-folder-title">${escapeHtml(group.name)}</span><em class="st-esg-component-folder-count${groupEnabled ? '' : ' is-disabled'}">${enabledCount}/${group.items.length}</em>${control}${actions}<i class="fa-solid fa-chevron-down st-esg-component-folder-caret"></i></summary><div class="st-esg-component-folder-body">${groupContent}</div></details>`;
@@ -4271,7 +4281,7 @@ function renderComponentList() {
     };
     renderComponentList();
   });
-  list.find('.st-esg-component-batch-move').on('click', async (event) => {
+  list.find('.st-esg-component-batch-move').on('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
     pruneSelectedComponentIds();
@@ -4279,21 +4289,21 @@ function renderComponentList() {
     const scopes = new Set(selectedComponents.map((component) => normalizeComponentScope(component.scope)));
     if (!selectedComponents.length) return;
     if (scopes.size !== 1) { notifyStatus('所选组件属于不同归属，请分别移动。', 'warning'); return; }
-    const [scope] = scopes;
-    const groups = settings.componentGroups.filter((group) => normalizeComponentScope(group?.scope) === scope);
-    if (!groups.length && selectedComponents.every((component) => !textOf(component?.groupId))) { notifyStatus('所选组件已在默认分组中，请先创建其他分组。', 'warning'); return; }
-    const selected = await requestTextInputDialog({
-      title: '移动组件',
-      label: '目标分组',
-      value: DEFAULT_COMPONENT_GROUP_VALUE,
-      options: [{ value: DEFAULT_COMPONENT_GROUP_VALUE, label: '默认分组' }, ...groups.map((group) => ({ value: group.id, label: group.name }))],
-    });
-    if (!selected) return;
-    if (!moveComponentsToGroup(selectedComponents.map((component) => component.id), selected === DEFAULT_COMPONENT_GROUP_VALUE ? '' : selected)) return;
-    selectedComponentIds.clear();
-    saveSettings();
+    const eligibleComponentIds = getComponentPositionEligibleIds(selectedComponents[0]);
+    const eligibleComponentIdSet = new Set(eligibleComponentIds);
+    if (selectedComponents.some((component) => !eligibleComponentIdSet.has(textOf(component.id)))) {
+      notifyStatus('所选组件属于不同归属，请分别移动。', 'warning');
+      return;
+    }
+    resetComponentLibraryFilters();
+    theaterMoveState = null;
+    componentMoveState = {
+      sourceIds: selectedComponents.map((component) => textOf(component.id)),
+      target: null,
+      eligibleComponentIds,
+      batch: true,
+    };
     renderComponentList();
-    notifyStatus('已移动选中的组件。');
   });
   list.find('.st-esg-component-batch-delete').on('click', (event) => {
     event.preventDefault();
@@ -4420,9 +4430,10 @@ function renderComponentList() {
     resetComponentLibraryFilters();
     theaterMoveState = null;
     componentMoveState = {
-      sourceId: componentId,
+      sourceIds: [componentId],
       target: null,
       eligibleComponentIds: getComponentPositionEligibleIds(component),
+      batch: false,
     };
     renderComponentList();
   });
@@ -4692,10 +4703,12 @@ function getTheaterRandomGroupCandidates(groups) {
 function renderTheaterLibrary() {
   const host = $t('#st-esg-theater-list');
   if (!host.length) return;
-  const moveSource = theaterMoveState ? findTheaterItemById(theaterMoveState.sourceId) : null;
-  if (theaterMoveState && !moveSource) theaterMoveState = null;
-  const theaterMoveActive = Boolean(theaterMoveState && moveSource);
-  const moveSourceName = theaterMoveActive ? (moveSource.name || '未命名小剧场') : '';
+  const moveSources = theaterMoveState?.sourceIds?.map(findTheaterItemById).filter(Boolean) || [];
+  if (theaterMoveState && moveSources.length !== theaterMoveState.sourceIds.length) theaterMoveState = null;
+  const theaterMoveActive = Boolean(theaterMoveState && moveSources.length);
+  const moveSourceName = theaterMoveActive ? (moveSources[0].name || '未命名小剧场') : '';
+  const moveSourceIdSet = new Set(theaterMoveState?.sourceIds || []);
+  const moveSourceLabel = theaterMoveState?.batch ? `${theaterMoveState.sourceIds.length} 个选中条目` : `「${moveSourceName}」`;
   const openFolders = new Set(host.find('.st-esg-theater-folder[open]').map((_, item) => textOf($(item).attr('data-folder-state-id'))).get());
   const openItems = new Set(host.find('.st-esg-theater-item[open]').map((_, item) => textOf($(item).attr('data-component-id'))).get());
   const currentLibraryOpen = host.find('.st-esg-theater-library-card').prop('open');
@@ -4706,7 +4719,7 @@ function renderTheaterLibrary() {
   const groups = [...folders.groups, { id: '', name: '默认分组', enabled: settings.theaterDefaultGroupEnabled !== false, items: folders.ungrouped, isDefault: true }];
   const editButton = theaterMoveActive || theaterEditMode || libraryExportMode ? '' : '<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-edit-toggle" type="button"><i class="fa-solid fa-pen-to-square"></i><span>编辑</span></button>';
   const editToolbar = theaterMoveActive ? '' : theaterEditMode
-    ? '<div class="st-esg-component-edit-toolbar"><span class="st-esg-theater-selection-count">未选择项目</span><span class="st-esg-component-batch-actions"><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-batch-move" type="button" disabled><i class="fa-solid fa-folder-open"></i><span>移动</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger st-esg-theater-batch-delete" type="button" disabled><i class="fa-solid fa-trash"></i><span>删除</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-edit-exit" type="button"><i class="fa-solid fa-check"></i><span>退出</span></button></span></div>'
+    ? '<div class="st-esg-component-edit-toolbar"><span class="st-esg-theater-selection-count">未选择项目</span><span class="st-esg-component-batch-actions"><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-batch-move" type="button" disabled><i class="fa-solid fa-arrow-down-wide-short"></i><span>移动</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger st-esg-theater-batch-delete" type="button" disabled><i class="fa-solid fa-trash"></i><span>删除</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-edit-exit" type="button"><i class="fa-solid fa-check"></i><span>退出</span></button></span></div>'
     : '';
   const randomScope = normalizeTheaterRandomScope(settings.theaterRandomScope);
   const globalMode = normalizeTheaterRandomMode(settings.theaterRandomMode);
@@ -4732,7 +4745,7 @@ function renderTheaterLibrary() {
   const theaterRandomSettingsMarkupV2 = `<details class="st-esg-theater-random-settings" ${theaterRandomSettingsOpen ? 'open' : ''}><summary class="st-esg-theater-random-summary"><span>随机设置</span><em>${randomScope === THEATER_RANDOM_SCOPE_GLOBAL ? '全局随机' : '按组随机'}</em><i class="fa-solid fa-chevron-down st-esg-theater-random-caret"></i></summary><div class="st-esg-theater-random-body">${theaterRandomSettingsV2ScopeMarkup}${globalRandomSettingsMarkup}${groupedRandomSettingsMarkup}</div></details>`;
   const renderItem = (item) => {
     const isOpen = !theaterMoveActive && openItems.has(item.id);
-    const canSelectPosition = theaterMoveActive && textOf(item.id) !== textOf(theaterMoveState?.sourceId);
+    const canSelectPosition = theaterMoveActive && !moveSourceIdSet.has(textOf(item.id));
     const isPositionTarget = canSelectPosition
       && theaterMoveState?.target?.kind === 'after'
       && textOf(theaterMoveState.target.componentId) === textOf(item.id);
@@ -4750,7 +4763,7 @@ function renderTheaterLibrary() {
     const actions = theaterMoveActive ? '' : theaterEditMode
       ? `<span class="st-esg-component-item-actions"><button class="st-esg-icon-btn st-esg-theater-move-up" type="button" data-component-id="${escapeHtml(item.id)}" ${siblingPosition <= 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-up"></i></button><button class="st-esg-icon-btn st-esg-theater-move-down" type="button" data-component-id="${escapeHtml(item.id)}" ${siblingPosition < 0 || siblingPosition >= siblingIndexes.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-down"></i></button><button class="st-esg-icon-btn st-esg-theater-move-to" type="button" data-component-id="${escapeHtml(item.id)}"><i class="fa-solid fa-arrow-down-wide-short"></i></button><button class="st-esg-icon-btn st-esg-icon-danger st-esg-theater-delete" type="button" data-component-id="${escapeHtml(item.id)}"><i class="fa-solid fa-trash"></i></button></span>`
       : '';
-    const positionPreview = isPositionTarget ? `<div class="st-esg-component-position-preview">↓「${escapeHtml(moveSourceName)}」将插入到这里</div>` : '';
+    const positionPreview = isPositionTarget ? `<div class="st-esg-component-position-preview">↓ ${escapeHtml(moveSourceLabel)}将插入到这里</div>` : '';
     return `<details class="st-esg-component-item st-esg-theater-item${positionClasses}" data-component-id="${escapeHtml(item.id)}" ${isOpen ? 'open' : ''}><summary class="st-esg-component-item-head"${positionAttribute}><span class="st-esg-component-name">${escapeHtml(item.name || '未命名小剧场')}</span>${controls}${actions}</summary><div class="st-esg-component-preview" data-loaded="${isOpen ? 'true' : 'false'}">${isOpen ? renderTheaterPreview(item) : ''}</div></details>${positionPreview}`;
   };
   const folderHtml = groups.map((group) => {
@@ -4779,7 +4792,7 @@ function renderTheaterLibrary() {
     const toggleItemsButton = group.items.length
       && !libraryExportMode && !theaterMoveActive ? `<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-group-toggle-items" type="button" data-group-id="${escapeHtml(groupId)}"><i class="fa-solid ${allItemsEnabled ? 'fa-toggle-off' : 'fa-toggle-on'}"></i><span>${allItemsEnabled ? '关闭全部条目' : '开启全部条目'}</span></button>`
       : '';
-    const groupStartPreview = groupStartSelected ? `<div class="st-esg-component-position-preview">↓「${escapeHtml(moveSourceName)}」将插入到这里</div>` : '';
+    const groupStartPreview = groupStartSelected ? `<div class="st-esg-component-position-preview">↓ ${escapeHtml(moveSourceLabel)}将插入到这里</div>` : '';
     const groupStartTarget = theaterMoveActive ? `<button class="st-esg-component-position-target st-esg-component-position-target-top${groupStartSelected ? ' is-position-target' : ''}" type="button" data-theater-position-group-start="${escapeHtml(groupId)}">插入到本组顶部</button>${groupStartPreview}` : '';
     const groupContent = `<div class="st-esg-theater-group-content"><div class="st-esg-theater-group-toolbar">${toggleItemsButton}</div><div class="st-esg-theater-group-items">${groupStartTarget}${body}</div></div>`;
     return `<details class="st-esg-component-folder st-esg-theater-folder${groupEnabled ? '' : ' st-esg-component-folder-is-disabled'}" data-group-id="${escapeHtml(groupId)}" data-folder-state-id="${escapeHtml(folderStateId)}" ${openFolders.has(folderStateId) ? 'open' : ''}><summary class="st-esg-component-folder-head"><span class="st-esg-component-folder-title">${escapeHtml(group.name)}</span><em class="st-esg-component-folder-count${groupEnabled ? '' : ' is-disabled'}">${enabledCount}/${group.items.length}</em>${controls}${actions}${createGroupButton}<i class="fa-solid fa-chevron-down st-esg-component-folder-caret"></i></summary><div class="st-esg-component-folder-body">${groupContent}</div></details>`;
@@ -4844,7 +4857,21 @@ function renderTheaterLibrary() {
   host.find('.st-esg-theater-group-select').on('change', function (event) { event.stopPropagation(); const ids = $(this).closest('.st-esg-theater-folder').find('.st-esg-theater-item').map((_, item) => textOf($(item).attr('data-component-id'))).get(); const allSelected = ids.length > 0 && ids.every((id) => selectedTheaterIds.has(id)); ids.forEach((id) => { if (allSelected) selectedTheaterIds.delete(id); else selectedTheaterIds.add(id); }); applyTheaterLibraryFilters(); });
   host.find('.st-esg-theater-group-toggle-items').on('click', function (event) { event.preventDefault(); event.stopPropagation(); const ids = $(this).closest('.st-esg-theater-folder').find('.st-esg-theater-item').map((_, item) => textOf($(item).attr('data-component-id'))).get(); const groupItems = ids.map((id) => findTheaterItemById(id)).filter(Boolean); if (!groupItems.length) return; const allEnabled = groupItems.every((item) => item.enabled !== false); groupItems.forEach((item) => { item.enabled = !allEnabled; }); saveSettings(); renderTheaterLibrary(); });
   host.find('.st-esg-theater-batch-delete').on('click', () => { if (!selectedTheaterIds.size || !targetWindow.confirm(`确认删除选中的 ${selectedTheaterIds.size} 个小剧场？此操作无法恢复。`)) return; settings.theaterComponents = settings.theaterComponents.filter((item) => !selectedTheaterIds.has(textOf(item?.id))); selectedTheaterIds.clear(); saveSettings(); renderComponentList(); notifyStatus('已删除选中的小剧场。'); });
-  host.find('.st-esg-theater-batch-move').on('click', async () => { if (!selectedTheaterIds.size) return; const groupsForMove = settings.theaterGroups.slice().sort((left, right) => Number(left.order) - Number(right.order)); const selected = await requestTextInputDialog({ title: '移动小剧场', label: '目标分组', value: DEFAULT_COMPONENT_GROUP_VALUE, options: [{ value: DEFAULT_COMPONENT_GROUP_VALUE, label: '默认分组' }, ...groupsForMove.map((group) => ({ value: group.id, label: group.name }))] }); if (!selected) return; [...selectedTheaterIds].forEach((id) => moveTheaterItemToGroup(id, selected === DEFAULT_COMPONENT_GROUP_VALUE ? '' : selected)); selectedTheaterIds.clear(); saveSettings(); renderComponentList(); });
+  host.find('.st-esg-theater-batch-move').on('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const selectedItems = settings.theaterComponents.filter((item) => selectedTheaterIds.has(textOf(item?.id)));
+    if (!selectedItems.length) return;
+    theaterSearchQuery = '';
+    theaterFilterMode = 'all';
+    componentMoveState = null;
+    theaterMoveState = {
+      sourceIds: selectedItems.map((item) => textOf(item.id)),
+      target: null,
+      batch: true,
+    };
+    renderTheaterLibrary();
+  });
   host.find('.st-esg-theater-group-create').on('click', async (event) => { event.preventDefault(); event.stopPropagation(); const name = await requestTextInputDialog({ title: '新建小剧场分组', label: '分组名', placeholder: '输入分组名' }); if (!name) return; const order = settings.theaterGroups.reduce((max, group) => Math.max(max, Number(group.order) || 0), -1) + 1; settings.theaterGroups.push({ id: createNewTheaterGroupId(), name, enabled: true, order }); saveSettings(); renderComponentList(); });
   host.find('.st-esg-theater-group-up, .st-esg-theater-group-down').on('click', function (event) { event.preventDefault(); event.stopPropagation(); if (moveTheaterGroupWithinLibrary($(this).attr('data-group-id'), $(this).hasClass('st-esg-theater-group-up') ? -1 : 1)) { saveSettings(); renderComponentList(); } });
   host.find('.st-esg-theater-group-rename').on('click', async function (event) { event.preventDefault(); event.stopPropagation(); const group = settings.theaterGroups.find((item) => textOf(item?.id) === textOf($(this).attr('data-group-id'))); if (!group) return; const name = await requestTextInputDialog({ title: '重命名小剧场分组', label: '分组名', value: group.name, placeholder: '输入分组名' }); if (!name) return; group.name = name; saveSettings(); renderComponentList(); });
@@ -4862,7 +4889,7 @@ function renderTheaterLibrary() {
     theaterSearchQuery = '';
     theaterFilterMode = 'all';
     componentMoveState = null;
-    theaterMoveState = { sourceId: item.id, target: null };
+    theaterMoveState = { sourceIds: [item.id], target: null, batch: false };
     renderTheaterLibrary();
   });
   host.find('.st-esg-theater-delete').on('click', function (event) { event.preventDefault(); event.stopPropagation(); const id = textOf($(this).attr('data-component-id')); const item = findTheaterItemById(id); if (!item || !targetWindow.confirm(`确认删除小剧场“${item.name || '未命名'}”？此操作无法恢复。`)) return; settings.theaterComponents = settings.theaterComponents.filter((candidate) => textOf(candidate?.id) !== id); selectedTheaterIds.delete(id); saveSettings(); renderComponentList(); });

@@ -13,7 +13,7 @@ test('single-component move action enters positioning mode instead of opening th
   assert.match(indexSource, /title="移动到指定位置" aria-label="移动到指定位置"/);
 
   const handler = indexSource.match(/list\.find\('\.st-esg-component-move-to'\)\.on\('click',[\s\S]*?\n\s*\}\);/)?.[0] || '';
-  assert.match(handler, /componentMoveState = \{[\s\S]*sourceId: componentId,[\s\S]*target: null,[\s\S]*eligibleComponentIds:/);
+  assert.match(handler, /componentMoveState = \{[\s\S]*sourceIds: \[componentId\],[\s\S]*target: null,[\s\S]*eligibleComponentIds:[\s\S]*batch: false/);
   assert.match(handler, /resetComponentLibraryFilters\(\)/);
   assert.doesNotMatch(handler, /requestTextInputDialog/);
   assert.doesNotMatch(handler, /moveComponentToGroup/);
@@ -36,11 +36,40 @@ test('single-theater move enters the same positioning interaction without a grou
   assert.match(button, /fa-arrow-down-wide-short/);
   assert.doesNotMatch(button, /fa-folder-open/);
   const handler = indexSource.match(/host\.find\('\.st-esg-theater-move-to'\)\.on\('click',[\s\S]*?\n\s*\}\);/)?.[0] || '';
-  assert.match(handler, /theaterMoveState = \{ sourceId: item\.id, target: null \}/);
+  assert.match(handler, /theaterMoveState = \{ sourceIds: \[item\.id\], target: null, batch: false \}/);
   assert.doesNotMatch(handler, /requestTextInputDialog/);
   assert.match(indexSource, /data-theater-position-after=/);
   assert.match(indexSource, /data-theater-position-group-start=/);
   assert.match(indexSource, /theaterMoveState\?\.target/);
+});
+
+test('batch move actions enter positioning mode without opening a group dialog', () => {
+  const componentButton = indexSource.match(/<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-component-batch-move"[\s\S]*?<\/button>/)?.[0] || '';
+  const theaterButton = indexSource.match(/<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-batch-move"[\s\S]*?<\/button>/)?.[0] || '';
+  assert.match(componentButton, /fa-arrow-down-wide-short/);
+  assert.match(theaterButton, /fa-arrow-down-wide-short/);
+
+  const componentHandler = indexSource.match(/list\.find\('\.st-esg-component-batch-move'\)\.on\('click',[\s\S]*?\n\s*\}\);/)?.[0] || '';
+  assert.match(componentHandler, /sourceIds: selectedComponents\.map/);
+  assert.match(componentHandler, /batch: true/);
+  assert.match(componentHandler, /所选组件属于不同归属/);
+  assert.doesNotMatch(componentHandler, /requestTextInputDialog/);
+  assert.doesNotMatch(componentHandler, /moveComponentsToGroup/);
+
+  const theaterHandler = indexSource.match(/host\.find\('\.st-esg-theater-batch-move'\)\.on\('click',[\s\S]*?\n\s*\}\);/)?.[0] || '';
+  assert.match(theaterHandler, /sourceIds: selectedItems\.map/);
+  assert.match(theaterHandler, /batch: true/);
+  assert.doesNotMatch(theaterHandler, /requestTextInputDialog/);
+  assert.doesNotMatch(theaterHandler, /moveTheaterItemToGroup/);
+});
+
+test('batch positioning excludes every selected source and uses count preview copy', () => {
+  assert.match(indexSource, /const moveSourceIdSet = new Set\(componentMoveState\?\.sourceIds \|\| \[\]\)/);
+  assert.match(indexSource, /!moveSourceIdSet\.has\(textOf\(item\.id\)\)/);
+  assert.match(indexSource, /componentMoveState\?\.batch[\s\S]*个选中条目/);
+  assert.match(indexSource, /const moveSourceIdSet = new Set\(theaterMoveState\?\.sourceIds \|\| \[\]\)/);
+  assert.match(indexSource, /!moveSourceIdSet\.has\(textOf\(item\.id\)\)/);
+  assert.match(indexSource, /theaterMoveState\?\.batch[\s\S]*个选中条目/);
 });
 
 test('positioning mode disables ordinary library controls and cancels with edit context', () => {
@@ -74,6 +103,8 @@ test('footer is replaced by cancel and confirm actions without rebuilding existi
   assert.match(indexSource, /st-esg-component-position-confirm[^>]*\$\{moveResult\.moved \? '' : 'disabled'\}/);
   assert.match(indexSource, /settings\.components = confirmedResult\.components;[\s\S]*componentMoveState = null;[\s\S]*saveSettings\(\)/);
   assert.match(indexSource, /settings\.theaterComponents = confirmedResult\.components;[\s\S]*theaterMoveState = null;[\s\S]*saveSettings\(\)/);
+  assert.match(indexSource, /componentMoveState\?\.batch[\s\S]*selectedComponentIds\.clear\(\);[\s\S]*componentEditMode = false/);
+  assert.match(indexSource, /theaterMoveState\?\.batch[\s\S]*selectedTheaterIds\.clear\(\);[\s\S]*theaterEditMode = false/);
   assert.match(indexSource, /class="st-esg-footer-actions st-esg-component-position-footer"/);
 });
 

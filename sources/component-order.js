@@ -56,16 +56,18 @@ export function applyComponentPositionMove(components, componentGroups, sourceId
     return unchanged(components);
   }
 
-  if (target.kind === 'group-start'
-    && movingComponents.every((component) => {
-      const sourceGroupId = findValidGroup(componentGroups, sourceScope, component.groupId)?.id || '';
-      return sourceGroupId === targetGroupId && textOf(component.groupId) === targetGroupId;
-    })) {
-    const firstTargetGroupComponent = eligibleComponents.find((component) => {
+  if (target.kind === 'group-start') {
+    const targetGroupComponents = eligibleComponents.filter((component) => {
       const componentGroupId = findValidGroup(componentGroups, sourceScope, component?.groupId)?.id || '';
       return componentGroupId === targetGroupId;
     });
-    if (sourceIdSet.has(textOf(firstTargetGroupComponent?.id))) return unchanged(components);
+    const alreadyAtGroupStart = movingComponents.every((component, index) => {
+      const sourceGroupId = findValidGroup(componentGroups, sourceScope, component?.groupId)?.id || '';
+      return sourceGroupId === targetGroupId
+        && textOf(component.groupId) === targetGroupId
+        && textOf(targetGroupComponents[index]?.id) === textOf(component.id);
+    });
+    if (alreadyAtGroupStart) return unchanged(components);
   }
 
   const remaining = eligibleComponents.filter((component) => !sourceIdSet.has(textOf(component?.id)));

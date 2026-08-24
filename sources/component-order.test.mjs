@@ -249,6 +249,22 @@ test('returns the original array for logical batch no-ops', () => {
   assert.equal(result.components, ordered);
 });
 
+test('moves noncontiguous selected items together even when the first group item is selected', () => {
+  const ordered = [
+    { id: 'a', scope: 'scope', groupId: 'group-a' },
+    { id: 'b', scope: 'scope', groupId: 'group-a' },
+    { id: 'c', scope: 'scope', groupId: 'group-a' },
+  ];
+  const result = applyComponentPositionMove(ordered, [{ id: 'group-a', scope: 'scope' }], ['a', 'c'], {
+    kind: 'group-start',
+    scope: 'scope',
+    groupId: 'group-a',
+  });
+
+  assert.equal(result.moved, true);
+  assert.deepEqual(ids(result.components), ['a', 'c', 'b']);
+});
+
 test('moves only eligible batch ownership slots and preserves hidden records', () => {
   const interleaved = [
     { id: 'character-a-1', scope: 'character', groupId: '' },
