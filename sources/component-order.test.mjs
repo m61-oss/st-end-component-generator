@@ -177,3 +177,98 @@ test('ignores hidden ownership records when source is already first in its visib
   assert.equal(result.moved, false);
   assert.equal(result.components, interleaved);
 });
+
+test('moves scattered selected sources as a current-library-order block after a target', () => {
+  const result = applyComponentPositionMove(components, groups, ['c', 'a'], {
+    kind: 'after',
+    componentId: 'd',
+  });
+
+  assert.equal(result.moved, true);
+  assert.deepEqual(
+    result.components.map(({ id, groupId }) => [id, groupId]),
+    [
+      ['b', 'group-a'],
+      ['d', 'group-b'],
+      ['a', 'group-b'],
+      ['c', 'group-b'],
+      ['e', ''],
+      ['p', 'preset-group'],
+    ],
+  );
+});
+
+test('moves a selected block to the first position in a target group', () => {
+  const result = applyComponentPositionMove(components, groups, ['d', 'b'], {
+    kind: 'group-start',
+    scope: components[0].scope,
+    groupId: 'group-b',
+  });
+
+  assert.equal(result.moved, true);
+  assert.deepEqual(
+    result.components.map(({ id, groupId }) => [id, groupId]),
+    [
+      ['a', 'group-a'],
+      ['b', 'group-b'],
+      ['d', 'group-b'],
+      ['c', 'group-b'],
+      ['e', ''],
+      ['p', 'preset-group'],
+    ],
+  );
+});
+
+test('rejects batch moves with mixed scopes, missing sources, duplicate-only input, or an after target in the selection', () => {
+  const invalidMoves = [
+    [['a', 'p'], { kind: 'after', componentId: 'd' }],
+    [['a', 'missing'], { kind: 'after', componentId: 'd' }],
+    [['a', 'a'], { kind: 'after', componentId: 'd' }],
+    [['a', 'c'], { kind: 'after', componentId: 'c' }],
+  ];
+
+  invalidMoves.forEach(([sourceIds, target]) => {
+    const result = applyComponentPositionMove(components, groups, sourceIds, target);
+    assert.equal(result.moved, false);
+    assert.equal(result.components, components);
+  });
+});
+
+test('returns the original array for logical batch no-ops', () => {
+  const ordered = [
+    { id: 'a', scope: 'scope', groupId: 'group-a' },
+    { id: 'b', scope: 'scope', groupId: 'group-a' },
+    { id: 'c', scope: 'scope', groupId: 'group-a' },
+  ];
+  const result = applyComponentPositionMove(ordered, [{ id: 'group-a', scope: 'scope' }], ['b', 'c'], {
+    kind: 'after',
+    componentId: 'a',
+  });
+
+  assert.equal(result.moved, false);
+  assert.equal(result.components, ordered);
+});
+
+test('moves only eligible batch ownership slots and preserves hidden records', () => {
+  const interleaved = [
+    { id: 'character-a-1', scope: 'character', groupId: '' },
+    { id: 'character-b-1', scope: 'character', groupId: '' },
+    { id: 'character-a-2', scope: 'character', groupId: '' },
+    { id: 'character-b-2', scope: 'character', groupId: '' },
+  ];
+  const result = applyComponentPositionMove(
+    interleaved,
+    [],
+    ['character-a-2', 'character-a-1'],
+    { kind: 'after', componentId: 'character-b-2' },
+    { eligibleComponentIds: ['character-a-1', 'character-a-2', 'character-b-2'] },
+  );
+
+  assert.equal(result.moved, true);
+  assert.deepEqual(ids(result.components), [
+    'character-b-2',
+    'character-b-1',
+    'character-a-1',
+    'character-a-2',
+  ]);
+});
