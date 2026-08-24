@@ -74,8 +74,9 @@ test('places a component in an empty valid group', () => {
   });
 
   assert.equal(result.moved, true);
-  assert.equal(result.components.at(-1).id, 'a');
-  assert.equal(result.components.at(-1).groupId, 'empty-group');
+  assert.equal(result.components[4].id, 'a');
+  assert.equal(result.components[4].groupId, 'empty-group');
+  assert.equal(result.components.at(-1).id, 'p');
 });
 
 test('rejects self, missing, invalid-group, and cross-scope targets', () => {
@@ -105,4 +106,57 @@ test('rejects a group-start target when the source already occupies that positio
 
   assert.equal(result.moved, false);
   assert.equal(result.components, components);
+});
+
+test('ignores hidden ownership records when an after target is already the visible successor', () => {
+  const interleaved = [
+    { id: 'preset-a-1', scope: 'preset', groupId: '' },
+    { id: 'preset-b-1', scope: 'preset', groupId: '' },
+    { id: 'preset-a-2', scope: 'preset', groupId: '' },
+  ];
+  const result = applyComponentPositionMove(
+    interleaved,
+    [],
+    'preset-a-2',
+    { kind: 'after', componentId: 'preset-a-1' },
+    { eligibleComponentIds: ['preset-a-1', 'preset-a-2'] },
+  );
+
+  assert.equal(result.moved, false);
+  assert.equal(result.components, interleaved);
+});
+
+test('reorders only eligible ownership slots and leaves hidden records in place', () => {
+  const interleaved = [
+    { id: 'character-a-1', scope: 'character', groupId: '' },
+    { id: 'character-b-1', scope: 'character', groupId: '' },
+    { id: 'character-a-2', scope: 'character', groupId: '' },
+  ];
+  const result = applyComponentPositionMove(
+    interleaved,
+    [],
+    'character-a-1',
+    { kind: 'after', componentId: 'character-a-2' },
+    { eligibleComponentIds: ['character-a-1', 'character-a-2'] },
+  );
+
+  assert.equal(result.moved, true);
+  assert.deepEqual(ids(result.components), ['character-a-2', 'character-b-1', 'character-a-1']);
+});
+
+test('ignores hidden ownership records when source is already first in its visible group', () => {
+  const interleaved = [
+    { id: 'preset-b-1', scope: 'preset', groupId: 'shared-group' },
+    { id: 'preset-a-1', scope: 'preset', groupId: 'shared-group' },
+  ];
+  const result = applyComponentPositionMove(
+    interleaved,
+    [{ id: 'shared-group', scope: 'preset' }],
+    'preset-a-1',
+    { kind: 'group-start', scope: 'preset', groupId: 'shared-group' },
+    { eligibleComponentIds: ['preset-a-1'] },
+  );
+
+  assert.equal(result.moved, false);
+  assert.equal(result.components, interleaved);
 });

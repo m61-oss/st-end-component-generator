@@ -13,7 +13,7 @@ test('single-component move action enters positioning mode instead of opening th
   assert.match(indexSource, /title="移动到指定位置" aria-label="移动到指定位置"/);
 
   const handler = indexSource.match(/list\.find\('\.st-esg-component-move-to'\)\.on\('click',[\s\S]*?\n\s*\}\);/)?.[0] || '';
-  assert.match(handler, /componentMoveState = \{ sourceId: componentId, target: null \}/);
+  assert.match(handler, /componentMoveState = \{[\s\S]*sourceId: componentId,[\s\S]*target: null,[\s\S]*eligibleComponentIds:/);
   assert.match(handler, /resetComponentLibraryFilters\(\)/);
   assert.doesNotMatch(handler, /requestTextInputDialog/);
   assert.doesNotMatch(handler, /moveComponentToGroup/);
@@ -36,6 +36,8 @@ test('positioning mode disables ordinary library controls and cancels with edit 
   assert.match(indexSource, /function resetComponentEditMode\(\)[\s\S]*componentMoveState = null/);
   assert.match(indexSource, /componentLibraryContextKey !== nextComponentLibraryContextKey[\s\S]*componentMoveState = null/);
   assert.match(indexSource, /componentMoveActive \? '' : componentEditMode/);
+  assert.match(indexSource, /shouldRefreshComponentLibrary[\s\S]*componentMoveState/);
+  assert.match(indexSource, /shouldRefreshComponentList[\s\S]*componentMoveState/);
 });
 
 test('footer is replaced by cancel and confirm actions without rebuilding existing handlers', () => {

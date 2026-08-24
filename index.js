@@ -3712,7 +3712,7 @@ function switchTab(tabName) {
   if (settings.activeTab === nextTab && nextTabButton.hasClass('active')) return;
   const leavingComponentLibrary = nextTab !== 'components';
   const shouldRefreshComponentLibrary = leavingComponentLibrary
-    && (componentEditMode || componentSearchQuery || componentFilterMode !== 'all');
+    && (componentEditMode || componentMoveState || componentSearchQuery || componentFilterMode !== 'all');
   if (leavingComponentLibrary) {
     resetComponentEditMode();
     resetComponentLibraryFilters();
@@ -3750,13 +3750,16 @@ function togglePanel(forceOpen) {
   const dialog = getDialog();
   if (!dialog) return;
   const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !dialog.open;
+  const shouldRefreshComponentList = Boolean(
+    componentEditMode || componentMoveState || componentSearchQuery || componentFilterMode !== 'all',
+  );
   targetDoc.getElementById('st-esg-ball')?.classList.toggle('st-esg-ball-under-panel', shouldOpen);
   applyTheme();
   if (shouldOpen) {
     resetComponentEditMode();
     resetComponentLibraryFilters();
     const componentList = targetDoc.getElementById('st-esg-component-list');
-    if (!componentList?.children.length || componentLibraryContextKey !== getComponentLibraryContextKey()) renderComponentList();
+    if (shouldRefreshComponentList || !componentList?.children.length || componentLibraryContextKey !== getComponentLibraryContextKey()) renderComponentList();
     closeSillyTavernOverlays();
     targetDoc.body.appendChild(dialog);
     if (typeof dialog.show === 'function') {
@@ -3769,10 +3772,12 @@ function togglePanel(forceOpen) {
   } else if (dialog.open && typeof dialog.close === 'function') {
     resetComponentEditMode();
     resetComponentLibraryFilters();
+    if (shouldRefreshComponentList) renderComponentList();
     dialog.close();
   } else {
     resetComponentEditMode();
     resetComponentLibraryFilters();
+    if (shouldRefreshComponentList) renderComponentList();
     dialog.removeAttribute('open');
   }
   $t('#st-esg-menu-button').toggleClass('selected', shouldOpen);
@@ -3979,7 +3984,21 @@ function getComponentPositionMoveResult() {
     settings.componentGroups,
     componentMoveState.sourceId,
     componentMoveState.target,
+    { eligibleComponentIds: componentMoveState.eligibleComponentIds },
   );
+}
+
+function getComponentPositionEligibleIds(source) {
+  const sourceScope = normalizeComponentScope(source?.scope);
+  return settings.components
+    .filter((component) => {
+      if (normalizeComponentScope(component?.scope) !== sourceScope) return false;
+      if (sourceScope === COMPONENT_SCOPE_PRESET) return textOf(component?.presetSchemeId) === textOf(source?.presetSchemeId);
+      if (sourceScope === COMPONENT_SCOPE_CHARACTER) return textOf(component?.bindName) === textOf(source?.bindName);
+      return true;
+    })
+    .map((component) => textOf(component?.id))
+    .filter(Boolean);
 }
 
 function renderComponentPositionMoveFooter() {
@@ -4372,7 +4391,11 @@ function renderComponentList() {
     if (!component) return;
     selectedComponentIds.clear();
     resetComponentLibraryFilters();
-    componentMoveState = { sourceId: componentId, target: null };
+    componentMoveState = {
+      sourceId: componentId,
+      target: null,
+      eligibleComponentIds: getComponentPositionEligibleIds(component),
+    };
     renderComponentList();
   });
   $t('.st-esg-component-folder-head .st-esg-switch').on('click', (event) => event.stopPropagation());

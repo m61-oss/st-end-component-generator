@@ -10,7 +10,7 @@ function findValidGroup(componentGroups, scope, groupId) {
   return componentGroups.find((group) => textOf(group?.id) === id && textOf(group?.scope) === scope) || null;
 }
 
-export function applyComponentPositionMove(components, componentGroups, sourceId, target) {
+export function applyComponentPositionMove(components, componentGroups, sourceId, target, options = {}) {
   if (!Array.isArray(components) || !Array.isArray(componentGroups) || !target) return unchanged(components);
 
   const id = textOf(sourceId);
@@ -19,13 +19,24 @@ export function applyComponentPositionMove(components, componentGroups, sourceId
   if (!source) return unchanged(components);
 
   const sourceScope = textOf(source.scope);
+  const eligibleIdSet = Array.isArray(options.eligibleComponentIds)
+    ? new Set(options.eligibleComponentIds.map(textOf).filter(Boolean))
+    : null;
+  const eligibleIndexes = components.reduce((indexes, component, index) => {
+    const componentId = textOf(component?.id);
+    if (textOf(component?.scope) === sourceScope && (!eligibleIdSet || eligibleIdSet.has(componentId))) indexes.push(index);
+    return indexes;
+  }, []);
+  const eligibleComponents = eligibleIndexes.map((index) => components[index]);
+  const eligibleSourceIndex = eligibleComponents.findIndex((component) => textOf(component?.id) === id);
+  if (eligibleSourceIndex < 0) return unchanged(components);
   let targetGroupId = '';
   let targetComponentId = '';
 
   if (target.kind === 'after') {
     targetComponentId = textOf(target.componentId);
     if (!targetComponentId || targetComponentId === id) return unchanged(components);
-    const targetComponent = components.find((component) => textOf(component?.id) === targetComponentId);
+    const targetComponent = eligibleComponents.find((component) => textOf(component?.id) === targetComponentId);
     if (!targetComponent || textOf(targetComponent.scope) !== sourceScope) return unchanged(components);
     const requestedGroupId = textOf(targetComponent.groupId);
     targetGroupId = findValidGroup(componentGroups, sourceScope, requestedGroupId)?.id || '';
@@ -39,7 +50,7 @@ export function applyComponentPositionMove(components, componentGroups, sourceId
     return unchanged(components);
   }
 
-  const remaining = components.filter((_, index) => index !== sourceIndex);
+  const remaining = eligibleComponents.filter((_, index) => index !== eligibleSourceIndex);
   let insertIndex = remaining.length;
   if (target.kind === 'after') {
     const targetIndex = remaining.findIndex((component) => textOf(component?.id) === targetComponentId);
@@ -58,8 +69,12 @@ export function applyComponentPositionMove(components, componentGroups, sourceId
   const movedSource = sourceGroupId === targetGroupId && textOf(source.groupId) === targetGroupId
     ? source
     : { ...source, groupId: targetGroupId };
-  const nextComponents = remaining.slice();
-  nextComponents.splice(insertIndex, 0, movedSource);
+  const nextEligibleComponents = remaining.slice();
+  nextEligibleComponents.splice(insertIndex, 0, movedSource);
+  const nextComponents = components.slice();
+  eligibleIndexes.forEach((componentIndex, index) => {
+    nextComponents[componentIndex] = nextEligibleComponents[index];
+  });
 
   const moved = nextComponents.length === components.length
     && nextComponents.some((component, index) => component !== components[index]);
