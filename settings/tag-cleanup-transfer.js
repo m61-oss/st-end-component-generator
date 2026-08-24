@@ -1,6 +1,14 @@
 export const TAG_CLEANUP_FORMAT = 'st-esg-tag-cleanup';
 export const TAG_CLEANUP_VERSION = 1;
 
+export function buildTagCleanupImportSummary({ addedHistoryCount = 0, updatedHistoryCount = 0, addedOutputCount = 0 } = {}) {
+  const addedCount = addedHistoryCount + addedOutputCount;
+  const parts = [];
+  if (addedCount > 0) parts.push(`新增 ${addedCount} 条${updatedHistoryCount > 0 ? '' : '规则'}`);
+  if (updatedHistoryCount > 0) parts.push(`更新 ${updatedHistoryCount} 条历史规则`);
+  return parts.length ? `导入完成：${parts.join('，')}。` : '导入完成：没有新增或更新。';
+}
+
 function normalizeHistoryRule(entry, strict = false) {
   if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
     if (strict) throw new Error('聊天记录清理规则格式不正确。');

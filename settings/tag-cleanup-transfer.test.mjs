@@ -4,9 +4,17 @@ import test from 'node:test';
 import {
   TAG_CLEANUP_FORMAT,
   TAG_CLEANUP_VERSION,
+  buildTagCleanupImportSummary,
   createTagCleanupExportPackage,
   mergeTagCleanupImport,
 } from './tag-cleanup-transfer.js';
+
+test('describes imported changes without the ambiguous merged count', () => {
+  assert.equal(buildTagCleanupImportSummary({ addedHistoryCount: 1, updatedHistoryCount: 0, addedOutputCount: 0 }), '导入完成：新增 1 条规则。');
+  assert.equal(buildTagCleanupImportSummary({ addedHistoryCount: 0, updatedHistoryCount: 1, addedOutputCount: 0 }), '导入完成：更新 1 条历史规则。');
+  assert.equal(buildTagCleanupImportSummary({ addedHistoryCount: 1, updatedHistoryCount: 2, addedOutputCount: 3 }), '导入完成：新增 4 条，更新 2 条历史规则。');
+  assert.equal(buildTagCleanupImportSummary({ addedHistoryCount: 0, updatedHistoryCount: 0, addedOutputCount: 0 }), '导入完成：没有新增或更新。');
+});
 
 test('creates one versioned package containing both cleanup rule types', () => {
   assert.deepEqual(createTagCleanupExportPackage({

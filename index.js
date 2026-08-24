@@ -134,7 +134,7 @@ import {
   upsertChatBindingIndex,
 } from './settings/chat-worldbook-binding.js?ver=0.2.1';
 import { buildDataManagementModel, clearSettingsDataCategory, formatByteSize } from './settings/data-management.js?ver=0.2.1';
-import { createTagCleanupExportPackage, mergeTagCleanupImport } from './settings/tag-cleanup-transfer.js?ver=0.2.1';
+import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCleanupImport } from './settings/tag-cleanup-transfer.js?ver=0.2.1';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.2.1';
@@ -3005,8 +3005,7 @@ async function importTagCleanupRules(file) {
     saveSettings();
     renderTagRuleManager('history');
     renderTagRuleManager('output');
-    const changedCount = merged.addedHistoryCount + merged.updatedHistoryCount + merged.addedOutputCount;
-    notifyStatus(changedCount ? `已合并 ${changedCount} 条标签清理规则。` : '规则已存在，无需重复导入。');
+    notifyStatus(buildTagCleanupImportSummary(merged));
   } catch (error) {
     notifyStatus(`导入失败：${error?.message || '文件内容不正确。'}`, 'error');
   }

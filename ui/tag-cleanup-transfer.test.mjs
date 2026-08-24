@@ -23,4 +23,6 @@ test('tag cleanup transfer is wired to a versioned helper and refreshes both lis
   assert.match(eventBindings, /#st-esg-tag-cleanup-import-trigger/);
   assert.match(eventBindings, /#st-esg-tag-cleanup-export/);
   assert.match(eventBindings, /#st-esg-tag-cleanup-import-file/);
+  assert.match(indexSource, /notifyStatus\(buildTagCleanupImportSummary\(merged\)\)/);
+  assert.doesNotMatch(indexSource, /已合并.*标签清理规则/);
 });
