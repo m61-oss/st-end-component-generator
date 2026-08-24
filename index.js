@@ -134,6 +134,7 @@ import {
   upsertChatBindingIndex,
 } from './settings/chat-worldbook-binding.js?ver=0.2.1';
 import { buildDataManagementModel, clearSettingsDataCategory, formatByteSize } from './settings/data-management.js?ver=0.2.1';
+import { createTagCleanupExportPackage, mergeTagCleanupImport } from './settings/tag-cleanup-transfer.js?ver=0.2.1';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.2.1';
@@ -2980,6 +2981,35 @@ function addTagRule(type) {
   saveTagRuleEntries(type, entries);
   input.val('');
   renderTagRuleManager(type);
+}
+
+function exportTagCleanupRules() {
+  const bundle = createTagCleanupExportPackage({
+    historyRules: getTagRuleEntries('history'),
+    outputRules: getTagRuleEntries('output'),
+  });
+  downloadJsonFile('织幕-标签清理规则.json', bundle);
+  notifyStatus('已导出标签清理规则。');
+}
+
+async function importTagCleanupRules(file) {
+  if (!file) return;
+  try {
+    const bundle = JSON.parse(await file.text());
+    const merged = mergeTagCleanupImport(bundle, {
+      historyRules: getTagRuleEntries('history'),
+      outputRules: getTagRuleEntries('output'),
+    });
+    settings.historyCleanupRules = merged.historyRules;
+    settings.outputCleanupTags = merged.outputRules.join('\n');
+    saveSettings();
+    renderTagRuleManager('history');
+    renderTagRuleManager('output');
+    const changedCount = merged.addedHistoryCount + merged.updatedHistoryCount + merged.addedOutputCount;
+    notifyStatus(changedCount ? `已合并 ${changedCount} 条标签清理规则。` : '规则已存在，无需重复导入。');
+  } catch (error) {
+    notifyStatus(`导入失败：${error?.message || '文件内容不正确。'}`, 'error');
+  }
 }
 
 async function fetchApiModels() {
@@ -6627,7 +6657,7 @@ function renderPluginPanel() {
   if (tagCard && tagGrid) {
     const tagDetails = targetDoc.createElement('details');
     tagDetails.className = 'st-esg-card st-esg-collapsible st-esg-tag-cleanup-settings';
-    tagDetails.innerHTML = `<summary class="st-esg-collapsible-summary">标签清理</summary><div class="st-esg-collapsible-body">${tagGrid.outerHTML}</div>`;
+    tagDetails.innerHTML = `<summary class="st-esg-collapsible-summary">标签清理</summary><div class="st-esg-collapsible-body"><div class="st-esg-tag-cleanup-transfer"><span>规则文件</span><span class="st-esg-tag-cleanup-transfer-actions"><button id="st-esg-tag-cleanup-import-trigger" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-file-import"></i><span>导入</span></button><button id="st-esg-tag-cleanup-export" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-file-export"></i><span>导出</span></button></span></div><input id="st-esg-tag-cleanup-import-file" class="st-esg-hidden" type="file" accept="application/json,.json" />${tagGrid.outerHTML}</div>`;
     tagCard.replaceWith(tagDetails);
   }
   ['history', 'output'].forEach((type) => {
@@ -7188,6 +7218,13 @@ function bindPanelEvents() {
         $(this).val(entry.keep);
       });
     }
+  });
+  $t('#st-esg-tag-cleanup-import-trigger').on('click', () => $t('#st-esg-tag-cleanup-import-file').trigger('click'));
+  $t('#st-esg-tag-cleanup-export').on('click', () => exportTagCleanupRules());
+  $t('#st-esg-tag-cleanup-import-file').on('change', async function () {
+    const file = this.files?.[0];
+    this.value = '';
+    await importTagCleanupRules(file);
   });
   $t('#st-esg-generate').on('click', (event) => {
     event.preventDefault();

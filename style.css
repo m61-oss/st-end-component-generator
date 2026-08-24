@@ -1554,6 +1554,9 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-component-section-context { margin-left: 7px; color: var(--esg-text-muted); font-size: 10px; font-weight: 400; }
 
 .st-esg-tag-rule-manager { display: grid; gap: 5px; }
+.st-esg-tag-cleanup-transfer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--esg-border); color: var(--esg-text-muted); font-size: 11px; }
+.st-esg-tag-cleanup-transfer-actions { display: flex; align-items: center; gap: 6px; }
+.st-esg-tag-cleanup-transfer-actions .menu_button { min-height: 28px !important; }
 .st-esg-tag-cleanup-settings .st-esg-grid { align-items: start; }
 .st-esg-tag-cleanup-settings .st-esg-tag-rule-manager { min-width: 0; }
 .st-esg-tag-cleanup-settings .st-esg-tag-rule-manager + .st-esg-tag-rule-manager {
