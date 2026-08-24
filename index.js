@@ -4121,7 +4121,10 @@ function renderComponentList() {
   const list = $t('#st-esg-component-list');
   if (!list.length) return;
   const nextComponentLibraryContextKey = getComponentLibraryContextKey();
-  if (componentMoveState && componentLibraryContextKey && componentLibraryContextKey !== nextComponentLibraryContextKey) componentMoveState = null;
+  if (componentLibraryContextKey && componentLibraryContextKey !== nextComponentLibraryContextKey) {
+    componentMoveState = null;
+    theaterMoveState = null;
+  }
   componentLibraryContextKey = nextComponentLibraryContextKey;
   const moveSource = componentMoveState ? findComponentById(componentMoveState.sourceId) : null;
   if (componentMoveState && !moveSource) componentMoveState = null;

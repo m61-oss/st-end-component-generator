@@ -50,6 +50,14 @@ export function applyComponentPositionMove(components, componentGroups, sourceId
     return unchanged(components);
   }
 
+  if (target.kind === 'group-start') {
+    const firstTargetGroupComponent = eligibleComponents.find((component) => {
+      const componentGroupId = findValidGroup(componentGroups, sourceScope, component?.groupId)?.id || '';
+      return componentGroupId === targetGroupId;
+    });
+    if (textOf(firstTargetGroupComponent?.id) === id) return unchanged(components);
+  }
+
   const remaining = eligibleComponents.filter((_, index) => index !== eligibleSourceIndex);
   let insertIndex = remaining.length;
   if (target.kind === 'after') {

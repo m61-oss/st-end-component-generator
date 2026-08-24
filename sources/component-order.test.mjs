@@ -108,6 +108,23 @@ test('rejects a group-start target when the source already occupies that positio
   assert.equal(result.components, components);
 });
 
+test('rejects group-start when the source is already the logical first item across interleaved groups', () => {
+  const interleaved = [
+    { id: 'a', scope: '', groupId: 'group-a' },
+    { id: 'b', scope: '', groupId: 'group-b' },
+    { id: 'c', scope: '', groupId: 'group-a' },
+  ];
+  const result = applyComponentPositionMove(
+    interleaved,
+    [{ id: 'group-a' }, { id: 'group-b' }],
+    'a',
+    { kind: 'group-start', scope: '', groupId: 'group-a' },
+  );
+
+  assert.equal(result.moved, false);
+  assert.equal(result.components, interleaved);
+});
+
 test('ignores hidden ownership records when an after target is already the visible successor', () => {
   const interleaved = [
     { id: 'preset-a-1', scope: 'preset', groupId: '' },

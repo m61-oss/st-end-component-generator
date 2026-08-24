@@ -54,6 +54,7 @@ test('theater positioning is cleared by every library context reset', () => {
   assert.match(indexSource, /shouldRefreshComponentLibrary[\s\S]*componentMoveState \|\| theaterMoveState/);
   assert.match(indexSource, /shouldRefreshComponentList[\s\S]*componentMoveState \|\| theaterMoveState/);
   assert.match(indexSource, /function resetComponentEditMode\(\)[\s\S]*componentMoveState = null;[\s\S]*theaterMoveState = null/);
+  assert.match(indexSource, /componentLibraryContextKey !== nextComponentLibraryContextKey\)[^\n]*\{[^}]*componentMoveState = null;[^}]*theaterMoveState = null;/);
 
   const componentHandler = indexSource.match(/list\.find\('\.st-esg-component-move-to'\)\.on\('click',[\s\S]*?\n\s*\}\);/)?.[0] || '';
   const theaterHandler = indexSource.match(/host\.find\('\.st-esg-theater-move-to'\)\.on\('click',[\s\S]*?\n\s*\}\);/)?.[0] || '';
