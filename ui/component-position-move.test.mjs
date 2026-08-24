@@ -32,6 +32,9 @@ test('positioning mode renders same-scope targets and an insertion preview', () 
 
 test('single-theater move enters the same positioning interaction without a group dialog', () => {
   assert.match(indexSource, /let theaterMoveState = null/);
+  const button = indexSource.match(/<button class="st-esg-icon-btn st-esg-theater-move-to"[\s\S]*?<\/button>/)?.[0] || '';
+  assert.match(button, /fa-arrow-down-wide-short/);
+  assert.doesNotMatch(button, /fa-folder-open/);
   const handler = indexSource.match(/host\.find\('\.st-esg-theater-move-to'\)\.on\('click',[\s\S]*?\n\s*\}\);/)?.[0] || '';
   assert.match(handler, /theaterMoveState = \{ sourceId: item\.id, target: null \}/);
   assert.doesNotMatch(handler, /requestTextInputDialog/);
