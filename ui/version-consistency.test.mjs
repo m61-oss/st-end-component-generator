@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const expectedVersion = '0.2.0';
+const expectedVersion = '0.2.1';
 
 test('keeps the extension display name and public version metadata aligned', async () => {
   const [manifestText, packageText, indexText] = await Promise.all([
