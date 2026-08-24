@@ -331,6 +331,7 @@ let componentLibraryContextKey = '';
 let theaterSearchQuery = '';
 let theaterFilterMode = 'all';
 let theaterEditMode = false;
+let theaterMoveState = null;
 let selectedTheaterIds = new Set();
 let theaterLibraryOpen = true;
 let theaterRandomSettingsOpen = false;
@@ -3988,6 +3989,16 @@ function getComponentPositionMoveResult() {
   );
 }
 
+function getTheaterPositionMoveResult() {
+  if (!theaterMoveState) return { moved: false, components: settings.theaterComponents };
+  return applyComponentPositionMove(
+    settings.theaterComponents,
+    settings.theaterGroups,
+    theaterMoveState.sourceId,
+    theaterMoveState.target,
+  );
+}
+
 function getComponentPositionEligibleIds(source) {
   const sourceScope = normalizeComponentScope(source?.scope);
   return settings.components
@@ -4005,22 +4016,35 @@ function renderComponentPositionMoveFooter() {
   const footer = $t('.st-esg-panel-footer');
   if (!footer.length) return;
   footer.find('.st-esg-component-position-footer').remove();
-  footer.toggleClass('st-esg-component-position-footer-active', Boolean(componentMoveState));
-  if (!componentMoveState) return;
+  const activeLibrary = componentMoveState ? 'components' : theaterMoveState ? 'theater' : '';
+  footer.toggleClass('st-esg-component-position-footer-active', Boolean(activeLibrary));
+  if (!activeLibrary) return;
 
-  const moveResult = getComponentPositionMoveResult();
-  footer.append(`<div class="st-esg-component-position-footer"><button class="menu_button st-esg-secondary-action st-esg-component-position-cancel" type="button">取消移动</button><button class="menu_button st-esg-primary-action st-esg-component-position-confirm" type="button" ${moveResult.moved ? '' : 'disabled'}>确认移动</button></div>`);
+  const moveResult = activeLibrary === 'components' ? getComponentPositionMoveResult() : getTheaterPositionMoveResult();
+  footer.append(`<div class="st-esg-footer-actions st-esg-component-position-footer"><button class="menu_button st-esg-secondary-action st-esg-component-position-cancel" type="button">取消移动</button><button class="menu_button st-esg-primary-action st-esg-component-position-confirm" type="button" ${moveResult.moved ? '' : 'disabled'}>确认移动</button></div>`);
   footer.find('.st-esg-component-position-cancel').on('click', () => {
-    componentMoveState = null;
-    renderComponentList();
+    if (activeLibrary === 'components') {
+      componentMoveState = null;
+      renderComponentList();
+    } else {
+      theaterMoveState = null;
+      renderTheaterLibrary();
+    }
   });
   footer.find('.st-esg-component-position-confirm').on('click', () => {
-    const moveResult = getComponentPositionMoveResult();
-    if (!moveResult.moved) return;
-    settings.components = moveResult.components;
-    saveSettings();
-    componentMoveState = null;
-    renderComponentList();
+    const confirmedResult = activeLibrary === 'components' ? getComponentPositionMoveResult() : getTheaterPositionMoveResult();
+    if (!confirmedResult.moved) return;
+    if (activeLibrary === 'components') {
+      settings.components = confirmedResult.components;
+      componentMoveState = null;
+      saveSettings();
+      renderComponentList();
+    } else {
+      settings.theaterComponents = confirmedResult.components;
+      theaterMoveState = null;
+      saveSettings();
+      renderTheaterLibrary();
+    }
   });
 }
 
@@ -4664,6 +4688,10 @@ function getTheaterRandomGroupCandidates(groups) {
 function renderTheaterLibrary() {
   const host = $t('#st-esg-theater-list');
   if (!host.length) return;
+  const moveSource = theaterMoveState ? findTheaterItemById(theaterMoveState.sourceId) : null;
+  if (theaterMoveState && !moveSource) theaterMoveState = null;
+  const theaterMoveActive = Boolean(theaterMoveState && moveSource);
+  const moveSourceName = theaterMoveActive ? (moveSource.name || '未命名小剧场') : '';
   const openFolders = new Set(host.find('.st-esg-theater-folder[open]').map((_, item) => textOf($(item).attr('data-folder-state-id'))).get());
   const openItems = new Set(host.find('.st-esg-theater-item[open]').map((_, item) => textOf($(item).attr('data-component-id'))).get());
   const currentLibraryOpen = host.find('.st-esg-theater-library-card').prop('open');
@@ -4672,8 +4700,8 @@ function renderTheaterLibrary() {
   if (typeof randomSettingsOpen === 'boolean') theaterRandomSettingsOpen = randomSettingsOpen;
   const folders = getTheaterLibraryFolders(settings.theaterComponents, settings.theaterGroups, settings.theaterDefaultGroupEnabled);
   const groups = [...folders.groups, { id: '', name: '默认分组', enabled: settings.theaterDefaultGroupEnabled !== false, items: folders.ungrouped, isDefault: true }];
-  const editButton = theaterEditMode || libraryExportMode ? '' : '<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-edit-toggle" type="button"><i class="fa-solid fa-pen-to-square"></i><span>编辑</span></button>';
-  const editToolbar = theaterEditMode
+  const editButton = theaterMoveActive || theaterEditMode || libraryExportMode ? '' : '<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-edit-toggle" type="button"><i class="fa-solid fa-pen-to-square"></i><span>编辑</span></button>';
+  const editToolbar = theaterMoveActive ? '' : theaterEditMode
     ? '<div class="st-esg-component-edit-toolbar"><span class="st-esg-theater-selection-count">未选择项目</span><span class="st-esg-component-batch-actions"><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-batch-move" type="button" disabled><i class="fa-solid fa-folder-open"></i><span>移动</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger st-esg-theater-batch-delete" type="button" disabled><i class="fa-solid fa-trash"></i><span>删除</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-edit-exit" type="button"><i class="fa-solid fa-check"></i><span>退出</span></button></span></div>'
     : '';
   const randomScope = normalizeTheaterRandomScope(settings.theaterRandomScope);
@@ -4699,18 +4727,27 @@ function renderTheaterLibrary() {
   const theaterRandomSettingsV2ScopeMarkup = `<div class="st-esg-theater-random-scope-row"><span class="st-esg-theater-random-label">计算方式</span><div class="st-esg-theater-random-scope-options" role="radiogroup" aria-label="计算方式"><label class="st-esg-theater-random-scope-option"><input class="st-esg-theater-random-scope" type="radio" name="st-esg-theater-random-scope" value="global" ${randomScope === THEATER_RANDOM_SCOPE_GLOBAL ? 'checked' : ''} /><span>全局随机</span></label><label class="st-esg-theater-random-scope-option"><input class="st-esg-theater-random-scope" type="radio" name="st-esg-theater-random-scope" value="grouped" ${randomScope === THEATER_RANDOM_SCOPE_GROUPED ? 'checked' : ''} /><span>按组随机</span></label></div></div>`;
   const theaterRandomSettingsMarkupV2 = `<details class="st-esg-theater-random-settings" ${theaterRandomSettingsOpen ? 'open' : ''}><summary class="st-esg-theater-random-summary"><span>随机设置</span><em>${randomScope === THEATER_RANDOM_SCOPE_GLOBAL ? '全局随机' : '按组随机'}</em><i class="fa-solid fa-chevron-down st-esg-theater-random-caret"></i></summary><div class="st-esg-theater-random-body">${theaterRandomSettingsV2ScopeMarkup}${globalRandomSettingsMarkup}${groupedRandomSettingsMarkup}</div></details>`;
   const renderItem = (item) => {
-    const isOpen = openItems.has(item.id);
-    const controls = libraryExportMode
+    const isOpen = !theaterMoveActive && openItems.has(item.id);
+    const canSelectPosition = theaterMoveActive && textOf(item.id) !== textOf(theaterMoveState?.sourceId);
+    const isPositionTarget = canSelectPosition
+      && theaterMoveState?.target?.kind === 'after'
+      && textOf(theaterMoveState.target.componentId) === textOf(item.id);
+    const positionClasses = theaterMoveActive
+      ? ` ${canSelectPosition ? 'is-position-candidate' : 'is-position-unavailable'}${isPositionTarget ? ' is-position-target' : ''}`
+      : '';
+    const positionAttribute = canSelectPosition ? ` data-theater-position-after="${escapeHtml(item.id)}"` : '';
+    const controls = theaterMoveActive ? '' : libraryExportMode
       ? `<label class="st-esg-checkbox st-esg-library-export-select-label" title="选择导出"><input class="st-esg-library-export-theater" type="checkbox" data-component-id="${escapeHtml(item.id)}" aria-label="选择导出" ${exportSelectedTheaterIds.has(item.id) ? 'checked' : ''} /></label>`
       : theaterEditMode
         ? `<label class="st-esg-checkbox st-esg-component-select-label" title="选择小剧场"><input class="st-esg-theater-select" type="checkbox" data-component-id="${escapeHtml(item.id)}" ${selectedTheaterIds.has(item.id) ? 'checked' : ''} /></label>`
         : `<label class="st-esg-switch st-esg-switch-sm"><input class="st-esg-theater-enabled" type="checkbox" ${item.enabled === false ? '' : 'checked'} /><span></span></label>`;
     const { sourceIndex, siblingIndexes } = getTheaterSiblingIndexes(item.id);
     const siblingPosition = siblingIndexes.indexOf(sourceIndex);
-    const actions = theaterEditMode
+    const actions = theaterMoveActive ? '' : theaterEditMode
       ? `<span class="st-esg-component-item-actions"><button class="st-esg-icon-btn st-esg-theater-move-up" type="button" data-component-id="${escapeHtml(item.id)}" ${siblingPosition <= 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-up"></i></button><button class="st-esg-icon-btn st-esg-theater-move-down" type="button" data-component-id="${escapeHtml(item.id)}" ${siblingPosition < 0 || siblingPosition >= siblingIndexes.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-down"></i></button><button class="st-esg-icon-btn st-esg-theater-move-to" type="button" data-component-id="${escapeHtml(item.id)}"><i class="fa-solid fa-folder-open"></i></button><button class="st-esg-icon-btn st-esg-icon-danger st-esg-theater-delete" type="button" data-component-id="${escapeHtml(item.id)}"><i class="fa-solid fa-trash"></i></button></span>`
       : '';
-    return `<details class="st-esg-component-item st-esg-theater-item" data-component-id="${escapeHtml(item.id)}" ${isOpen ? 'open' : ''}><summary class="st-esg-component-item-head"><span class="st-esg-component-name">${escapeHtml(item.name || '未命名小剧场')}</span>${controls}${actions}</summary><div class="st-esg-component-preview" data-loaded="${isOpen ? 'true' : 'false'}">${isOpen ? renderTheaterPreview(item) : ''}</div></details>`;
+    const positionPreview = isPositionTarget ? `<div class="st-esg-component-position-preview">↓「${escapeHtml(moveSourceName)}」将插入到这里</div>` : '';
+    return `<details class="st-esg-component-item st-esg-theater-item${positionClasses}" data-component-id="${escapeHtml(item.id)}" ${isOpen ? 'open' : ''}><summary class="st-esg-component-item-head"${positionAttribute}><span class="st-esg-component-name">${escapeHtml(item.name || '未命名小剧场')}</span>${controls}${actions}</summary><div class="st-esg-component-preview" data-loaded="${isOpen ? 'true' : 'false'}">${isOpen ? renderTheaterPreview(item) : ''}</div></details>${positionPreview}`;
   };
   const folderHtml = groups.map((group) => {
     const groupId = textOf(group.id);
@@ -4720,26 +4757,32 @@ function renderTheaterLibrary() {
     const allItemsEnabled = group.items.length > 0 && enabledCount === group.items.length;
     const orderedGroups = [...settings.theaterGroups].sort((left, right) => Number(left.order) - Number(right.order));
     const groupPosition = orderedGroups.findIndex((item) => textOf(item?.id) === groupId);
-    const controls = libraryExportMode
+    const groupStartSelected = theaterMoveActive
+      && theaterMoveState?.target?.kind === 'group-start'
+      && textOf(theaterMoveState.target.groupId) === groupId;
+    const controls = theaterMoveActive ? '' : libraryExportMode
       ? `<label class="st-esg-checkbox st-esg-library-export-select-label" title="选择本组导出"><input class="st-esg-library-export-theater-group" type="checkbox" aria-label="选择本组导出" /></label>`
       : theaterEditMode
         ? `<label class="st-esg-checkbox st-esg-component-group-select-label"><input class="st-esg-theater-group-select" type="checkbox" /></label>`
         : group.isDefault
         ? `<label class="st-esg-switch st-esg-switch-sm"><input class="st-esg-theater-default-enabled" type="checkbox" ${groupEnabled ? 'checked' : ''} /><span></span></label>`
         : `<label class="st-esg-switch st-esg-switch-sm"><input class="st-esg-theater-group-enabled" type="checkbox" data-group-id="${escapeHtml(groupId)}" ${groupEnabled ? 'checked' : ''} /><span></span></label>`;
-    const actions = theaterEditMode && !group.isDefault
+    const actions = !theaterMoveActive && theaterEditMode && !group.isDefault
       ? `<span class="st-esg-component-group-actions"><button class="st-esg-icon-btn st-esg-theater-group-up" type="button" data-group-id="${escapeHtml(groupId)}" ${groupPosition <= 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-up"></i></button><button class="st-esg-icon-btn st-esg-theater-group-down" type="button" data-group-id="${escapeHtml(groupId)}" ${groupPosition < 0 || groupPosition >= orderedGroups.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-down"></i></button><button class="st-esg-icon-btn st-esg-theater-group-rename" type="button" data-group-id="${escapeHtml(groupId)}"><i class="fa-solid fa-pen"></i></button><button class="st-esg-icon-btn st-esg-icon-danger st-esg-theater-group-delete" type="button" data-group-id="${escapeHtml(groupId)}"><i class="fa-solid fa-trash"></i></button></span>`
       : '';
-    const createGroupButton = theaterEditMode && group.isDefault ? '<button class="st-esg-icon-btn st-esg-theater-group-create" type="button"><i class="fa-solid fa-folder-plus"></i></button>' : '';
+    const createGroupButton = !theaterMoveActive && theaterEditMode && group.isDefault ? '<button class="st-esg-icon-btn st-esg-theater-group-create" type="button"><i class="fa-solid fa-folder-plus"></i></button>' : '';
     const body = group.items.length ? group.items.map(renderItem).join('') : '<div class="st-esg-empty st-esg-empty-small">暂无小剧场</div>';
     const toggleItemsButton = group.items.length
-      && !libraryExportMode ? `<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-group-toggle-items" type="button" data-group-id="${escapeHtml(groupId)}"><i class="fa-solid ${allItemsEnabled ? 'fa-toggle-off' : 'fa-toggle-on'}"></i><span>${allItemsEnabled ? '关闭全部条目' : '开启全部条目'}</span></button>`
+      && !libraryExportMode && !theaterMoveActive ? `<button class="menu_button menu_button_icon st-esg-secondary-action st-esg-theater-group-toggle-items" type="button" data-group-id="${escapeHtml(groupId)}"><i class="fa-solid ${allItemsEnabled ? 'fa-toggle-off' : 'fa-toggle-on'}"></i><span>${allItemsEnabled ? '关闭全部条目' : '开启全部条目'}</span></button>`
       : '';
-    const groupContent = `<div class="st-esg-theater-group-content"><div class="st-esg-theater-group-toolbar">${toggleItemsButton}</div><div class="st-esg-theater-group-items">${body}</div></div>`;
+    const groupStartPreview = groupStartSelected ? `<div class="st-esg-component-position-preview">↓「${escapeHtml(moveSourceName)}」将插入到这里</div>` : '';
+    const groupStartTarget = theaterMoveActive ? `<button class="st-esg-component-position-target st-esg-component-position-target-top${groupStartSelected ? ' is-position-target' : ''}" type="button" data-theater-position-group-start="${escapeHtml(groupId)}">插入到本组顶部</button>${groupStartPreview}` : '';
+    const groupContent = `<div class="st-esg-theater-group-content"><div class="st-esg-theater-group-toolbar">${toggleItemsButton}</div><div class="st-esg-theater-group-items">${groupStartTarget}${body}</div></div>`;
     return `<details class="st-esg-component-folder st-esg-theater-folder${groupEnabled ? '' : ' st-esg-component-folder-is-disabled'}" data-group-id="${escapeHtml(groupId)}" data-folder-state-id="${escapeHtml(folderStateId)}" ${openFolders.has(folderStateId) ? 'open' : ''}><summary class="st-esg-component-folder-head"><span class="st-esg-component-folder-title">${escapeHtml(group.name)}</span><em class="st-esg-component-folder-count${groupEnabled ? '' : ' is-disabled'}">${enabledCount}/${group.items.length}</em>${controls}${actions}${createGroupButton}<i class="fa-solid fa-chevron-down st-esg-component-folder-caret"></i></summary><div class="st-esg-component-folder-body">${groupContent}</div></details>`;
   }).join('');
   const theaterRandomSettingsMarkup = `<details class="st-esg-theater-random-settings" ${theaterRandomSettingsOpen ? 'open' : ''}><summary class="st-esg-theater-random-summary"><span>随机设置</span><em>${modeLabel}</em><i class="fa-solid fa-chevron-down st-esg-theater-random-caret"></i></summary><div class="st-esg-theater-random-body"><div class="st-esg-theater-random-fields"><span class="st-esg-theater-random-label">随机模式</span><select class="text_pole st-esg-theater-random-mode"><option value="off" ${mode === THEATER_RANDOM_MODE_OFF ? 'selected' : ''}>关闭随机</option><option value="all" ${mode === THEATER_RANDOM_MODE_ALL ? 'selected' : ''}>全部随机</option><option value="enabled" ${mode === THEATER_RANDOM_MODE_ENABLED ? 'selected' : ''}>已启用条目随机</option><option value="fixed-enabled" ${mode === THEATER_RANDOM_MODE_FIXED_ENABLED ? 'selected' : ''}>启用固定 + 未启用随机</option></select><span class="st-esg-theater-random-label">随机数量</span><input class="text_pole st-esg-theater-random-count" type="number" min="0" step="1" value="${settings.theaterRandomCount}" /></div><span class="st-esg-card-desc st-esg-theater-random-description">${modeDescription}</span></div></details>`;
-  host.html(`<details class="st-esg-card st-esg-component-library-card st-esg-library-collapsible st-esg-theater-library-card" ${theaterLibraryOpen ? 'open' : ''}><summary class="st-esg-library-card-summary"><div class="st-esg-card-head"><div><div class="st-esg-card-title">小剧场库</div><div class="st-esg-card-desc">独立管理格式要求和剧情小剧场；启用状态可用于随机抽取。</div></div>${editButton}</div></summary><div class="st-esg-library-card-body">${editToolbar}${theaterRandomSettingsMarkup}<div class="st-esg-list-toolbar st-esg-component-list-toolbar"><input type="text" class="st-esg-search-input st-esg-theater-search-input text_pole" placeholder="搜索条目..." value="${escapeHtml(theaterSearchQuery)}"><select class="st-esg-filter-select st-esg-theater-filter-select text_pole"><option value="all" ${theaterFilterMode === 'all' ? 'selected' : ''}>全部</option><option value="enabled" ${theaterFilterMode === 'enabled' ? 'selected' : ''}>仅启用</option><option value="disabled" ${theaterFilterMode === 'disabled' ? 'selected' : ''}>仅禁用</option></select><span class="st-esg-theater-count"></span></div><div class="st-esg-theater-folders">${folderHtml}</div></div></details>`);
+  const toolbarDisabled = theaterMoveActive ? 'disabled' : '';
+  host.html(`<details class="st-esg-card st-esg-component-library-card st-esg-library-collapsible st-esg-theater-library-card${theaterMoveActive ? ' st-esg-component-position-mode' : ''}" ${theaterLibraryOpen ? 'open' : ''}><summary class="st-esg-library-card-summary"><div class="st-esg-card-head"><div><div class="st-esg-card-title">小剧场库</div><div class="st-esg-card-desc">独立管理格式要求和剧情小剧场；启用状态可用于随机抽取。</div></div>${editButton}</div></summary><div class="st-esg-library-card-body">${editToolbar}${theaterMoveActive ? '' : theaterRandomSettingsMarkup}<div class="st-esg-list-toolbar st-esg-component-list-toolbar"><input type="text" class="st-esg-search-input st-esg-theater-search-input text_pole" placeholder="搜索条目..." value="${escapeHtml(theaterSearchQuery)}" ${toolbarDisabled}><select class="st-esg-filter-select st-esg-theater-filter-select text_pole" ${toolbarDisabled}><option value="all" ${theaterFilterMode === 'all' ? 'selected' : ''}>全部</option><option value="enabled" ${theaterFilterMode === 'enabled' ? 'selected' : ''}>仅启用</option><option value="disabled" ${theaterFilterMode === 'disabled' ? 'selected' : ''}>仅禁用</option></select><span class="st-esg-theater-count"></span></div><div class="st-esg-theater-folders">${folderHtml}</div></div></details>`);
 
   host.find('.st-esg-theater-random-settings').replaceWith(theaterRandomSettingsMarkupV2);
   host.find('.st-esg-theater-library-card').on('toggle', function () { theaterLibraryOpen = this.open; });
@@ -4772,6 +4815,24 @@ function renderTheaterLibrary() {
   host.find('.st-esg-theater-random-remove-group').on('click', function (event) { event.preventDefault(); event.stopPropagation(); const groupId = textOf($(this).attr('data-group-id')); settings.theaterGroupRandomOverrides = settings.theaterGroupRandomOverrides.filter((override) => textOf(override?.groupId) !== groupId); saveSettings(); renderTheaterLibrary(); });
   host.find('.st-esg-theater-search-input').on('input', function () { theaterSearchQuery = String($(this).val() || ''); applyTheaterLibraryFilters(); });
   host.find('.st-esg-theater-filter-select').on('change', function () { theaterFilterMode = String($(this).val() || 'all'); applyTheaterLibraryFilters(); });
+  host.find('[data-theater-position-after]').on('click', function (event) {
+    if (!theaterMoveState) return;
+    event.preventDefault();
+    event.stopPropagation();
+    theaterMoveState.target = { kind: 'after', componentId: textOf($(this).attr('data-theater-position-after')) };
+    renderTheaterLibrary();
+  });
+  host.find('[data-theater-position-group-start]').on('click', function (event) {
+    if (!theaterMoveState) return;
+    event.preventDefault();
+    event.stopPropagation();
+    theaterMoveState.target = {
+      kind: 'group-start',
+      scope: '',
+      groupId: textOf($(this).attr('data-theater-position-group-start')),
+    };
+    renderTheaterLibrary();
+  });
   host.find('.st-esg-theater-edit-toggle').on('click', (event) => { event.preventDefault(); event.stopPropagation(); theaterEditMode = true; renderTheaterLibrary(); });
   host.find('.st-esg-theater-edit-exit').on('click', (event) => { event.preventDefault(); event.stopPropagation(); theaterEditMode = false; selectedTheaterIds.clear(); renderTheaterLibrary(); });
   host.find('.st-esg-theater-select, .st-esg-theater-group-select').on('click', (event) => event.stopPropagation());
@@ -4788,14 +4849,25 @@ function renderTheaterLibrary() {
   host.find('.st-esg-theater-default-enabled').on('click', (event) => event.stopPropagation()).on('change', function () { settings.theaterDefaultGroupEnabled = Boolean($(this).prop('checked')); saveSettings(); renderTheaterLibrary(); });
   host.find('.st-esg-theater-enabled').on('click', (event) => event.stopPropagation()).on('change', function () { const item = findTheaterItemById($(this).closest('.st-esg-theater-item').attr('data-component-id')); if (!item) return; item.enabled = Boolean($(this).prop('checked')); saveSettings(); renderTheaterLibrary(); });
   host.find('.st-esg-theater-move-up, .st-esg-theater-move-down').on('click', function (event) { event.preventDefault(); event.stopPropagation(); if (moveTheaterItemWithinGroup($(this).attr('data-component-id'), $(this).hasClass('st-esg-theater-move-up') ? -1 : 1)) { saveSettings(); renderComponentList(); } });
-  host.find('.st-esg-theater-move-to').on('click', async function (event) { event.preventDefault(); event.stopPropagation(); const item = findTheaterItemById($(this).attr('data-component-id')); if (!item) return; const groupsForMove = settings.theaterGroups.slice().sort((left, right) => Number(left.order) - Number(right.order)); const selected = await requestTextInputDialog({ title: '移动小剧场', label: '目标分组', value: textOf(item.groupId) || DEFAULT_COMPONENT_GROUP_VALUE, options: [{ value: DEFAULT_COMPONENT_GROUP_VALUE, label: '默认分组' }, ...groupsForMove.map((group) => ({ value: group.id, label: group.name }))] }); if (!selected || !moveTheaterItemToGroup(item.id, selected === DEFAULT_COMPONENT_GROUP_VALUE ? '' : selected)) return; saveSettings(); renderComponentList(); });
+  host.find('.st-esg-theater-move-to').on('click', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const item = findTheaterItemById($(this).attr('data-component-id'));
+    if (!item) return;
+    selectedTheaterIds.clear();
+    theaterSearchQuery = '';
+    theaterFilterMode = 'all';
+    theaterMoveState = { sourceId: item.id, target: null };
+    renderTheaterLibrary();
+  });
   host.find('.st-esg-theater-delete').on('click', function (event) { event.preventDefault(); event.stopPropagation(); const id = textOf($(this).attr('data-component-id')); const item = findTheaterItemById(id); if (!item || !targetWindow.confirm(`确认删除小剧场“${item.name || '未命名'}”？此操作无法恢复。`)) return; settings.theaterComponents = settings.theaterComponents.filter((candidate) => textOf(candidate?.id) !== id); selectedTheaterIds.delete(id); saveSettings(); renderComponentList(); });
-  host.find('.st-esg-theater-item').on('toggle', function () { if (!this.open) return; const preview = this.querySelector('.st-esg-component-preview'); if (!preview || preview.dataset.loaded === 'true') return; const item = findTheaterItemById($(this).attr('data-component-id')); if (!item) return; preview.innerHTML = renderTheaterPreview(item); preview.dataset.loaded = 'true'; });
+  host.find('.st-esg-theater-item').on('toggle', function () { if (theaterMoveState) { this.open = false; return; } if (!this.open) return; const preview = this.querySelector('.st-esg-component-preview'); if (!preview || preview.dataset.loaded === 'true') return; const item = findTheaterItemById($(this).attr('data-component-id')); if (!item) return; preview.innerHTML = renderTheaterPreview(item); preview.dataset.loaded = 'true'; });
   host.off('.stEsgTheaterEditor');
   host.on('click.stEsgTheaterEditor', '.st-esg-theater-name-input, .st-esg-theater-content', (event) => event.stopPropagation());
   host.on('click.stEsgTheaterEditor', '.st-esg-theater-edit-confirm', function (event) { event.preventDefault(); event.stopPropagation(); const item = findTheaterItemById($(this).closest('.st-esg-theater-item').attr('data-component-id')); if (!item) return; const editor = $(this).closest('.st-esg-component-editor'); item.name = textOf(editor.find('.st-esg-theater-name-input').val()) || '未命名小剧场'; item.content = String(editor.find('.st-esg-theater-content').val() || ''); saveSettings(); notifyStatus('已保存小剧场内容。'); editor.closest('.st-esg-theater-item').find('.st-esg-component-name').first().text(item.name); applyTheaterLibraryFilters(); });
   host.on('click.stEsgTheaterEditor', '.st-esg-theater-edit-cancel', function (event) { event.preventDefault(); event.stopPropagation(); const item = findTheaterItemById($(this).closest('.st-esg-theater-item').attr('data-component-id')); if (!item) return; const editor = $(this).closest('.st-esg-component-editor'); editor.find('.st-esg-theater-name-input').val(item.name || ''); editor.find('.st-esg-theater-content').val(item.content || ''); notifyStatus('已取消编辑。'); });
   applyTheaterLibraryFilters();
+  renderComponentPositionMoveFooter();
 }
 
 function addComponent() {

@@ -30,6 +30,16 @@ test('positioning mode renders same-scope targets and an insertion preview', () 
   assert.match(indexSource, /normalizeComponentScope\(section\.scope\) === moveSourceScope/);
 });
 
+test('single-theater move enters the same positioning interaction without a group dialog', () => {
+  assert.match(indexSource, /let theaterMoveState = null/);
+  const handler = indexSource.match(/host\.find\('\.st-esg-theater-move-to'\)\.on\('click',[\s\S]*?\n\s*\}\);/)?.[0] || '';
+  assert.match(handler, /theaterMoveState = \{ sourceId: item\.id, target: null \}/);
+  assert.doesNotMatch(handler, /requestTextInputDialog/);
+  assert.match(indexSource, /data-theater-position-after=/);
+  assert.match(indexSource, /data-theater-position-group-start=/);
+  assert.match(indexSource, /theaterMoveState\?\.target/);
+});
+
 test('positioning mode disables ordinary library controls and cancels with edit context', () => {
   assert.match(indexSource, /renderComponentListToolbar\(componentMoveActive\)/);
   assert.match(indexSource, /componentMoveActive \? 'disabled' : ''/);
@@ -46,13 +56,16 @@ test('footer is replaced by cancel and confirm actions without rebuilding existi
   assert.match(indexSource, />取消移动</);
   assert.match(indexSource, />确认移动</);
   assert.match(indexSource, /st-esg-component-position-confirm[^>]*\$\{moveResult\.moved \? '' : 'disabled'\}/);
-  assert.match(indexSource, /settings\.components = moveResult\.components;[\s\S]*saveSettings\(\);[\s\S]*componentMoveState = null/);
+  assert.match(indexSource, /settings\.components = confirmedResult\.components;[\s\S]*componentMoveState = null;[\s\S]*saveSettings\(\)/);
+  assert.match(indexSource, /settings\.theaterComponents = confirmedResult\.components;[\s\S]*theaterMoveState = null;[\s\S]*saveSettings\(\)/);
+  assert.match(indexSource, /class="st-esg-footer-actions st-esg-component-position-footer"/);
 });
 
-test('positioning styles dim candidates, brighten the target, and use a two-button mobile footer', () => {
+test('positioning styles dim candidates, brighten the target, and reuse the horizontal footer actions', () => {
   assert.match(styleSource, /\.st-esg-component-position-mode \.st-esg-component-item\s*\{[^}]*opacity:\s*\.35/s);
   assert.match(styleSource, /\.st-esg-component-position-mode \.st-esg-component-item\.is-position-target\s*\{[^}]*opacity:\s*1/s);
   assert.match(styleSource, /\.st-esg-component-position-preview\s*\{[^}]*border/s);
-  assert.match(styleSource, /\.st-esg-component-position-footer\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s);
+  assert.doesNotMatch(styleSource, /\.st-esg-component-position-footer\s*\{[^}]*grid-template-columns/s);
+  assert.match(styleSource, /\.st-esg-footer-actions\s*\{[^}]*display:\s*flex/s);
   assert.match(styleSource, /padding-bottom:\s*max\([^;]*env\(safe-area-inset-bottom\)/s);
 });

@@ -1042,8 +1042,8 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-footer-actions { display: flex; justify-content: flex-end; gap: 6px; }
 .st-esg-panel-footer.st-esg-component-position-footer-active { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
 .st-esg-component-position-footer-active > :not(.st-esg-component-position-footer) { display: none !important; }
-.st-esg-component-position-footer { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; }
-.st-esg-component-position-footer .menu_button { display: inline-flex !important; align-items: center; justify-content: center; min-height: 34px; }
+.st-esg-component-position-footer { flex-direction: row !important; flex-wrap: nowrap; margin-left: auto; }
+.st-esg-component-position-footer .menu_button { display: inline-flex !important; align-items: center; justify-content: center; width: auto !important; min-height: 34px; white-space: nowrap; }
 .st-esg-primary-action,
 .st-esg-secondary-action { min-height: 28px; padding-inline: 10px !important; border-radius: 6px !important; }
 .st-esg-primary-action { color: var(--esg-bg-card) !important; border-color: var(--esg-text-main) !important; background: var(--esg-text-main) !important; }
