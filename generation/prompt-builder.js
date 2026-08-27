@@ -804,7 +804,7 @@ function insertTaskMessage(messages, taskMessage, taskPlacement, outputMode = 's
   if (protocolMessage) messages.push(protocolMessage);
 }
 
-function stripInternalMessageFields(messages) {
+export function stripInternalMessageFields(messages) {
   messages.forEach((message) => {
     delete message.runtimeMarkerType;
     delete message.sourceItemId;
@@ -868,6 +868,6 @@ export async function buildExternalStatusbarMessages({ targetWindow, context, la
   messages.runtimeInsertions = applyRuntimeTemplateInsertions(messages, { context, worldbooks });
   markLatestAssistantTarget(messages, context, latestMessage, outputMode);
   insertTaskMessage(messages, { role: 'user', content: taskContent }, taskPlacement, outputMode, outputProtocol);
-  return stripInternalMessageFields(messages);
+  return messages;
 }
 import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from '../settings/task-placement.js';

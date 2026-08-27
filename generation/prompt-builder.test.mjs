@@ -144,3 +144,10 @@ test('resolves core plugin macros without case sensitivity', async () => {
     `角色|角色|User|User|${context.chat[0].mes}|${context.chat[0].mes}|${context.chat[0].mes}|${context.chat[0].mes}`,
   );
 });
+
+test('preserves source message ids until the final outgoing-message compatibility pass', async () => {
+  const messages = await build();
+  const assistantMessage = messages.find((message) => message.content === context.chat[1].mes);
+
+  assert.equal(assistantMessage?.sourceMessageIndex, 1);
+});
