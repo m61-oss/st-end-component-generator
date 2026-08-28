@@ -1984,10 +1984,14 @@ async function buildMessages(latestMessage) {
       message.content = rendered;
     }
   }
+  let tavernHelperYamlLibrary = targetWindow?.jsyaml || targetWindow?.yaml || null;
+  try {
+    tavernHelperYamlLibrary = await getYamlParser() || tavernHelperYamlLibrary;
+  } catch (_) {}
   const tavernHelperMacroWarnings = replaceTavernHelperMacrosInMessages(messages, {
     getVariables: targetWindow?.TavernHelper?.getVariables?.bind(targetWindow.TavernHelper),
     chat: context?.chat,
-    yamlLibrary: targetWindow?.jsyaml || targetWindow?.yaml || null,
+    yamlLibrary: tavernHelperYamlLibrary,
     lodashLike: targetWindow?._,
   });
   stripInternalMessageFields(messages);

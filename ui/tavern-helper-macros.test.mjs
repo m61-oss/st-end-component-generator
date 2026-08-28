@@ -17,9 +17,17 @@ test('runs TavernHelper variable macros after prompt templates and strips intern
   assert.ok(stripIndex > macroIndex, 'source message ids should be stripped only after helper macros resolve');
 });
 
-test('passes TavernHelper variables, chat context, YAML and Lodash into the final macro pass', () => {
+test('loads SillyTavern YAML dynamically before the final macro pass', () => {
+  const buildMessagesStart = indexSource.indexOf('async function buildMessages(latestMessage)');
+  const buildMessagesEnd = indexSource.indexOf('\nfunction setGeneratingState', buildMessagesStart);
+  const buildMessagesSource = indexSource.slice(buildMessagesStart, buildMessagesEnd);
+  const yamlLoadIndex = buildMessagesSource.indexOf('await getYamlParser()');
+  const macroIndex = buildMessagesSource.indexOf('replaceTavernHelperMacrosInMessages(');
+
+  assert.ok(yamlLoadIndex >= 0, 'the existing dynamic YAML loader should be reused');
+  assert.ok(yamlLoadIndex < macroIndex, 'YAML should load before TavernHelper format macros resolve');
   assert.match(indexSource, /getVariables:\s*targetWindow\?\.TavernHelper\?\.getVariables/);
   assert.match(indexSource, /chat:\s*context\?\.chat/);
-  assert.match(indexSource, /yamlLibrary:\s*targetWindow\?\.jsyaml\s*\|\|\s*targetWindow\?\.yaml/);
+  assert.match(buildMessagesSource, /yamlLibrary:\s*tavernHelperYamlLibrary/);
   assert.match(indexSource, /lodashLike:\s*targetWindow\?_?\._/);
 });
