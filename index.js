@@ -68,6 +68,14 @@ import {
 import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.2.2';
 import { loadGenerationHistory, recordGenerationResult, updateGenerationHistoryEntry } from './generation/generation-history.js?ver=0.2.2';
 import {
+  createMultiTask,
+  deleteMultiTask,
+  normalizeMultiTaskSettings,
+  renameMultiTask,
+  selectMultiTask,
+} from './generation/multi-task-state.js?ver=0.2.2';
+import { renderGenerationModeSwitch, renderMultiTaskWorkspace } from './ui/multi-task-workspace.js?ver=0.2.2';
+import {
   THEATER_DEFAULT_GROUP_ID,
   THEATER_RANDOM_MODE_ALL,
   THEATER_RANDOM_MODE_ENABLED,
@@ -182,6 +190,8 @@ const DEFAULT_SETTINGS = {
   automaticGenerationTriggerText: '',
   autoInject: null,
   activeTab: 'workspace',
+  generationMode: 'single',
+  multiTaskSettings: { concurrency: 2, activeTaskId: '', tasks: [] },
   taskPrompt: [
     '现在停止生成正文，为最新的正文补充下面这些内容。',
     '{{external_components}}',
@@ -687,6 +697,8 @@ function loadSettings() {
   settings.taskSchemes = normalizeSchemeList(settings.taskSchemes);
   settings.presetSchemes = normalizeSchemeList(settings.presetSchemes);
   settings.worldbookSchemes = normalizeSchemeList(settings.worldbookSchemes);
+  settings.generationMode = settings.generationMode === 'multi' ? 'multi' : 'single';
+  settings.multiTaskSettings = normalizeMultiTaskSettings(settings.multiTaskSettings);
   settings.chatWorldbookBindings = normalizeChatBindingIndex(settings.chatWorldbookBindings);
   if (!settings.promptSelections || typeof settings.promptSelections !== 'object') settings.promptSelections = {};
   if (!settings.importSelections || typeof settings.importSelections !== 'object') settings.importSelections = {};
@@ -6573,6 +6585,186 @@ function renderGenerationSettings() {
   $t('#st-esg-mvu-reprocess-on-inject').prop('checked', settings.mvuReprocessOnInject);
 }
 
+function getActiveMultiTask() {
+  const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  return state.tasks.find((task) => task.id === state.activeTaskId) || state.tasks[0] || null;
+}
+
+function replaceMultiTask(taskId, patch) {
+  const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  settings.multiTaskSettings = {
+    ...state,
+    tasks: state.tasks.map((task) => (task.id === taskId ? { ...task, ...patch } : task)),
+  };
+}
+
+function getNextMultiTaskName() {
+  const names = new Set(normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.map((task) => task.name));
+  let index = 1;
+  while (names.has(`任务 ${index}`)) index += 1;
+  return `任务 ${index}`;
+}
+
+function getNewMultiTaskDefaults() {
+  return {
+    apiSchemeId: textOf(settings.selectedApiSchemeId),
+    taskSchemeId: textOf(settings.selectedTaskSchemeId),
+    presetSchemeId: textOf(settings.selectedPresetSchemeId),
+    worldbookSchemeId: textOf(settings.selectedWorldbookSchemeId),
+    componentSchemeId: '',
+    injectMode: settings.injectMode === 'anchor' ? 'anchor' : 'append',
+  };
+}
+
+function renderMultiTaskFramework() {
+  const dialog = getDialog();
+  const mode = settings.generationMode === 'multi' ? 'multi' : 'single';
+  dialog?.querySelector('#st-esg-generation-mode-host')?.replaceChildren();
+  const modeHost = dialog?.querySelector('#st-esg-generation-mode-host');
+  if (modeHost) modeHost.innerHTML = renderGenerationModeSwitch(mode);
+  const singleHost = dialog?.querySelector('.st-esg-single-task-workspace');
+  const multiHost = dialog?.querySelector('#st-esg-multi-task-host');
+  singleHost?.classList.toggle('st-esg-hidden', mode === 'multi');
+  multiHost?.classList.toggle('st-esg-hidden', mode !== 'multi');
+  if (multiHost) multiHost.innerHTML = renderMultiTaskWorkspace(settings.multiTaskSettings);
+  dialog?.querySelector('.st-esg-panel-footer')?.classList.toggle('st-esg-hidden', mode === 'multi');
+}
+
+function installMultiTaskFrameworkShell(dialog) {
+  const workspace = dialog.querySelector('[data-tab-panel="workspace"]');
+  if (!workspace || workspace.querySelector('.st-esg-single-task-workspace')) return;
+  const singleHost = targetDoc.createElement('div');
+  singleHost.className = 'st-esg-single-task-workspace';
+  while (workspace.firstChild) singleHost.appendChild(workspace.firstChild);
+  const modeHost = targetDoc.createElement('div');
+  modeHost.id = 'st-esg-generation-mode-host';
+  const multiHost = targetDoc.createElement('div');
+  multiHost.id = 'st-esg-multi-task-host';
+  multiHost.className = 'st-esg-hidden';
+  workspace.append(modeHost, singleHost, multiHost);
+  renderMultiTaskFramework();
+}
+
+function renderMultiTaskSchemeOptions(list, selectedId, emptyLabel = '未选择') {
+  const options = [`<option value="">${escapeHtml(emptyLabel)}</option>`];
+  for (const scheme of normalizeSchemeList(list)) {
+    options.push(`<option value="${escapeHtml(scheme.id)}"${scheme.id === selectedId ? ' selected' : ''}>${escapeHtml(scheme.name)}</option>`);
+  }
+  return options.join('');
+}
+
+function showMultiTaskSettingsDialog() {
+  const task = getActiveMultiTask();
+  if (!task) return;
+  targetDoc.getElementById('st-esg-multi-task-settings-dialog')?.remove();
+  const dialog = targetDoc.createElement('dialog');
+  dialog.id = 'st-esg-multi-task-settings-dialog';
+  dialog.className = `st-esg-scheme-name-dialog st-esg-multi-task-settings-dialog ${getThemeClassName(settings.theme)}`;
+  dialog.innerHTML = `<form method="dialog"><div class="st-esg-card-title">${escapeHtml(task.name)} · 任务设置</div>
+    <label>任务指令方案<select class="text_pole" name="taskSchemeId">${renderMultiTaskSchemeOptions(settings.taskSchemes, task.taskSchemeId)}</select></label>
+    <label>组件方案<select class="text_pole" name="componentSchemeId" disabled><option value="">组件方案将在后续阶段接入</option></select></label>
+    <label>API 方案<select class="text_pole" name="apiSchemeId">${renderMultiTaskSchemeOptions(settings.apiSchemes, task.apiSchemeId)}</select></label>
+    <label>预设方案<select class="text_pole" name="presetSchemeId">${renderMultiTaskSchemeOptions(settings.presetSchemes, task.presetSchemeId, '酒馆默认')}</select></label>
+    <label>世界书方案<select class="text_pole" name="worldbookSchemeId">${renderMultiTaskSchemeOptions(settings.worldbookSchemes, task.worldbookSchemeId, '酒馆默认')}</select></label>
+    <label>注入方式<select class="text_pole" name="injectMode"><option value="append"${task.injectMode === 'append' ? ' selected' : ''}>追加</option><option value="anchor"${task.injectMode === 'anchor' ? ' selected' : ''}>锚点插入</option></select></label>
+    <div class="st-esg-actions-row"><button class="menu_button st-esg-secondary-action" type="button" data-multi-task-settings-cancel>取消</button><button class="menu_button st-esg-primary-action" type="submit">保存</button></div></form>`;
+  const finish = () => { if (dialog.open) dialog.close(); dialog.remove(); };
+  dialog.querySelector('[data-multi-task-settings-cancel]').addEventListener('click', finish);
+  dialog.addEventListener('cancel', (event) => { event.preventDefault(); finish(); });
+  dialog.querySelector('form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const form = new targetWindow.FormData(event.currentTarget);
+    replaceMultiTask(task.id, {
+      taskSchemeId: textOf(form.get('taskSchemeId')),
+      componentSchemeId: '',
+      apiSchemeId: textOf(form.get('apiSchemeId')),
+      presetSchemeId: textOf(form.get('presetSchemeId')),
+      worldbookSchemeId: textOf(form.get('worldbookSchemeId')),
+      injectMode: form.get('injectMode') === 'anchor' ? 'anchor' : 'append',
+    });
+    saveSettings();
+    renderMultiTaskFramework();
+    finish();
+  });
+  targetDoc.body.appendChild(dialog);
+  if (typeof dialog.showModal === 'function') dialog.showModal();
+  else dialog.setAttribute('open', '');
+}
+
+async function handleMultiTaskAction(action) {
+  const activeTask = getActiveMultiTask();
+  if (action === 'add') {
+    const name = await requestTextInputDialog({ title: '添加任务', label: '任务名称', placeholder: '输入便于识别的任务名称', value: getNextMultiTaskName() });
+    if (!name) return;
+    const result = createMultiTask(settings.multiTaskSettings, name, getNewMultiTaskDefaults());
+    if (result.error) {
+      notifyStatus(result.error === 'duplicate-name' ? '任务名称不能重复。' : '最多只能添加五个任务。', 'warning');
+      return;
+    }
+    settings.multiTaskSettings = result.state;
+    saveSettings();
+    renderMultiTaskFramework();
+    showMultiTaskSettingsDialog();
+    return;
+  }
+  if (action === 'global-settings') {
+    const concurrency = await requestTextInputDialog({
+      title: '多任务设置',
+      label: '允许同时生成的任务数',
+      value: String(settings.multiTaskSettings.concurrency),
+      options: [1, 2, 3, 4, 5].map((value) => ({ value: String(value), label: `${value} 个任务` })),
+    });
+    if (!concurrency) return;
+    settings.multiTaskSettings = normalizeMultiTaskSettings({ ...settings.multiTaskSettings, concurrency });
+    saveSettings();
+    renderMultiTaskFramework();
+    return;
+  }
+  if (!activeTask) return;
+  if (action === 'settings') { showMultiTaskSettingsDialog(); return; }
+  if (action === 'history') { notifyStatus('多任务最近生成记录将在生成调度阶段接入。', 'info'); return; }
+  if (action === 'rename') {
+    const name = await requestTextInputDialog({ title: '重命名任务', label: '任务名称', value: activeTask.name });
+    if (!name || name === activeTask.name) return;
+    const result = renameMultiTask(settings.multiTaskSettings, activeTask.id, name);
+    if (result.error) { notifyStatus('任务名称不能为空或与其他任务重复。', 'warning'); return; }
+    settings.multiTaskSettings = result.state;
+    saveSettings();
+    renderMultiTaskFramework();
+    return;
+  }
+  if (action === 'delete') {
+    if (!targetWindow.confirm(`删除任务“${activeTask.name}”？\n\n当前框架中的任务配置和未接入的临时结果会一并删除。`)) return;
+    settings.multiTaskSettings = deleteMultiTask(settings.multiTaskSettings, activeTask.id).state;
+    saveSettings();
+    renderMultiTaskFramework();
+  }
+}
+
+function bindMultiTaskFrameworkEvents() {
+  const workspace = $t('[data-tab-panel="workspace"]');
+  workspace.off('.stEsgMultiTask')
+    .on('click.stEsgMultiTask', '[data-generation-mode]', function () {
+      settings.generationMode = String($(this).attr('data-generation-mode')) === 'multi' ? 'multi' : 'single';
+      saveSettings();
+      renderMultiTaskFramework();
+    })
+    .on('click.stEsgMultiTask', '[data-multi-task-id]', function () {
+      settings.multiTaskSettings = selectMultiTask(settings.multiTaskSettings, String($(this).attr('data-multi-task-id')));
+      saveSettings();
+      renderMultiTaskFramework();
+    })
+    .on('click.stEsgMultiTask', '[data-multi-task-action]', function () {
+      void handleMultiTaskAction(String($(this).attr('data-multi-task-action')));
+    })
+    .on('input.stEsgMultiTask', '[data-multi-task-extra]', function () {
+      const task = getActiveMultiTask();
+      if (!task) return;
+      replaceMultiTask(task.id, { extraInstruction: String($(this).val() ?? '') });
+      saveSettings();
+    });
+}
+
 function renderPluginPanel() {
   if (targetDoc.getElementById('st-esg-dialog')) return;
   const dialog = targetDoc.createElement('dialog');
@@ -6580,6 +6772,7 @@ function renderPluginPanel() {
   dialog.className = 'st-esg-dialog';
   dialog.tabIndex = -1;
   dialog.innerHTML = buildPluginPanelMarkup();
+  installMultiTaskFrameworkShell(dialog);
   upgradePanelActionToButton(dialog, '#st-esg-generate');
   upgradePanelActionToButton(dialog, '#st-esg-inject');
   dialog.querySelector('#st-esg-generate span')?.replaceChildren('生成组件');
@@ -6746,6 +6939,7 @@ function renderPluginPanel() {
   });
   dialog.querySelector('#st-esg-close')?.insertAdjacentHTML('beforebegin', '<div id="st-esg-theme-toggle" class="st-esg-header-btn" role="button" tabindex="0" title="切换主题"><span class="st-esg-theme-glyph" aria-hidden="true"><i class="fa-solid fa-moon"></i></span></div>');
   targetDoc.body.appendChild(dialog);
+  renderMultiTaskFramework();
   dialog.addEventListener('cancel', (event) => { event.preventDefault(); togglePanel(false); });
   dialog.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || event.target.closest?.('dialog') !== dialog) return;
@@ -6759,6 +6953,7 @@ function renderPluginPanel() {
   });
   dialog.addEventListener('click', (event) => { if (event.target === dialog) togglePanel(false); });
   bindPanelEvents();
+  bindMultiTaskFrameworkEvents();
 }
 
 function collapseManualComponentCard() {
