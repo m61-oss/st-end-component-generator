@@ -1,4 +1,4 @@
-import { MULTI_TASK_MAX_COUNT, MULTI_TASK_STATUS, normalizeMultiTaskSettings } from '../generation/multi-task-state.js';
+import { MULTI_TASK_STATUS, normalizeMultiTaskSettings } from '../generation/multi-task-state.js';
 
 const STATUS_LABELS = Object.freeze({
   [MULTI_TASK_STATUS.IDLE]: '就绪',
@@ -20,9 +20,12 @@ const escapeHtml = (value) => String(value ?? '')
 
 export function renderGenerationModeSwitch(mode = 'single') {
   const activeMode = mode === 'multi' ? 'multi' : 'single';
-  return `<div class="st-esg-generation-mode-switch" role="group" aria-label="生成模式">
-    <button class="st-esg-generation-mode${activeMode === 'single' ? ' active' : ''}" type="button" data-generation-mode="single" aria-pressed="${activeMode === 'single'}">单任务</button>
-    <button class="st-esg-generation-mode${activeMode === 'multi' ? ' active' : ''}" type="button" data-generation-mode="multi" aria-pressed="${activeMode === 'multi'}">多任务</button>
+  return `<div class="st-esg-generation-mode-switch">
+    <div class="st-esg-generation-mode-tabs" role="group" aria-label="生成模式">
+      <button class="st-esg-generation-mode${activeMode === 'single' ? ' active' : ''}" type="button" data-generation-mode="single" aria-pressed="${activeMode === 'single'}">单任务</button>
+      <button class="st-esg-generation-mode${activeMode === 'multi' ? ' active' : ''}" type="button" data-generation-mode="multi" aria-pressed="${activeMode === 'multi'}">多任务</button>
+    </div>
+    <button class="menu_button menu_button_icon st-esg-secondary-action st-esg-generation-mode-settings" type="button" data-generation-mode-settings title="${activeMode === 'multi' ? '多任务设置' : '单任务设置'}" aria-label="${activeMode === 'multi' ? '多任务设置' : '单任务设置'}"><i class="fa-solid fa-gear" aria-hidden="true"></i></button>
   </div>`;
 }
 
@@ -34,49 +37,26 @@ function renderTaskTabs(state) {
   }).join('')}</div>`;
 }
 
-function renderTaskActions() {
-  return `<div class="st-esg-multi-task-actions st-esg-multi-task-current-actions" aria-label="当前任务操作">
-    <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="undo" disabled title="多任务撤回将在后续阶段接入"><i class="fa-solid fa-rotate-left"></i><span>撤回任务</span></button>
-    <button class="menu_button menu_button_icon st-esg-primary-action" type="button" data-multi-task-action="generate" disabled title="多任务生成将在后续阶段接入"><i class="fa-solid fa-sparkles"></i><span>生成任务</span></button>
-  </div>`;
-}
-
-function renderBatchActions(taskCount) {
-  if (taskCount < 2) return '';
-  return `<div class="st-esg-multi-task-batch-bar"><span>全部任务</span><div class="st-esg-multi-task-actions" aria-label="全部任务操作">
-    <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="undo-all" disabled title="批量撤回将在后续阶段接入"><i class="fa-solid fa-rotate-left"></i><span>撤回全部</span></button>
-    <button class="menu_button menu_button_icon st-esg-primary-action" type="button" data-multi-task-action="generate-all" disabled title="并发调度将在后续阶段接入"><i class="fa-solid fa-layer-group"></i><span>生成全部</span></button>
-  </div></div>`;
-}
-
 function renderActiveTask(state) {
   const task = state.tasks.find((item) => item.id === state.activeTaskId) || state.tasks[0];
   const statusLabel = STATUS_LABELS[task.status] || STATUS_LABELS.idle;
-  return `<section class="st-esg-multi-task-surface" data-active-multi-task-id="${escapeHtml(task.id)}">
+  return `<section class="st-esg-multi-task-current" data-active-multi-task-id="${escapeHtml(task.id)}">
     <header class="st-esg-multi-task-head">
-      <div><strong>${escapeHtml(task.name)}</strong><span>${escapeHtml(statusLabel)}</span></div>
-      <div class="st-esg-multi-task-tools">
-        <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="history" title="最近生成记录" aria-label="最近生成记录"><i class="fa-solid fa-clock-rotate-left"></i></button>
-        <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="settings" title="任务设置" aria-label="任务设置"><i class="fa-solid fa-gear"></i></button>
-        <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="rename" title="重命名任务" aria-label="重命名任务"><i class="fa-solid fa-pen"></i></button>
-        <button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger" type="button" data-multi-task-action="delete" title="删除任务" aria-label="删除任务"><i class="fa-solid fa-trash"></i></button>
+      <div class="st-esg-multi-task-current-copy"><strong>${escapeHtml(task.name)}</strong><span>${escapeHtml(statusLabel)}</span></div>
+      <div class="st-esg-multi-task-tools" aria-label="当前任务操作">
+        <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="history" title="最近生成记录" aria-label="最近生成记录"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></button>
+        <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="undo" disabled title="多任务撤回将在后续阶段接入" aria-label="撤回当前任务"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button>
+        <button class="menu_button menu_button_icon st-esg-primary-action" type="button" data-multi-task-action="generate" disabled title="多任务生成将在后续阶段接入" aria-label="生成当前任务"><i class="fa-solid fa-sparkles" aria-hidden="true"></i></button>
+        <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="inject" disabled title="多任务注入将在后续阶段接入" aria-label="注入当前任务"><i class="fa-solid fa-file-import" aria-hidden="true"></i></button>
       </div>
     </header>
-    <label class="st-esg-multi-task-extra">额外指令（可选）<input class="text_pole" type="text" data-multi-task-extra autocomplete="off" value="${escapeHtml(task.extraInstruction)}" placeholder="临时追加到这个任务的指令末尾" /></label>
-    <div class="st-esg-multi-task-result">
-      <div class="st-esg-multi-task-result-tabs" role="tablist" aria-label="生成内容视图"><button class="active" type="button" aria-selected="true">结果</button><button type="button" aria-selected="false" disabled>思考过程</button></div>
-      <textarea class="text_pole textarea_compact st-esg-textarea st-esg-multi-task-preview" data-multi-task-preview rows="13" placeholder="当前任务的生成内容会出现在这里。">${escapeHtml(task.output)}</textarea>
-    </div>
-    ${renderTaskActions()}
-  </section>${renderBatchActions(state.tasks.length)}`;
+  </section>`;
 }
 
 export function renderMultiTaskWorkspace(value = {}) {
   const state = normalizeMultiTaskSettings(value);
-  const canAdd = state.tasks.length < MULTI_TASK_MAX_COUNT;
-  const toolbar = `<div class="st-esg-multi-task-toolbar"><span>并发 ${state.concurrency}</span><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="global-settings"><i class="fa-solid fa-sliders"></i><span>全局设置</span></button><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="add"${canAdd ? '' : ' disabled'}><i class="fa-solid fa-plus"></i><span>${canAdd ? '添加任务' : '已达上限'}</span></button></div>`;
   if (!state.tasks.length) {
-    return `<div class="st-esg-multi-task-workspace">${toolbar}<div class="st-esg-multi-task-empty"><i class="fa-solid fa-layer-group" aria-hidden="true"></i><strong>还没有多任务配置</strong><span>添加并命名任务后，可以分别选择方案并并发生成。</span><button class="menu_button menu_button_icon st-esg-primary-action" type="button" data-multi-task-action="add"><i class="fa-solid fa-plus"></i><span>添加第一个任务</span></button></div></div>`;
+    return `<div class="st-esg-multi-task-workspace"><div class="st-esg-multi-task-empty"><i class="fa-solid fa-layer-group" aria-hidden="true"></i><span>还没有任务，请打开设置添加。</span></div></div>`;
   }
-  return `<div class="st-esg-multi-task-workspace">${toolbar}${renderTaskTabs(state)}${renderActiveTask(state)}</div>`;
+  return `<div class="st-esg-multi-task-workspace">${renderTaskTabs(state)}${renderActiveTask(state)}</div>`;
 }

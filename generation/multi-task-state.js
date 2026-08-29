@@ -63,6 +63,8 @@ export function normalizeMultiTaskSettings(value = {}) {
   const requestedActiveId = textOf(source.activeTaskId);
   return {
     concurrency: clampConcurrency(source.concurrency),
+    autoInject: source.autoInject === true,
+    rollbackBeforeGeneration: source.rollbackBeforeGeneration === true,
     activeTaskId: tasks.some((task) => task.id === requestedActiveId) ? requestedActiveId : (tasks[0]?.id || ''),
     tasks,
   };

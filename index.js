@@ -191,7 +191,7 @@ const DEFAULT_SETTINGS = {
   autoInject: null,
   activeTab: 'workspace',
   generationMode: 'single',
-  multiTaskSettings: { concurrency: 2, activeTaskId: '', tasks: [] },
+  multiTaskSettings: { concurrency: 2, autoInject: false, rollbackBeforeGeneration: false, activeTaskId: '', tasks: [] },
   taskPrompt: [
     '现在停止生成正文，为最新的正文补充下面这些内容。',
     '{{external_components}}',
@@ -323,6 +323,7 @@ let lastPromptLogText = '';
 let promptLogBuilding = false;
 let lastGeneratedThinking = [];
 let recentGenerationHistory = [];
+let singleTaskWorkspaceSnapshot = null;
 let activeGenerationHistoryId = null;
 let anchorEditSaveTimer = null;
 let latestInjectionUndoSnapshot = null;
@@ -6616,32 +6617,80 @@ function getNewMultiTaskDefaults() {
   };
 }
 
+function captureGenerationWorkspaceView() {
+  return {
+    extraInstruction: String(targetDoc.getElementById('st-esg-temporary-task-instruction')?.value ?? temporaryTaskInstruction),
+    output: String(targetDoc.getElementById('st-esg-preview')?.value ?? settings.lastGenerated ?? ''),
+    thinking: Array.isArray(lastGeneratedThinking) ? [...lastGeneratedThinking] : [],
+    error: settings.lastGenerationError && typeof settings.lastGenerationError === 'object'
+      ? { ...settings.lastGenerationError }
+      : null,
+  };
+}
+
+function applyGenerationWorkspaceView(view = {}) {
+  temporaryTaskInstruction = String(view.extraInstruction ?? '');
+  settings.lastGenerated = String(view.output ?? '');
+  lastGeneratedThinking = Array.isArray(view.thinking) ? [...view.thinking] : [];
+  settings.lastGeneratedThinking = [...lastGeneratedThinking];
+  settings.lastGenerationError = view.error && typeof view.error === 'object' ? { ...view.error } : null;
+  settings.lastGeneratedAnchorItems = [];
+  settings.lastGeneratedAnchorWarnings = [];
+  settings.lastGeneratedResultMode = 'standard';
+  settings.lastGeneratedAnchorTargetIndex = null;
+  const instruction = targetDoc.getElementById('st-esg-temporary-task-instruction');
+  const preview = targetDoc.getElementById('st-esg-preview');
+  if (instruction) instruction.value = temporaryTaskInstruction;
+  if (preview) preview.value = settings.lastGenerated;
+  renderGeneratedThinking();
+  renderGenerationResultPanel();
+  resizeGeneratedPreview();
+}
+
+function captureActiveMultiTaskView() {
+  if (settings.generationMode !== 'multi') return;
+  const task = getActiveMultiTask();
+  if (!task) return;
+  replaceMultiTask(task.id, captureGenerationWorkspaceView());
+}
+
+function hydrateActiveMultiTaskView() {
+  const task = getActiveMultiTask();
+  applyGenerationWorkspaceView(task || {});
+}
+
 function renderMultiTaskFramework() {
   const dialog = getDialog();
   const mode = settings.generationMode === 'multi' ? 'multi' : 'single';
   dialog?.querySelector('#st-esg-generation-mode-host')?.replaceChildren();
   const modeHost = dialog?.querySelector('#st-esg-generation-mode-host');
   if (modeHost) modeHost.innerHTML = renderGenerationModeSwitch(mode);
-  const singleHost = dialog?.querySelector('.st-esg-single-task-workspace');
   const multiHost = dialog?.querySelector('#st-esg-multi-task-host');
-  singleHost?.classList.toggle('st-esg-hidden', mode === 'multi');
   multiHost?.classList.toggle('st-esg-hidden', mode !== 'multi');
   if (multiHost) multiHost.innerHTML = renderMultiTaskWorkspace(settings.multiTaskSettings);
-  dialog?.querySelector('.st-esg-panel-footer')?.classList.toggle('st-esg-hidden', mode === 'multi');
+  dialog?.querySelector('.st-esg-generation-settings')?.classList.add('st-esg-hidden');
+  dialog?.querySelector('.st-esg-generation-history-card')?.classList.toggle('st-esg-hidden', mode === 'multi');
+  dialog?.querySelector('#st-esg-generate span')?.replaceChildren(mode === 'multi' ? '生成全部' : '生成组件');
+  dialog?.querySelector('#st-esg-inject span')?.replaceChildren(mode === 'multi' ? '注入全部' : '注入回复');
+  dialog?.querySelector('#st-esg-undo-injection span')?.replaceChildren(mode === 'multi' ? '撤回全部' : '撤回注入');
+  for (const selector of ['#st-esg-generate', '#st-esg-inject', '#st-esg-undo-injection']) {
+    const footerAction = dialog?.querySelector(selector);
+    footerAction?.toggleAttribute('disabled', mode === 'multi');
+    footerAction?.classList.toggle('disabled', mode === 'multi');
+  }
+  if (mode === 'multi') hydrateActiveMultiTaskView();
+  else if (singleTaskWorkspaceSnapshot) applyGenerationWorkspaceView(singleTaskWorkspaceSnapshot);
 }
 
 function installMultiTaskFrameworkShell(dialog) {
   const workspace = dialog.querySelector('[data-tab-panel="workspace"]');
-  if (!workspace || workspace.querySelector('.st-esg-single-task-workspace')) return;
-  const singleHost = targetDoc.createElement('div');
-  singleHost.className = 'st-esg-single-task-workspace';
-  while (workspace.firstChild) singleHost.appendChild(workspace.firstChild);
+  if (!workspace || workspace.querySelector('#st-esg-generation-mode-host')) return;
   const modeHost = targetDoc.createElement('div');
   modeHost.id = 'st-esg-generation-mode-host';
   const multiHost = targetDoc.createElement('div');
   multiHost.id = 'st-esg-multi-task-host';
   multiHost.className = 'st-esg-hidden';
-  workspace.append(modeHost, singleHost, multiHost);
+  workspace.prepend(modeHost, multiHost);
   renderMultiTaskFramework();
 }
 
@@ -6653,34 +6702,92 @@ function renderMultiTaskSchemeOptions(list, selectedId, emptyLabel = '未选择'
   return options.join('');
 }
 
-function showMultiTaskSettingsDialog() {
-  const task = getActiveMultiTask();
-  if (!task) return;
-  targetDoc.getElementById('st-esg-multi-task-settings-dialog')?.remove();
+function showSingleTaskSettingsDialog() {
+  const settingsCard = targetDoc.querySelector('.st-esg-generation-settings');
+  const workspace = targetDoc.querySelector('[data-tab-panel="workspace"]');
+  if (!settingsCard || !workspace) return;
+  targetDoc.getElementById('st-esg-generation-mode-settings-dialog')?.remove();
+  const marker = targetDoc.createComment('st-esg-generation-settings-home');
+  settingsCard.before(marker);
   const dialog = targetDoc.createElement('dialog');
-  dialog.id = 'st-esg-multi-task-settings-dialog';
+  dialog.id = 'st-esg-generation-mode-settings-dialog';
+  dialog.className = `st-esg-scheme-name-dialog st-esg-generation-mode-settings-dialog ${getThemeClassName(settings.theme)}`;
+  dialog.innerHTML = `<div class="st-esg-generation-mode-settings-shell"><header><div class="st-esg-card-title">单任务设置</div><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-generation-settings-close aria-label="关闭设置" title="关闭设置"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header><div data-generation-settings-card-host></div></div>`;
+  const host = dialog.querySelector('[data-generation-settings-card-host]');
+  settingsCard.classList.remove('st-esg-hidden');
+  settingsCard.open = true;
+  host.appendChild(settingsCard);
+  const finish = () => {
+    if (dialog.open) dialog.close();
+    marker.replaceWith(settingsCard);
+    settingsCard.classList.add('st-esg-hidden');
+    dialog.remove();
+  };
+  dialog.querySelector('[data-generation-settings-close]').addEventListener('click', finish);
+  dialog.addEventListener('cancel', (event) => { event.preventDefault(); finish(); });
+  targetDoc.body.appendChild(dialog);
+  if (typeof dialog.showModal === 'function') dialog.showModal();
+  else dialog.setAttribute('open', '');
+}
+
+function showMultiTaskSettingsDialog() {
+  const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  const task = state.tasks.find((item) => item.id === state.activeTaskId) || state.tasks[0] || null;
+  targetDoc.getElementById('st-esg-generation-mode-settings-dialog')?.remove();
+  const dialog = targetDoc.createElement('dialog');
+  dialog.id = 'st-esg-generation-mode-settings-dialog';
   dialog.className = `st-esg-scheme-name-dialog st-esg-multi-task-settings-dialog ${getThemeClassName(settings.theme)}`;
-  dialog.innerHTML = `<form method="dialog"><div class="st-esg-card-title">${escapeHtml(task.name)} · 任务设置</div>
-    <label>任务指令方案<select class="text_pole" name="taskSchemeId">${renderMultiTaskSchemeOptions(settings.taskSchemes, task.taskSchemeId)}</select></label>
+  const taskOptions = state.tasks.map((item) => `<option value="${escapeHtml(item.id)}"${item.id === task?.id ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
+  const taskFields = task ? `<label>任务指令方案<select class="text_pole" name="taskSchemeId">${renderMultiTaskSchemeOptions(settings.taskSchemes, task.taskSchemeId)}</select></label>
     <label>组件方案<select class="text_pole" name="componentSchemeId" disabled><option value="">组件方案将在后续阶段接入</option></select></label>
     <label>API 方案<select class="text_pole" name="apiSchemeId">${renderMultiTaskSchemeOptions(settings.apiSchemes, task.apiSchemeId)}</select></label>
     <label>预设方案<select class="text_pole" name="presetSchemeId">${renderMultiTaskSchemeOptions(settings.presetSchemes, task.presetSchemeId, '酒馆默认')}</select></label>
     <label>世界书方案<select class="text_pole" name="worldbookSchemeId">${renderMultiTaskSchemeOptions(settings.worldbookSchemes, task.worldbookSchemeId, '酒馆默认')}</select></label>
-    <label>注入方式<select class="text_pole" name="injectMode"><option value="append"${task.injectMode === 'append' ? ' selected' : ''}>追加</option><option value="anchor"${task.injectMode === 'anchor' ? ' selected' : ''}>锚点插入</option></select></label>
+    <label>注入方式<select class="text_pole" name="injectMode"><option value="append"${task.injectMode === 'append' ? ' selected' : ''}>追加</option><option value="anchor"${task.injectMode === 'anchor' ? ' selected' : ''}>锚点插入</option></select></label>` : '<div class="st-esg-multi-task-settings-empty">还没有任务，请先添加任务。</div>';
+  dialog.innerHTML = `<form method="dialog"><div class="st-esg-multi-task-settings-title"><div class="st-esg-card-title">多任务设置</div><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-cancel aria-label="关闭设置" title="关闭设置"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>
+    ${task ? `<label>当前任务<select class="text_pole" data-multi-task-settings-select>${taskOptions}</select></label>` : ''}
+    <div class="st-esg-multi-task-manage-actions"><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>添加</span></button><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="rename"${task ? '' : ' disabled'}><i class="fa-solid fa-pen" aria-hidden="true"></i><span>改名</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger" type="button" data-multi-task-settings-action="delete"${task ? '' : ' disabled'}><i class="fa-solid fa-trash" aria-hidden="true"></i><span>删除</span></button></div>
+    <div class="st-esg-multi-task-settings-section"><div class="st-esg-card-title">任务配置</div>${taskFields}</div>
+    <div class="st-esg-multi-task-settings-section"><div class="st-esg-card-title">全局设置</div>
+      <label>并发任务数<select class="text_pole" name="concurrency">${[1, 2, 3, 4, 5].map((value) => `<option value="${value}"${state.concurrency === value ? ' selected' : ''}>${value}${value === 1 ? '（全部排队）' : ''}</option>`).join('')}</select></label>
+      <label class="st-esg-checkbox st-esg-log-option"><input type="checkbox" name="autoInject"${state.autoInject ? ' checked' : ''}><span>生成完成后自动注入</span></label>
+      <label class="st-esg-checkbox st-esg-log-option"><input type="checkbox" name="rollbackBeforeGeneration"${state.rollbackBeforeGeneration ? ' checked' : ''}><span>生成前撤回对应任务的最新记录</span></label>
+    </div>
     <div class="st-esg-actions-row"><button class="menu_button st-esg-secondary-action" type="button" data-multi-task-settings-cancel>取消</button><button class="menu_button st-esg-primary-action" type="submit">保存</button></div></form>`;
   const finish = () => { if (dialog.open) dialog.close(); dialog.remove(); };
-  dialog.querySelector('[data-multi-task-settings-cancel]').addEventListener('click', finish);
+  dialog.querySelectorAll('[data-multi-task-settings-cancel]').forEach((button) => button.addEventListener('click', finish));
   dialog.addEventListener('cancel', (event) => { event.preventDefault(); finish(); });
+  dialog.querySelector('[data-multi-task-settings-select]')?.addEventListener('change', (event) => {
+    captureActiveMultiTaskView();
+    settings.multiTaskSettings = selectMultiTask(settings.multiTaskSettings, String(event.currentTarget.value));
+    saveSettings();
+    renderMultiTaskFramework();
+    finish();
+    showMultiTaskSettingsDialog();
+  });
+  dialog.querySelectorAll('[data-multi-task-settings-action]').forEach((button) => button.addEventListener('click', () => {
+    const action = String(button.getAttribute('data-multi-task-settings-action'));
+    finish();
+    void handleMultiTaskAction(action, true);
+  }));
   dialog.querySelector('form').addEventListener('submit', (event) => {
     event.preventDefault();
     const form = new targetWindow.FormData(event.currentTarget);
-    replaceMultiTask(task.id, {
-      taskSchemeId: textOf(form.get('taskSchemeId')),
-      componentSchemeId: '',
-      apiSchemeId: textOf(form.get('apiSchemeId')),
-      presetSchemeId: textOf(form.get('presetSchemeId')),
-      worldbookSchemeId: textOf(form.get('worldbookSchemeId')),
-      injectMode: form.get('injectMode') === 'anchor' ? 'anchor' : 'append',
+    if (task) {
+      replaceMultiTask(task.id, {
+        taskSchemeId: textOf(form.get('taskSchemeId')),
+        componentSchemeId: '',
+        apiSchemeId: textOf(form.get('apiSchemeId')),
+        presetSchemeId: textOf(form.get('presetSchemeId')),
+        worldbookSchemeId: textOf(form.get('worldbookSchemeId')),
+        injectMode: form.get('injectMode') === 'anchor' ? 'anchor' : 'append',
+      });
+    }
+    settings.multiTaskSettings = normalizeMultiTaskSettings({
+      ...settings.multiTaskSettings,
+      concurrency: form.get('concurrency'),
+      autoInject: form.has('autoInject'),
+      rollbackBeforeGeneration: form.has('rollbackBeforeGeneration'),
     });
     saveSettings();
     renderMultiTaskFramework();
@@ -6691,14 +6798,20 @@ function showMultiTaskSettingsDialog() {
   else dialog.setAttribute('open', '');
 }
 
-async function handleMultiTaskAction(action) {
+function showGenerationModeSettingsDialog() {
+  if (settings.generationMode === 'multi') showMultiTaskSettingsDialog();
+  else showSingleTaskSettingsDialog();
+}
+
+async function handleMultiTaskAction(action, reopenSettings = false) {
   const activeTask = getActiveMultiTask();
   if (action === 'add') {
     const name = await requestTextInputDialog({ title: '添加任务', label: '任务名称', placeholder: '输入便于识别的任务名称', value: getNextMultiTaskName() });
-    if (!name) return;
+    if (!name) { if (reopenSettings) showMultiTaskSettingsDialog(); return; }
     const result = createMultiTask(settings.multiTaskSettings, name, getNewMultiTaskDefaults());
     if (result.error) {
       notifyStatus(result.error === 'duplicate-name' ? '任务名称不能重复。' : '最多只能添加五个任务。', 'warning');
+      if (reopenSettings) showMultiTaskSettingsDialog();
       return;
     }
     settings.multiTaskSettings = result.state;
@@ -6707,37 +6820,27 @@ async function handleMultiTaskAction(action) {
     showMultiTaskSettingsDialog();
     return;
   }
-  if (action === 'global-settings') {
-    const concurrency = await requestTextInputDialog({
-      title: '多任务设置',
-      label: '允许同时生成的任务数',
-      value: String(settings.multiTaskSettings.concurrency),
-      options: [1, 2, 3, 4, 5].map((value) => ({ value: String(value), label: `${value} 个任务` })),
-    });
-    if (!concurrency) return;
-    settings.multiTaskSettings = normalizeMultiTaskSettings({ ...settings.multiTaskSettings, concurrency });
-    saveSettings();
-    renderMultiTaskFramework();
-    return;
-  }
+  if (action === 'global-settings') { showMultiTaskSettingsDialog(); return; }
   if (!activeTask) return;
   if (action === 'settings') { showMultiTaskSettingsDialog(); return; }
   if (action === 'history') { notifyStatus('多任务最近生成记录将在生成调度阶段接入。', 'info'); return; }
   if (action === 'rename') {
     const name = await requestTextInputDialog({ title: '重命名任务', label: '任务名称', value: activeTask.name });
-    if (!name || name === activeTask.name) return;
+    if (!name || name === activeTask.name) { if (reopenSettings) showMultiTaskSettingsDialog(); return; }
     const result = renameMultiTask(settings.multiTaskSettings, activeTask.id, name);
-    if (result.error) { notifyStatus('任务名称不能为空或与其他任务重复。', 'warning'); return; }
+    if (result.error) { notifyStatus('任务名称不能为空或与其他任务重复。', 'warning'); if (reopenSettings) showMultiTaskSettingsDialog(); return; }
     settings.multiTaskSettings = result.state;
     saveSettings();
     renderMultiTaskFramework();
+    if (reopenSettings) showMultiTaskSettingsDialog();
     return;
   }
   if (action === 'delete') {
-    if (!targetWindow.confirm(`删除任务“${activeTask.name}”？\n\n当前框架中的任务配置和未接入的临时结果会一并删除。`)) return;
+    if (!targetWindow.confirm(`删除任务“${activeTask.name}”？\n\n当前框架中的任务配置和未接入的临时结果会一并删除。`)) { if (reopenSettings) showMultiTaskSettingsDialog(); return; }
     settings.multiTaskSettings = deleteMultiTask(settings.multiTaskSettings, activeTask.id).state;
     saveSettings();
     renderMultiTaskFramework();
+    if (reopenSettings) showMultiTaskSettingsDialog();
   }
 }
 
@@ -6745,23 +6848,25 @@ function bindMultiTaskFrameworkEvents() {
   const workspace = $t('[data-tab-panel="workspace"]');
   workspace.off('.stEsgMultiTask')
     .on('click.stEsgMultiTask', '[data-generation-mode]', function () {
-      settings.generationMode = String($(this).attr('data-generation-mode')) === 'multi' ? 'multi' : 'single';
+      const nextMode = String($(this).attr('data-generation-mode')) === 'multi' ? 'multi' : 'single';
+      if (nextMode === settings.generationMode) return;
+      if (settings.generationMode === 'multi') captureActiveMultiTaskView();
+      else singleTaskWorkspaceSnapshot = captureGenerationWorkspaceView();
+      settings.generationMode = nextMode;
       saveSettings();
       renderMultiTaskFramework();
     })
+    .on('click.stEsgMultiTask', '[data-generation-mode-settings]', function () {
+      showGenerationModeSettingsDialog();
+    })
     .on('click.stEsgMultiTask', '[data-multi-task-id]', function () {
+      captureActiveMultiTaskView();
       settings.multiTaskSettings = selectMultiTask(settings.multiTaskSettings, String($(this).attr('data-multi-task-id')));
       saveSettings();
       renderMultiTaskFramework();
     })
     .on('click.stEsgMultiTask', '[data-multi-task-action]', function () {
       void handleMultiTaskAction(String($(this).attr('data-multi-task-action')));
-    })
-    .on('input.stEsgMultiTask', '[data-multi-task-extra]', function () {
-      const task = getActiveMultiTask();
-      if (!task) return;
-      replaceMultiTask(task.id, { extraInstruction: String($(this).val() ?? '') });
-      saveSettings();
     });
 }
 
@@ -7310,11 +7415,21 @@ function bindPanelEvents() {
   });
   $t('#st-esg-temporary-task-instruction').on('input', function () {
     temporaryTaskInstruction = String($(this).val() ?? '');
+    if (settings.generationMode === 'multi') {
+      const task = getActiveMultiTask();
+      if (task) replaceMultiTask(task.id, { extraInstruction: temporaryTaskInstruction });
+      saveSettings();
+    }
   });
   $t('#st-esg-clear-temporary-task-instruction').on('click', function (event) {
     event.preventDefault();
     temporaryTaskInstruction = '';
     $t('#st-esg-temporary-task-instruction').val('');
+    if (settings.generationMode === 'multi') {
+      const task = getActiveMultiTask();
+      if (task) replaceMultiTask(task.id, { extraInstruction: '' });
+      saveSettings();
+    }
     event.currentTarget.blur();
   });
   $t('#st-esg-task-placement-enabled').on('change', function () {
@@ -7367,6 +7482,11 @@ function bindPanelEvents() {
     settings.lastGeneratedAnchorWarnings = [];
     settings.lastGenerated = String($(this).val());
     settings.lastGeneratedStatusPlaceholderPresent = containsStatusPlaceholder(settings.lastGenerated);
+    if (settings.generationMode === 'multi') {
+      const task = getActiveMultiTask();
+      if (task) replaceMultiTask(task.id, { output: settings.lastGenerated });
+      saveSettings();
+    }
     resizeGeneratedPreview();
     renderAnchorInsertionPlan([], []);
     if (settings.messageFloorPanelEnabled && messageFloorPanelState.target) {
