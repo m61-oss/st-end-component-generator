@@ -34,3 +34,13 @@ test('multi-task framework wires mode-specific settings and shared task view per
   assert.doesNotMatch(indexSource, /data-multi-task-extra/);
   assert.match(indexSource, /new targetWindow\.FormData\(event\.currentTarget\)/);
 });
+
+test('multi-task settings follow the approved task and global tab layout', () => {
+  assert.match(indexSource, /data-multi-task-settings-tab="task"/);
+  assert.match(indexSource, /data-multi-task-settings-tab="global"/);
+  assert.match(indexSource, /data-multi-task-settings-panel="task"/);
+  assert.match(indexSource, /data-multi-task-settings-panel="global"/);
+  assert.match(indexSource, /data-multi-task-settings-tab.*addEventListener\('click'/s);
+  assert.match(indexSource, /componentSchemeId:\s*textOf\(form\.get\('componentSchemeId'\)\)/);
+  assert.doesNotMatch(indexSource, /组件方案将在后续阶段接入/);
+});

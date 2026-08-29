@@ -46,7 +46,7 @@ function renderActiveTask(state) {
       <div class="st-esg-multi-task-tools" aria-label="当前任务操作">
         <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="history" title="最近生成记录" aria-label="最近生成记录"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></button>
         <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="undo" disabled title="多任务撤回将在后续阶段接入" aria-label="撤回当前任务"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button>
-        <button class="menu_button menu_button_icon st-esg-primary-action" type="button" data-multi-task-action="generate" disabled title="多任务生成将在后续阶段接入" aria-label="生成当前任务"><i class="fa-solid fa-sparkles" aria-hidden="true"></i></button>
+        <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="generate" disabled title="多任务生成将在后续阶段接入" aria-label="生成当前任务"><i class="fa-solid fa-sparkles" aria-hidden="true"></i></button>
         <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="inject" disabled title="多任务注入将在后续阶段接入" aria-label="注入当前任务"><i class="fa-solid fa-file-import" aria-hidden="true"></i></button>
       </div>
     </header>

@@ -1859,9 +1859,15 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-generation-mode-settings-shell .st-esg-generation-settings { margin: 0; }
 .st-esg-multi-task-settings-dialog { max-height: min(760px, calc(100dvh - 28px)); overflow: auto; }
 .st-esg-multi-task-settings-dialog form { gap: 12px; }
+.st-esg-multi-task-settings-tabs { display: flex; gap: 18px; border-bottom: 1px solid var(--esg-border); }
+.st-esg-multi-task-settings-tabs button { position: relative; min-height: 34px; padding: 4px 1px 6px; border: 0; color: var(--esg-text-muted); background: transparent; cursor: pointer; font: inherit; font-weight: 650; }
+.st-esg-multi-task-settings-tabs button::after { content: ''; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; border-radius: 2px 2px 0 0; background: transparent; }
+.st-esg-multi-task-settings-tabs button.active { color: var(--esg-text-main); }
+.st-esg-multi-task-settings-tabs button.active::after { background: var(--esg-primary); }
+.st-esg-multi-task-settings-tabs button:focus-visible { outline: 2px solid var(--esg-primary); outline-offset: 1px; }
+.st-esg-multi-task-settings-panel { display: grid; gap: 10px; min-height: 0; }
 .st-esg-multi-task-manage-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
 .st-esg-multi-task-manage-actions .menu_button { width: 100% !important; min-width: 0; justify-content: center; }
-.st-esg-multi-task-settings-section { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--esg-border); }
 .st-esg-multi-task-settings-empty { padding: 10px 0; color: var(--esg-text-muted); font-size: 11px; }
 @media (prefers-reduced-motion: reduce) { .st-esg-task-status-lamp { animation: none !important; } }
 
@@ -1871,4 +1877,6 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   .st-esg-multi-task-head strong { font-size: 13px; }
   .st-esg-multi-task-tools { gap: 2px; }
   .st-esg-multi-task-tools .menu_button { width: 32px; min-width: 32px; min-height: 32px !important; }
+  .st-esg-multi-task-settings-dialog { width: 100%; max-width: none; max-height: min(88dvh, 760px); margin: auto 0 0; border-radius: 14px 14px 0 0; }
+  .st-esg-multi-task-settings-dialog form { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
 }

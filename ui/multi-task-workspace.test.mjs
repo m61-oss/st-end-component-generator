@@ -37,6 +37,9 @@ test('renders named task tabs and the scheme-B icon toolbar without duplicating 
   assert.match(markup, /data-multi-task-action="undo"[^>]*aria-label="撤回当前任务"/);
   assert.match(markup, /data-multi-task-action="generate"[^>]*aria-label="生成当前任务"/);
   assert.match(markup, /data-multi-task-action="inject"[^>]*aria-label="注入当前任务"/);
+  const taskGenerateButton = markup.match(/<button[^>]*data-multi-task-action="generate"[^>]*>/)?.[0] || '';
+  assert.match(taskGenerateButton, /st-esg-secondary-action/);
+  assert.doesNotMatch(taskGenerateButton, /st-esg-primary-action/);
   for (const icon of ['fa-clock-rotate-left', 'fa-rotate-left', 'fa-sparkles', 'fa-file-import']) {
     assert.match(markup, new RegExp(icon));
   }
@@ -51,6 +54,8 @@ test('multi-task workspace styles use compact tabs and icon actions while animat
   assert.match(css, /\.st-esg-generation-mode\.active::after\s*\{[^}]*background:/s);
   assert.match(css, /\.st-esg-multi-task-tabs\s*\{[^}]*overflow-x:\s*auto/s);
   assert.match(css, /\.st-esg-multi-task-tools \.menu_button\s*\{[^}]*width:\s*34px/s);
+  assert.match(css, /\.st-esg-multi-task-settings-tabs\s*\{[^}]*display:\s*flex/s);
+  assert.match(css, /@media \(max-width:\s*520px\)[\s\S]*\.st-esg-multi-task-settings-dialog[^{]*\{[^}]*margin:\s*auto 0 0/s);
   assert.match(css, /data-task-status="generating"[^}]*animation:\s*st-esg-task-breathe/s);
   assert.match(css, /prefers-reduced-motion:\s*reduce[^}]*st-esg-task-status-lamp/s);
   assert.doesNotMatch(css, /\.st-esg-multi-task-preview\s*\{/);
