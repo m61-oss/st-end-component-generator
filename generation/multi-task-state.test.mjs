@@ -6,6 +6,7 @@ import {
   MULTI_TASK_STATUS,
   createMultiTask,
   deleteMultiTask,
+  mergeMultiTaskWorkspaceView,
   normalizeMultiTaskSettings,
   renameMultiTask,
   selectMultiTask,
@@ -109,4 +110,23 @@ test('normalizes task-owned generation and injection state without sharing objec
   assert.equal(state.tasks[0].target.messageText, 'floor');
   assert.equal(state.tasks[0].injectionRecord.afterText, 'floor\nscene');
   assert.equal(state.tasks[0].runId, 'run-1');
+});
+
+test('syncing the shared workspace never drops the frozen injection target', () => {
+  const task = normalizeMultiTaskSettings({
+    tasks: [{
+      id: 'task-a',
+      name: 'A',
+      target: { chatId: 'chat-1', messageIndex: 4, messageText: 'floor' },
+      output: 'old',
+    }],
+  }).tasks[0];
+
+  const merged = mergeMultiTaskWorkspaceView(task, {
+    output: 'edited',
+    target: { messageIndex: 4 },
+  });
+
+  assert.equal(merged.output, 'edited');
+  assert.deepEqual(merged.target, { chatId: 'chat-1', messageIndex: 4, messageText: 'floor' });
 });

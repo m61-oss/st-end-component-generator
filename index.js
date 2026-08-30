@@ -73,6 +73,7 @@ import {
   MULTI_TASK_STATUS,
   createMultiTask,
   deleteMultiTask,
+  mergeMultiTaskWorkspaceView,
   normalizeMultiTaskSettings,
   renameMultiTask,
   selectMultiTask,
@@ -7165,7 +7166,7 @@ function captureActiveMultiTaskView() {
   if (settings.generationMode !== 'multi') return;
   const task = getActiveMultiTask();
   if (!task) return;
-  replaceMultiTask(task.id, captureGenerationWorkspaceView());
+  replaceMultiTask(task.id, mergeMultiTaskWorkspaceView(task, captureGenerationWorkspaceView()));
 }
 
 function hydrateActiveMultiTaskView() {

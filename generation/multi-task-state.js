@@ -78,6 +78,20 @@ export function normalizeMultiTaskSettings(value = {}) {
   };
 }
 
+export function mergeMultiTaskWorkspaceView(task, view = {}) {
+  const source = view && typeof view === 'object' ? view : {};
+  return normalizeTask({
+    ...task,
+    extraInstruction: String(source.extraInstruction ?? task?.extraInstruction ?? ''),
+    output: String(source.output ?? task?.output ?? ''),
+    thinking: Array.isArray(source.thinking) ? source.thinking : task?.thinking,
+    error: Object.prototype.hasOwnProperty.call(source, 'error') ? source.error : task?.error,
+    resultMode: source.resultMode === 'anchor' ? 'anchor' : 'standard',
+    anchorItems: Array.isArray(source.anchorItems) ? source.anchorItems : task?.anchorItems,
+    warnings: Array.isArray(source.warnings) ? source.warnings : task?.warnings,
+  });
+}
+
 function createTaskId() {
   if (typeof globalThis.crypto?.randomUUID === 'function') return `task-${globalThis.crypto.randomUUID()}`;
   return `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
