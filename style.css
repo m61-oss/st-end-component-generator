@@ -1863,12 +1863,27 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-all-mode-settings-body { min-height: 0; padding: 12px; overflow: auto; overscroll-behavior: contain; }
 .st-esg-generation-settings-panel { display: grid; gap: 12px; min-height: 0; }
 .st-esg-generation-mode-settings-shell .st-esg-generation-settings { margin: 0; }
+.st-esg-generation-mode-settings-shell .st-esg-generation-settings > summary { display: none; }
+.st-esg-generation-mode-settings-shell .st-esg-generation-settings-body { padding: 0; }
 .st-esg-multi-task-settings-dialog { max-height: min(760px, calc(100dvh - 28px)); overflow: auto; }
 .st-esg-multi-task-settings-dialog form { gap: 12px; padding: 0; }
 .st-esg-multi-task-settings-section { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--esg-border); border-radius: 12px; background: var(--esg-bg-card); }
 .st-esg-multi-task-settings-section .st-esg-generation-injection-section { padding-top: 0; }
-.st-esg-multi-task-manage-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
-.st-esg-multi-task-manage-actions .menu_button { width: 100% !important; min-width: 0; justify-content: center; }
+.st-esg-multi-task-settings-heading,
+.st-esg-multi-task-settings-task-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.st-esg-multi-task-settings-heading > strong { font-size: 13px; }
+.st-esg-multi-task-settings-heading .menu_button { min-height: 32px; padding-inline: 10px !important; }
+.st-esg-multi-task-settings-list { display: grid; gap: 0; }
+.st-esg-multi-task-settings-task { display: grid; gap: 8px; padding: 11px 0; border-top: 1px solid var(--esg-border); }
+.st-esg-multi-task-settings-task:last-child { padding-bottom: 0; }
+.st-esg-multi-task-settings-task-head strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-esg-multi-task-settings-task-head > div { display: flex; gap: 4px; flex: 0 0 auto; }
+.st-esg-multi-task-settings-task-head .menu_button { width: 30px !important; min-width: 30px !important; min-height: 30px !important; padding: 0 !important; justify-content: center; }
+.st-esg-multi-task-compact-field { display: grid !important; grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 8px !important; }
+.st-esg-multi-task-compact-field > span { color: var(--esg-text-main); white-space: nowrap; }
+.st-esg-multi-task-compact-field .text_pole { min-height: 34px !important; }
+[data-single-task-injection-host] .st-esg-generation-injection-section { grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 8px; }
+[data-single-task-injection-host] .st-esg-generation-injection-section > .st-esg-generation-settings-help { grid-column: 1 / -1; }
 .st-esg-multi-task-settings-empty { padding: 10px 0; color: var(--esg-text-muted); font-size: 11px; }
 @media (prefers-reduced-motion: reduce) { .st-esg-task-status-lamp { animation: none !important; } }
 
@@ -1878,6 +1893,6 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   .st-esg-multi-task-head strong { font-size: 13px; }
   .st-esg-multi-task-tools { gap: 2px; }
   .st-esg-multi-task-tools .menu_button { width: 32px; min-width: 32px; min-height: 32px !important; }
-  .st-esg-multi-task-settings-dialog { width: 100%; max-width: none; max-height: min(88dvh, 760px); margin: auto 0 0; border-radius: 14px 14px 0 0; }
+  .st-esg-multi-task-settings-dialog { width: min(560px, calc(100vw - 28px)); max-width: calc(100vw - 28px); max-height: calc(100dvh - 28px); margin: auto; border-radius: 14px; }
   .st-esg-all-mode-settings-body { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
 }

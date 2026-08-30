@@ -49,6 +49,17 @@ test('the one settings gear exposes common and task configuration pages regardle
   assert.match(indexSource, /function showGenerationModeSettingsDialog\(\)\s*\{\s*showMultiTaskSettingsDialog\(\);\s*\}/);
   assert.doesNotMatch(indexSource, /name="autoInject"/);
   assert.doesNotMatch(indexSource, /name="rollbackBeforeGeneration"/);
-  assert.match(indexSource, /componentSchemeId:\s*textOf\(form\.get\('componentSchemeId'\)\)/);
+  assert.match(indexSource, /componentSchemeId:\s*readTaskField\(taskPanel, 'componentSchemeId'\)/);
   assert.doesNotMatch(indexSource, /组件方案将在后续阶段接入/);
+});
+
+test('task configuration lists every task with inline management instead of a current-task picker', () => {
+  assert.match(indexSource, /state\.tasks\.map\(\(item\)\s*=>/);
+  assert.match(indexSource, /data-multi-task-settings-task-id=/);
+  assert.match(indexSource, /data-multi-task-task-field="presetSchemeId"/);
+  assert.match(indexSource, />多任务<\/strong>[\s\S]*data-multi-task-settings-action="add"/);
+  assert.match(indexSource, /data-multi-task-settings-action="rename"[^>]*data-multi-task-task-id=/);
+  assert.match(indexSource, /data-multi-task-settings-action="delete"[^>]*data-multi-task-task-id=/);
+  assert.match(indexSource, /querySelectorAll\('\[data-multi-task-settings-task-id\]'\)/);
+  assert.doesNotMatch(indexSource, /data-multi-task-settings-select/);
 });

@@ -6703,7 +6703,6 @@ function renderMultiTaskSchemeOptions(list, selectedId, emptyLabel = '未选择'
 
 function showMultiTaskSettingsDialog(initialPage = 'general') {
   const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
-  const task = state.tasks.find((item) => item.id === state.activeTaskId) || state.tasks[0] || null;
   const settingsCard = targetDoc.querySelector('.st-esg-generation-settings');
   const injectionSection = settingsCard?.querySelector('.st-esg-generation-injection-section');
   if (!settingsCard || !injectionSection) return;
@@ -6715,12 +6714,14 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
   const dialog = targetDoc.createElement('dialog');
   dialog.id = 'st-esg-generation-mode-settings-dialog';
   dialog.className = `st-esg-scheme-name-dialog st-esg-generation-mode-settings-dialog st-esg-multi-task-settings-dialog ${getThemeClassName(settings.theme)}`;
-  const taskOptions = state.tasks.map((item) => `<option value="${escapeHtml(item.id)}"${item.id === task?.id ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
-  const taskFields = task ? `<label>预设方案<select class="text_pole" name="presetSchemeId">${renderMultiTaskSchemeOptions(settings.presetSchemes, task.presetSchemeId, '酒馆默认')}</select></label>
-    <label>世界书方案<select class="text_pole" name="worldbookSchemeId">${renderMultiTaskSchemeOptions(settings.worldbookSchemes, task.worldbookSchemeId, '酒馆默认')}</select></label>
-    <label>API 方案<select class="text_pole" name="apiSchemeId">${renderMultiTaskSchemeOptions(settings.apiSchemes, task.apiSchemeId)}</select></label>
-    <label>组件方案<select class="text_pole" name="componentSchemeId">${renderMultiTaskSchemeOptions(settings.componentSchemes, task.componentSchemeId)}</select></label>
-    <label>注入方式<select class="text_pole" name="injectMode"><option value="append"${task.injectMode === 'append' ? ' selected' : ''}>追加</option><option value="anchor"${task.injectMode === 'anchor' ? ' selected' : ''}>锚点插入</option></select></label>` : '<div class="st-esg-multi-task-settings-empty">还没有任务，请先添加任务。</div>';
+  const taskFields = state.tasks.map((item) => `<section class="st-esg-multi-task-settings-task" data-multi-task-settings-task-id="${escapeHtml(item.id)}">
+    <header class="st-esg-multi-task-settings-task-head"><strong>${escapeHtml(item.name)}</strong><div><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="rename" data-multi-task-task-id="${escapeHtml(item.id)}" aria-label="重命名 ${escapeHtml(item.name)}" title="改名"><i class="fa-solid fa-pen" aria-hidden="true"></i></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger" type="button" data-multi-task-settings-action="delete" data-multi-task-task-id="${escapeHtml(item.id)}" aria-label="删除 ${escapeHtml(item.name)}" title="删除"><i class="fa-solid fa-trash" aria-hidden="true"></i></button></div></header>
+    <label class="st-esg-multi-task-compact-field"><span>预设方案</span><select class="text_pole" data-multi-task-task-field="presetSchemeId">${renderMultiTaskSchemeOptions(settings.presetSchemes, item.presetSchemeId, '酒馆默认')}</select></label>
+    <label class="st-esg-multi-task-compact-field"><span>世界书方案</span><select class="text_pole" data-multi-task-task-field="worldbookSchemeId">${renderMultiTaskSchemeOptions(settings.worldbookSchemes, item.worldbookSchemeId, '酒馆默认')}</select></label>
+    <label class="st-esg-multi-task-compact-field"><span>API 方案</span><select class="text_pole" data-multi-task-task-field="apiSchemeId">${renderMultiTaskSchemeOptions(settings.apiSchemes, item.apiSchemeId)}</select></label>
+    <label class="st-esg-multi-task-compact-field"><span>组件方案</span><select class="text_pole" data-multi-task-task-field="componentSchemeId">${renderMultiTaskSchemeOptions(settings.componentSchemes, item.componentSchemeId)}</select></label>
+    <label class="st-esg-multi-task-compact-field"><span>注入方式</span><select class="text_pole" data-multi-task-task-field="injectMode"><option value="append"${item.injectMode === 'append' ? ' selected' : ''}>追加</option><option value="anchor"${item.injectMode === 'anchor' ? ' selected' : ''}>锚点插入</option></select></label>
+  </section>`).join('') || '<div class="st-esg-multi-task-settings-empty">还没有任务，请点击“添加任务”。</div>';
   const activePage = initialPage === 'tasks' ? 'tasks' : 'general';
   dialog.innerHTML = `<div class="st-esg-generation-mode-settings-shell"><header><div class="st-esg-card-title">生成设置</div><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-generation-settings-close aria-label="关闭设置" title="关闭设置"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header>
     <div class="st-esg-generation-settings-pages" role="tablist" aria-label="生成设置分页"><button class="${activePage === 'general' ? 'active' : ''}" type="button" role="tab" aria-selected="${activePage === 'general'}" data-generation-settings-page="general">通用设置</button><button class="${activePage === 'tasks' ? 'active' : ''}" type="button" role="tab" aria-selected="${activePage === 'tasks'}" data-generation-settings-page="tasks">任务配置</button></div>
@@ -6728,11 +6729,9 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
       <section class="st-esg-generation-settings-panel${activePage === 'general' ? '' : ' st-esg-hidden'}" data-generation-settings-panel="general"><div data-generation-settings-card-host></div></section>
       <section class="st-esg-generation-settings-panel${activePage === 'tasks' ? '' : ' st-esg-hidden'}" data-generation-settings-panel="tasks">
         <section class="st-esg-multi-task-settings-section"><div class="st-esg-generation-settings-section-title"><strong>单任务</strong></div><div data-single-task-injection-host></div></section>
-        <form method="dialog"><section class="st-esg-multi-task-settings-section"><div class="st-esg-generation-settings-section-title"><strong>多任务</strong></div>
-          ${task ? `<label>当前任务<select class="text_pole" data-multi-task-settings-select>${taskOptions}</select></label>` : ''}
-          <div class="st-esg-multi-task-manage-actions"><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>添加</span></button><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="rename"${task ? '' : ' disabled'}><i class="fa-solid fa-pen" aria-hidden="true"></i><span>改名</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger" type="button" data-multi-task-settings-action="delete"${task ? '' : ' disabled'}><i class="fa-solid fa-trash" aria-hidden="true"></i><span>删除</span></button></div>
-          ${taskFields}
-          <label>并发任务数<select class="text_pole" name="concurrency">${[1, 2, 3, 4, 5].map((value) => `<option value="${value}"${state.concurrency === value ? ' selected' : ''}>${value}${value === 1 ? '（全部排队）' : ''}</option>`).join('')}</select></label>
+        <form method="dialog"><section class="st-esg-multi-task-settings-section"><div class="st-esg-multi-task-settings-heading"><strong>多任务</strong><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>添加任务</span></button></div>
+          <label class="st-esg-multi-task-compact-field"><span>并发任务数</span><select class="text_pole" name="concurrency">${[1, 2, 3, 4, 5].map((value) => `<option value="${value}"${state.concurrency === value ? ' selected' : ''}>${value}${value === 1 ? '（全部排队）' : ''}</option>`).join('')}</select></label>
+          <div class="st-esg-multi-task-settings-list">${taskFields}</div>
         </section><div class="st-esg-actions-row"><button class="menu_button st-esg-secondary-action" type="button" data-generation-settings-close>取消</button><button class="menu_button st-esg-primary-action" type="submit">保存</button></div></form>
       </section>
     </div>
@@ -6761,31 +6760,26 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
       panel.classList.toggle('st-esg-hidden', panel.getAttribute('data-generation-settings-panel') !== nextPage);
     });
   }));
-  dialog.querySelector('[data-multi-task-settings-select]')?.addEventListener('change', (event) => {
-    captureActiveMultiTaskView();
-    settings.multiTaskSettings = selectMultiTask(settings.multiTaskSettings, String(event.currentTarget.value));
-    saveSettings();
-    renderMultiTaskFramework();
-    finish();
-    showMultiTaskSettingsDialog('tasks');
-  });
   dialog.querySelectorAll('[data-multi-task-settings-action]').forEach((button) => button.addEventListener('click', () => {
     const action = String(button.getAttribute('data-multi-task-settings-action'));
+    const taskId = String(button.getAttribute('data-multi-task-task-id') || '');
     finish();
-    void handleMultiTaskAction(action, true);
+    void handleMultiTaskAction(action, true, taskId);
   }));
   dialog.querySelector('form').addEventListener('submit', (event) => {
     event.preventDefault();
     const form = new targetWindow.FormData(event.currentTarget);
-    if (task) {
-      replaceMultiTask(task.id, {
-        componentSchemeId: textOf(form.get('componentSchemeId')),
-        apiSchemeId: textOf(form.get('apiSchemeId')),
-        presetSchemeId: textOf(form.get('presetSchemeId')),
-        worldbookSchemeId: textOf(form.get('worldbookSchemeId')),
-        injectMode: form.get('injectMode') === 'anchor' ? 'anchor' : 'append',
+    const readTaskField = (taskPanel, field) => textOf(taskPanel.querySelector(`[data-multi-task-task-field="${field}"]`)?.value);
+    dialog.querySelectorAll('[data-multi-task-settings-task-id]').forEach((taskPanel) => {
+      const taskId = String(taskPanel.getAttribute('data-multi-task-settings-task-id') || '');
+      replaceMultiTask(taskId, {
+        componentSchemeId: readTaskField(taskPanel, 'componentSchemeId'),
+        apiSchemeId: readTaskField(taskPanel, 'apiSchemeId'),
+        presetSchemeId: readTaskField(taskPanel, 'presetSchemeId'),
+        worldbookSchemeId: readTaskField(taskPanel, 'worldbookSchemeId'),
+        injectMode: readTaskField(taskPanel, 'injectMode') === 'anchor' ? 'anchor' : 'append',
       });
-    }
+    });
     settings.multiTaskSettings = normalizeMultiTaskSettings({
       ...settings.multiTaskSettings,
       concurrency: form.get('concurrency'),
@@ -6803,8 +6797,9 @@ function showGenerationModeSettingsDialog() {
   showMultiTaskSettingsDialog();
 }
 
-async function handleMultiTaskAction(action, reopenSettings = false) {
-  const activeTask = getActiveMultiTask();
+async function handleMultiTaskAction(action, reopenSettings = false, requestedTaskId = '') {
+  const multiTaskState = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  const activeTask = multiTaskState.tasks.find((task) => task.id === requestedTaskId) || getActiveMultiTask();
   if (action === 'add') {
     const name = await requestTextInputDialog({ title: '添加任务', label: '任务名称', placeholder: '输入便于识别的任务名称', value: getNextMultiTaskName() });
     if (!name) { if (reopenSettings) showMultiTaskSettingsDialog('tasks'); return; }

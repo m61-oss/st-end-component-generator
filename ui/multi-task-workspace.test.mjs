@@ -26,6 +26,12 @@ test('renders a compact empty hint and leaves task creation inside the settings 
   assert.doesNotMatch(markup, /st-esg-multi-task-preview/);
 });
 
+test('does not repeat an idle ready label beside the task status lamp', () => {
+  const state = createMultiTask({}, '任务 1', { id: 'task-1' }).state;
+  const markup = renderMultiTaskWorkspace(state);
+  assert.doesNotMatch(markup, />就绪</);
+});
+
 test('renders named task tabs and the scheme-B icon toolbar without duplicating generation fields', () => {
   let state = createMultiTask({}, '<状态栏>', { id: 'status', status: 'generating', extraInstruction: '保留标签' }).state;
   state = createMultiTask(state, '小剧场', { id: 'theater', status: 'queued' }).state;
@@ -67,8 +73,12 @@ test('multi-task workspace styles use compact tabs and icon actions while animat
   assert.match(css, /\.st-esg-multi-task-tab\.active\s*\{[^}]*border-color:/s);
   assert.match(css, /\.st-esg-multi-task-tools \.menu_button\s*\{[^}]*width:\s*34px/s);
   assert.match(css, /\.st-esg-generation-settings-pages\s*\{[^}]*display:\s*flex/s);
+  assert.match(css, /\.st-esg-generation-mode-settings-shell \.st-esg-generation-settings\s*>\s*summary\s*\{[^}]*display:\s*none/s);
+  assert.match(css, /\.st-esg-multi-task-compact-field\s*\{[^}]*grid-template-columns:/s);
+  assert.match(css, /\.st-esg-multi-task-settings-list\s*\{[^}]*display:\s*grid/s);
   assert.doesNotMatch(css, /\.st-esg-multi-task-settings-tabs\s*\{/);
-  assert.match(css, /@media \(max-width:\s*520px\)[\s\S]*\.st-esg-multi-task-settings-dialog[^{]*\{[^}]*margin:\s*auto 0 0/s);
+  assert.match(css, /@media \(max-width:\s*520px\)[\s\S]*\.st-esg-multi-task-settings-dialog[^{]*\{[^}]*margin:\s*auto(?:;|\s)/s);
+  assert.doesNotMatch(css, /\.st-esg-multi-task-settings-dialog[^{]*\{[^}]*margin:\s*auto 0 0/s);
   assert.match(css, /data-task-status="generating"[^}]*animation:\s*st-esg-task-breathe/s);
   assert.match(css, /prefers-reduced-motion:\s*reduce[^}]*st-esg-task-status-lamp/s);
   assert.doesNotMatch(css, /\.st-esg-multi-task-preview\s*\{/);
