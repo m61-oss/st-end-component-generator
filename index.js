@@ -72,6 +72,7 @@ import {
 import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.2.2';
 import { loadGenerationHistory, recordGenerationResult, updateGenerationHistoryEntry } from './generation/generation-history.js?ver=0.2.2';
 import {
+  MULTI_TASK_INJECTION_ORDER_TASK,
   MULTI_TASK_STATUS,
   createMultiTask,
   deleteMultiTask,
@@ -82,6 +83,7 @@ import {
 } from './generation/multi-task-state.js?ver=0.2.2';
 import { createMultiTaskRunPlan, runMultiTaskQueue } from './generation/multi-task-runner.js?ver=0.2.2';
 import { createMultiTaskInjectionQueue } from './generation/multi-task-injection-queue.js?ver=0.2.2';
+import { canEnqueueTaskAutoInjection, createTaskOrderInjectionCoordinator } from './generation/multi-task-auto-injection.js?ver=0.2.2';
 import { resolveMultiTaskRuntimeSettings } from './generation/multi-task-runtime.js?ver=0.2.2';
 import { renderGenerationModeSwitch, renderMultiTaskWorkspace } from './ui/multi-task-workspace.js?ver=0.2.2';
 import {
@@ -200,7 +202,7 @@ const DEFAULT_SETTINGS = {
   autoInject: null,
   activeTab: 'workspace',
   generationMode: 'single',
-  multiTaskSettings: { concurrency: 1, injectionIntervalSeconds: 1, activeTaskId: '', tasks: [] },
+  multiTaskSettings: { concurrency: 1, injectionIntervalSeconds: 1, injectionOrder: 'completion', activeTaskId: '', tasks: [] },
   taskPrompt: [
     '现在停止生成正文，为最新的正文补充下面这些内容。',
     '{{external_components}}',
@@ -877,6 +879,7 @@ function saveSettings() {
   store.multiTaskSettings = {
     concurrency: multiTaskState.concurrency,
     injectionIntervalSeconds: multiTaskState.injectionIntervalSeconds,
+    injectionOrder: multiTaskState.injectionOrder,
     activeTaskId: multiTaskState.activeTaskId,
     tasks: multiTaskState.tasks.map((task) => ({
       id: task.id,
@@ -7031,28 +7034,48 @@ async function generateMultiTasks(requestedTaskIds = null) {
   }));
   saveSettings();
   renderMultiTaskFramework();
+  const shouldAutoInject = Boolean(settings.autoInject);
   const autoInjectionPromises = [];
+  const enqueueAutoInjection = (taskId) => {
+    const currentTask = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.find((task) => task.id === taskId);
+    if (!canEnqueueTaskAutoInjection(currentTask, plan.runId)) return Promise.resolve([]);
+    replaceMultiTask(taskId, { status: MULTI_TASK_STATUS.PENDING_INJECTION });
+    const promise = enqueueMultiTaskInjection(taskId, {
+      intervalMs: multiTaskState.injectionIntervalSeconds * 1000,
+      silent: true,
+      expectedRunId: plan.runId,
+    });
+    autoInjectionPromises.push(promise);
+    return promise;
+  };
+  const taskOrderInjectionCoordinator = shouldAutoInject
+    && multiTaskState.injectionOrder === MULTI_TASK_INJECTION_ORDER_TASK
+    ? createTaskOrderInjectionCoordinator(plan.entries.map((entry) => entry.task.id), {
+      enqueue: enqueueAutoInjection,
+    })
+    : null;
   const results = await runMultiTaskQueue(plan, {
     isCurrent: (runId) => activeMultiTaskRunIds.has(runId),
     onTransition: ({ taskId, status, value, error }) => {
       const currentTask = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.find((task) => task.id === taskId);
-      if (!currentTask || currentTask.runId !== plan.runId) return;
+      if (!currentTask || currentTask.runId !== plan.runId) {
+        taskOrderInjectionCoordinator?.skip(taskId);
+        return;
+      }
       if (status === 'queued' || status === 'generating') {
         replaceMultiTask(taskId, { status: status === 'queued' ? MULTI_TASK_STATUS.QUEUED : MULTI_TASK_STATUS.GENERATING });
       } else if (status === 'ready') {
         replaceMultiTask(taskId, { ...value, status: MULTI_TASK_STATUS.READY });
-        if (settings.autoInject) {
-          replaceMultiTask(taskId, { status: MULTI_TASK_STATUS.PENDING_INJECTION });
-          autoInjectionPromises.push(enqueueMultiTaskInjection(taskId, {
-            intervalMs: multiTaskState.injectionIntervalSeconds * 1000,
-            silent: true,
-            expectedRunId: plan.runId,
-          }));
+        if (shouldAutoInject) {
+          if (taskOrderInjectionCoordinator) taskOrderInjectionCoordinator.ready(taskId);
+          else enqueueAutoInjection(taskId);
         }
       } else if (status === 'error') {
         replaceMultiTask(taskId, { status: MULTI_TASK_STATUS.ERROR, error: serializeMultiTaskError(error) });
+        taskOrderInjectionCoordinator?.skip(taskId);
       } else if (status === 'cancelled') {
         replaceMultiTask(taskId, { status: currentTask.output ? MULTI_TASK_STATUS.READY : MULTI_TASK_STATUS.IDLE });
+        taskOrderInjectionCoordinator?.skip(taskId);
       }
       saveSettings();
       renderMultiTaskFramework();
@@ -7440,7 +7463,7 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
       <section class="st-esg-generation-settings-panel${activePage === 'tasks' ? '' : ' st-esg-hidden'}" data-generation-settings-panel="tasks">
         <section class="st-esg-multi-task-settings-section"><div class="st-esg-generation-settings-section-title"><strong>单任务</strong></div><div data-single-task-injection-host></div></section>
         <section class="st-esg-multi-task-settings-section"><div class="st-esg-multi-task-settings-heading"><strong>多任务</strong><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>添加任务 ${state.tasks.length}/5</span></button></div>
-          <div class="st-esg-multi-task-runtime-settings"><div class="st-esg-multi-task-runtime-row"><label class="st-esg-multi-task-runtime-field"><span>并发任务数</span><select class="text_pole" name="concurrency">${[1, 2, 3, 4, 5].map((value) => `<option value="${value}"${state.concurrency === value ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label class="st-esg-multi-task-runtime-field"><span>注入间隔</span><input class="text_pole" type="number" name="injectionIntervalSeconds" min="0" max="10" step="0.5" value="${state.injectionIntervalSeconds}"></label></div><em class="st-esg-multi-task-runtime-help">超出并发数的任务会自动排队；任务完成后按完成顺序分批注入，间隔范围为 0–10 秒。</em></div>
+          <div class="st-esg-multi-task-runtime-settings"><div class="st-esg-multi-task-runtime-row"><label class="st-esg-multi-task-runtime-field"><span>并发任务数</span><select class="text_pole" name="concurrency">${[1, 2, 3, 4, 5].map((value) => `<option value="${value}"${state.concurrency === value ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label class="st-esg-multi-task-runtime-field"><span>注入间隔</span><input class="text_pole" type="number" name="injectionIntervalSeconds" min="0" max="10" step="0.5" value="${state.injectionIntervalSeconds}"></label></div><label class="st-esg-multi-task-compact-field st-esg-multi-task-injection-order-field"><span>注入顺序</span><select class="text_pole" name="injectionOrder"><option value="completion"${state.injectionOrder === 'completion' ? ' selected' : ''}>完成顺序</option><option value="task"${state.injectionOrder === 'task' ? ' selected' : ''}>任务顺序</option></select></label><em class="st-esg-multi-task-runtime-help">超出并发数的任务会自动排队；自动注入可按完成顺序即时注入，或等待前项后按任务顺序注入；失败或停止的任务会自动跳过；注入间隔范围为 0–10 秒。</em></div>
           <div class="st-esg-multi-task-settings-list">${taskFields}</div>
         </section>
       </section>
@@ -7503,6 +7526,10 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
       injectionIntervalSeconds: event.currentTarget.value,
     });
     event.currentTarget.value = String(settings.multiTaskSettings.injectionIntervalSeconds);
+    saveSettings();
+  });
+  dialog.querySelector('[name="injectionOrder"]')?.addEventListener('change', (event) => {
+    settings.multiTaskSettings = normalizeMultiTaskSettings({ ...settings.multiTaskSettings, injectionOrder: event.currentTarget.value });
     saveSettings();
   });
   targetDoc.body.appendChild(dialog);

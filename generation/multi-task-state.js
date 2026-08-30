@@ -1,4 +1,6 @@
 export const MULTI_TASK_MAX_COUNT = 5;
+export const MULTI_TASK_INJECTION_ORDER_COMPLETION = 'completion';
+export const MULTI_TASK_INJECTION_ORDER_TASK = 'task';
 
 export const MULTI_TASK_STATUS = Object.freeze({
   IDLE: 'idle',
@@ -29,6 +31,12 @@ function clampInjectionInterval(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return 1;
   return Math.min(10, Math.max(0, parsed));
+}
+
+function normalizeInjectionOrder(value) {
+  return value === MULTI_TASK_INJECTION_ORDER_TASK
+    ? MULTI_TASK_INJECTION_ORDER_TASK
+    : MULTI_TASK_INJECTION_ORDER_COMPLETION;
 }
 
 function normalizeInjectMode(value) {
@@ -81,6 +89,7 @@ export function normalizeMultiTaskSettings(value = {}) {
   return {
     concurrency: clampConcurrency(source.concurrency),
     injectionIntervalSeconds: clampInjectionInterval(source.injectionIntervalSeconds),
+    injectionOrder: normalizeInjectionOrder(source.injectionOrder),
     activeTaskId: tasks.some((task) => task.id === requestedActiveId) ? requestedActiveId : (tasks[0]?.id || ''),
     tasks,
   };

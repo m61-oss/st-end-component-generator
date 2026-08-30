@@ -48,15 +48,38 @@ test('Tavern-default tasks resolve preset-scoped components from the live Tavern
   assert.match(indexSource, /sourceSettings\.presetRuntimeMode === 'tavern'[\s\S]{0,220}delete componentOptions\.presetSchemeId/);
 });
 
-test('auto injection queues each task as soon as it becomes ready', () => {
-  assert.match(indexSource, /status === 'ready'[\s\S]{0,500}enqueueMultiTaskInjection\(taskId/);
+test('completion-order auto injection queues each task as soon as it becomes ready', () => {
+  assert.match(indexSource, /const enqueueAutoInjection = \(taskId\)[\s\S]{0,500}enqueueMultiTaskInjection\(taskId/);
+  assert.match(indexSource, /status === 'ready'[\s\S]{0,500}else enqueueAutoInjection\(taskId\)/);
   assert.match(indexSource, /enqueueMultiTaskInjection\(taskId,[\s\S]{0,220}expectedRunId:\s*plan\.runId/);
   assert.doesNotMatch(indexSource, /if \(settings\.autoInject && completed\)[\s\S]{0,160}injectMultiTasks/);
+});
+
+test('automatic injection can coordinate ready results by configured task order', () => {
+  assert.match(indexSource, /createTaskOrderInjectionCoordinator/);
+  assert.match(indexSource, /multiTaskState\.injectionOrder === MULTI_TASK_INJECTION_ORDER_TASK/);
+  assert.match(indexSource, /taskOrderInjectionCoordinator\.ready\(taskId\)/);
+  assert.match(indexSource, /taskOrderInjectionCoordinator\?\.skip\(taskId\)/);
+});
+
+test('stale or cancelled task transitions release task-order injection before returning', () => {
+  assert.match(indexSource, /if \(!currentTask \|\| currentTask\.runId !== plan\.runId\) \{[\s\S]{0,180}taskOrderInjectionCoordinator\?\.skip\(taskId\);[\s\S]{0,80}return;/);
+});
+
+test('deferred automatic injection rechecks task state to prevent duplicate manual injection', () => {
+  assert.match(indexSource, /canEnqueueTaskAutoInjection\(currentTask, plan\.runId\)/);
 });
 
 test('multi-task settings expose an immediate injection interval from zero to ten seconds', () => {
   assert.match(indexSource, /name="injectionIntervalSeconds"[^>]*min="0"[^>]*max="10"[^>]*step="0\.5"/);
   assert.match(indexSource, /\[name="injectionIntervalSeconds"\][\s\S]{0,180}addEventListener\('change'/);
+});
+
+test('multi-task settings expose automatic injection order and save it immediately', () => {
+  assert.match(indexSource, /name="injectionOrder"/);
+  assert.match(indexSource, /value="completion"/);
+  assert.match(indexSource, /value="task"/);
+  assert.match(indexSource, /\[name="injectionOrder"\][\s\S]{0,220}addEventListener\('change'/);
 });
 
 test('active multi-task streaming reuses the single-task incremental thinking renderer', () => {
@@ -70,5 +93,5 @@ test('active multi-task streaming reuses the single-task incremental thinking re
 
 test('concurrency and injection interval share one row and one combined explanation', () => {
   assert.match(indexSource, /class="st-esg-multi-task-runtime-row"[\s\S]{0,900}name="concurrency"[\s\S]{0,900}name="injectionIntervalSeconds"/);
-  assert.match(indexSource, /class="st-esg-multi-task-runtime-help"[^>]*>超出并发数的任务会自动排队；任务完成后按完成顺序分批注入，间隔范围为 0–10 秒。/);
+  assert.match(indexSource, /class="st-esg-multi-task-runtime-help"[^>]*>超出并发数的任务会自动排队；自动注入可按完成顺序即时注入，或等待前项后按任务顺序注入；失败或停止的任务会自动跳过；注入间隔范围为 0–10 秒。/);
 });
