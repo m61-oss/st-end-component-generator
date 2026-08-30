@@ -14,6 +14,11 @@ test('renders compact generation mode tabs with shared history and settings icon
   assert.equal((markup.match(/fa-gear/g) || []).length, 1);
   assert.equal((markup.match(/fa-clock-rotate-left/g) || []).length, 1);
   const settingsButton = markup.match(/<button[^>]*data-generation-mode-settings[^>]*>/)?.[0] || '';
+  const historyButton = markup.match(/<button[^>]*data-generation-history-open[^>]*>/)?.[0] || '';
+  assert.match(settingsButton, /st-esg-icon-btn/);
+  assert.match(historyButton, /st-esg-icon-btn/);
+  assert.doesNotMatch(settingsButton, /menu_button/);
+  assert.doesNotMatch(historyButton, /menu_button/);
   assert.match(settingsButton, /title="生成设置"/);
   assert.match(settingsButton, /aria-label="生成设置"/);
   assert.match(markup, /st-esg-generation-mode-actions/);
@@ -72,7 +77,11 @@ test('multi-task workspace styles use compact tabs and icon actions while animat
   const css = await readFile(new URL('../style.css', import.meta.url), 'utf8');
   assert.match(css, /\.st-esg-generation-mode-switch\s*\{[^}]*display:\s*flex/s);
   assert.doesNotMatch(css, /\.st-esg-generation-mode-switch\s*\{[^}]*grid-template-columns/s);
-  assert.match(css, /\.st-esg-generation-mode\.active::after\s*\{[^}]*background:/s);
+  assert.match(css, /\.st-esg-generation-mode-tabs\s*\{[^}]*gap:\s*3px/s);
+  assert.match(css, /\.st-esg-generation-mode\s*\{[^}]*min-height:\s*26px[^}]*border:\s*1px solid/s);
+  assert.match(css, /\.st-esg-generation-mode\.active\s*\{[^}]*border-color:/s);
+  assert.doesNotMatch(css, /\.st-esg-generation-mode\.active::after/);
+  assert.match(css, /@media \(max-width:\s*520px\)[\s\S]*\.st-esg-generation-mode\s*\{[^}]*min-height:\s*24px[^}]*font-size:\s*10px/s);
   assert.match(css, /\.st-esg-multi-task-tabs\s*\{[^}]*overflow-x:\s*auto/s);
   assert.match(css, /\.st-esg-multi-task-toolbar\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center/s);
   assert.match(css, /\.st-esg-multi-task-tabs\s*\{[^}]*flex:\s*1 1 auto/s);

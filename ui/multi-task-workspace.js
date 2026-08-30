@@ -26,8 +26,8 @@ export function renderGenerationModeSwitch(mode = 'single') {
       <button class="st-esg-generation-mode${activeMode === 'multi' ? ' active' : ''}" type="button" data-generation-mode="multi" aria-pressed="${activeMode === 'multi'}">多任务</button>
     </div>
     <div class="st-esg-generation-mode-actions">
-      <button class="menu_button menu_button_icon st-esg-secondary-action st-esg-generation-mode-history" type="button" data-generation-history-open title="最近生成记录" aria-label="最近生成记录"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></button>
-      <button class="menu_button menu_button_icon st-esg-secondary-action st-esg-generation-mode-settings" type="button" data-generation-mode-settings title="生成设置" aria-label="生成设置"><i class="fa-solid fa-gear" aria-hidden="true"></i></button>
+      <button class="st-esg-icon-btn st-esg-generation-mode-history" type="button" data-generation-history-open title="最近生成记录" aria-label="最近生成记录"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></button>
+      <button class="st-esg-icon-btn st-esg-generation-mode-settings" type="button" data-generation-mode-settings title="生成设置" aria-label="生成设置"><i class="fa-solid fa-gear" aria-hidden="true"></i></button>
     </div>
   </div>`;
 }
