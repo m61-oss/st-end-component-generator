@@ -103,3 +103,13 @@ test('multi-task workspace styles use compact tabs and icon actions while animat
   assert.match(css, /prefers-reduced-motion:\s*reduce[^}]*st-esg-task-status-lamp/s);
   assert.doesNotMatch(css, /\.st-esg-multi-task-preview\s*\{/);
 });
+
+test('common settings stay inside their card and generating uses a semantic blue lamp', async () => {
+  const css = await readFile(new URL('../style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.st-esg-generation-mode-settings-shell \.st-esg-generation-settings-body\s*\{[^}]*padding:\s*0 10px 10px/s);
+  assert.match(css, /@media \(max-width:\s*520px\)[\s\S]*\.st-esg-generation-mode-settings-shell \.st-esg-generation-settings-body\s*\{[^}]*padding:\s*0 8px 8px/s);
+  assert.match(css, /--esg-running-blue:\s*#[0-9a-f]{6}/i);
+  const generatingLamp = css.match(/\.st-esg-multi-task-tab\[data-task-status="generating"\] \.st-esg-task-status-lamp\s*\{[^}]*\}/s)?.[0] || '';
+  assert.match(generatingLamp, /color:\s*var\(--esg-running-blue\)/);
+  assert.doesNotMatch(generatingLamp, /var\(--esg-primary\)/);
+});
