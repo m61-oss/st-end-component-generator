@@ -13,8 +13,68 @@ import {
   isFloorPanelTargetAddressable,
   isFloorPanelTargetCurrent,
   canEditFloorPanelResult,
+  createMultiTaskFloorPanelView,
+  scopeMultiTaskFloorPanelSettings,
   nextFloorPanelGeneration,
 } from './message-floor-panel.js';
+
+test('multi-task floor hides results and actions that belong to another floor', () => {
+  const scoped = scopeMultiTaskFloorPanelSettings({
+    activeTaskId: 'old',
+    tasks: [
+      { id: 'old', name: 'Old', status: 'ready', output: 'old result', target: { chatId: 'chat-a', messageIndex: 3 }, injectionRecord: { chatId: 'chat-a', targetIndex: 3 } },
+      { id: 'current', name: 'Current', status: 'ready', output: 'current result', target: { chatId: 'chat-a', messageIndex: 4 } },
+    ],
+  }, { chatId: 'chat-a', messageIndex: 4 });
+
+  assert.equal(scoped.tasks[0].status, 'idle');
+  assert.equal(scoped.tasks[0].output, '');
+  assert.equal(scoped.tasks[0].injectionRecord, null);
+  assert.equal(scoped.tasks[1].output, 'current result');
+});
+
+test('multi-task floor view follows the selected task while aggregating the whole run status', () => {
+  const view = createMultiTaskFloorPanelView({
+    activeTaskId: 'b',
+    tasks: [
+      { id: 'a', name: 'A', status: 'generating', output: 'A output', thinking: ['A thought'] },
+      { id: 'b', name: 'B', status: 'ready', output: 'B output', thinking: ['B thought'], resultMode: 'standard' },
+    ],
+  });
+
+  assert.equal(view.mode, 'multi');
+  assert.equal(view.status, FLOOR_PANEL_STATUS.GENERATING);
+  assert.equal(view.activeTaskId, 'b');
+  assert.equal(view.output, 'B output');
+  assert.equal(view.thinking, 'B thought');
+  assert.equal(view.streaming, false);
+});
+
+test('multi-task floor status keeps remaining results actionable after another task was injected', () => {
+  const ready = createMultiTaskFloorPanelView({
+    tasks: [
+      { id: 'a', name: 'A', status: 'injected', output: 'A', injectionRecord: { operations: [] } },
+      { id: 'b', name: 'B', status: 'ready', output: 'B' },
+    ],
+  });
+  const injected = createMultiTaskFloorPanelView({
+    tasks: [{ id: 'a', name: 'A', status: 'injected', output: 'A', injectionRecord: { operations: [] } }],
+  });
+  const failed = createMultiTaskFloorPanelView({
+    tasks: [{ id: 'a', name: 'A', status: 'error', error: { message: 'failed' } }],
+  });
+
+  assert.equal(ready.status, FLOOR_PANEL_STATUS.READY);
+  assert.equal(ready.activeTaskId, 'a');
+  assert.equal(canEditFloorPanelResult(ready), false);
+  assert.equal(canEditFloorPanelResult(createMultiTaskFloorPanelView({ ...ready, activeTaskId: 'b', tasks: [
+    { id: 'a', name: 'A', status: 'injected', output: 'A', injectionRecord: { operations: [] } },
+    { id: 'b', name: 'B', status: 'ready', output: 'B' },
+  ] })), true);
+  assert.equal(injected.status, FLOOR_PANEL_STATUS.INJECTED);
+  assert.equal(failed.status, FLOOR_PANEL_STATUS.ERROR);
+  assert.equal(failed.error, 'failed');
+});
 
 test('楼层面板默认折叠且空闲不显示状态文字', () => {
   const state = createFloorPanelState();
@@ -88,6 +148,7 @@ test('注入定址只要求同一聊天与同一楼层，不被正文的非结�
 
 test('只有完成且未注入的结果可编辑', () => {
   assert.equal(canEditFloorPanelResult({ status: FLOOR_PANEL_STATUS.READY, streaming: false }), true);
+  assert.equal(canEditFloorPanelResult({ ...createFloorPanelState(), status: FLOOR_PANEL_STATUS.READY }), true);
   assert.equal(canEditFloorPanelResult({ status: FLOOR_PANEL_STATUS.GENERATING, streaming: true }), false);
   assert.equal(canEditFloorPanelResult({ status: FLOOR_PANEL_STATUS.READY, streaming: true }), false);
   assert.equal(canEditFloorPanelResult({ status: FLOOR_PANEL_STATUS.INJECTED, streaming: false }), false);

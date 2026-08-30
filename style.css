@@ -1445,6 +1445,11 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-floor-compact-action:active { transform: scale(.94); }
 .st-esg-floor-expanded { display: grid; min-width: 0; gap: 8px; padding: 0 9px; border-top: 1px solid var(--floor-border); }
 .st-esg-floor-expanded[hidden] { display: none; }
+.st-esg-floor-multi-task { min-width: 0; padding: 4px 0 2px; border-bottom: 1px solid var(--floor-border); }
+.st-esg-floor-multi-task .st-esg-multi-task-workspace { margin: 0; }
+.st-esg-floor-multi-task .st-esg-multi-task-toolbar { min-height: 28px; padding: 0; border-bottom: 0; }
+.st-esg-floor-multi-task .st-esg-multi-task-tab { min-width: 46px; min-height: 23px; padding: 1px 6px; font-size: 10px; }
+.st-esg-floor-multi-task .st-esg-icon-btn { width: 23px; height: 23px; min-width: 23px; padding: 0; }
 .st-esg-floor-thinking { border-bottom: 1px solid var(--floor-border); }
 .st-esg-floor-thinking > summary { display: flex; align-items: center; justify-content: space-between; min-height: 29px; color: var(--floor-muted); cursor: pointer; font-size: 11px; }
 .st-esg-floor-thinking > summary span { display: inline-flex; align-items: center; gap: 5px; }

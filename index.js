@@ -59,6 +59,7 @@ import {
   canEditFloorPanelResult,
   createFloorPanelState,
   createFloorPanelTarget,
+  createMultiTaskFloorPanelView,
   getEndedFloorPanelStatus,
   getFloorPanelActionModels,
   getFloorPanelStatusStage,
@@ -66,6 +67,7 @@ import {
   isFloorPanelGenerationCurrent,
   isFloorPanelTargetAddressable,
   nextFloorPanelGeneration,
+  scopeMultiTaskFloorPanelSettings,
 } from './ui/message-floor-panel.js?ver=0.2.2';
 import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.2.2';
 import { loadGenerationHistory, recordGenerationResult, updateGenerationHistoryEntry } from './generation/generation-history.js?ver=0.2.2';
@@ -1187,10 +1189,18 @@ function buildMessageFloorPanelMarkup() {
   const thinkingHtml = state.thinking
     ? `<details class="st-esg-floor-thinking"><summary><span><i class="fa-solid fa-brain" aria-hidden="true"></i> 思考过程</span><em>不会注入</em></summary><pre>${escapeHtml(state.thinking)}</pre></details>`
     : '';
+  const multiTaskHtml = state.mode === 'multi'
+    ? `<div class="st-esg-floor-multi-task">${renderMultiTaskWorkspace(state.multiTaskSettings || settings.multiTaskSettings)}</div>`
+    : '';
   const resultHtml = anchorMode
     ? `<div class="st-esg-floor-anchor-list">${buildMessageFloorAnchorMarkup(state.anchorItems)}</div>`
     : `<textarea class="text_pole st-esg-floor-output" data-floor-output rows="3"${canEdit ? '' : ' readonly'} placeholder="生成后的组件会显示在这里。">${escapeHtml(output)}</textarea>`;
-  const compactActionHtml = compactActions.map((action) => `<button type="button" class="st-esg-floor-compact-action${action.action === 'inject' ? ' st-esg-floor-compact-action-primary' : ''}" data-floor-action="${action.action}" aria-label="${escapeHtml(action.label)}" title="${escapeHtml(action.label)}">${renderFloorActionIcon(action.action)}</button>`).join('');
+  const compactActionHtml = compactActions.map((action) => {
+    const label = state.mode === 'multi'
+      ? ({ generate: '生成全部', retry: '重试全部', stop: '停止全部', inject: '注入全部', undo: '撤回全部' }[action.action] || action.label)
+      : action.label;
+    return `<button type="button" class="st-esg-floor-compact-action${action.action === 'inject' ? ' st-esg-floor-compact-action-primary' : ''}" data-floor-action="${action.action}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${renderFloorActionIcon(action.action)}</button>`;
+  }).join('');
   const stagePattern = [statusStage.lead, statusStage.tail].filter(Boolean).join(' ');
   const stagePatternRun = Array.from({ length: 10 }, () => stagePattern).join('  ');
   return `<div class="st-esg-floor-compact" data-floor-compact-toggle role="group" tabindex="0" aria-expanded="${state.expanded}" aria-label="织幕楼层面板">
@@ -1204,6 +1214,7 @@ function buildMessageFloorPanelMarkup() {
     <span class="st-esg-floor-action-group" data-floor-action-group>${compactActionHtml}</span>
   </div>
   <div class="st-esg-floor-expanded"${state.expanded ? '' : ' hidden'}>
+    ${multiTaskHtml}
     ${thinkingHtml}
     ${errorHtml}
     ${state.status === FLOOR_PANEL_STATUS.ERROR ? '' : resultHtml}
@@ -1225,6 +1236,7 @@ function renderMessageFloorPanel({ force = false } = {}) {
   }
   const messageText = host.querySelector('.mes_text, .mes_text_inner') || host;
   let panel = getMessageFloorPanelElement(messageFloorPanelState.target.messageIndex);
+  const thinkingWasOpen = Boolean(panel?.querySelector('.st-esg-floor-thinking')?.open);
   if (!panel) {
     removeMessageFloorPanels();
     panel = targetDoc.createElement('section');
@@ -1243,6 +1255,10 @@ function renderMessageFloorPanel({ force = false } = {}) {
   if (force || !panel.dataset.rendered) {
     panel.innerHTML = buildMessageFloorPanelMarkup();
     panel.dataset.rendered = 'true';
+  }
+  if (thinkingWasOpen) {
+    const thinking = panel.querySelector('.st-esg-floor-thinking');
+    if (thinking) thinking.open = true;
   }
   bindMessageFloorPanel(panel);
   panel.dataset.status = messageFloorPanelState.status;
@@ -1283,11 +1299,23 @@ function syncMessageFloorPanelResult({ status = FLOOR_PANEL_STATUS.READY } = {})
   renderMessageFloorPanel({ force: true });
 }
 
-function updateMessageFloorPanelStream(streamed) {
-  if (!settings.messageFloorPanelEnabled || messageFloorPanelState.status !== FLOOR_PANEL_STATUS.GENERATING) return;
-  const value = normalizeStreamOutputPreview(streamed);
-  messageFloorPanelState.thinking = String(value.thinking || '');
-  messageFloorPanelState.output = String(value.text || '');
+function syncMessageFloorPanelFromMultiTasks({ force = true } = {}) {
+  if (!settings.messageFloorPanelEnabled || settings.generationMode !== 'multi') return;
+  const target = getCurrentFloorPanelTarget();
+  if (!target) return;
+  const scopedSettings = scopeMultiTaskFloorPanelSettings(normalizeMultiTaskSettings(settings.multiTaskSettings), target);
+  const view = createMultiTaskFloorPanelView(scopedSettings);
+  messageFloorPanelState = {
+    ...messageFloorPanelState,
+    ...view,
+    enabled: true,
+    target,
+    multiTaskSettings: scopedSettings,
+  };
+  renderMessageFloorPanel({ force });
+}
+
+function refreshMessageFloorPanelStreamContent() {
   const existingPanel = getMessageFloorPanelElement(messageFloorPanelState.target?.messageIndex);
   const needsThinkingStructure = messageFloorPanelState.expanded && Boolean(messageFloorPanelState.thinking) && !existingPanel?.querySelector('.st-esg-floor-thinking');
   renderMessageFloorPanel({ force: needsThinkingStructure });
@@ -1308,6 +1336,26 @@ function updateMessageFloorPanelStream(streamed) {
     if (typeof targetWindow.requestAnimationFrame === 'function') targetWindow.requestAnimationFrame(restoreScroll);
     else restoreScroll();
   }
+}
+
+function updateMessageFloorPanelStream(streamed) {
+  if (!settings.messageFloorPanelEnabled || messageFloorPanelState.status !== FLOOR_PANEL_STATUS.GENERATING) return;
+  const value = normalizeStreamOutputPreview(streamed);
+  messageFloorPanelState.thinking = String(value.thinking || '');
+  messageFloorPanelState.output = String(value.text || '');
+  refreshMessageFloorPanelStreamContent();
+}
+
+function updateMessageFloorPanelMultiTaskStream(taskId) {
+  if (!settings.messageFloorPanelEnabled || settings.generationMode !== 'multi') return;
+  const scopedSettings = scopeMultiTaskFloorPanelSettings(
+    normalizeMultiTaskSettings(settings.multiTaskSettings),
+    messageFloorPanelState.target,
+  );
+  const view = createMultiTaskFloorPanelView(scopedSettings);
+  if (view.activeTaskId !== taskId) return;
+  messageFloorPanelState = { ...messageFloorPanelState, ...view, multiTaskSettings: scopedSettings };
+  refreshMessageFloorPanelStreamContent();
 }
 
 function setMessageFloorPanelError(error) {
@@ -1359,7 +1407,11 @@ function refreshMessageFloorPanelTarget() {
     messageFloorPanelState = { ...createFloorPanelState({ enabled: true }), target, generation: previousGeneration + 1 };
     removeMessageFloorPanels();
   }
-  renderMessageFloorPanel({ force: !getMessageFloorPanelElement(target.messageIndex) });
+  if (settings.generationMode === 'multi') {
+    syncMessageFloorPanelFromMultiTasks({ force: !getMessageFloorPanelElement(target.messageIndex) });
+  } else {
+    renderMessageFloorPanel({ force: !getMessageFloorPanelElement(target.messageIndex) });
+  }
 }
 
 function getMessageFloorPanelActionTarget() {
@@ -1381,6 +1433,21 @@ function getMessageFloorPanelActionTarget() {
 }
 
 async function runMessageFloorPanelAction(action) {
+  if (messageFloorPanelState.mode === 'multi') {
+    if (action === 'stop') {
+      const runningTaskIds = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks
+        .filter((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
+        .map((task) => task.id);
+      cancelMultiTaskGeneration(runningTaskIds);
+      return;
+    }
+    const latest = getMessageFloorPanelActionTarget();
+    if (!latest) return;
+    if (action === 'generate' || action === 'retry') await generateMultiTasks();
+    else if (action === 'inject') await injectMultiTasks();
+    else if (action === 'undo') await undoMultiTaskInjections(null, { requireConfirmation: true });
+    return;
+  }
   if (action === 'stop') {
     generationAbortController?.abort();
     return;
@@ -1405,6 +1472,23 @@ function bindMessageFloorPanel(panel) {
     if (collapse) {
       event.preventDefault();
       setMessageFloorPanelExpanded(false);
+      return;
+    }
+    const multiTaskAction = event.target.closest('[data-multi-task-action]');
+    if (multiTaskAction && messageFloorPanelState.mode === 'multi') {
+      event.preventDefault();
+      event.stopPropagation();
+      const taskId = multiTaskAction.closest('[data-active-multi-task-id]')?.getAttribute('data-active-multi-task-id') || '';
+      void handleMultiTaskAction(String(multiTaskAction.getAttribute('data-multi-task-action') || ''), false, taskId);
+      return;
+    }
+    const multiTaskTab = event.target.closest('[data-multi-task-id]');
+    if (multiTaskTab && messageFloorPanelState.mode === 'multi') {
+      event.preventDefault();
+      event.stopPropagation();
+      settings.multiTaskSettings = selectMultiTask(settings.multiTaskSettings, String(multiTaskTab.getAttribute('data-multi-task-id') || ''));
+      saveSettings();
+      renderMultiTaskFramework();
       return;
     }
     const actionButton = event.target.closest('[data-floor-action]');
@@ -1433,6 +1517,27 @@ function bindMessageFloorPanel(panel) {
     if (!canEditFloorPanelResult(messageFloorPanelState)) return;
     const output = event.target.closest('[data-floor-output]');
     if (output) {
+      if (messageFloorPanelState.mode === 'multi') {
+        const value = String(output.value || '');
+        replaceMultiTask(messageFloorPanelState.activeTaskId, {
+          output: value,
+          resultMode: 'standard',
+          anchorItems: [],
+          warnings: [],
+        });
+        messageFloorPanelState.output = value;
+        messageFloorPanelState.resultMode = 'standard';
+        messageFloorPanelState.anchorItems = [];
+        settings.lastGenerated = value;
+        settings.lastGeneratedResultMode = 'standard';
+        settings.lastGeneratedAnchorItems = [];
+        settings.lastGeneratedAnchorWarnings = [];
+        $t('#st-esg-preview').val(value);
+        renderAnchorInsertionPlan([], []);
+        saveSettings();
+        resizeMessageFloorTextarea(output);
+        return;
+      }
       settings.lastGeneratedResultMode = 'standard';
       settings.lastGenerated = String(output.value || '');
       settings.lastGeneratedAnchorItems = [];
@@ -1448,13 +1553,19 @@ function bindMessageFloorPanel(panel) {
     if (!field) return;
     const card = field.closest('[data-floor-anchor-index]');
     const index = Number(card?.dataset.floorAnchorIndex);
-    const item = settings.lastGeneratedAnchorItems?.[index];
+    const activeMultiTask = messageFloorPanelState.mode === 'multi' ? getActiveMultiTask() : null;
+    const sourceAnchorItems = activeMultiTask?.anchorItems || settings.lastGeneratedAnchorItems;
+    const item = sourceAnchorItems?.[index];
     const fieldName = String(field.dataset.floorAnchorField || '');
     if (!item || !['anchor', 'content'].includes(fieldName)) return;
     item[fieldName] = String(field.value || '');
+    if (activeMultiTask) {
+      replaceMultiTask(activeMultiTask.id, { anchorItems: sourceAnchorItems });
+      settings.lastGeneratedAnchorItems = sourceAnchorItems.map((entry) => ({ ...entry }));
+    }
     if (fieldName === 'anchor') resizeMessageFloorAnchorTextarea(field);
-    messageFloorPanelState.anchorItems = settings.lastGeneratedAnchorItems.map((entry) => ({ ...entry }));
-    const { target, matches, skipped } = resolveAnchorPlanForDisplay(settings.lastGeneratedAnchorItems);
+    messageFloorPanelState.anchorItems = sourceAnchorItems.map((entry) => ({ ...entry }));
+    const { target, matches, skipped } = resolveAnchorPlanForDisplay(sourceAnchorItems);
     const matchState = describeAnchorMatch(item, matches.get(index), skipped.get(index), Boolean(target));
     const matchLabel = card.querySelector('[data-floor-anchor-match]');
     if (matchLabel) {
@@ -1471,10 +1582,16 @@ function bindMessageFloorPanel(panel) {
     event.stopPropagation();
     const card = toggle.closest('[data-floor-anchor-index]');
     const index = Number(card?.dataset.floorAnchorIndex);
-    const item = settings.lastGeneratedAnchorItems?.[index];
+    const activeMultiTask = messageFloorPanelState.mode === 'multi' ? getActiveMultiTask() : null;
+    const sourceAnchorItems = activeMultiTask?.anchorItems || settings.lastGeneratedAnchorItems;
+    const item = sourceAnchorItems?.[index];
     if (!item) return;
     item.injectionEnabled = !isAnchorInsertionEnabled(item);
-    messageFloorPanelState.anchorItems = settings.lastGeneratedAnchorItems.map((entry) => ({ ...entry }));
+    if (activeMultiTask) {
+      replaceMultiTask(activeMultiTask.id, { anchorItems: sourceAnchorItems });
+      settings.lastGeneratedAnchorItems = sourceAnchorItems.map((entry) => ({ ...entry }));
+    }
+    messageFloorPanelState.anchorItems = sourceAnchorItems.map((entry) => ({ ...entry }));
     updateAnchorPlanStatusUi();
     scheduleAnchorEditPersistence();
     renderMessageFloorPanel({ force: true });
@@ -6815,6 +6932,7 @@ function updateMultiTaskStream(taskId, text, runId) {
     thinking: streamed.thinking ? [streamed.thinking] : [],
     error: null,
   });
+  updateMessageFloorPanelMultiTaskStream(taskId);
   if (state.activeTaskId !== taskId || settings.generationMode !== 'multi') return;
   const preview = targetDoc.getElementById('st-esg-preview');
   if (preview) preview.value = streamed.text;
@@ -7257,6 +7375,19 @@ function renderMultiTaskFramework() {
   }
   if (mode === 'multi') hydrateActiveMultiTaskView();
   else if (singleTaskWorkspaceSnapshot) applyGenerationWorkspaceView(singleTaskWorkspaceSnapshot);
+  if (settings.messageFloorPanelEnabled) {
+    if (mode === 'multi') syncMessageFloorPanelFromMultiTasks();
+    else if (messageFloorPanelState.mode === 'multi') {
+      const expanded = messageFloorPanelState.expanded;
+      messageFloorPanelState = {
+        ...createFloorPanelState({ enabled: true }),
+        expanded,
+        target: getCurrentFloorPanelTarget(),
+      };
+      if (settings.lastGenerated || settings.lastGeneratedAnchorItems?.length) syncMessageFloorPanelResult();
+      else renderMessageFloorPanel({ force: true });
+    }
+  }
 }
 
 function installMultiTaskFrameworkShell(dialog) {

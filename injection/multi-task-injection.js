@@ -30,7 +30,9 @@ function applyAppend(messageText, result) {
   const newline = detectNewline(beforeText);
   const body = stripOuterNewlines(result.output).trim();
   if (!body) throw new Error('No append content');
-  const prefix = !beforeText || beforeText.endsWith(newline) ? '' : newline;
+  const prefix = !beforeText || beforeText.endsWith(`${newline}${newline}`)
+    ? ''
+    : beforeText.endsWith(newline) ? newline : `${newline}${newline}`;
   const inserted = `${prefix}${body}`;
   const text = `${beforeText}${inserted}`;
   const operations = [{ start: beforeText.length, text: inserted }];

@@ -93,8 +93,12 @@ function isFloorPanelTargetAddressable(target, current) {
 function createFloorPanelState({ enabled = false } = {}) {
   return {
     enabled: Boolean(enabled),
+    mode: 'single',
+    activeTaskId: '',
+    multiTaskSettings: null,
     expanded: false,
     status: FLOOR_PANEL_STATUS.IDLE,
+    resultStatus: FLOOR_PANEL_STATUS.IDLE,
     resultMode: 'standard',
     thinking: '',
     output: '',
@@ -104,6 +108,81 @@ function createFloorPanelState({ enabled = false } = {}) {
     generation: 0,
     streaming: false,
     injected: false,
+  };
+}
+
+function floorPanelThinkingText(items) {
+  return (Array.isArray(items) ? items : [])
+    .map((item) => {
+      if (typeof item === 'string') return item;
+      if (item && typeof item === 'object') return String(item.content ?? item.text ?? '');
+      return String(item ?? '');
+    })
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function scopeMultiTaskFloorPanelSettings(value = {}, target = {}) {
+  const tasks = Array.isArray(value?.tasks) ? value.tasks : [];
+  const chatId = String(target?.chatId ?? '');
+  const messageIndex = Number(target?.messageIndex);
+  return {
+    ...value,
+    tasks: tasks.map((task) => {
+      const taskChatId = String(task?.target?.chatId ?? task?.injectionRecord?.chatId ?? '');
+      const taskMessageIndex = Number(task?.target?.messageIndex ?? task?.injectionRecord?.targetIndex);
+      const hasTarget = Boolean(taskChatId) && Number.isInteger(taskMessageIndex);
+      if (!hasTarget || (taskChatId === chatId && taskMessageIndex === messageIndex)) return task;
+      return {
+        ...task,
+        status: 'idle',
+        output: '',
+        thinking: [],
+        resultMode: 'standard',
+        anchorItems: [],
+        warnings: [],
+        injectionRecord: null,
+        error: null,
+      };
+    }),
+  };
+}
+
+function createMultiTaskFloorPanelView(value = {}) {
+  const tasks = Array.isArray(value?.tasks) ? value.tasks.filter((task) => task && typeof task === 'object') : [];
+  const requestedId = String(value?.activeTaskId ?? '');
+  const activeTask = tasks.find((task) => String(task.id ?? '') === requestedId) || tasks[0] || null;
+  const statuses = new Set(tasks.map((task) => String(task.status ?? 'idle')));
+  let status = FLOOR_PANEL_STATUS.IDLE;
+  if (statuses.has('queued') || statuses.has('generating')) status = FLOOR_PANEL_STATUS.GENERATING;
+  else if (statuses.has('ready') || statuses.has('pending-injection')) status = FLOOR_PANEL_STATUS.READY;
+  else if (tasks.some((task) => task.injectionRecord) || statuses.has('injected')) status = FLOOR_PANEL_STATUS.INJECTED;
+  else if (statuses.has('error')) status = FLOOR_PANEL_STATUS.ERROR;
+  const activeStatus = String(activeTask?.status ?? 'idle');
+  const activeError = activeTask?.error?.message || activeTask?.error;
+  const firstError = tasks.find((task) => task?.error)?.error;
+  const error = activeStatus === 'error'
+    ? activeError
+    : status === FLOOR_PANEL_STATUS.ERROR ? firstError?.message || firstError : null;
+  const resultStatus = activeStatus === 'ready' || activeStatus === 'pending-injection'
+    ? FLOOR_PANEL_STATUS.READY
+    : activeStatus === 'queued' || activeStatus === 'generating'
+      ? FLOOR_PANEL_STATUS.GENERATING
+      : activeStatus === 'injected' || activeTask?.injectionRecord
+        ? FLOOR_PANEL_STATUS.INJECTED
+        : activeStatus === 'error' ? FLOOR_PANEL_STATUS.ERROR : FLOOR_PANEL_STATUS.IDLE;
+  return {
+    mode: 'multi',
+    activeTaskId: String(activeTask?.id ?? ''),
+    status,
+    resultStatus,
+    resultMode: activeTask?.resultMode === 'anchor' ? 'anchor' : 'standard',
+    thinking: floorPanelThinkingText(activeTask?.thinking),
+    output: String(activeTask?.output ?? ''),
+    anchorItems: Array.isArray(activeTask?.anchorItems) ? activeTask.anchorItems.map((item) => ({ ...item })) : [],
+    error: error ? String(error) : null,
+    streaming: activeStatus === 'queued' || activeStatus === 'generating',
+    injected: Boolean(activeTask?.injectionRecord) || activeStatus === 'injected',
   };
 }
 
@@ -150,8 +229,9 @@ function getFloorPanelStatusStage(status) {
   return STATUS_STAGE_MODELS[normalizeStatus(status)] || STATUS_STAGE_MODELS[FLOOR_PANEL_STATUS.IDLE];
 }
 
-function canEditFloorPanelResult({ status, streaming = false } = {}) {
-  return normalizeStatus(status) === FLOOR_PANEL_STATUS.READY && streaming !== true;
+function canEditFloorPanelResult({ mode = 'single', status, resultStatus = status, streaming = false } = {}) {
+  const effectiveStatus = mode === 'multi' ? resultStatus : status;
+  return normalizeStatus(effectiveStatus) === FLOOR_PANEL_STATUS.READY && streaming !== true;
 }
 
 function hasInjectableFloorPanelResult({ resultMode = 'standard', output = '', anchorItems = [] } = {}) {
@@ -174,6 +254,8 @@ function getEndedFloorPanelStatus(result, { failed = false } = {}) {
 export {
   FLOOR_PANEL_STATUS,
   canEditFloorPanelResult,
+  createMultiTaskFloorPanelView,
+  scopeMultiTaskFloorPanelSettings,
   createFloorPanelState,
   createFloorPanelTarget,
   fingerprintMessageText,

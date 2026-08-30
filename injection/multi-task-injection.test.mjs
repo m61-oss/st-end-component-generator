@@ -14,8 +14,8 @@ test('append injection records only its inserted suffix and removes it later', (
     output: '组件 A',
   });
 
-  assert.equal(injected.text, '正文\n组件 A');
-  assert.deepEqual(injected.record.operations.map((item) => item.text), ['\n组件 A']);
+  assert.equal(injected.text, '正文\n\n组件 A');
+  assert.deepEqual(injected.record.operations.map((item) => item.text), ['\n\n组件 A']);
   const undone = undoMultiTaskInjection(injected.text, injected.record);
   assert.equal(undone.ok, true);
   assert.equal(undone.text, '正文');
@@ -37,7 +37,7 @@ test('one appended task can be undone while a later task remains', () => {
 
   const undoneFirst = undoMultiTaskInjection(second.text, first.record);
   assert.equal(undoneFirst.ok, true);
-  assert.equal(undoneFirst.text, '正文\n组件 B');
+  assert.equal(undoneFirst.text, '正文\n\n组件 B');
 });
 
 test('anchor injection records every exact inserted fragment and supports partial plan success', () => {
