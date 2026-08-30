@@ -6820,7 +6820,7 @@ function updateMultiTaskStream(taskId, text, runId) {
   if (preview) preview.value = streamed.text;
   lastGeneratedThinking = streamed.thinking ? [streamed.thinking] : [];
   settings.lastGeneratedThinking = [...lastGeneratedThinking];
-  renderGeneratedThinking();
+  updateStreamedThinking(streamed.thinking);
   resizeGeneratedPreview();
 }
 
@@ -7309,8 +7309,7 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
       <section class="st-esg-generation-settings-panel${activePage === 'tasks' ? '' : ' st-esg-hidden'}" data-generation-settings-panel="tasks">
         <section class="st-esg-multi-task-settings-section"><div class="st-esg-generation-settings-section-title"><strong>单任务</strong></div><div data-single-task-injection-host></div></section>
         <section class="st-esg-multi-task-settings-section"><div class="st-esg-multi-task-settings-heading"><strong>多任务</strong><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>添加任务 ${state.tasks.length}/5</span></button></div>
-          <label class="st-esg-multi-task-compact-field"><span>并发任务数</span><select class="text_pole" name="concurrency">${[1, 2, 3, 4, 5].map((value) => `<option value="${value}"${state.concurrency === value ? ' selected' : ''}>${value}</option>`).join('')}</select><em class="st-esg-multi-task-concurrency-help">超出并发数的任务会自动排队。</em></label>
-          <label class="st-esg-multi-task-compact-field"><span>注入间隔</span><input class="text_pole" type="number" name="injectionIntervalSeconds" min="0" max="10" step="0.5" value="${state.injectionIntervalSeconds}"><em class="st-esg-multi-task-concurrency-help">任务完成后会按完成顺序分批注入，间隔范围为 0–10 秒。</em></label>
+          <div class="st-esg-multi-task-runtime-settings"><div class="st-esg-multi-task-runtime-row"><label class="st-esg-multi-task-runtime-field"><span>并发任务数</span><select class="text_pole" name="concurrency">${[1, 2, 3, 4, 5].map((value) => `<option value="${value}"${state.concurrency === value ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label class="st-esg-multi-task-runtime-field"><span>注入间隔</span><input class="text_pole" type="number" name="injectionIntervalSeconds" min="0" max="10" step="0.5" value="${state.injectionIntervalSeconds}"></label></div><em class="st-esg-multi-task-runtime-help">超出并发数的任务会自动排队；任务完成后按完成顺序分批注入，间隔范围为 0–10 秒。</em></div>
           <div class="st-esg-multi-task-settings-list">${taskFields}</div>
         </section>
       </section>

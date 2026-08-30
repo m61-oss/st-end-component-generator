@@ -92,6 +92,13 @@ function stripOuterJsonFence(value) {
   return source;
 }
 
+function parseStrictEnvelopeWithOrphanFenceRecovery(candidate) {
+  const strict = parseStrictEnvelope(candidate);
+  if (strict) return strict;
+  const match = candidate.match(/^([\s\S]*?)\r?\n```\s*$/);
+  return match ? parseStrictEnvelope(match[1].trim()) : null;
+}
+
 function parseStrictEnvelope(candidate) {
   try {
     const value = JSON.parse(candidate);
@@ -323,7 +330,7 @@ export function parseOutputProtocolResponse(rawText) {
   const original = normalizeText(rawText);
   if (!original.trim()) return null;
   const candidate = stripOuterJsonFence(original);
-  return parseStrictEnvelope(candidate)
+  return parseStrictEnvelopeWithOrphanFenceRecovery(candidate)
     || parseLooseEnvelope(candidate)
     || {
       mode: 'legacy',
@@ -337,7 +344,7 @@ export function parseOutputProtocolStreamPreview(rawText) {
   const original = normalizeText(rawText);
   if (!original.trim()) return null;
   const candidate = stripOuterJsonFence(original);
-  return parseStrictEnvelope(candidate)
+  return parseStrictEnvelopeWithOrphanFenceRecovery(candidate)
     || parseLooseEnvelope(candidate)
     || parsePartialEnvelope(candidate)
     || {

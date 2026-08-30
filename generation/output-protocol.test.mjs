@@ -102,6 +102,23 @@ test('accepts a markdown JSON fence around the envelope', () => {
   assert.equal(parsed.complete, true);
 });
 
+test('drops an orphan closing fence after a complete JSON envelope', () => {
+  const raw = `${JSON.stringify({ thinking: 'analysis', output: 'body\n\n</branches>' })}\n\`\`\``;
+  const parsed = parseOutputProtocolResponse(raw);
+
+  assert.equal(parsed.mode, 'json');
+  assert.equal(parsed.thinking, 'analysis');
+  assert.equal(parsed.content, 'body\n\n</branches>');
+  assert.equal(parsed.complete, true);
+});
+
+test('preserves a legitimate closing fence inside the output string', () => {
+  const output = '```js\nconst value = 1;\n```';
+  const parsed = parseOutputProtocolResponse(JSON.stringify({ thinking: '', output }));
+
+  assert.equal(parsed.content, output);
+});
+
 test('recovers output when the final object or quoted value is cut off', () => {
   const missingObject = parseOutputProtocolResponse('{\n  "thinking": "x",\n  "output": "正文"');
   assert.equal(missingObject.mode, 'loose-json');

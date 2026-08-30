@@ -94,7 +94,8 @@ test('multi-task workspace styles use compact tabs and icon actions while animat
   assert.match(css, /\.st-esg-multi-task-compact-field \.text_pole\s*\{[^}]*height:\s*34px\s*!important/s);
   assert.match(css, /\.st-esg-generation-mode-settings-shell\s*>\s*header\s*\{[^}]*padding:\s*10px 12px/s);
   assert.match(css, /\.st-esg-all-mode-settings-body\s*\{[^}]*padding:\s*8px/s);
-  assert.match(css, /\.st-esg-multi-task-concurrency-help\s*\{[^}]*grid-column:\s*2/s);
+  assert.match(css, /\.st-esg-multi-task-runtime-row\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s);
+  assert.match(css, /\.st-esg-multi-task-runtime-help\s*\{[^}]*font-size:\s*10px/s);
   assert.match(css, /\.st-esg-multi-task-settings-list\s*\{[^}]*display:\s*grid/s);
   assert.doesNotMatch(css, /\.st-esg-multi-task-settings-tabs\s*\{/);
   assert.match(css, /@media \(max-width:\s*520px\)[\s\S]*\.st-esg-multi-task-settings-dialog[^{]*\{[^}]*margin:\s*auto(?:;|\s)/s);
@@ -112,4 +113,10 @@ test('common settings stay inside their card and generating uses a semantic blue
   const generatingLamp = css.match(/\.st-esg-multi-task-tab\[data-task-status="generating"\] \.st-esg-task-status-lamp\s*\{[^}]*\}/s)?.[0] || '';
   assert.match(generatingLamp, /color:\s*var\(--esg-running-blue\)/);
   assert.doesNotMatch(generatingLamp, /var\(--esg-primary\)/);
+});
+
+test('multi-task runtime controls keep both compact fields usable in one row', async () => {
+  const css = await readFile(new URL('../style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.st-esg-multi-task-runtime-field\s*\{[^}]*min-width:\s*0/s);
+  assert.match(css, /\.st-esg-multi-task-runtime-field \.text_pole\s*\{[^}]*min-width:\s*0/s);
 });

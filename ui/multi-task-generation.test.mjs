@@ -58,3 +58,17 @@ test('multi-task settings expose an immediate injection interval from zero to te
   assert.match(indexSource, /name="injectionIntervalSeconds"[^>]*min="0"[^>]*max="10"[^>]*step="0\.5"/);
   assert.match(indexSource, /\[name="injectionIntervalSeconds"\][\s\S]{0,180}addEventListener\('change'/);
 });
+
+test('active multi-task streaming reuses the single-task incremental thinking renderer', () => {
+  const start = indexSource.indexOf('function updateMultiTaskStream');
+  const end = indexSource.indexOf('function normalizeMultiTaskGeneratedResult', start);
+  const source = indexSource.slice(start, end);
+
+  assert.match(source, /updateStreamedThinking\(streamed\.thinking\)/);
+  assert.doesNotMatch(source, /renderGeneratedThinking\(/);
+});
+
+test('concurrency and injection interval share one row and one combined explanation', () => {
+  assert.match(indexSource, /class="st-esg-multi-task-runtime-row"[\s\S]{0,900}name="concurrency"[\s\S]{0,900}name="injectionIntervalSeconds"/);
+  assert.match(indexSource, /class="st-esg-multi-task-runtime-help"[^>]*>超出并发数的任务会自动排队；任务完成后按完成顺序分批注入，间隔范围为 0–10 秒。/);
+});
