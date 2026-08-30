@@ -191,7 +191,7 @@ const DEFAULT_SETTINGS = {
   autoInject: null,
   activeTab: 'workspace',
   generationMode: 'single',
-  multiTaskSettings: { concurrency: 2, autoInject: false, rollbackBeforeGeneration: false, activeTaskId: '', tasks: [] },
+  multiTaskSettings: { concurrency: 2, activeTaskId: '', tasks: [] },
   taskPrompt: [
     '现在停止生成正文，为最新的正文补充下面这些内容。',
     '{{external_components}}',
@@ -6566,9 +6566,8 @@ async function clearDataManagementCategory(category) {
 }
 
 function renderGenerationSettings() {
-  const settingsBody = targetDoc.querySelector('.st-esg-generation-settings .st-esg-collapsible-body');
-  const modeSelect = settingsBody?.querySelector('#st-esg-inject-mode');
-  const modeHelp = settingsBody?.querySelector('#st-esg-inject-mode-help');
+  const modeSelect = targetDoc.getElementById('st-esg-inject-mode');
+  const modeHelp = targetDoc.getElementById('st-esg-inject-mode-help');
   const injectionHelp = getGenerationInjectionModeHelp(settings.injectMode);
   if (modeSelect) modeSelect.value = injectionHelp.mode;
   if (modeHelp) {
@@ -6702,72 +6701,64 @@ function renderMultiTaskSchemeOptions(list, selectedId, emptyLabel = '未选择'
   return options.join('');
 }
 
-function showSingleTaskSettingsDialog() {
-  const settingsCard = targetDoc.querySelector('.st-esg-generation-settings');
-  const workspace = targetDoc.querySelector('[data-tab-panel="workspace"]');
-  if (!settingsCard || !workspace) return;
-  targetDoc.getElementById('st-esg-generation-mode-settings-dialog')?.remove();
-  const marker = targetDoc.createComment('st-esg-generation-settings-home');
-  settingsCard.before(marker);
-  const dialog = targetDoc.createElement('dialog');
-  dialog.id = 'st-esg-generation-mode-settings-dialog';
-  dialog.className = `st-esg-scheme-name-dialog st-esg-generation-mode-settings-dialog ${getThemeClassName(settings.theme)}`;
-  dialog.innerHTML = `<div class="st-esg-generation-mode-settings-shell"><header><div class="st-esg-card-title">单任务设置</div><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-generation-settings-close aria-label="关闭设置" title="关闭设置"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header><div data-generation-settings-card-host></div></div>`;
-  const host = dialog.querySelector('[data-generation-settings-card-host]');
-  settingsCard.classList.remove('st-esg-hidden');
-  settingsCard.open = true;
-  host.appendChild(settingsCard);
-  const finish = () => {
-    if (dialog.open) dialog.close();
-    marker.replaceWith(settingsCard);
-    settingsCard.classList.add('st-esg-hidden');
-    dialog.remove();
-  };
-  dialog.querySelector('[data-generation-settings-close]').addEventListener('click', finish);
-  dialog.addEventListener('cancel', (event) => { event.preventDefault(); finish(); });
-  targetDoc.body.appendChild(dialog);
-  if (typeof dialog.showModal === 'function') dialog.showModal();
-  else dialog.setAttribute('open', '');
-}
-
-function showMultiTaskSettingsDialog() {
+function showMultiTaskSettingsDialog(initialPage = 'general') {
   const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
   const task = state.tasks.find((item) => item.id === state.activeTaskId) || state.tasks[0] || null;
+  const settingsCard = targetDoc.querySelector('.st-esg-generation-settings');
+  const injectionSection = settingsCard?.querySelector('.st-esg-generation-injection-section');
+  if (!settingsCard || !injectionSection) return;
   targetDoc.getElementById('st-esg-generation-mode-settings-dialog')?.remove();
+  const settingsMarker = targetDoc.createComment('st-esg-generation-settings-home');
+  const injectionMarker = targetDoc.createComment('st-esg-single-task-injection-home');
+  injectionSection.before(injectionMarker);
+  settingsCard.before(settingsMarker);
   const dialog = targetDoc.createElement('dialog');
   dialog.id = 'st-esg-generation-mode-settings-dialog';
-  dialog.className = `st-esg-scheme-name-dialog st-esg-multi-task-settings-dialog ${getThemeClassName(settings.theme)}`;
+  dialog.className = `st-esg-scheme-name-dialog st-esg-generation-mode-settings-dialog st-esg-multi-task-settings-dialog ${getThemeClassName(settings.theme)}`;
   const taskOptions = state.tasks.map((item) => `<option value="${escapeHtml(item.id)}"${item.id === task?.id ? ' selected' : ''}>${escapeHtml(item.name)}</option>`).join('');
   const taskFields = task ? `<label>预设方案<select class="text_pole" name="presetSchemeId">${renderMultiTaskSchemeOptions(settings.presetSchemes, task.presetSchemeId, '酒馆默认')}</select></label>
     <label>世界书方案<select class="text_pole" name="worldbookSchemeId">${renderMultiTaskSchemeOptions(settings.worldbookSchemes, task.worldbookSchemeId, '酒馆默认')}</select></label>
     <label>API 方案<select class="text_pole" name="apiSchemeId">${renderMultiTaskSchemeOptions(settings.apiSchemes, task.apiSchemeId)}</select></label>
     <label>组件方案<select class="text_pole" name="componentSchemeId">${renderMultiTaskSchemeOptions(settings.componentSchemes, task.componentSchemeId)}</select></label>
     <label>注入方式<select class="text_pole" name="injectMode"><option value="append"${task.injectMode === 'append' ? ' selected' : ''}>追加</option><option value="anchor"${task.injectMode === 'anchor' ? ' selected' : ''}>锚点插入</option></select></label>` : '<div class="st-esg-multi-task-settings-empty">还没有任务，请先添加任务。</div>';
-  dialog.innerHTML = `<form method="dialog"><div class="st-esg-multi-task-settings-title"><div class="st-esg-card-title">多任务设置</div><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-cancel aria-label="关闭设置" title="关闭设置"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>
-    <div class="st-esg-multi-task-settings-tabs" role="tablist" aria-label="多任务设置分页"><button class="active" type="button" role="tab" aria-selected="true" data-multi-task-settings-tab="task">任务配置</button><button type="button" role="tab" aria-selected="false" data-multi-task-settings-tab="global">全局设置</button></div>
-    <div class="st-esg-multi-task-settings-panel" data-multi-task-settings-panel="task">
-      ${task ? `<label>当前任务<select class="text_pole" data-multi-task-settings-select>${taskOptions}</select></label>` : ''}
-      <div class="st-esg-multi-task-manage-actions"><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>添加</span></button><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="rename"${task ? '' : ' disabled'}><i class="fa-solid fa-pen" aria-hidden="true"></i><span>改名</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger" type="button" data-multi-task-settings-action="delete"${task ? '' : ' disabled'}><i class="fa-solid fa-trash" aria-hidden="true"></i><span>删除</span></button></div>
-      ${taskFields}
+  const activePage = initialPage === 'tasks' ? 'tasks' : 'general';
+  dialog.innerHTML = `<div class="st-esg-generation-mode-settings-shell"><header><div class="st-esg-card-title">生成设置</div><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-generation-settings-close aria-label="关闭设置" title="关闭设置"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header>
+    <div class="st-esg-generation-settings-pages" role="tablist" aria-label="生成设置分页"><button class="${activePage === 'general' ? 'active' : ''}" type="button" role="tab" aria-selected="${activePage === 'general'}" data-generation-settings-page="general">通用设置</button><button class="${activePage === 'tasks' ? 'active' : ''}" type="button" role="tab" aria-selected="${activePage === 'tasks'}" data-generation-settings-page="tasks">任务配置</button></div>
+    <div class="st-esg-all-mode-settings-body">
+      <section class="st-esg-generation-settings-panel${activePage === 'general' ? '' : ' st-esg-hidden'}" data-generation-settings-panel="general"><div data-generation-settings-card-host></div></section>
+      <section class="st-esg-generation-settings-panel${activePage === 'tasks' ? '' : ' st-esg-hidden'}" data-generation-settings-panel="tasks">
+        <section class="st-esg-multi-task-settings-section"><div class="st-esg-generation-settings-section-title"><strong>单任务</strong></div><div data-single-task-injection-host></div></section>
+        <form method="dialog"><section class="st-esg-multi-task-settings-section"><div class="st-esg-generation-settings-section-title"><strong>多任务</strong></div>
+          ${task ? `<label>当前任务<select class="text_pole" data-multi-task-settings-select>${taskOptions}</select></label>` : ''}
+          <div class="st-esg-multi-task-manage-actions"><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>添加</span></button><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="rename"${task ? '' : ' disabled'}><i class="fa-solid fa-pen" aria-hidden="true"></i><span>改名</span></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger" type="button" data-multi-task-settings-action="delete"${task ? '' : ' disabled'}><i class="fa-solid fa-trash" aria-hidden="true"></i><span>删除</span></button></div>
+          ${taskFields}
+          <label>并发任务数<select class="text_pole" name="concurrency">${[1, 2, 3, 4, 5].map((value) => `<option value="${value}"${state.concurrency === value ? ' selected' : ''}>${value}${value === 1 ? '（全部排队）' : ''}</option>`).join('')}</select></label>
+        </section><div class="st-esg-actions-row"><button class="menu_button st-esg-secondary-action" type="button" data-generation-settings-close>取消</button><button class="menu_button st-esg-primary-action" type="submit">保存</button></div></form>
+      </section>
     </div>
-    <div class="st-esg-multi-task-settings-panel st-esg-hidden" data-multi-task-settings-panel="global">
-      <label>并发任务数<select class="text_pole" name="concurrency">${[1, 2, 3, 4, 5].map((value) => `<option value="${value}"${state.concurrency === value ? ' selected' : ''}>${value}${value === 1 ? '（全部排队）' : ''}</option>`).join('')}</select></label>
-      <label class="st-esg-checkbox st-esg-log-option"><input type="checkbox" name="autoInject"${state.autoInject ? ' checked' : ''}><span>生成完成后自动注入</span></label>
-      <label class="st-esg-checkbox st-esg-log-option"><input type="checkbox" name="rollbackBeforeGeneration"${state.rollbackBeforeGeneration ? ' checked' : ''}><span>生成前撤回对应任务的最新记录</span></label>
-    </div>
-    <div class="st-esg-actions-row"><button class="menu_button st-esg-secondary-action" type="button" data-multi-task-settings-cancel>取消</button><button class="menu_button st-esg-primary-action" type="submit">保存</button></div></form>`;
-  const finish = () => { if (dialog.open) dialog.close(); dialog.remove(); };
-  dialog.querySelectorAll('[data-multi-task-settings-cancel]').forEach((button) => button.addEventListener('click', finish));
+  </div>`;
+  settingsCard.classList.remove('st-esg-hidden');
+  settingsCard.open = true;
+  dialog.querySelector('[data-generation-settings-card-host]').appendChild(settingsCard);
+  dialog.querySelector('[data-single-task-injection-host]').appendChild(injectionSection);
+  const finish = () => {
+    if (dialog.open) dialog.close();
+    injectionMarker.replaceWith(injectionSection);
+    settingsMarker.replaceWith(settingsCard);
+    settingsCard.classList.add('st-esg-hidden');
+    dialog.remove();
+  };
+  dialog.querySelectorAll('[data-generation-settings-close]').forEach((button) => button.addEventListener('click', finish));
   dialog.addEventListener('cancel', (event) => { event.preventDefault(); finish(); });
-  dialog.querySelectorAll('[data-multi-task-settings-tab]').forEach((button) => button.addEventListener('click', () => {
-    const nextTab = String(button.getAttribute('data-multi-task-settings-tab'));
-    dialog.querySelectorAll('[data-multi-task-settings-tab]').forEach((item) => {
+  dialog.querySelectorAll('[data-generation-settings-page]').forEach((button) => button.addEventListener('click', () => {
+    const nextPage = String(button.getAttribute('data-generation-settings-page'));
+    dialog.querySelectorAll('[data-generation-settings-page]').forEach((item) => {
       const isActive = item === button;
       item.classList.toggle('active', isActive);
       item.setAttribute('aria-selected', String(isActive));
     });
-    dialog.querySelectorAll('[data-multi-task-settings-panel]').forEach((panel) => {
-      panel.classList.toggle('st-esg-hidden', panel.getAttribute('data-multi-task-settings-panel') !== nextTab);
+    dialog.querySelectorAll('[data-generation-settings-panel]').forEach((panel) => {
+      panel.classList.toggle('st-esg-hidden', panel.getAttribute('data-generation-settings-panel') !== nextPage);
     });
   }));
   dialog.querySelector('[data-multi-task-settings-select]')?.addEventListener('change', (event) => {
@@ -6776,7 +6767,7 @@ function showMultiTaskSettingsDialog() {
     saveSettings();
     renderMultiTaskFramework();
     finish();
-    showMultiTaskSettingsDialog();
+    showMultiTaskSettingsDialog('tasks');
   });
   dialog.querySelectorAll('[data-multi-task-settings-action]').forEach((button) => button.addEventListener('click', () => {
     const action = String(button.getAttribute('data-multi-task-settings-action'));
@@ -6798,8 +6789,6 @@ function showMultiTaskSettingsDialog() {
     settings.multiTaskSettings = normalizeMultiTaskSettings({
       ...settings.multiTaskSettings,
       concurrency: form.get('concurrency'),
-      autoInject: form.has('autoInject'),
-      rollbackBeforeGeneration: form.has('rollbackBeforeGeneration'),
     });
     saveSettings();
     renderMultiTaskFramework();
@@ -6811,48 +6800,47 @@ function showMultiTaskSettingsDialog() {
 }
 
 function showGenerationModeSettingsDialog() {
-  if (settings.generationMode === 'multi') showMultiTaskSettingsDialog();
-  else showSingleTaskSettingsDialog();
+  showMultiTaskSettingsDialog();
 }
 
 async function handleMultiTaskAction(action, reopenSettings = false) {
   const activeTask = getActiveMultiTask();
   if (action === 'add') {
     const name = await requestTextInputDialog({ title: '添加任务', label: '任务名称', placeholder: '输入便于识别的任务名称', value: getNextMultiTaskName() });
-    if (!name) { if (reopenSettings) showMultiTaskSettingsDialog(); return; }
+    if (!name) { if (reopenSettings) showMultiTaskSettingsDialog('tasks'); return; }
     const result = createMultiTask(settings.multiTaskSettings, name, getNewMultiTaskDefaults());
     if (result.error) {
       notifyStatus(result.error === 'duplicate-name' ? '任务名称不能重复。' : '最多只能添加五个任务。', 'warning');
-      if (reopenSettings) showMultiTaskSettingsDialog();
+      if (reopenSettings) showMultiTaskSettingsDialog('tasks');
       return;
     }
     settings.multiTaskSettings = result.state;
     saveSettings();
     renderMultiTaskFramework();
-    showMultiTaskSettingsDialog();
+    showMultiTaskSettingsDialog('tasks');
     return;
   }
-  if (action === 'global-settings') { showMultiTaskSettingsDialog(); return; }
+  if (action === 'global-settings') { showMultiTaskSettingsDialog('tasks'); return; }
   if (!activeTask) return;
-  if (action === 'settings') { showMultiTaskSettingsDialog(); return; }
+  if (action === 'settings') { showMultiTaskSettingsDialog('tasks'); return; }
   if (action === 'history') { notifyStatus('多任务最近生成记录将在生成调度阶段接入。', 'info'); return; }
   if (action === 'rename') {
     const name = await requestTextInputDialog({ title: '重命名任务', label: '任务名称', value: activeTask.name });
-    if (!name || name === activeTask.name) { if (reopenSettings) showMultiTaskSettingsDialog(); return; }
+    if (!name || name === activeTask.name) { if (reopenSettings) showMultiTaskSettingsDialog('tasks'); return; }
     const result = renameMultiTask(settings.multiTaskSettings, activeTask.id, name);
-    if (result.error) { notifyStatus('任务名称不能为空或与其他任务重复。', 'warning'); if (reopenSettings) showMultiTaskSettingsDialog(); return; }
+    if (result.error) { notifyStatus('任务名称不能为空或与其他任务重复。', 'warning'); if (reopenSettings) showMultiTaskSettingsDialog('tasks'); return; }
     settings.multiTaskSettings = result.state;
     saveSettings();
     renderMultiTaskFramework();
-    if (reopenSettings) showMultiTaskSettingsDialog();
+    if (reopenSettings) showMultiTaskSettingsDialog('tasks');
     return;
   }
   if (action === 'delete') {
-    if (!targetWindow.confirm(`删除任务“${activeTask.name}”？\n\n当前框架中的任务配置和未接入的临时结果会一并删除。`)) { if (reopenSettings) showMultiTaskSettingsDialog(); return; }
+    if (!targetWindow.confirm(`删除任务“${activeTask.name}”？\n\n当前框架中的任务配置和未接入的临时结果会一并删除。`)) { if (reopenSettings) showMultiTaskSettingsDialog('tasks'); return; }
     settings.multiTaskSettings = deleteMultiTask(settings.multiTaskSettings, activeTask.id).state;
     saveSettings();
     renderMultiTaskFramework();
-    if (reopenSettings) showMultiTaskSettingsDialog();
+    if (reopenSettings) showMultiTaskSettingsDialog('tasks');
   }
 }
 

@@ -26,8 +26,8 @@ test('normalizes persisted multi-task settings into a safe serializable state', 
   });
 
   assert.equal(state.concurrency, 5);
-  assert.equal(state.autoInject, true);
-  assert.equal(state.rollbackBeforeGeneration, true);
+  assert.equal('autoInject' in state, false);
+  assert.equal('rollbackBeforeGeneration' in state, false);
   assert.equal(state.activeTaskId, 'a');
   assert.deepEqual(state.tasks.map((task) => task.name), ['状态栏', '小剧场']);
   assert.equal(state.tasks[0].injectMode, 'append');
@@ -37,10 +37,10 @@ test('normalizes persisted multi-task settings into a safe serializable state', 
   assert.equal(state.tasks[1].status, MULTI_TASK_STATUS.GENERATING);
 });
 
-test('defaults multi-task global injection settings independently from single-task settings', () => {
-  const state = normalizeMultiTaskSettings({ tasks: [] });
-  assert.equal(state.autoInject, false);
-  assert.equal(state.rollbackBeforeGeneration, false);
+test('ignores legacy per-mode injection switches because generation flow settings are shared', () => {
+  const state = normalizeMultiTaskSettings({ autoInject: true, rollbackBeforeGeneration: true, tasks: [] });
+  assert.equal('autoInject' in state, false);
+  assert.equal('rollbackBeforeGeneration' in state, false);
 });
 
 test('creates at most five uniquely named tasks and limits injection to append or anchor', () => {

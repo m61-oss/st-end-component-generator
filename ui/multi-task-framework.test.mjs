@@ -22,7 +22,7 @@ test('workspace keeps the original generation DOM mounted and adds only multi-ta
   assert.match(indexSource, /renderMultiTaskFramework/);
 });
 
-test('multi-task framework wires mode-specific settings and shared task view persistence', () => {
+test('multi-task framework wires the shared settings surface and task view persistence', () => {
   for (const action of ['add', 'settings', 'rename', 'delete']) {
     assert.match(indexSource, new RegExp(`action === '${action}'`));
   }
@@ -35,12 +35,20 @@ test('multi-task framework wires mode-specific settings and shared task view per
   assert.match(indexSource, /new targetWindow\.FormData\(event\.currentTarget\)/);
 });
 
-test('multi-task settings follow the approved task and global tab layout', () => {
-  assert.match(indexSource, /data-multi-task-settings-tab="task"/);
-  assert.match(indexSource, /data-multi-task-settings-tab="global"/);
-  assert.match(indexSource, /data-multi-task-settings-panel="task"/);
-  assert.match(indexSource, /data-multi-task-settings-panel="global"/);
-  assert.match(indexSource, /data-multi-task-settings-tab.*addEventListener\('click'/s);
+test('the one settings gear exposes common and task configuration pages regardless of generation mode', () => {
+  assert.match(indexSource, /data-generation-settings-card-host/);
+  assert.match(indexSource, /data-single-task-injection-host/);
+  assert.match(indexSource, /data-generation-settings-page="general"/);
+  assert.match(indexSource, /data-generation-settings-page="tasks"/);
+  assert.match(indexSource, /data-generation-settings-panel="general"/);
+  assert.match(indexSource, /data-generation-settings-panel="tasks"/);
+  assert.match(indexSource, />通用设置</);
+  assert.match(indexSource, />任务配置</);
+  assert.doesNotMatch(indexSource, /data-multi-task-settings-tab=/);
+  assert.doesNotMatch(indexSource, /data-multi-task-settings-panel=/);
+  assert.match(indexSource, /function showGenerationModeSettingsDialog\(\)\s*\{\s*showMultiTaskSettingsDialog\(\);\s*\}/);
+  assert.doesNotMatch(indexSource, /name="autoInject"/);
+  assert.doesNotMatch(indexSource, /name="rollbackBeforeGeneration"/);
   assert.match(indexSource, /componentSchemeId:\s*textOf\(form\.get\('componentSchemeId'\)\)/);
   assert.doesNotMatch(indexSource, /组件方案将在后续阶段接入/);
 });

@@ -5,12 +5,15 @@ import { readFile } from 'node:fs/promises';
 import { createMultiTask } from '../generation/multi-task-state.js';
 import { renderGenerationModeSwitch, renderMultiTaskWorkspace } from './multi-task-workspace.js';
 
-test('renders compact generation mode tabs with one mode-aware settings icon', () => {
+test('renders compact generation mode tabs with one shared settings icon', () => {
   const markup = renderGenerationModeSwitch('multi');
   assert.match(markup, /data-generation-mode="single"/);
   assert.match(markup, /data-generation-mode="multi"[^>]*aria-pressed="true"/);
   assert.match(markup, /data-generation-mode-settings/);
   assert.equal((markup.match(/fa-gear/g) || []).length, 1);
+  const settingsButton = markup.match(/<button[^>]*data-generation-mode-settings[^>]*>/)?.[0] || '';
+  assert.match(settingsButton, /title="生成设置"/);
+  assert.match(settingsButton, /aria-label="生成设置"/);
   assert.match(markup, />单任务</);
   assert.match(markup, />多任务</);
 });
@@ -40,7 +43,14 @@ test('renders named task tabs and the scheme-B icon toolbar without duplicating 
   const taskGenerateButton = markup.match(/<button[^>]*data-multi-task-action="generate"[^>]*>/)?.[0] || '';
   assert.match(taskGenerateButton, /st-esg-secondary-action/);
   assert.doesNotMatch(taskGenerateButton, /st-esg-primary-action/);
-  for (const icon of ['fa-clock-rotate-left', 'fa-rotate-left', 'fa-sparkles', 'fa-file-import']) {
+  const taskActionButtons = [...markup.matchAll(/<button[^>]*data-multi-task-action="(?:history|undo|generate|inject)"[^>]*>/g)].map((match) => match[0]);
+  assert.equal(taskActionButtons.length, 4);
+  for (const button of taskActionButtons) {
+    assert.match(button, /st-esg-secondary-action/);
+    assert.match(button, / disabled(?: |>|$)/);
+    assert.doesNotMatch(button, /st-esg-primary-action/);
+  }
+  for (const icon of ['fa-clock-rotate-left', 'fa-rotate-left', 'fa-wand-magic-sparkles', 'fa-file-import']) {
     assert.match(markup, new RegExp(icon));
   }
   assert.doesNotMatch(markup, /st-esg-multi-task-preview|st-esg-multi-task-extra|st-esg-multi-task-result/);
@@ -53,8 +63,11 @@ test('multi-task workspace styles use compact tabs and icon actions while animat
   assert.doesNotMatch(css, /\.st-esg-generation-mode-switch\s*\{[^}]*grid-template-columns/s);
   assert.match(css, /\.st-esg-generation-mode\.active::after\s*\{[^}]*background:/s);
   assert.match(css, /\.st-esg-multi-task-tabs\s*\{[^}]*overflow-x:\s*auto/s);
+  assert.match(css, /\.st-esg-multi-task-tab\s*\{[^}]*min-height:\s*30px[^}]*border:\s*1px solid[^}]*border-radius:\s*999px/s);
+  assert.match(css, /\.st-esg-multi-task-tab\.active\s*\{[^}]*border-color:/s);
   assert.match(css, /\.st-esg-multi-task-tools \.menu_button\s*\{[^}]*width:\s*34px/s);
-  assert.match(css, /\.st-esg-multi-task-settings-tabs\s*\{[^}]*display:\s*flex/s);
+  assert.match(css, /\.st-esg-generation-settings-pages\s*\{[^}]*display:\s*flex/s);
+  assert.doesNotMatch(css, /\.st-esg-multi-task-settings-tabs\s*\{/);
   assert.match(css, /@media \(max-width:\s*520px\)[\s\S]*\.st-esg-multi-task-settings-dialog[^{]*\{[^}]*margin:\s*auto 0 0/s);
   assert.match(css, /data-task-status="generating"[^}]*animation:\s*st-esg-task-breathe/s);
   assert.match(css, /prefers-reduced-motion:\s*reduce[^}]*st-esg-task-status-lamp/s);
