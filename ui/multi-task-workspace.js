@@ -37,21 +37,14 @@ function renderTaskTabs(state) {
   }).join('')}</div>`;
 }
 
-function renderActiveTask(state) {
+function renderTaskTools(state) {
   const task = state.tasks.find((item) => item.id === state.activeTaskId) || state.tasks[0];
-  const statusLabel = STATUS_LABELS[task.status] || STATUS_LABELS.idle;
-  const statusCopy = task.status === MULTI_TASK_STATUS.IDLE ? '' : `<span>${escapeHtml(statusLabel)}</span>`;
-  return `<section class="st-esg-multi-task-current" data-active-multi-task-id="${escapeHtml(task.id)}">
-    <header class="st-esg-multi-task-head">
-      <div class="st-esg-multi-task-current-copy"><strong>${escapeHtml(task.name)}</strong>${statusCopy}</div>
-      <div class="st-esg-multi-task-tools" aria-label="当前任务操作">
+  return `<div class="st-esg-multi-task-tools" data-active-multi-task-id="${escapeHtml(task.id)}" aria-label="当前任务操作">
         <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="history" disabled title="多任务最近生成记录将在后续阶段接入" aria-label="最近生成记录"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></button>
         <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="undo" disabled title="多任务撤回将在后续阶段接入" aria-label="撤回当前任务"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button>
         <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="generate" disabled title="多任务生成将在后续阶段接入" aria-label="生成当前任务"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></button>
         <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="inject" disabled title="多任务注入将在后续阶段接入" aria-label="注入当前任务"><i class="fa-solid fa-file-import" aria-hidden="true"></i></button>
-      </div>
-    </header>
-  </section>`;
+      </div>`;
 }
 
 export function renderMultiTaskWorkspace(value = {}) {
@@ -59,5 +52,5 @@ export function renderMultiTaskWorkspace(value = {}) {
   if (!state.tasks.length) {
     return `<div class="st-esg-multi-task-workspace"><div class="st-esg-multi-task-empty"><i class="fa-solid fa-layer-group" aria-hidden="true"></i><span>还没有任务，请打开设置添加。</span></div></div>`;
   }
-  return `<div class="st-esg-multi-task-workspace">${renderTaskTabs(state)}${renderActiveTask(state)}</div>`;
+  return `<div class="st-esg-multi-task-workspace"><div class="st-esg-multi-task-toolbar">${renderTaskTabs(state)}${renderTaskTools(state)}</div></div>`;
 }

@@ -42,6 +42,8 @@ test('renders named task tabs and the scheme-B icon toolbar without duplicating 
   assert.match(markup, /&lt;状态栏&gt;/);
   assert.match(markup, /data-task-status="generating"/);
   assert.match(markup, /data-task-status="queued"/);
+  assert.match(markup, /st-esg-multi-task-toolbar/);
+  assert.doesNotMatch(markup, /st-esg-multi-task-current-copy|st-esg-multi-task-head/);
   assert.match(markup, /data-multi-task-action="history"[^>]*aria-label="最近生成记录"/);
   assert.match(markup, /data-multi-task-action="undo"[^>]*aria-label="撤回当前任务"/);
   assert.match(markup, /data-multi-task-action="generate"[^>]*aria-label="生成当前任务"/);
@@ -69,12 +71,17 @@ test('multi-task workspace styles use compact tabs and icon actions while animat
   assert.doesNotMatch(css, /\.st-esg-generation-mode-switch\s*\{[^}]*grid-template-columns/s);
   assert.match(css, /\.st-esg-generation-mode\.active::after\s*\{[^}]*background:/s);
   assert.match(css, /\.st-esg-multi-task-tabs\s*\{[^}]*overflow-x:\s*auto/s);
+  assert.match(css, /\.st-esg-multi-task-toolbar\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center/s);
+  assert.match(css, /\.st-esg-multi-task-tabs\s*\{[^}]*flex:\s*1 1 auto/s);
   assert.match(css, /\.st-esg-multi-task-tab\s*\{[^}]*min-height:\s*30px[^}]*border:\s*1px solid[^}]*border-radius:\s*999px/s);
   assert.match(css, /\.st-esg-multi-task-tab\.active\s*\{[^}]*border-color:/s);
-  assert.match(css, /\.st-esg-multi-task-tools \.menu_button\s*\{[^}]*width:\s*34px/s);
+  assert.match(css, /\.st-esg-multi-task-tools \.menu_button\s*\{[^}]*width:\s*32px/s);
   assert.match(css, /\.st-esg-generation-settings-pages\s*\{[^}]*display:\s*flex/s);
   assert.match(css, /\.st-esg-generation-mode-settings-shell \.st-esg-generation-settings\s*>\s*summary\s*\{[^}]*display:\s*none/s);
   assert.match(css, /\.st-esg-multi-task-compact-field\s*\{[^}]*grid-template-columns:/s);
+  assert.match(css, /\.st-esg-multi-task-compact-field \.text_pole\s*\{[^}]*height:\s*34px\s*!important/s);
+  assert.match(css, /\.st-esg-generation-mode-settings-shell\s*>\s*header\s*\{[^}]*padding:\s*10px 12px/s);
+  assert.match(css, /\.st-esg-all-mode-settings-body\s*\{[^}]*padding:\s*8px/s);
   assert.match(css, /\.st-esg-multi-task-concurrency-help\s*\{[^}]*grid-column:\s*2/s);
   assert.match(css, /\.st-esg-multi-task-settings-list\s*\{[^}]*display:\s*grid/s);
   assert.doesNotMatch(css, /\.st-esg-multi-task-settings-tabs\s*\{/);
