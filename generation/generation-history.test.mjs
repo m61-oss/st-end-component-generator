@@ -56,3 +56,15 @@ test('keeps legacy text history entries readable', () => {
   assert.equal(entry.kind, 'text');
   assert.equal(entry.content, '旧内容');
 });
+
+test('keeps the five most recent generation results by default', () => {
+  const storage = createStorage();
+  let recorded = [];
+  for (let index = 1; index <= 6; index += 1) {
+    recorded = recordGenerationResult(storage, 'history', `结果 ${index}`, index);
+  }
+
+  assert.equal(recorded.length, 5);
+  assert.deepEqual(recorded.map((entry) => entry.content), ['结果 6', '结果 5', '结果 4', '结果 3', '结果 2']);
+  assert.equal(loadGenerationHistory(storage, 'history').length, 5);
+});

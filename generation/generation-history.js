@@ -1,8 +1,9 @@
 const textOf = (value) => String(value ?? '');
+const DEFAULT_HISTORY_LIMIT = 5;
 
 const normalizeLimit = (value) => {
   const numeric = Math.floor(Number(value));
-  return Number.isFinite(numeric) && numeric > 0 ? numeric : 3;
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : DEFAULT_HISTORY_LIMIT;
 };
 
 function cloneAnchorItems(items) {
@@ -34,7 +35,7 @@ const normalizeEntry = (entry, index = 0) => {
   return { id, generatedAt: safeGeneratedAt, kind: 'text', content };
 };
 
-export function loadGenerationHistory(storage, key, limit = 3) {
+export function loadGenerationHistory(storage, key, limit = DEFAULT_HISTORY_LIMIT) {
   try {
     const parsed = JSON.parse(storage?.getItem?.(key) || '[]');
     if (!Array.isArray(parsed)) return [];
@@ -64,7 +65,7 @@ function normalizeResult(result) {
   return content.trim() ? { kind: 'text', content } : null;
 }
 
-export function recordGenerationResult(storage, key, result, generatedAt = Date.now(), limit = 3) {
+export function recordGenerationResult(storage, key, result, generatedAt = Date.now(), limit = DEFAULT_HISTORY_LIMIT) {
   const normalized = normalizeResult(result);
   const current = loadGenerationHistory(storage, key, limit);
   if (!normalized) return current;
@@ -82,7 +83,7 @@ export function recordGenerationResult(storage, key, result, generatedAt = Date.
   return next;
 }
 
-export function updateGenerationHistoryEntry(storage, key, id, patch, limit = 3) {
+export function updateGenerationHistoryEntry(storage, key, id, patch, limit = DEFAULT_HISTORY_LIMIT) {
   const current = loadGenerationHistory(storage, key, limit);
   const targetId = textOf(id);
   const next = current.map((entry) => {

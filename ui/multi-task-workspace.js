@@ -25,7 +25,10 @@ export function renderGenerationModeSwitch(mode = 'single') {
       <button class="st-esg-generation-mode${activeMode === 'single' ? ' active' : ''}" type="button" data-generation-mode="single" aria-pressed="${activeMode === 'single'}">单任务</button>
       <button class="st-esg-generation-mode${activeMode === 'multi' ? ' active' : ''}" type="button" data-generation-mode="multi" aria-pressed="${activeMode === 'multi'}">多任务</button>
     </div>
-    <button class="menu_button menu_button_icon st-esg-secondary-action st-esg-generation-mode-settings" type="button" data-generation-mode-settings title="生成设置" aria-label="生成设置"><i class="fa-solid fa-gear" aria-hidden="true"></i></button>
+    <div class="st-esg-generation-mode-actions">
+      <button class="menu_button menu_button_icon st-esg-secondary-action st-esg-generation-mode-history" type="button" data-generation-history-open title="最近生成记录" aria-label="最近生成记录"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></button>
+      <button class="menu_button menu_button_icon st-esg-secondary-action st-esg-generation-mode-settings" type="button" data-generation-mode-settings title="生成设置" aria-label="生成设置"><i class="fa-solid fa-gear" aria-hidden="true"></i></button>
+    </div>
   </div>`;
 }
 
@@ -40,7 +43,6 @@ function renderTaskTabs(state) {
 function renderTaskTools(state) {
   const task = state.tasks.find((item) => item.id === state.activeTaskId) || state.tasks[0];
   return `<div class="st-esg-multi-task-tools" data-active-multi-task-id="${escapeHtml(task.id)}" aria-label="当前任务操作">
-        <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="history" disabled title="多任务最近生成记录将在后续阶段接入" aria-label="最近生成记录"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></button>
         <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="undo" disabled title="多任务撤回将在后续阶段接入" aria-label="撤回当前任务"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button>
         <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="generate" disabled title="多任务生成将在后续阶段接入" aria-label="生成当前任务"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></button>
         <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="inject" disabled title="多任务注入将在后续阶段接入" aria-label="注入当前任务"><i class="fa-solid fa-file-import" aria-hidden="true"></i></button>

@@ -28,10 +28,18 @@ test('multi-task framework wires the shared settings surface and task view persi
   }
   assert.match(indexSource, /data-generation-mode/);
   assert.match(indexSource, /data-generation-mode-settings/);
+  assert.match(indexSource, /data-generation-history-open/);
+  assert.match(indexSource, /showGenerationHistoryDialog/);
   assert.match(indexSource, /data-multi-task-id/);
   assert.match(indexSource, /captureActiveMultiTaskView/);
   assert.match(indexSource, /hydrateActiveMultiTaskView/);
   assert.doesNotMatch(indexSource, /data-multi-task-extra/);
+});
+
+test('generation history is a shared five-entry dialog instead of a workspace card', () => {
+  assert.match(indexSource, /st-esg-generation-history-dialog/);
+  assert.match(indexSource, /最多保留五条/);
+  assert.match(indexSource, /querySelector\('\.st-esg-generation-history-card'\)\?\.remove\(\)/);
 });
 
 test('the one settings gear exposes common and task configuration pages regardless of generation mode', () => {

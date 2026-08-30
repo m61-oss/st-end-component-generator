@@ -654,6 +654,13 @@ select.st-esg-scheme-select {
 .st-esg-generation-history-entry > summary em { color: var(--esg-text-muted); font-size: 11px; font-style: normal; white-space: nowrap; }
 .st-esg-generation-history-entry > pre { max-height: 180px; margin: 0 8px; padding: 8px; overflow: auto; border: 1px solid var(--esg-border); border-radius: 7px; color: var(--esg-text-main); font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace); font-size: 11px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
 .st-esg-generation-history-entry > .st-esg-actions-row { margin: 7px 8px 8px; }
+.st-esg-generation-history-dialog { width: min(500px, calc(100vw - 28px)); max-height: min(680px, calc(100dvh - 28px)); overflow: hidden; }
+.st-esg-generation-history-shell { display: grid; grid-template-rows: auto minmax(0, 1fr); max-height: inherit; }
+.st-esg-generation-history-shell > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--esg-border); }
+.st-esg-generation-history-shell > header > div { min-width: 0; }
+.st-esg-generation-history-shell > header .st-esg-card-desc { margin-top: 2px; }
+.st-esg-generation-history-shell > header .menu_button { width: 32px !important; min-width: 32px !important; min-height: 32px !important; padding: 0 !important; justify-content: center; }
+.st-esg-generation-history-dialog-body { min-height: 0; padding: 9px; overflow: auto; overscroll-behavior: contain; }
 .st-esg-history-range-options { display: grid; gap: 8px; }
 .st-esg-memory-source-groups,
 .st-esg-memory-source-panel { display: grid; gap: 6px; }
@@ -1823,14 +1830,16 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-generation-mode.active::after { background: var(--esg-primary); }
 .st-esg-generation-mode:focus-visible { outline: 2px solid var(--esg-primary); outline-offset: 1px; }
 .st-esg-generation-mode-settings { width: 30px; min-width: 30px; min-height: 30px !important; margin-bottom: 1px; padding: 0 !important; justify-content: center; }
+.st-esg-generation-mode-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 3px; }
+.st-esg-generation-mode-actions .menu_button { width: 30px; min-width: 30px; min-height: 30px !important; margin-bottom: 1px; padding: 0 !important; justify-content: center; }
 .st-esg-multi-task-workspace { display: grid; gap: 4px; min-height: 0; margin-bottom: 4px; }
-.st-esg-multi-task-toolbar { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 34px; padding: 1px 0; border-bottom: 1px solid var(--esg-border); }
+.st-esg-multi-task-toolbar { display: flex; align-items: center; gap: 5px; min-width: 0; min-height: 30px; padding: 1px 0; border-bottom: 1px solid var(--esg-border); }
 .st-esg-multi-task-tabs { display: flex; flex: 1 1 auto; gap: 5px; min-width: 0; padding: 1px 0; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; border-bottom: 0; }
-.st-esg-multi-task-tab { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 60px; max-width: 116px; min-height: 30px; padding: 3px 9px; border: 1px solid var(--esg-border); border-radius: 999px; color: var(--esg-text-muted); background: transparent; cursor: pointer; font: inherit; }
+.st-esg-multi-task-tab { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 52px; max-width: 104px; min-height: 26px; padding: 2px 7px; font: inherit; font-size: 11px; border: 1px solid var(--esg-border); border-radius: 999px; color: var(--esg-text-muted); background: transparent; cursor: pointer; }
 .st-esg-multi-task-tab.active { color: var(--esg-text-main); border-color: var(--esg-primary); background: var(--esg-bg-card); }
 .st-esg-multi-task-tab:focus-visible { outline: 2px solid var(--esg-primary); outline-offset: -2px; }
 .st-esg-multi-task-tab-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.st-esg-task-status-lamp { width: 7px; height: 7px; flex: 0 0 7px; border: 1px solid currentColor; border-radius: 50%; background: transparent; }
+.st-esg-task-status-lamp { width: 6px; height: 6px; flex: 0 0 6px; border: 1px solid currentColor; border-radius: 50%; background: transparent; }
 .st-esg-multi-task-tab[data-task-status="queued"] .st-esg-task-status-lamp,
 .st-esg-multi-task-tab[data-task-status="pending-injection"] .st-esg-task-status-lamp { color: var(--esg-warning, #d99a38); background: currentColor; }
 .st-esg-multi-task-tab[data-task-status="ready"] .st-esg-task-status-lamp,
@@ -1888,7 +1897,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 
 @media (max-width: 520px) {
   .st-esg-generation-mode-tabs { gap: 14px; }
-  .st-esg-multi-task-tab { min-width: 56px; min-height: 30px; padding-inline: 8px; }
+  .st-esg-multi-task-tab { min-width: 48px; min-height: 25px; padding-inline: 6px; font-size: 10px; }
   .st-esg-multi-task-tools { gap: 2px; }
   .st-esg-multi-task-tools .menu_button { width: 30px; min-width: 30px; min-height: 30px !important; }
   .st-esg-multi-task-settings-dialog { width: min(560px, calc(100vw - 28px)); max-width: calc(100vw - 28px); max-height: calc(100dvh - 28px); margin: auto; border-radius: 14px; }

@@ -6590,6 +6590,31 @@ function getActiveMultiTask() {
   return state.tasks.find((task) => task.id === state.activeTaskId) || state.tasks[0] || null;
 }
 
+function showGenerationHistoryDialog() {
+  targetDoc.getElementById('st-esg-generation-history-dialog')?.remove();
+  const dialog = targetDoc.createElement('dialog');
+  dialog.id = 'st-esg-generation-history-dialog';
+  dialog.className = `st-esg-scheme-name-dialog st-esg-generation-history-dialog ${getThemeClassName(settings.theme)}`;
+  dialog.innerHTML = `<div class="st-esg-generation-history-shell">
+    <header><div><div class="st-esg-card-title">最近生成记录</div><div class="st-esg-card-desc">单任务与多任务共用，最多保留五条成功生成记录。</div></div><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-generation-history-close aria-label="关闭历史记录" title="关闭"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header>
+    <div class="st-esg-generation-history-dialog-body"><div id="st-esg-generation-history" class="st-esg-generation-history"></div></div>
+  </div>`;
+  const finish = () => {
+    if (dialog.open) dialog.close();
+    dialog.remove();
+  };
+  dialog.querySelector('[data-generation-history-close]')?.addEventListener('click', finish);
+  dialog.addEventListener('cancel', (event) => { event.preventDefault(); finish(); });
+  dialog.querySelector('#st-esg-generation-history')?.addEventListener('click', (event) => {
+    const button = event.target.closest('.st-esg-load-generation-history');
+    if (!button) return;
+    if (loadGenerationHistoryEntry(button.getAttribute('data-history-id'))) finish();
+  });
+  targetDoc.body.appendChild(dialog);
+  dialog.showModal();
+  renderGenerationHistory();
+}
+
 function replaceMultiTask(taskId, patch) {
   const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
   settings.multiTaskSettings = {
@@ -6668,7 +6693,6 @@ function renderMultiTaskFramework() {
   multiHost?.classList.toggle('st-esg-hidden', mode !== 'multi');
   if (multiHost) multiHost.innerHTML = renderMultiTaskWorkspace(settings.multiTaskSettings);
   dialog?.querySelector('.st-esg-generation-settings')?.classList.add('st-esg-hidden');
-  dialog?.querySelector('.st-esg-generation-history-card')?.classList.toggle('st-esg-hidden', mode === 'multi');
   dialog?.querySelector('#st-esg-generate span')?.replaceChildren(mode === 'multi' ? '生成全部' : '生成组件');
   dialog?.querySelector('#st-esg-inject span')?.replaceChildren(mode === 'multi' ? '注入全部' : '注入回复');
   dialog?.querySelector('#st-esg-undo-injection span')?.replaceChildren(mode === 'multi' ? '撤回全部' : '撤回注入');
@@ -6684,6 +6708,7 @@ function renderMultiTaskFramework() {
 function installMultiTaskFrameworkShell(dialog) {
   const workspace = dialog.querySelector('[data-tab-panel="workspace"]');
   if (!workspace || workspace.querySelector('#st-esg-generation-mode-host')) return;
+  workspace.querySelector('.st-esg-generation-history-card')?.remove();
   const modeHost = targetDoc.createElement('div');
   modeHost.id = 'st-esg-generation-mode-host';
   const multiHost = targetDoc.createElement('div');
@@ -6813,7 +6838,6 @@ async function handleMultiTaskAction(action, reopenSettings = false, requestedTa
   if (action === 'global-settings') { showMultiTaskSettingsDialog('tasks'); return; }
   if (!activeTask) return;
   if (action === 'settings') { showMultiTaskSettingsDialog('tasks'); return; }
-  if (action === 'history') { notifyStatus('多任务最近生成记录将在生成调度阶段接入。', 'info'); return; }
   if (action === 'rename') {
     const name = await requestTextInputDialog({ title: '重命名任务', label: '任务名称', value: activeTask.name });
     if (!name || name === activeTask.name) { if (reopenSettings) showMultiTaskSettingsDialog('tasks'); return; }
@@ -6848,6 +6872,9 @@ function bindMultiTaskFrameworkEvents() {
     })
     .on('click.stEsgMultiTask', '[data-generation-mode-settings]', function () {
       showGenerationModeSettingsDialog();
+    })
+    .on('click.stEsgMultiTask', '[data-generation-history-open]', function () {
+      showGenerationHistoryDialog();
     })
     .on('click.stEsgMultiTask', '[data-multi-task-id]', function () {
       captureActiveMultiTaskView();
@@ -7559,9 +7586,6 @@ function bindPanelEvents() {
     event.preventDefault();
     event.currentTarget.blur();
     void generateStatusbar();
-  });
-  $t('#st-esg-generation-history').on('click', '.st-esg-load-generation-history', function () {
-    loadGenerationHistoryEntry($(this).attr('data-history-id'));
   });
   $t('#st-esg-inject').on('click', (event) => {
     event.preventDefault();
