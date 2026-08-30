@@ -13,6 +13,10 @@ export const MULTI_TASK_STATUS = Object.freeze({
 
 const VALID_STATUSES = new Set(Object.values(MULTI_TASK_STATUS));
 const textOf = (value) => String(value ?? '').trim();
+const cloneObject = (value) => {
+  if (!value || typeof value !== 'object') return null;
+  try { return JSON.parse(JSON.stringify(value)); } catch (_) { return null; }
+};
 
 function clampConcurrency(value) {
   const parsed = Math.floor(Number(value));
@@ -41,8 +45,14 @@ function normalizeTask(value) {
     extraInstruction: String(source.extraInstruction ?? ''),
     status: VALID_STATUSES.has(source.status) ? source.status : MULTI_TASK_STATUS.IDLE,
     output: String(source.output ?? ''),
-    thinking: Array.isArray(source.thinking) ? source.thinking : [],
-    error: source.error && typeof source.error === 'object' ? { ...source.error } : null,
+    thinking: Array.isArray(source.thinking) ? source.thinking.map((item) => cloneObject(item) ?? String(item ?? '')) : [],
+    resultMode: source.resultMode === 'anchor' ? 'anchor' : 'standard',
+    anchorItems: Array.isArray(source.anchorItems) ? source.anchorItems.map(cloneObject).filter(Boolean) : [],
+    warnings: Array.isArray(source.warnings) ? source.warnings.map((item) => String(item ?? '')).filter(Boolean) : [],
+    target: cloneObject(source.target),
+    injectionRecord: cloneObject(source.injectionRecord),
+    runId: textOf(source.runId),
+    error: cloneObject(source.error),
   };
 }
 

@@ -82,3 +82,31 @@ test('renames, selects, and deletes tasks while keeping an addressable active ta
   assert.equal(empty.state.activeTaskId, '');
   assert.deepEqual(empty.state.tasks, []);
 });
+
+test('normalizes task-owned generation and injection state without sharing object references', () => {
+  const anchorItems = [{ position: 'end', content: 'scene' }];
+  const target = { chatId: 'chat-1', messageIndex: 4, messageText: 'floor' };
+  const injectionRecord = { taskId: 'task-a', targetIndex: 4, beforeText: 'floor', afterText: 'floor\nscene' };
+  const state = normalizeMultiTaskSettings({
+    tasks: [{
+      id: 'task-a',
+      name: 'A',
+      resultMode: 'anchor',
+      anchorItems,
+      warnings: ['one'],
+      target,
+      injectionRecord,
+      runId: 'run-1',
+    }],
+  });
+
+  anchorItems[0].content = 'changed';
+  target.messageText = 'changed';
+  injectionRecord.afterText = 'changed';
+
+  assert.equal(state.tasks[0].resultMode, 'anchor');
+  assert.equal(state.tasks[0].anchorItems[0].content, 'scene');
+  assert.equal(state.tasks[0].target.messageText, 'floor');
+  assert.equal(state.tasks[0].injectionRecord.afterText, 'floor\nscene');
+  assert.equal(state.tasks[0].runId, 'run-1');
+});
