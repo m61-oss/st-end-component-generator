@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const indexSource = await readFile(new URL('../index.js', import.meta.url), 'utf8');
+const styleSource = await readFile(new URL('../style.css', import.meta.url), 'utf8');
 const workspaceSource = await readFile(new URL('./multi-task-workspace.js', import.meta.url), 'utf8');
 
 test('multi-task generation freezes scheme runtimes and executes through the concurrency queue', () => {
@@ -92,6 +93,12 @@ test('active multi-task streaming reuses the single-task incremental thinking re
 });
 
 test('concurrency and injection interval share one row and one combined explanation', () => {
-  assert.match(indexSource, /class="st-esg-multi-task-runtime-row"[\s\S]{0,900}name="concurrency"[\s\S]{0,900}name="injectionIntervalSeconds"/);
+  assert.match(indexSource, /class="st-esg-multi-task-runtime-row"[\s\S]{0,1200}name="concurrency"[\s\S]{0,1200}name="injectionIntervalSeconds"[\s\S]{0,1200}name="injectionOrder"[\s\S]{0,300}<\/div>/);
   assert.match(indexSource, /class="st-esg-multi-task-runtime-help"[^>]*>超出并发数的任务会自动排队；自动注入可按完成顺序即时注入，或等待前项后按任务顺序注入；失败或停止的任务会自动跳过；注入间隔范围为 0–10 秒。/);
+});
+
+test('generation settings distinguish headings by weight without changing their size', () => {
+  assert.match(styleSource, /\.st-esg-generation-mode-settings-shell > header \.st-esg-card-title\s*\{[^}]*font-weight:\s*800/);
+  assert.match(styleSource, /\.st-esg-generation-settings-section-title strong\s*\{[^}]*font-size:\s*13px;[^}]*font-weight:\s*750/);
+  assert.match(styleSource, /\.st-esg-multi-task-settings-heading > strong\s*\{[^}]*font-size:\s*13px;[^}]*font-weight:\s*750/);
 });

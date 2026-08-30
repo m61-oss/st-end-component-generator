@@ -112,6 +112,24 @@ test('drops an orphan closing fence after a complete JSON envelope', () => {
   assert.equal(parsed.complete, true);
 });
 
+test('drops an orphan outer fence during loose recovery while preserving an inner code block', () => {
+  const raw = `{"thinking":"x","output":"<summary style="list-style:none">title</summary>
+\`\`\`html
+<div>panel</div>
+\`\`\`
+</snow>"
+}
+\`\`\``;
+  const parsed = parseOutputProtocolResponse(raw);
+
+  assert.equal(parsed.mode, 'loose-json');
+  assert.equal(parsed.content, `<summary style="list-style:none">title</summary>
+\`\`\`html
+<div>panel</div>
+\`\`\`
+</snow>`);
+});
+
 test('preserves a legitimate closing fence inside the output string', () => {
   const output = '```js\nconst value = 1;\n```';
   const parsed = parseOutputProtocolResponse(JSON.stringify({ thinking: '', output }));

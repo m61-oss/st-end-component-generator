@@ -89,6 +89,13 @@ function stripOuterJsonFence(value) {
   const fenced = source.match(/^```(?:json)?\s*\r?\n([\s\S]*?)\r?\n```\s*$/i);
   if (fenced) return fenced[1].trim();
   if (/^```(?:json)?\s*\r?\n/i.test(source)) return source.replace(/^```(?:json)?\s*\r?\n/i, '').trim();
+  if (source.startsWith('{')) {
+    const lines = source.split(/\r?\n/);
+    const fenceCount = lines.filter((line) => /^```(?:[a-z0-9_-]+)?$/i.test(line.trim())).length;
+    if (lines.at(-1)?.trim() === '```' && fenceCount % 2 === 1) {
+      return lines.slice(0, -1).join('\n').trim();
+    }
+  }
   return source;
 }
 
