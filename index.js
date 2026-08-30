@@ -6754,7 +6754,7 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
       <section class="st-esg-generation-settings-panel${activePage === 'general' ? '' : ' st-esg-hidden'}" data-generation-settings-panel="general"><div data-generation-settings-card-host></div></section>
       <section class="st-esg-generation-settings-panel${activePage === 'tasks' ? '' : ' st-esg-hidden'}" data-generation-settings-panel="tasks">
         <section class="st-esg-multi-task-settings-section"><div class="st-esg-generation-settings-section-title"><strong>单任务</strong></div><div data-single-task-injection-host></div></section>
-        <section class="st-esg-multi-task-settings-section"><div class="st-esg-multi-task-settings-heading"><strong>多任务</strong><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>添加任务</span></button></div>
+        <section class="st-esg-multi-task-settings-section"><div class="st-esg-multi-task-settings-heading"><strong>多任务</strong><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>添加任务 ${state.tasks.length}/5</span></button></div>
           <label class="st-esg-multi-task-compact-field"><span>并发任务数</span><select class="text_pole" name="concurrency">${[1, 2, 3, 4, 5].map((value) => `<option value="${value}"${state.concurrency === value ? ' selected' : ''}>${value}</option>`).join('')}</select><em class="st-esg-multi-task-concurrency-help">超出并发数的任务会自动排队。</em></label>
           <div class="st-esg-multi-task-settings-list">${taskFields}</div>
         </section>
@@ -6788,6 +6788,10 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
   dialog.querySelectorAll('[data-multi-task-settings-action]').forEach((button) => button.addEventListener('click', () => {
     const action = String(button.getAttribute('data-multi-task-settings-action'));
     const taskId = String(button.getAttribute('data-multi-task-task-id') || '');
+    if (action === 'add' && state.tasks.length >= 5) {
+      notifyStatus('最多只能添加五个任务。', 'warning');
+      return;
+    }
     finish();
     void handleMultiTaskAction(action, true, taskId);
   }));
@@ -6821,6 +6825,11 @@ async function handleMultiTaskAction(action, reopenSettings = false, requestedTa
   const multiTaskState = normalizeMultiTaskSettings(settings.multiTaskSettings);
   const activeTask = multiTaskState.tasks.find((task) => task.id === requestedTaskId) || getActiveMultiTask();
   if (action === 'add') {
+    if (multiTaskState.tasks.length >= 5) {
+      notifyStatus('最多只能添加五个任务。', 'warning');
+      if (reopenSettings) showMultiTaskSettingsDialog('tasks');
+      return;
+    }
     const name = await requestTextInputDialog({ title: '添加任务', label: '任务名称', placeholder: '输入便于识别的任务名称', value: getNextMultiTaskName() });
     if (!name) { if (reopenSettings) showMultiTaskSettingsDialog('tasks'); return; }
     const result = createMultiTask(settings.multiTaskSettings, name, getNewMultiTaskDefaults());

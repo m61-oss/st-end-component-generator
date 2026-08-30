@@ -82,3 +82,18 @@ test('multi-task controls save immediately without save or cancel actions', () =
   assert.doesNotMatch(settingsDialogSource, /type="submit"/);
   assert.doesNotMatch(settingsDialogSource, />保存<|>取消</);
 });
+
+test('task creation exposes its five-task limit and blocks before opening the name dialog', () => {
+  const settingsDialogSource = indexSource.slice(
+    indexSource.indexOf('function showMultiTaskSettingsDialog'),
+    indexSource.indexOf('function showGenerationModeSettingsDialog'),
+  );
+  const addActionSource = indexSource.slice(
+    indexSource.indexOf("if (action === 'add')"),
+    indexSource.indexOf("if (action === 'global-settings')"),
+  );
+
+  assert.match(settingsDialogSource, /添加任务 \$\{state\.tasks\.length\}\/5/);
+  assert.match(settingsDialogSource, /action === 'add'[\s\S]*tasks\.length >= 5[\s\S]*notifyStatus\('最多只能添加五个任务。'/);
+  assert.ok(addActionSource.indexOf('tasks.length >= 5') < addActionSource.indexOf('requestTextInputDialog'));
+});
