@@ -39,6 +39,7 @@ test('normalizes persisted multi-task settings into a safe serializable state', 
 
 test('ignores legacy per-mode injection switches because generation flow settings are shared', () => {
   const state = normalizeMultiTaskSettings({ autoInject: true, rollbackBeforeGeneration: true, tasks: [] });
+  assert.equal(state.concurrency, 1);
   assert.equal('autoInject' in state, false);
   assert.equal('rollbackBeforeGeneration' in state, false);
 });

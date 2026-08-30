@@ -191,7 +191,7 @@ const DEFAULT_SETTINGS = {
   autoInject: null,
   activeTab: 'workspace',
   generationMode: 'single',
-  multiTaskSettings: { concurrency: 2, activeTaskId: '', tasks: [] },
+  multiTaskSettings: { concurrency: 1, activeTaskId: '', tasks: [] },
   taskPrompt: [
     '现在停止生成正文，为最新的正文补充下面这些内容。',
     '{{external_components}}',
@@ -6729,10 +6729,10 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
       <section class="st-esg-generation-settings-panel${activePage === 'general' ? '' : ' st-esg-hidden'}" data-generation-settings-panel="general"><div data-generation-settings-card-host></div></section>
       <section class="st-esg-generation-settings-panel${activePage === 'tasks' ? '' : ' st-esg-hidden'}" data-generation-settings-panel="tasks">
         <section class="st-esg-multi-task-settings-section"><div class="st-esg-generation-settings-section-title"><strong>单任务</strong></div><div data-single-task-injection-host></div></section>
-        <form method="dialog"><section class="st-esg-multi-task-settings-section"><div class="st-esg-multi-task-settings-heading"><strong>多任务</strong><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>添加任务</span></button></div>
-          <label class="st-esg-multi-task-compact-field"><span>并发任务数</span><select class="text_pole" name="concurrency">${[1, 2, 3, 4, 5].map((value) => `<option value="${value}"${state.concurrency === value ? ' selected' : ''}>${value}${value === 1 ? '（全部排队）' : ''}</option>`).join('')}</select></label>
+        <section class="st-esg-multi-task-settings-section"><div class="st-esg-multi-task-settings-heading"><strong>多任务</strong><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>添加任务</span></button></div>
+          <label class="st-esg-multi-task-compact-field"><span>并发任务数</span><select class="text_pole" name="concurrency">${[1, 2, 3, 4, 5].map((value) => `<option value="${value}"${state.concurrency === value ? ' selected' : ''}>${value}</option>`).join('')}</select><em class="st-esg-multi-task-concurrency-help">超出并发数的任务会自动排队。</em></label>
           <div class="st-esg-multi-task-settings-list">${taskFields}</div>
-        </section><div class="st-esg-actions-row"><button class="menu_button st-esg-secondary-action" type="button" data-generation-settings-close>取消</button><button class="menu_button st-esg-primary-action" type="submit">保存</button></div></form>
+        </section>
       </section>
     </div>
   </div>`;
@@ -6766,27 +6766,22 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
     finish();
     void handleMultiTaskAction(action, true, taskId);
   }));
-  dialog.querySelector('form').addEventListener('submit', (event) => {
-    event.preventDefault();
-    const form = new targetWindow.FormData(event.currentTarget);
-    const readTaskField = (taskPanel, field) => textOf(taskPanel.querySelector(`[data-multi-task-task-field="${field}"]`)?.value);
-    dialog.querySelectorAll('[data-multi-task-settings-task-id]').forEach((taskPanel) => {
-      const taskId = String(taskPanel.getAttribute('data-multi-task-settings-task-id') || '');
-      replaceMultiTask(taskId, {
-        componentSchemeId: readTaskField(taskPanel, 'componentSchemeId'),
-        apiSchemeId: readTaskField(taskPanel, 'apiSchemeId'),
-        presetSchemeId: readTaskField(taskPanel, 'presetSchemeId'),
-        worldbookSchemeId: readTaskField(taskPanel, 'worldbookSchemeId'),
-        injectMode: readTaskField(taskPanel, 'injectMode') === 'anchor' ? 'anchor' : 'append',
-      });
-    });
+  dialog.querySelectorAll('[data-multi-task-task-field]').forEach((control) => control.addEventListener('change', () => {
+    const taskPanel = control.closest('[data-multi-task-settings-task-id]');
+    const taskId = String(taskPanel?.getAttribute('data-multi-task-settings-task-id') || '');
+    const field = String(control.getAttribute('data-multi-task-task-field') || '');
+    if (!taskId || !['componentSchemeId', 'apiSchemeId', 'presetSchemeId', 'worldbookSchemeId', 'injectMode'].includes(field)) return;
+    const rawValue = textOf(control.value);
+    const value = field === 'injectMode' ? (rawValue === 'anchor' ? 'anchor' : 'append') : rawValue;
+    replaceMultiTask(taskId, { [field]: value });
+    saveSettings();
+  }));
+  dialog.querySelector('[name="concurrency"]')?.addEventListener('change', (event) => {
     settings.multiTaskSettings = normalizeMultiTaskSettings({
       ...settings.multiTaskSettings,
-      concurrency: form.get('concurrency'),
+      concurrency: event.currentTarget.value,
     });
     saveSettings();
-    renderMultiTaskFramework();
-    finish();
   });
   targetDoc.body.appendChild(dialog);
   if (typeof dialog.showModal === 'function') dialog.showModal();

@@ -16,7 +16,7 @@ const textOf = (value) => String(value ?? '').trim();
 
 function clampConcurrency(value) {
   const parsed = Math.floor(Number(value));
-  if (!Number.isFinite(parsed)) return 2;
+  if (!Number.isFinite(parsed)) return 1;
   return Math.min(MULTI_TASK_MAX_COUNT, Math.max(1, parsed));
 }
 

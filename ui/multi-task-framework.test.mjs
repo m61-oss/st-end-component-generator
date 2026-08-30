@@ -6,7 +6,7 @@ const indexSource = await readFile(new URL('../index.js', import.meta.url), 'utf
 
 test('panel persists an explicit generation mode and normalized multi-task settings', () => {
   assert.match(indexSource, /generationMode:\s*'single'/);
-  assert.match(indexSource, /multiTaskSettings:\s*\{/);
+  assert.match(indexSource, /multiTaskSettings:\s*\{\s*concurrency:\s*1/);
   assert.match(indexSource, /normalizeMultiTaskSettings\(settings\.multiTaskSettings\)/);
   assert.match(indexSource, /renderGenerationModeSwitch\(mode\)/);
 });
@@ -32,7 +32,6 @@ test('multi-task framework wires the shared settings surface and task view persi
   assert.match(indexSource, /captureActiveMultiTaskView/);
   assert.match(indexSource, /hydrateActiveMultiTaskView/);
   assert.doesNotMatch(indexSource, /data-multi-task-extra/);
-  assert.match(indexSource, /new targetWindow\.FormData\(event\.currentTarget\)/);
 });
 
 test('the one settings gear exposes common and task configuration pages regardless of generation mode', () => {
@@ -49,7 +48,6 @@ test('the one settings gear exposes common and task configuration pages regardle
   assert.match(indexSource, /function showGenerationModeSettingsDialog\(\)\s*\{\s*showMultiTaskSettingsDialog\(\);\s*\}/);
   assert.doesNotMatch(indexSource, /name="autoInject"/);
   assert.doesNotMatch(indexSource, /name="rollbackBeforeGeneration"/);
-  assert.match(indexSource, /componentSchemeId:\s*readTaskField\(taskPanel, 'componentSchemeId'\)/);
   assert.doesNotMatch(indexSource, /组件方案将在后续阶段接入/);
 });
 
@@ -60,6 +58,19 @@ test('task configuration lists every task with inline management instead of a cu
   assert.match(indexSource, />多任务<\/strong>[\s\S]*data-multi-task-settings-action="add"/);
   assert.match(indexSource, /data-multi-task-settings-action="rename"[^>]*data-multi-task-task-id=/);
   assert.match(indexSource, /data-multi-task-settings-action="delete"[^>]*data-multi-task-task-id=/);
-  assert.match(indexSource, /querySelectorAll\('\[data-multi-task-settings-task-id\]'\)/);
+  assert.match(indexSource, /closest\('\[data-multi-task-settings-task-id\]'\)/);
   assert.doesNotMatch(indexSource, /data-multi-task-settings-select/);
+});
+
+test('multi-task controls save immediately without save or cancel actions', () => {
+  const settingsDialogSource = indexSource.slice(
+    indexSource.indexOf('function showMultiTaskSettingsDialog'),
+    indexSource.indexOf('function showGenerationModeSettingsDialog'),
+  );
+  assert.match(settingsDialogSource, /data-multi-task-task-field.*addEventListener\('change'/s);
+  assert.match(settingsDialogSource, /name="concurrency".*addEventListener\('change'/s);
+  assert.match(settingsDialogSource, /超出并发数的任务会自动排队/);
+  assert.match(settingsDialogSource, /replaceMultiTask\(taskId, \{ \[field\]: value \}\)/);
+  assert.doesNotMatch(settingsDialogSource, /type="submit"/);
+  assert.doesNotMatch(settingsDialogSource, />保存<|>取消</);
 });

@@ -75,6 +75,7 @@ test('multi-task workspace styles use compact tabs and icon actions while animat
   assert.match(css, /\.st-esg-generation-settings-pages\s*\{[^}]*display:\s*flex/s);
   assert.match(css, /\.st-esg-generation-mode-settings-shell \.st-esg-generation-settings\s*>\s*summary\s*\{[^}]*display:\s*none/s);
   assert.match(css, /\.st-esg-multi-task-compact-field\s*\{[^}]*grid-template-columns:/s);
+  assert.match(css, /\.st-esg-multi-task-concurrency-help\s*\{[^}]*grid-column:\s*2/s);
   assert.match(css, /\.st-esg-multi-task-settings-list\s*\{[^}]*display:\s*grid/s);
   assert.doesNotMatch(css, /\.st-esg-multi-task-settings-tabs\s*\{/);
   assert.match(css, /@media \(max-width:\s*520px\)[\s\S]*\.st-esg-multi-task-settings-dialog[^{]*\{[^}]*margin:\s*auto(?:;|\s)/s);

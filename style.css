@@ -1882,6 +1882,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-multi-task-compact-field { display: grid !important; grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 8px !important; }
 .st-esg-multi-task-compact-field > span { color: var(--esg-text-main); white-space: nowrap; }
 .st-esg-multi-task-compact-field .text_pole { min-height: 34px !important; }
+.st-esg-multi-task-concurrency-help { grid-column: 2; color: var(--esg-text-muted); font-size: 10px; font-style: normal; line-height: 1.35; }
 [data-single-task-injection-host] .st-esg-generation-injection-section { grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 8px; }
 [data-single-task-injection-host] .st-esg-generation-injection-section > .st-esg-generation-settings-help { grid-column: 1 / -1; }
 .st-esg-multi-task-settings-empty { padding: 10px 0; color: var(--esg-text-muted); font-size: 11px; }
