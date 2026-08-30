@@ -24,6 +24,13 @@ function clampConcurrency(value) {
   return Math.min(MULTI_TASK_MAX_COUNT, Math.max(1, parsed));
 }
 
+function clampInjectionInterval(value) {
+  if (value === '' || value === null || value === undefined) return 1;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.min(10, Math.max(0, parsed));
+}
+
 function normalizeInjectMode(value) {
   return value === 'anchor' ? 'anchor' : 'append';
 }
@@ -73,6 +80,7 @@ export function normalizeMultiTaskSettings(value = {}) {
   const requestedActiveId = textOf(source.activeTaskId);
   return {
     concurrency: clampConcurrency(source.concurrency),
+    injectionIntervalSeconds: clampInjectionInterval(source.injectionIntervalSeconds),
     activeTaskId: tasks.some((task) => task.id === requestedActiveId) ? requestedActiveId : (tasks[0]?.id || ''),
     tasks,
   };

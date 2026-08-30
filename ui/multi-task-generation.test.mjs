@@ -47,3 +47,14 @@ test('new tasks inherit the currently selected component scheme', () => {
 test('Tavern-default tasks resolve preset-scoped components from the live Tavern preset', () => {
   assert.match(indexSource, /sourceSettings\.presetRuntimeMode === 'tavern'[\s\S]{0,220}delete componentOptions\.presetSchemeId/);
 });
+
+test('auto injection queues each task as soon as it becomes ready', () => {
+  assert.match(indexSource, /status === 'ready'[\s\S]{0,500}enqueueMultiTaskInjection\(taskId/);
+  assert.match(indexSource, /enqueueMultiTaskInjection\(taskId,[\s\S]{0,220}expectedRunId:\s*plan\.runId/);
+  assert.doesNotMatch(indexSource, /if \(settings\.autoInject && completed\)[\s\S]{0,160}injectMultiTasks/);
+});
+
+test('multi-task settings expose an immediate injection interval from zero to ten seconds', () => {
+  assert.match(indexSource, /name="injectionIntervalSeconds"[^>]*min="0"[^>]*max="10"[^>]*step="0\.5"/);
+  assert.match(indexSource, /\[name="injectionIntervalSeconds"\][\s\S]{0,180}addEventListener\('change'/);
+});

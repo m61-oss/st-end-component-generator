@@ -41,8 +41,16 @@ test('normalizes persisted multi-task settings into a safe serializable state', 
 test('ignores legacy per-mode injection switches because generation flow settings are shared', () => {
   const state = normalizeMultiTaskSettings({ autoInject: true, rollbackBeforeGeneration: true, tasks: [] });
   assert.equal(state.concurrency, 1);
+  assert.equal(state.injectionIntervalSeconds, 1);
   assert.equal('autoInject' in state, false);
   assert.equal('rollbackBeforeGeneration' in state, false);
+});
+
+test('clamps the multi-task injection interval between zero and ten seconds', () => {
+  assert.equal(normalizeMultiTaskSettings({ injectionIntervalSeconds: -1 }).injectionIntervalSeconds, 0);
+  assert.equal(normalizeMultiTaskSettings({ injectionIntervalSeconds: 2.5 }).injectionIntervalSeconds, 2.5);
+  assert.equal(normalizeMultiTaskSettings({ injectionIntervalSeconds: 99 }).injectionIntervalSeconds, 10);
+  assert.equal(normalizeMultiTaskSettings({ injectionIntervalSeconds: 'invalid' }).injectionIntervalSeconds, 1);
 });
 
 test('creates at most five uniquely named tasks and limits injection to append or anchor', () => {

@@ -79,6 +79,7 @@ import {
   selectMultiTask,
 } from './generation/multi-task-state.js?ver=0.2.2';
 import { createMultiTaskRunPlan, runMultiTaskQueue } from './generation/multi-task-runner.js?ver=0.2.2';
+import { createMultiTaskInjectionQueue } from './generation/multi-task-injection-queue.js?ver=0.2.2';
 import { resolveMultiTaskRuntimeSettings } from './generation/multi-task-runtime.js?ver=0.2.2';
 import { renderGenerationModeSwitch, renderMultiTaskWorkspace } from './ui/multi-task-workspace.js?ver=0.2.2';
 import {
@@ -197,7 +198,7 @@ const DEFAULT_SETTINGS = {
   autoInject: null,
   activeTab: 'workspace',
   generationMode: 'single',
-  multiTaskSettings: { concurrency: 1, activeTaskId: '', tasks: [] },
+  multiTaskSettings: { concurrency: 1, injectionIntervalSeconds: 1, activeTaskId: '', tasks: [] },
   taskPrompt: [
     '现在停止生成正文，为最新的正文补充下面这些内容。',
     '{{external_components}}',
@@ -319,6 +320,10 @@ let activeWorldbookGroupIndex = null;
 let generationAbortController = null;
 const multiTaskAbortControllers = new Map();
 const activeMultiTaskRunIds = new Set();
+const multiTaskInjectionQueue = createMultiTaskInjectionQueue({
+  execute: ({ taskId, silent, expectedRunId }) => injectMultiTaskBatchNow([taskId], { silent, expectedRunId }),
+  wait: (milliseconds) => new Promise((resolve) => targetWindow.setTimeout(resolve, milliseconds)),
+});
 let floatingBallVisualState = 'idle';
 let activeAutomaticTarget = null;
 let automaticGenerationRevision = 0;
@@ -869,6 +874,7 @@ function saveSettings() {
   const multiTaskState = normalizeMultiTaskSettings(settings.multiTaskSettings);
   store.multiTaskSettings = {
     concurrency: multiTaskState.concurrency,
+    injectionIntervalSeconds: multiTaskState.injectionIntervalSeconds,
     activeTaskId: multiTaskState.activeTaskId,
     tasks: multiTaskState.tasks.map((task) => ({
       id: task.id,
@@ -6907,6 +6913,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
   }));
   saveSettings();
   renderMultiTaskFramework();
+  const autoInjectionPromises = [];
   const results = await runMultiTaskQueue(plan, {
     isCurrent: (runId) => activeMultiTaskRunIds.has(runId),
     onTransition: ({ taskId, status, value, error }) => {
@@ -6916,6 +6923,14 @@ async function generateMultiTasks(requestedTaskIds = null) {
         replaceMultiTask(taskId, { status: status === 'queued' ? MULTI_TASK_STATUS.QUEUED : MULTI_TASK_STATUS.GENERATING });
       } else if (status === 'ready') {
         replaceMultiTask(taskId, { ...value, status: MULTI_TASK_STATUS.READY });
+        if (settings.autoInject) {
+          replaceMultiTask(taskId, { status: MULTI_TASK_STATUS.PENDING_INJECTION });
+          autoInjectionPromises.push(enqueueMultiTaskInjection(taskId, {
+            intervalMs: multiTaskState.injectionIntervalSeconds * 1000,
+            silent: true,
+            expectedRunId: plan.runId,
+          }));
+        }
       } else if (status === 'error') {
         replaceMultiTask(taskId, { status: MULTI_TASK_STATUS.ERROR, error: serializeMultiTaskError(error) });
       } else if (status === 'cancelled') {
@@ -6956,9 +6971,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
   activeMultiTaskRunIds.delete(plan.runId);
   const completed = results.filter((item) => item.status === 'fulfilled').length;
   const failed = results.filter((item) => item.status === 'rejected').length;
-  if (settings.autoInject && completed) {
-    await injectMultiTasks(results.filter((item) => item.status === 'fulfilled').map((item) => item.taskId));
-  }
+  if (autoInjectionPromises.length) await Promise.allSettled(autoInjectionPromises);
   notifyStatus(`多任务生成结束：完成 ${completed} 个${failed ? `，失败 ${failed} 个` : ''}。`, failed ? 'warning' : 'info');
   return results;
 }
@@ -6983,6 +6996,10 @@ async function persistMultiTaskMessageUpdates(context, messageIndexes) {
   if (saveResult === false) throw new Error('聊天保存接口返回失败。');
 }
 
+function enqueueMultiTaskInjection(taskId, { intervalMs = 0, silent = false, expectedRunId = '' } = {}) {
+  return multiTaskInjectionQueue.enqueue({ taskId, silent, expectedRunId }, { intervalMs });
+}
+
 async function injectMultiTasks(requestedTaskIds = null) {
   captureActiveMultiTaskView();
   const tasks = getRequestedMultiTasks(requestedTaskIds)
@@ -6990,6 +7007,29 @@ async function injectMultiTasks(requestedTaskIds = null) {
     .filter((task) => String(task.output || '').trim() || task.anchorItems?.length);
   if (!tasks.length) {
     notifyStatus('没有可注入的多任务结果。', 'warning');
+    return [];
+  }
+  const intervalMs = tasks.length > 1
+    ? normalizeMultiTaskSettings(settings.multiTaskSettings).injectionIntervalSeconds * 1000
+    : 0;
+  const results = await Promise.allSettled(tasks.map((task) => enqueueMultiTaskInjection(task.id, {
+    intervalMs,
+    silent: true,
+  })));
+  const injectedTaskIds = results
+    .filter((result) => result.status === 'fulfilled')
+    .flatMap((result) => result.value);
+  if (injectedTaskIds.length) notifyStatus(`已按顺序分批注入 ${injectedTaskIds.length} 个结果。`);
+  return injectedTaskIds;
+}
+
+async function injectMultiTaskBatchNow(requestedTaskIds = null, { silent = false, expectedRunId = '' } = {}) {
+  const tasks = getRequestedMultiTasks(requestedTaskIds)
+    .filter((task) => !expectedRunId || task.runId === expectedRunId)
+    .filter((task) => ![MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
+    .filter((task) => String(task.output || '').trim() || task.anchorItems?.length);
+  if (!tasks.length) {
+    if (!silent) notifyStatus('没有可注入的多任务结果。', 'warning');
     return [];
   }
   const context = getContext();
@@ -7051,7 +7091,7 @@ async function injectMultiTasks(requestedTaskIds = null) {
   }
   saveSettings();
   renderMultiTaskFramework();
-  if (injectedTaskIds.length) notifyStatus(`已按任务顺序注入 ${injectedTaskIds.length} 个结果。`);
+  if (!silent && injectedTaskIds.length) notifyStatus(`已注入 ${injectedTaskIds.length} 个结果。`);
   return injectedTaskIds;
 }
 
@@ -7270,6 +7310,7 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
         <section class="st-esg-multi-task-settings-section"><div class="st-esg-generation-settings-section-title"><strong>单任务</strong></div><div data-single-task-injection-host></div></section>
         <section class="st-esg-multi-task-settings-section"><div class="st-esg-multi-task-settings-heading"><strong>多任务</strong><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>添加任务 ${state.tasks.length}/5</span></button></div>
           <label class="st-esg-multi-task-compact-field"><span>并发任务数</span><select class="text_pole" name="concurrency">${[1, 2, 3, 4, 5].map((value) => `<option value="${value}"${state.concurrency === value ? ' selected' : ''}>${value}</option>`).join('')}</select><em class="st-esg-multi-task-concurrency-help">超出并发数的任务会自动排队。</em></label>
+          <label class="st-esg-multi-task-compact-field"><span>注入间隔</span><input class="text_pole" type="number" name="injectionIntervalSeconds" min="0" max="10" step="0.5" value="${state.injectionIntervalSeconds}"><em class="st-esg-multi-task-concurrency-help">任务完成后会按完成顺序分批注入，间隔范围为 0–10 秒。</em></label>
           <div class="st-esg-multi-task-settings-list">${taskFields}</div>
         </section>
       </section>
@@ -7324,6 +7365,14 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
       ...settings.multiTaskSettings,
       concurrency: event.currentTarget.value,
     });
+    saveSettings();
+  });
+  dialog.querySelector('[name="injectionIntervalSeconds"]')?.addEventListener('change', (event) => {
+    settings.multiTaskSettings = normalizeMultiTaskSettings({
+      ...settings.multiTaskSettings,
+      injectionIntervalSeconds: event.currentTarget.value,
+    });
+    event.currentTarget.value = String(settings.multiTaskSettings.injectionIntervalSeconds);
     saveSettings();
   });
   targetDoc.body.appendChild(dialog);
