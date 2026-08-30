@@ -43,9 +43,9 @@ function renderTaskTabs(state) {
 function renderTaskTools(state) {
   const task = state.tasks.find((item) => item.id === state.activeTaskId) || state.tasks[0];
   return `<div class="st-esg-multi-task-tools" data-active-multi-task-id="${escapeHtml(task.id)}" aria-label="当前任务操作">
-        <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="undo" disabled title="多任务撤回将在后续阶段接入" aria-label="撤回当前任务"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button>
-        <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="generate" disabled title="多任务生成将在后续阶段接入" aria-label="生成当前任务"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></button>
-        <button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-action="inject" disabled title="多任务注入将在后续阶段接入" aria-label="注入当前任务"><i class="fa-solid fa-file-import" aria-hidden="true"></i></button>
+        <button class="st-esg-icon-btn" type="button" data-multi-task-action="undo" disabled title="多任务撤回将在后续阶段接入" aria-label="撤回当前任务"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button>
+        <button class="st-esg-icon-btn" type="button" data-multi-task-action="generate" disabled title="多任务生成将在后续阶段接入" aria-label="生成当前任务"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></button>
+        <button class="st-esg-icon-btn" type="button" data-multi-task-action="inject" disabled title="多任务注入将在后续阶段接入" aria-label="注入当前任务"><i class="fa-solid fa-file-import" aria-hidden="true"></i></button>
       </div>`;
 }
 
