@@ -22,10 +22,12 @@ export function clearSettingsDataCategory(settings, category, updatedAt = Date.n
     next.taskSchemes = [];
     next.presetSchemes = [];
     next.worldbookSchemes = [];
+    next.componentSchemes = [];
     next.selectedApiSchemeId = '';
     next.selectedTaskSchemeId = '';
     next.selectedPresetSchemeId = '';
     next.selectedWorldbookSchemeId = '';
+    next.selectedComponentSchemeId = '';
     next.activeSchemeIds = {};
     next.dirtySchemeTypes = {};
   } else if (category === 'libraries') {
@@ -69,7 +71,7 @@ export function buildDataManagementModel(settings, { characterNames = [], runtim
     .map((item) => ({ ...item, orphan: !worldbookIds.has(textOf(item?.schemeId)) }));
   const orphanComponentIds = [...characterGroups, ...presetGroups].filter((group) => group.orphan).flatMap((group) => group.items.map((item) => textOf(item?.id))).filter(Boolean);
   const orphanBindingChatIds = chatBindings.filter((item) => item.orphan).map((item) => textOf(item?.chatId)).filter(Boolean);
-  const schemes = { api: settings?.apiSchemes, task: settings?.taskSchemes, preset: presetSchemes, worldbook: worldbookSchemes };
+  const schemes = { api: settings?.apiSchemes, task: settings?.taskSchemes, preset: presetSchemes, worldbook: worldbookSchemes, component: settings?.componentSchemes };
   const worldbookSchemeDetails = worldbookSchemes.map((scheme) => {
     const snapshot = scheme?.snapshot && typeof scheme.snapshot === 'object' ? scheme.snapshot : {};
     const stats = getWorldbookSchemeSnapshotStats(snapshot);
@@ -88,7 +90,7 @@ export function buildDataManagementModel(settings, { characterNames = [], runtim
   return {
     storage: { total: settingsSize + externalRuntimeSize, schemes: byteSize(schemes), libraries: byteSize(libraries), bindings: byteSize(bindings), caches: byteSize(caches) },
     counts: {
-      schemes: [settings?.apiSchemes, settings?.taskSchemes, presetSchemes, worldbookSchemes].reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0),
+      schemes: [settings?.apiSchemes, settings?.taskSchemes, presetSchemes, worldbookSchemes, settings?.componentSchemes].reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0),
       libraries: components.length + (Array.isArray(settings?.theaterComponents) ? settings.theaterComponents.length : 0),
       bindings: chatBindings.length,
       runtime: [settings?.lastGenerated, settings?.lastPromptLog, ...(Array.isArray(settings?.lastGeneratedThinking) ? settings.lastGeneratedThinking : []), ...Object.values(runtimeData || {})].filter(hasStoredValue).length,

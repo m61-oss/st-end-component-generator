@@ -14,5 +14,5 @@ test('theater library exposes global and grouped random controls', () => {
   assert.match(indexSource, /st-esg-theater-random-add-group-button/);
   assert.match(indexSource, /getTheaterGroupRandomDisplayName\(group\)[\s\S]*return group\?\.name/);
   assert.match(indexSource, /\$\{addGroupMarkup\}<div class="st-esg-theater-random-group-list"/);
-  assert.match(indexSource, /groupOverrides: settings\.theaterGroupRandomOverrides/);
+  assert.match(indexSource, /groupOverrides: sourceSettings\.theaterGroupRandomOverrides/);
 });

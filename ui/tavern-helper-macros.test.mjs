@@ -5,10 +5,10 @@ import test from 'node:test';
 const indexSource = await readFile(new URL('../index.js', import.meta.url), 'utf8');
 
 test('runs TavernHelper variable macros after prompt templates and strips internal fields afterward', () => {
-  const buildMessagesStart = indexSource.indexOf('async function buildMessages(latestMessage)');
+  const buildMessagesStart = indexSource.indexOf('async function buildMessages(latestMessage, sourceSettings');
   const buildMessagesEnd = indexSource.indexOf('\nfunction setGeneratingState', buildMessagesStart);
   const buildMessagesSource = indexSource.slice(buildMessagesStart, buildMessagesEnd);
-  const templateIndex = buildMessagesSource.indexOf('if (settings.promptTemplateCompatEnabled)');
+  const templateIndex = buildMessagesSource.indexOf('if (sourceSettings.promptTemplateCompatEnabled)');
   const macroIndex = buildMessagesSource.indexOf('replaceTavernHelperMacrosInMessages(');
   const stripIndex = buildMessagesSource.indexOf('stripInternalMessageFields(messages)');
 
@@ -18,7 +18,7 @@ test('runs TavernHelper variable macros after prompt templates and strips intern
 });
 
 test('loads SillyTavern YAML dynamically before the final macro pass', () => {
-  const buildMessagesStart = indexSource.indexOf('async function buildMessages(latestMessage)');
+  const buildMessagesStart = indexSource.indexOf('async function buildMessages(latestMessage, sourceSettings');
   const buildMessagesEnd = indexSource.indexOf('\nfunction setGeneratingState', buildMessagesStart);
   const buildMessagesSource = indexSource.slice(buildMessagesStart, buildMessagesEnd);
   const yamlLoadIndex = buildMessagesSource.indexOf('await getYamlParser()');

@@ -42,10 +42,13 @@ function renderTaskTabs(state) {
 
 function renderTaskTools(state) {
   const task = state.tasks.find((item) => item.id === state.activeTaskId) || state.tasks[0];
+  const running = task.status === MULTI_TASK_STATUS.QUEUED || task.status === MULTI_TASK_STATUS.GENERATING;
+  const hasResult = Boolean(String(task.output || '').trim() || task.anchorItems?.length);
+  const hasUndo = Boolean(task.injectionRecord);
   return `<div class="st-esg-multi-task-tools" data-active-multi-task-id="${escapeHtml(task.id)}" aria-label="当前任务操作">
-        <button class="st-esg-icon-btn" type="button" data-multi-task-action="undo" disabled title="多任务撤回将在后续阶段接入" aria-label="撤回当前任务"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button>
-        <button class="st-esg-icon-btn" type="button" data-multi-task-action="generate" disabled title="多任务生成将在后续阶段接入" aria-label="生成当前任务"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></button>
-        <button class="st-esg-icon-btn" type="button" data-multi-task-action="inject" disabled title="多任务注入将在后续阶段接入" aria-label="注入当前任务"><i class="fa-solid fa-file-import" aria-hidden="true"></i></button>
+        <button class="st-esg-icon-btn" type="button" data-multi-task-action="undo" ${hasUndo ? '' : 'disabled'} title="撤回当前任务的最新注入" aria-label="撤回当前任务"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button>
+        <button class="st-esg-icon-btn${running ? ' st-esg-action-running' : ''}" type="button" data-multi-task-action="generate" title="${running ? '停止当前任务' : '生成当前任务'}" aria-label="${running ? '停止当前任务' : '生成当前任务'}"><i class="fa-solid ${running ? 'fa-stop' : 'fa-wand-magic-sparkles'}" aria-hidden="true"></i></button>
+        <button class="st-esg-icon-btn" type="button" data-multi-task-action="inject" ${hasResult && !running ? '' : 'disabled'} title="注入当前任务" aria-label="注入当前任务"><i class="fa-solid fa-file-import" aria-hidden="true"></i></button>
       </div>`;
 }
 

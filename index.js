@@ -24,6 +24,7 @@ import { applyComponentPositionMove } from './sources/component-order.js?ver=0.2
 import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.2.2';
 import { containsStatusPlaceholder, injectStatusbarText, normalizeStatusPlaceholder, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.2.2';
 import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.2.2';
+import { applyMultiTaskInjection, undoMultiTaskInjection } from './injection/multi-task-injection.js?ver=0.2.2';
 import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics, stripInternalMessageFields } from './generation/prompt-builder.js?ver=0.2.2';
 import { ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, OUTPUT_PROTOCOL_SYSTEM_PROMPT } from './generation/output-protocol.js?ver=0.2.2';
 import { normalizeGeneratedResult } from './generation/output-result.js?ver=0.2.2';
@@ -69,12 +70,15 @@ import {
 import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.2.2';
 import { loadGenerationHistory, recordGenerationResult, updateGenerationHistoryEntry } from './generation/generation-history.js?ver=0.2.2';
 import {
+  MULTI_TASK_STATUS,
   createMultiTask,
   deleteMultiTask,
   normalizeMultiTaskSettings,
   renameMultiTask,
   selectMultiTask,
 } from './generation/multi-task-state.js?ver=0.2.2';
+import { createMultiTaskRunPlan, runMultiTaskQueue } from './generation/multi-task-runner.js?ver=0.2.2';
+import { resolveMultiTaskRuntimeSettings } from './generation/multi-task-runtime.js?ver=0.2.2';
 import { renderGenerationModeSwitch, renderMultiTaskWorkspace } from './ui/multi-task-workspace.js?ver=0.2.2';
 import {
   THEATER_DEFAULT_GROUP_ID,
@@ -312,6 +316,8 @@ let importGroups = [];
 const promptSourceCache = createPromptSourceCacheState();
 let activeWorldbookGroupIndex = null;
 let generationAbortController = null;
+const multiTaskAbortControllers = new Map();
+const activeMultiTaskRunIds = new Set();
 let floatingBallVisualState = 'idle';
 let activeAutomaticTarget = null;
 let automaticGenerationRevision = 0;
@@ -467,8 +473,8 @@ function clearAutomaticGenerationLog() {
   if (logElement) logElement.textContent = '';
 }
 
-async function runConfiguredApiRequest(operation, signal) {
-  const maxRetries = normalizeApiRetryCount(settings.apiRetryCount);
+async function runConfiguredApiRequest(operation, signal, sourceSettings = settings, onPreview = updateStreamedPreview) {
+  const maxRetries = normalizeApiRetryCount(sourceSettings.apiRetryCount);
   return withApiRetries(operation, {
     maxRetries,
     signal,
@@ -476,7 +482,7 @@ async function runConfiguredApiRequest(operation, signal) {
       const seconds = Math.max(0, Math.ceil(delayMs / 1000));
       logAutomaticGenerationStage('api-retry', `第 ${retryNumber}/${maxRetries} 次，${seconds} 秒后重试（${classification.reason}）`);
       notifyStatus(`【织幕】失败自动重试中...（${retryNumber}/${maxRetries}）`, 'warning');
-      updateStreamedPreview('');
+      onPreview('');
     },
   });
 }
@@ -859,6 +865,23 @@ function saveSettings() {
   const store = getSettingsStore();
   Object.assign(store, settings);
   removeTransientGenerationSettings(store);
+  const multiTaskState = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  store.multiTaskSettings = {
+    concurrency: multiTaskState.concurrency,
+    activeTaskId: multiTaskState.activeTaskId,
+    tasks: multiTaskState.tasks.map((task) => ({
+      id: task.id,
+      name: task.name,
+      apiSchemeId: task.apiSchemeId,
+      taskSchemeId: task.taskSchemeId,
+      presetSchemeId: task.presetSchemeId,
+      worldbookSchemeId: task.worldbookSchemeId,
+      componentSchemeId: task.componentSchemeId,
+      injectMode: task.injectMode,
+      extraInstruction: task.extraInstruction,
+      status: MULTI_TASK_STATUS.IDLE,
+    })),
+  };
   try {
     targetWindow.localStorage?.setItem(PROMPT_TEMPLATE_COMPAT_STORAGE_KEY, String(Boolean(settings.promptTemplateCompatEnabled)));
   } catch (_) {}
@@ -976,11 +999,11 @@ function getOutputProtocolSettingKeys(mode = outputProtocolEditorMode) {
     : { text: 'standardOutputProtocol', role: 'standardOutputProtocolRole' };
 }
 
-function getActiveOutputProtocolSettings(outputMode) {
+function getActiveOutputProtocolSettings(outputMode, sourceSettings = settings) {
   const keys = getOutputProtocolSettingKeys(outputMode);
   return {
-    content: typeof settings[keys.text] === 'string' ? settings[keys.text] : DEFAULT_SETTINGS[keys.text],
-    role: normalizeOutputProtocolRole(settings[keys.role]),
+    content: typeof sourceSettings[keys.text] === 'string' ? sourceSettings[keys.text] : DEFAULT_SETTINGS[keys.text],
+    role: normalizeOutputProtocolRole(sourceSettings[keys.role]),
   };
 }
 
@@ -1451,24 +1474,26 @@ function bindMessageFloorPanel(panel) {
   });
 }
 
-function getEnabledComponents() {
-  return getActiveComponentsForContext(settings.components, targetWindow, getContext(), {
-    presetSchemeId: getActiveSchemeId('preset'),
-    componentGroups: settings.componentGroups,
-    defaultGroupEnabled: settings.defaultGroupEnabled,
-  });
+function getEnabledComponents(sourceSettings = settings) {
+  const componentOptions = {
+    presetSchemeId: sourceSettings.presetSchemeId || getActiveSchemeId('preset'),
+    componentGroups: sourceSettings.componentGroups,
+    defaultGroupEnabled: sourceSettings.defaultGroupEnabled,
+  };
+  if (sourceSettings.presetRuntimeMode === 'tavern') delete componentOptions.presetSchemeId;
+  return getActiveComponentsForContext(sourceSettings.components, targetWindow, getContext(), componentOptions);
 }
 
-function getEnabledTheaterComponents() {
-  return selectTheaterComponents(settings.theaterComponents, {
-    scope: settings.theaterRandomScope,
-    mode: settings.theaterRandomMode,
-    count: settings.theaterRandomCount,
-    groupedFallbackMode: settings.theaterGroupedFallbackMode,
-    groupedFallbackCount: settings.theaterGroupedFallbackCount,
-    groupOverrides: settings.theaterGroupRandomOverrides,
-    groups: settings.theaterGroups,
-    defaultGroupEnabled: settings.theaterDefaultGroupEnabled,
+function getEnabledTheaterComponents(sourceSettings = settings) {
+  return selectTheaterComponents(sourceSettings.theaterComponents, {
+    scope: sourceSettings.theaterRandomScope,
+    mode: sourceSettings.theaterRandomMode,
+    count: sourceSettings.theaterRandomCount,
+    groupedFallbackMode: sourceSettings.theaterGroupedFallbackMode,
+    groupedFallbackCount: sourceSettings.theaterGroupedFallbackCount,
+    groupOverrides: sourceSettings.theaterGroupRandomOverrides,
+    groups: sourceSettings.theaterGroups,
+    defaultGroupEnabled: sourceSettings.theaterDefaultGroupEnabled,
   });
 }
 
@@ -1956,54 +1981,57 @@ function applyGeneratedResult(rawText) {
   return settings.lastGenerated;
 }
 
-async function buildMessages(latestMessage) {
+async function buildMessages(latestMessage, sourceSettings = settings, { onDiagnostics = null } = {}) {
   const context = getContext();
-  const components = getEnabledComponents();
-  const theaterComponents = getEnabledTheaterComponents();
-  const animaEnabled = isAnimaMemoryEnabled();
+  const components = getEnabledComponents(sourceSettings);
+  const theaterComponents = getEnabledTheaterComponents(sourceSettings);
+  const animaEnabled = sourceSettings.animaWorldbookEnabled || sourceSettings.animaStatusVariableEnabled;
   const animaWorldbookEntries = animaEnabled ? await getAnimaWorldbookSnapshotForPrompt() : [];
   const animaStatusSnapshot = getAnimaStatusSnapshotForPrompt(context);
   const animaStatus = animaStatusSnapshot?.data || null;
-  const animaStatusMessageIndex = settings.animaStatusAfterMessageEnabled
+  const animaStatusMessageIndex = sourceSettings.animaStatusAfterMessageEnabled
     ? animaStatusSnapshot?.messageIndex ?? null
     : null;
-  const promptSourceItems = animaEnabled
-    ? await ensurePromptSourceItemsForGeneration({ animaWorldbookEntries })
-    : await ensurePromptSourceItemsForGeneration();
-  const templateStats = { enabled: Boolean(settings.promptTemplateCompatEnabled), renderCount: 0, changedCount: 0 };
-  const outputMode = settings.injectMode === 'anchor' ? 'anchor' : 'standard';
+  const isTaskRuntime = sourceSettings !== settings;
+  const promptSourceItems = isTaskRuntime
+    ? await ensureRuntimePromptSourceItemsForGeneration(sourceSettings, { animaWorldbookEntries })
+    : animaEnabled
+      ? await ensurePromptSourceItemsForGeneration({ animaWorldbookEntries })
+      : await ensurePromptSourceItemsForGeneration();
+  const templateStats = { enabled: Boolean(sourceSettings.promptTemplateCompatEnabled), renderCount: 0, changedCount: 0 };
+  const outputMode = sourceSettings.injectMode === 'anchor' ? 'anchor' : 'standard';
   const messages = await buildExternalStatusbarMessages({
     targetWindow,
     context,
     latestMessage,
-    taskPrompt: composeTaskInstruction(settings.taskPrompt, temporaryTaskInstruction),
+    taskPrompt: composeTaskInstruction(sourceSettings.taskPrompt, isTaskRuntime ? sourceSettings.extraInstruction : temporaryTaskInstruction),
     components,
     theaterComponents,
     promptSourceItems,
-    worldbookSourceControlled: getSourceMode('worldbook') === SOURCE_MODE_PROMPT,
-    historyCleanupTags: settings.historyCleanupRules,
-    historyRangeMode: settings.historyRangeMode,
-    recentMessageCount: settings.recentMessageCount,
+    worldbookSourceControlled: true,
+    historyCleanupTags: sourceSettings.historyCleanupRules,
+    historyRangeMode: sourceSettings.historyRangeMode,
+    recentMessageCount: sourceSettings.recentMessageCount,
     substituteParams: context.substituteParams,
-    taskPlacement: { enabled: settings.taskPlacementEnabled, afterSourceId: settings.taskPlacementAfterSourceId },
-    replaceLastUserMessageWithTask: settings.replaceLastUserMessageWithTask,
-    omitOriginalUserMessages: settings.omitOriginalUserMessages,
+    taskPlacement: { enabled: sourceSettings.taskPlacementEnabled, afterSourceId: sourceSettings.taskPlacementAfterSourceId },
+    replaceLastUserMessageWithTask: sourceSettings.replaceLastUserMessageWithTask,
+    omitOriginalUserMessages: sourceSettings.omitOriginalUserMessages,
     renderTemplate: null,
     animaStatus,
     animaStatusMessageIndex,
     animaWorldbookEntries,
     animaYaml: targetWindow?.jsyaml || targetWindow?.yaml || null,
-    baiBaiBook: settings.baiBaiBookHistoryEnabled || settings.baiBaiBookStateEnabled ? {
+    baiBaiBook: sourceSettings.baiBaiBookHistoryEnabled || sourceSettings.baiBaiBookStateEnabled ? {
       api: getBaiBaiBookApi(targetWindow),
       context,
       substituteParams: context.substituteParams,
-      includeHistory: settings.baiBaiBookHistoryEnabled,
-      includeState: settings.baiBaiBookStateEnabled,
+      includeHistory: sourceSettings.baiBaiBookHistoryEnabled,
+      includeState: sourceSettings.baiBaiBookStateEnabled,
       } : null,
     outputMode,
-    outputProtocol: getActiveOutputProtocolSettings(outputMode),
+    outputProtocol: getActiveOutputProtocolSettings(outputMode, sourceSettings),
    });
-  if (settings.promptTemplateCompatEnabled) {
+  if (sourceSettings.promptTemplateCompatEnabled) {
     for (const message of messages) {
       const source = String(message?.content ?? '');
       const rendered = await renderPromptTemplate({ targetWindow, content: source, enabled: true });
@@ -2032,18 +2060,21 @@ async function buildMessages(latestMessage) {
       'warning',
     );
   }
-  lastRuntimeDiagnostics = createRuntimePromptDiagnostics({ context, promptSourceItems: messages.promptSourceItems || promptSourceItems, runtimeInsertions: messages.runtimeInsertions });
-  lastRuntimeDiagnostics.tavernHelperMacros = {
+  const runtimeDiagnostics = createRuntimePromptDiagnostics({ context, promptSourceItems: messages.promptSourceItems || promptSourceItems, runtimeInsertions: messages.runtimeInsertions });
+  runtimeDiagnostics.tavernHelperMacros = {
     status: tavernHelperMacroWarnings.length ? 'warning' : 'ok',
     warnings: tavernHelperMacroWarnings.map((warning) => ({ code: warning.code, scope: warning.scope })),
   };
-  lastRuntimeDiagnostics.promptTemplateCompat = {
+  runtimeDiagnostics.promptTemplateCompat = {
     ...templateStats,
     status: !templateStats.enabled
       ? 'disabled'
       : (templateStats.changedCount > 0 ? 'rendered' : 'rendered-unchanged'),
     scope: 'allMessages',
   };
+  if (typeof onDiagnostics === 'function') onDiagnostics(runtimeDiagnostics);
+  else lastRuntimeDiagnostics = runtimeDiagnostics;
+  messages.runtimeDiagnostics = runtimeDiagnostics;
   return messages;
 }
 
@@ -2067,55 +2098,66 @@ function waitForInteractionPaint() {
   });
 }
 
-async function buildExternalApiRequestContext(latestMessage) {
-  const apiMode = ['custom', 'tavern'].includes(settings.apiMode) ? settings.apiMode : 'custom';
+async function buildExternalApiRequestContext(latestMessage, sourceSettings = settings, options = {}) {
+  const apiMode = ['custom', 'tavern'].includes(sourceSettings.apiMode) ? sourceSettings.apiMode : 'custom';
   const tavernProfile = apiMode === 'tavern'
-    ? resolveTavernProfile(getTavernProfiles(), settings.tavernProfile)
+    ? resolveTavernProfile(getTavernProfiles(), sourceSettings.tavernProfile)
     : null;
   const apiUrl = apiMode === 'custom'
-    ? normalizeChatCompletionsUrl(settings.apiUrl)
+    ? normalizeChatCompletionsUrl(sourceSettings.apiUrl)
     : 'https://tavern.internal';
-  const model = apiMode === 'tavern' ? textOf(tavernProfile?.model) : textOf(settings.apiModel);
+  const model = apiMode === 'tavern' ? textOf(tavernProfile?.model) : textOf(sourceSettings.apiModel);
   if (!apiUrl || !model) throw new Error('请先在“API 设置”里填写 API 地址和模型名称。');
-  const numeric = parseApiNumericSettings(settings);
-  const additional = parseApiAdditionalParameters(settings, await getYamlParser());
-  const builtMessages = await buildMessages(latestMessage);
-  const messages = settings.compressSystemMessages ? mergeConsecutiveSystemMessages(builtMessages) : builtMessages;
-  return { apiUrl, model, apiMode, numeric, additional, messages, tavernProfile };
+  const numeric = parseApiNumericSettings(sourceSettings);
+  const additional = parseApiAdditionalParameters(sourceSettings, await getYamlParser());
+  const builtMessages = await buildMessages(latestMessage, sourceSettings, options);
+  const runtimeDiagnostics = builtMessages.runtimeDiagnostics;
+  delete builtMessages.runtimeDiagnostics;
+  const messages = sourceSettings.compressSystemMessages ? mergeConsecutiveSystemMessages(builtMessages) : builtMessages;
+  return { apiUrl, model, apiMode, numeric, additional, messages, tavernProfile, sourceSettings, runtimeDiagnostics, options };
 }
 
-async function callExternalApi(latestMessage, signal) {
-  const requestContext = await buildExternalApiRequestContext(latestMessage);
+async function callExternalApi(latestMessage, signal, sourceSettings = settings, options = {}) {
+  const requestContext = await buildExternalApiRequestContext(latestMessage, sourceSettings, options);
   return runConfiguredApiRequest(
     () => callExternalApiOnce(requestContext, signal),
     signal,
+    sourceSettings,
+    options.onPreview || updateStreamedPreview,
   );
 }
 
 async function callExternalApiOnce(requestContext, signal) {
-  const { apiUrl, model, apiMode, numeric, additional, messages, tavernProfile } = requestContext;
-  if (apiMode === 'tavern') {
-    const numeric = parseApiNumericSettings(settings);
-    const promptLogApi = `酒馆预设：${tavernProfile?.profile?.name || settings.tavernProfile || '未选择'}`;
-    lastPromptLogText = createPromptLog({ apiUrl: promptLogApi, apiKey: '', model, maxTokens: String(numeric.maxTokens), temperature: String(numeric.temperature), messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics: lastRuntimeDiagnostics, compressSystemMessages: settings.compressSystemMessages });
+  const { apiUrl, model, apiMode, numeric, additional, messages, tavernProfile, sourceSettings, runtimeDiagnostics, options } = requestContext;
+  const onPreview = options?.onPreview || updateStreamedPreview;
+  const publishPromptLog = (value) => {
+    if (typeof options?.onPromptLog === 'function') {
+      options.onPromptLog(value, runtimeDiagnostics);
+      return;
+    }
+    lastPromptLogText = value;
     promptLogBuilding = false;
     settings.lastPromptLog = '';
     saveSettings();
     renderPromptLogIfVisible();
+  };
+  if (apiMode === 'tavern') {
+    const tavernNumeric = parseApiNumericSettings(sourceSettings);
+    const promptLogApi = `酒馆预设：${tavernProfile?.profile?.name || sourceSettings.tavernProfile || '未选择'}`;
+    publishPromptLog(createPromptLog({ apiUrl: promptLogApi, apiKey: '', model, maxTokens: String(tavernNumeric.maxTokens), temperature: String(tavernNumeric.temperature), messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics, compressSystemMessages: sourceSettings.compressSystemMessages }));
     const service = targetWindow?.SillyTavern?.ConnectionManagerRequestService
       || targetWindow?.ConnectionManagerRequestService
       || getContext()?.ConnectionManagerRequestService;
     const profileId = textOf(tavernProfile?.profileId);
     if (!profileId || typeof service?.sendRequest !== 'function') throw new Error('未选择可用的酒馆预设。');
-    settings.tavernProfile = profileId;
-    const response = await service.sendRequest(profileId, messages, Number(settings.maxTokens) || MAX_OUTPUT_TOKENS, {
+    const response = await service.sendRequest(profileId, messages, Number(sourceSettings.maxTokens) || MAX_OUTPUT_TOKENS, {
       extractData: true,
       includePreset: true,
-      stream: Boolean(settings.streamingEnabled),
+      stream: Boolean(sourceSettings.streamingEnabled),
       signal,
     });
-    if (settings.streamingEnabled && typeof response === 'function') {
-      const streamPreview = createStreamPreviewController({ intervalMs: 80, onPreview: updateStreamedPreview });
+    if (sourceSettings.streamingEnabled && typeof response === 'function') {
+      const streamPreview = createStreamPreviewController({ intervalMs: 80, onPreview });
       let streamedText = '';
       try {
         for await (const chunk of response()) {
@@ -2145,29 +2187,25 @@ async function callExternalApiOnce(requestContext, signal) {
     || getContext()?.ChatCompletionService;
   if (typeof tavernChatService?.processRequest === 'function') {
     const customHeadersYaml = serializeRequestHeadersYaml({
-      ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
+      ...(sourceSettings.apiKey ? { Authorization: `Bearer ${sourceSettings.apiKey}` } : {}),
       ...additional.additionalHeaders,
     });
     const requestData = {
-      stream: Boolean(settings.streamingEnabled),
+      stream: Boolean(sourceSettings.streamingEnabled),
       messages,
       model,
       chat_completion_source: 'custom',
       max_tokens: numeric.maxTokens,
       temperature: numeric.temperature,
-      custom_url: settings.apiUrl,
+      custom_url: sourceSettings.apiUrl,
       custom_include_headers: customHeadersYaml,
-      custom_include_body: settings.additionalBodyYaml,
-      custom_exclude_body: settings.excludedBodyYaml,
+      custom_include_body: sourceSettings.additionalBodyYaml,
+      custom_exclude_body: sourceSettings.excludedBodyYaml,
     };
-    lastPromptLogText = createPromptLog({ apiUrl, apiKey: settings.apiKey, model, maxTokens: String(numeric.maxTokens), temperature: String(numeric.temperature), messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics: lastRuntimeDiagnostics, compressSystemMessages: settings.compressSystemMessages });
-    promptLogBuilding = false;
-    settings.lastPromptLog = '';
-    saveSettings();
-    renderPromptLogIfVisible();
+    publishPromptLog(createPromptLog({ apiUrl, apiKey: sourceSettings.apiKey, model, maxTokens: String(numeric.maxTokens), temperature: String(numeric.temperature), messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics, compressSystemMessages: sourceSettings.compressSystemMessages }));
     const response = await tavernChatService.processRequest(requestData, {}, true, signal);
-    if (settings.streamingEnabled && typeof response === 'function') {
-      const streamPreview = createStreamPreviewController({ intervalMs: 80, onPreview: updateStreamedPreview });
+    if (sourceSettings.streamingEnabled && typeof response === 'function') {
+      const streamPreview = createStreamPreviewController({ intervalMs: 80, onPreview });
       let streamedText = '';
       try {
         for await (const chunk of response()) {
@@ -2198,21 +2236,19 @@ async function callExternalApiOnce(requestContext, signal) {
       messages,
       max_tokens: numeric.maxTokens,
       temperature: numeric.temperature,
-      stream: Boolean(settings.streamingEnabled),
+      stream: Boolean(sourceSettings.streamingEnabled),
     },
     {
       'Content-Type': 'application/json',
-      ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
+      ...(sourceSettings.apiKey ? { Authorization: `Bearer ${sourceSettings.apiKey}` } : {}),
     },
     additional,
   );
   const streamingEnabled = Boolean(body.stream);
-  lastPromptLogText = createPromptLog({ apiUrl, apiKey: settings.apiKey, model, maxTokens: String(numeric.maxTokens), temperature: String(numeric.temperature), messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics: lastRuntimeDiagnostics, compressSystemMessages: settings.compressSystemMessages });
-  promptLogBuilding = false;
-  settings.lastPromptLog = '';
-  saveSettings();
-  renderPromptLogIfVisible();
-  console.log(`[${EXTENSION_ID}] prompt log`, { summary: createPromptLogViewModel(lastPromptLogText).summary, diagnostics: lastRuntimeDiagnostics });
+  publishPromptLog(createPromptLog({ apiUrl, apiKey: sourceSettings.apiKey, model, maxTokens: String(numeric.maxTokens), temperature: String(numeric.temperature), messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics, compressSystemMessages: sourceSettings.compressSystemMessages }));
+  if (typeof options?.onPromptLog !== 'function') {
+    console.log(`[${EXTENSION_ID}] prompt log`, { summary: createPromptLogViewModel(lastPromptLogText).summary, diagnostics: runtimeDiagnostics });
+  }
   const response = await fetch(apiUrl, {
     method: 'POST',
     signal,
@@ -2223,7 +2259,7 @@ async function callExternalApiOnce(requestContext, signal) {
   if (streamingEnabled) {
     const streamPreview = createStreamPreviewController({
       intervalMs: 80,
-      onPreview: updateStreamedPreview,
+      onPreview,
     });
     try {
       const streamed = await readOpenAiStream(response, (_, fullText) => {
@@ -2271,6 +2307,17 @@ function injectStatusbar(message, text, mode = settings.injectMode) {
 }
 
 async function generateStatusbar(entryType = 'manual', targetMessageIndex = null, automaticTarget = null) {
+  if (settings.generationMode === 'multi') {
+    const runningTaskIds = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks
+      .filter((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
+      .map((task) => task.id);
+    if (runningTaskIds.length) {
+      if (entryType !== 'automatic') cancelMultiTaskGeneration(runningTaskIds);
+      return '';
+    }
+    await generateMultiTasks();
+    return '';
+  }
   const conflictAction = getGenerationConflictAction(Boolean(generationAbortController), entryType);
   if (conflictAction === 'ignore') return '';
   if (conflictAction === 'notify') {
@@ -6611,6 +6658,71 @@ function getActiveMultiTask() {
   return state.tasks.find((task) => task.id === state.activeTaskId) || state.tasks[0] || null;
 }
 
+async function ensureRuntimePromptSourceItemsForGeneration(runtimeSettings, { chat = null, animaWorldbookEntries = [] } = {}) {
+  const context = getContext();
+  const presetFollowsTavern = runtimeSettings.presetRuntimeMode === 'tavern';
+  const worldbookFollowsTavern = runtimeSettings.worldbookRuntimeMode === 'tavern';
+  const presetName = presetFollowsTavern
+    ? getCurrentPresetNameSafe(targetWindow, context)
+    : textOf(runtimeSettings.activeSourcePreset);
+  const selectedWorldNames = worldbookFollowsTavern ? getSelectedGlobalWorldbookNamesFromDom() : [];
+  const worldbookGroups = collectWorldbookImportGroups({
+    targetWindow,
+    context,
+    selectedWorldNames,
+    explicitWorldbookNames: worldbookFollowsTavern ? null : runtimeSettings.worldbookDraftSources,
+  });
+  const worldbookRuntimeOptions = {
+    mode: worldbookFollowsTavern ? WORLDBOOK_RUNTIME_NATIVE : WORLDBOOK_RUNTIME_SCHEME,
+    sourceNames: runtimeSettings.worldbookDraftSources,
+    selections: runtimeSettings.promptSelections || {},
+  };
+  const activeWorldbookGroups = worldbookGroups.filter((group) => isWorldbookSourceEnabled(group, worldbookRuntimeOptions));
+  await loadWorldbookSourceGroups(
+    activeWorldbookGroups,
+    (worldbookName, group) => collectWorldbookImportCandidates(targetWindow, worldbookName)
+      .then((items) => attachWorldbookRuntimeCategory(group, items)),
+  );
+  const worldbookIssue = getWorldbookGenerationIssue(activeWorldbookGroups);
+  if (worldbookIssue) throw new Error(worldbookIssue);
+  const groups = [
+    ...collectPresetImportGroups({ targetWindow, context, presetName }),
+    ...worldbookGroups,
+  ];
+  const selected = collectSelectedPromptSourceItems(
+    groups,
+    runtimeSettings.promptSelections || {},
+    runtimeSettings.sourceContentOverrides || {},
+    {
+      isSelected: (item, group) => {
+        if (item?.scope === SOURCE_WORLDBOOK) {
+          return resolveWorldbookEntryRuntimeState(group, item, worldbookRuntimeOptions).shouldInject;
+        }
+        return presetFollowsTavern ? item?.enabled !== false : undefined;
+      },
+    },
+  );
+  const selectedItemsWithAnima = applyAnimaWorldbookOverrides(selected, animaWorldbookEntries);
+  const itemsWithKeywordOverrides = selectedItemsWithAnima.map((item) => {
+    if (item?.scope !== SOURCE_WORLDBOOK || !item?.key || !Object.prototype.hasOwnProperty.call(runtimeSettings.worldbookKeywordOverrides || {}, item.key)) return item;
+    return { ...item, worldbookKeys: splitWorldbookKeywords(runtimeSettings.worldbookKeywordOverrides[item.key]) };
+  });
+  const promptChat = Array.isArray(chat) ? chat : context.chat;
+  return filterWorldbookPromptItems(itemsWithKeywordOverrides, {
+    chat: promptChat,
+    scanDepth: getWorldbookScanDepth(),
+    historyRangeMode: runtimeSettings.historyRangeMode,
+    recentMessageCount: runtimeSettings.recentMessageCount,
+    historyCleanupRules: runtimeSettings.historyCleanupRules,
+    activationModeForItem: worldbookFollowsTavern
+      ? (item) => item?.activationMode
+      : (item) => normalizeWorldbookActivationMode(runtimeSettings.worldbookActivationOverrides?.[item?.key] || item?.activationMode, 'green'),
+    substituteKeyword: (keyword) => typeof context?.substituteParams === 'function'
+      ? context.substituteParams.call(context, keyword)
+      : keyword,
+  });
+}
+
 function showGenerationHistoryDialog() {
   targetDoc.getElementById('st-esg-generation-history-dialog')?.remove();
   const dialog = targetDoc.createElement('dialog');
@@ -6644,6 +6756,351 @@ function replaceMultiTask(taskId, patch) {
   };
 }
 
+function cancelMultiTaskGeneration(taskIds = null) {
+  const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  const requestedIds = Array.isArray(taskIds) ? new Set(taskIds.map(textOf).filter(Boolean)) : null;
+  const cancellable = new Set([MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING]);
+  let changed = false;
+  settings.multiTaskSettings = {
+    ...state,
+    tasks: state.tasks.map((task) => {
+      if ((requestedIds && !requestedIds.has(task.id)) || !cancellable.has(task.status)) return task;
+      multiTaskAbortControllers.get(task.id)?.abort();
+      multiTaskAbortControllers.delete(task.id);
+      changed = true;
+      return {
+        ...task,
+        runId: '',
+        status: task.output || task.anchorItems.length ? MULTI_TASK_STATUS.READY : MULTI_TASK_STATUS.IDLE,
+      };
+    }),
+  };
+  if (changed) {
+    saveSettings();
+    renderMultiTaskFramework();
+  }
+  return changed;
+}
+
+function getMultiTaskSchemeLists() {
+  return {
+    apiSchemes: settings.apiSchemes,
+    presetSchemes: settings.presetSchemes,
+    worldbookSchemes: settings.worldbookSchemes,
+    componentSchemes: settings.componentSchemes,
+  };
+}
+
+function serializeMultiTaskError(error) {
+  return {
+    message: textOf(error?.message) || '生成失败。',
+    code: textOf(error?.code),
+  };
+}
+
+function updateMultiTaskStream(taskId, text, runId) {
+  const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  const task = state.tasks.find((item) => item.id === taskId);
+  if (!task || task.runId !== runId) return;
+  const streamed = normalizeStreamOutputPreview(text);
+  replaceMultiTask(taskId, {
+    output: streamed.text,
+    thinking: streamed.thinking ? [streamed.thinking] : [],
+    error: null,
+  });
+  if (state.activeTaskId !== taskId || settings.generationMode !== 'multi') return;
+  const preview = targetDoc.getElementById('st-esg-preview');
+  if (preview) preview.value = streamed.text;
+  lastGeneratedThinking = streamed.thinking ? [streamed.thinking] : [];
+  settings.lastGeneratedThinking = [...lastGeneratedThinking];
+  renderGeneratedThinking();
+  resizeGeneratedPreview();
+}
+
+function normalizeMultiTaskGeneratedResult(rawText, runtimeSettings) {
+  const normalized = normalizeGeneratedResult(rawText, runtimeSettings.outputCleanupTags);
+  const anchorItems = Array.isArray(normalized.anchorItems) ? normalized.anchorItems : [];
+  const resultMode = normalized.mode.startsWith('anchor-') ? 'anchor' : 'standard';
+  const output = normalized.usable ? normalized.content : '';
+  if (!output.trim() && !anchorItems.length) throw new Error('API 返回内容无法形成可注入结果。');
+  return {
+    output,
+    thinking: Array.isArray(normalized.thinking) ? normalized.thinking : (normalized.thinking ? [normalized.thinking] : []),
+    resultMode,
+    anchorItems,
+    warnings: Array.isArray(normalized.warnings) ? normalized.warnings : [],
+    error: null,
+  };
+}
+
+function recordMultiTaskHistory(result) {
+  const historyResult = result.resultMode === 'anchor'
+    ? { kind: 'anchor', anchorItems: result.anchorItems, warnings: result.warnings }
+    : result.output;
+  recentGenerationHistory = recordGenerationResult(
+    getGenerationHistoryStorage(),
+    GENERATION_HISTORY_STORAGE_KEY,
+    historyResult,
+  );
+  renderGenerationHistory();
+}
+
+async function generateMultiTasks(requestedTaskIds = null) {
+  captureActiveMultiTaskView();
+  const multiTaskState = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  const requestedIds = Array.isArray(requestedTaskIds) ? new Set(requestedTaskIds.map(textOf).filter(Boolean)) : null;
+  const tasks = multiTaskState.tasks.filter((task) => !requestedIds || requestedIds.has(task.id));
+  if (!tasks.length) {
+    notifyStatus('请先在设置中添加任务。', 'warning');
+    return [];
+  }
+  if (settings.rollbackBeforeGeneration) {
+    await undoMultiTaskInjections(tasks.map((task) => task.id), { requireConfirmation: false, silent: true });
+  }
+  const context = getContext();
+  const latest = getLatestAssistantMessage(context.chat);
+  if (!latest) {
+    notifyStatus('没有找到可用于生成的助手回复。', 'warning');
+    return [];
+  }
+  const target = {
+    chatId: getCurrentChatIdSafe(context),
+    messageIndex: latest.index,
+    messageText: String(latest.message.mes ?? ''),
+  };
+  const runtimeByTaskId = new Map();
+  for (const task of tasks) {
+    try {
+      runtimeByTaskId.set(task.id, resolveMultiTaskRuntimeSettings(settings, task, getMultiTaskSchemeLists()));
+    } catch (error) {
+      replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.ERROR, error: serializeMultiTaskError(error) });
+    }
+  }
+  const runnableTasks = tasks.filter((task) => runtimeByTaskId.has(task.id));
+  if (!runnableTasks.length) {
+    saveSettings();
+    renderMultiTaskFramework();
+    notifyStatus('任务缺少 API 方案或组件方案，请先在设置中选择。', 'warning');
+    return [];
+  }
+  runnableTasks.forEach((task) => {
+    multiTaskAbortControllers.get(task.id)?.abort();
+  });
+  const plan = createMultiTaskRunPlan({
+    tasks: runnableTasks,
+    concurrency: multiTaskState.concurrency,
+    target,
+    resolveTask: (task) => runtimeByTaskId.get(task.id),
+  });
+  activeMultiTaskRunIds.add(plan.runId);
+  plan.entries.forEach((entry) => replaceMultiTask(entry.task.id, {
+    runId: plan.runId,
+    status: MULTI_TASK_STATUS.QUEUED,
+    output: '',
+    thinking: [],
+    resultMode: entry.runtime.injectMode === 'anchor' ? 'anchor' : 'standard',
+    anchorItems: [],
+    warnings: [],
+    target,
+    error: null,
+  }));
+  saveSettings();
+  renderMultiTaskFramework();
+  const results = await runMultiTaskQueue(plan, {
+    isCurrent: (runId) => activeMultiTaskRunIds.has(runId),
+    onTransition: ({ taskId, status, value, error }) => {
+      const currentTask = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.find((task) => task.id === taskId);
+      if (!currentTask || currentTask.runId !== plan.runId) return;
+      if (status === 'queued' || status === 'generating') {
+        replaceMultiTask(taskId, { status: status === 'queued' ? MULTI_TASK_STATUS.QUEUED : MULTI_TASK_STATUS.GENERATING });
+      } else if (status === 'ready') {
+        replaceMultiTask(taskId, { ...value, status: MULTI_TASK_STATUS.READY });
+      } else if (status === 'error') {
+        replaceMultiTask(taskId, { status: MULTI_TASK_STATUS.ERROR, error: serializeMultiTaskError(error) });
+      } else if (status === 'cancelled') {
+        replaceMultiTask(taskId, { status: currentTask.output ? MULTI_TASK_STATUS.READY : MULTI_TASK_STATUS.IDLE });
+      }
+      saveSettings();
+      renderMultiTaskFramework();
+    },
+    execute: async (entry) => {
+      const currentTask = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.find((task) => task.id === entry.task.id);
+      if (currentTask?.runId !== plan.runId) {
+        const error = new Error('Task generation was cancelled');
+        error.name = 'AbortError';
+        throw error;
+      }
+      const controller = new AbortController();
+      multiTaskAbortControllers.set(entry.task.id, controller);
+      try {
+        let rawText = '';
+        try {
+          rawText = await callExternalApi(latest.message, controller.signal, entry.runtime, {
+            onPreview: (text) => updateMultiTaskStream(entry.task.id, text, plan.runId),
+            onPromptLog: () => {},
+          });
+        } catch (error) {
+          const partial = String(error?.streamedText ?? '');
+          if (!partial.trim()) throw error;
+          rawText = partial;
+        }
+        const result = normalizeMultiTaskGeneratedResult(rawText, entry.runtime);
+        recordMultiTaskHistory(result);
+        return result;
+      } finally {
+        if (multiTaskAbortControllers.get(entry.task.id) === controller) multiTaskAbortControllers.delete(entry.task.id);
+      }
+    },
+  });
+  activeMultiTaskRunIds.delete(plan.runId);
+  const completed = results.filter((item) => item.status === 'fulfilled').length;
+  const failed = results.filter((item) => item.status === 'rejected').length;
+  if (settings.autoInject && completed) {
+    await injectMultiTasks(results.filter((item) => item.status === 'fulfilled').map((item) => item.taskId));
+  }
+  notifyStatus(`多任务生成结束：完成 ${completed} 个${failed ? `，失败 ${failed} 个` : ''}。`, failed ? 'warning' : 'info');
+  return results;
+}
+
+function getRequestedMultiTasks(requestedTaskIds = null) {
+  const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  const ids = Array.isArray(requestedTaskIds) ? new Set(requestedTaskIds.map(textOf).filter(Boolean)) : null;
+  return state.tasks.filter((task) => !ids || ids.has(task.id));
+}
+
+async function persistMultiTaskMessageUpdates(context, messageIndexes) {
+  for (const messageIndex of messageIndexes) {
+    const message = context.chat?.[messageIndex];
+    if (!message) continue;
+    context.updateMessageBlock(messageIndex, message);
+    const messageUpdatedEvent = context.eventTypes?.MESSAGE_UPDATED;
+    if (messageUpdatedEvent && context.eventSource?.emit) {
+      await context.eventSource.emit(messageUpdatedEvent, messageIndex);
+    }
+  }
+  const saveResult = await context.saveChat();
+  if (saveResult === false) throw new Error('聊天保存接口返回失败。');
+}
+
+async function injectMultiTasks(requestedTaskIds = null) {
+  captureActiveMultiTaskView();
+  const tasks = getRequestedMultiTasks(requestedTaskIds)
+    .filter((task) => ![MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
+    .filter((task) => String(task.output || '').trim() || task.anchorItems?.length);
+  if (!tasks.length) {
+    notifyStatus('没有可注入的多任务结果。', 'warning');
+    return [];
+  }
+  const context = getContext();
+  const currentChatId = getCurrentChatIdSafe(context);
+  const changedIndexes = new Set();
+  const mvuIndexes = new Set();
+  const injectedTaskIds = [];
+  for (const task of tasks) {
+    const targetIndex = Number(task.target?.messageIndex);
+    if (textOf(task.target?.chatId) !== currentChatId || !Number.isInteger(targetIndex)) {
+      replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.ERROR, error: { message: '任务目标聊天已经变化，无法注入。', code: 'target-changed' } });
+      continue;
+    }
+    const latest = getAssistantMessageAtIndex(context.chat, targetIndex);
+    if (!latest) {
+      replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.ERROR, error: { message: '任务目标楼层已经不存在。', code: 'target-missing' } });
+      continue;
+    }
+    try {
+      const prepared = {
+        taskId: task.id,
+        targetIndex,
+        resultMode: task.resultMode,
+        output: stripConfiguredBlocks(task.output, settings.outputCleanupTags).trim(),
+        anchorItems: (Array.isArray(task.anchorItems) ? task.anchorItems : []).map((item) => ({
+          ...item,
+          content: stripConfiguredBlocks(item?.content, settings.outputCleanupTags).trim(),
+        })),
+      };
+      const injected = applyMultiTaskInjection(String(latest.message.mes ?? ''), prepared);
+      latest.message.mes = settings.statusPlaceholderEnabled
+        ? normalizeStatusPlaceholder(injected.text, true)
+        : injected.text;
+      if (Array.isArray(latest.message.swipes) && Number.isInteger(latest.message.swipe_id)) {
+        latest.message.swipes[latest.message.swipe_id] = latest.message.mes;
+      }
+      const record = {
+        ...injected.record,
+        chatId: currentChatId,
+        targetIndex,
+        afterText: latest.message.mes,
+      };
+      replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.INJECTED, injectionRecord: record, error: null });
+      changedIndexes.add(targetIndex);
+      injectedTaskIds.push(task.id);
+      const insertedText = record.operations.map((operation) => operation.text).join('\n');
+      if (settings.mvuReprocessOnInject && containsMvuUpdateVariable(insertedText)) mvuIndexes.add(targetIndex);
+    } catch (error) {
+      replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.ERROR, error: serializeMultiTaskError(error) });
+    }
+  }
+  if (changedIndexes.size) {
+    try {
+      await persistMultiTaskMessageUpdates(context, [...changedIndexes]);
+      for (const targetIndex of mvuIndexes) await reprocessMvuVariables(context, targetIndex);
+    } catch (error) {
+      notifyStatus(`多任务内容已经写入，但聊天保存失败：${error?.message || '未知错误'}`, 'warning');
+    }
+  }
+  saveSettings();
+  renderMultiTaskFramework();
+  if (injectedTaskIds.length) notifyStatus(`已按任务顺序注入 ${injectedTaskIds.length} 个结果。`);
+  return injectedTaskIds;
+}
+
+async function undoMultiTaskInjections(requestedTaskIds = null, { requireConfirmation = false, silent = false } = {}) {
+  const tasks = getRequestedMultiTasks(requestedTaskIds).filter((task) => task.injectionRecord);
+  if (!tasks.length) {
+    if (!silent) notifyStatus('没有可撤回的多任务注入记录。', 'warning');
+    return [];
+  }
+  if (requireConfirmation && !targetWindow.confirm(`撤回 ${tasks.length} 个任务各自最新的一次注入？\n\n已经单独撤回的任务会自动跳过。`)) return [];
+  const context = getContext();
+  const currentChatId = getCurrentChatIdSafe(context);
+  const changedIndexes = new Set();
+  const undoneTaskIds = [];
+  for (const task of [...tasks].reverse()) {
+    const record = task.injectionRecord;
+    const targetIndex = Number(record?.targetIndex);
+    const latest = getAssistantMessageAtIndex(context.chat, targetIndex);
+    if (textOf(record?.chatId) !== currentChatId || !latest) continue;
+    const undone = undoMultiTaskInjection(String(latest.message.mes ?? ''), record);
+    if (!undone.ok) {
+      replaceMultiTask(task.id, { error: { message: '楼层中的对应注入内容已经变化，无法安全撤回。', code: undone.reason } });
+      continue;
+    }
+    latest.message.mes = settings.statusPlaceholderEnabled
+      ? normalizeStatusPlaceholder(undone.text, true)
+      : undone.text;
+    if (Array.isArray(latest.message.swipes) && Number.isInteger(latest.message.swipe_id)) {
+      latest.message.swipes[latest.message.swipe_id] = latest.message.mes;
+    }
+    replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.UNDONE, injectionRecord: null, error: null });
+    changedIndexes.add(targetIndex);
+    undoneTaskIds.push(task.id);
+  }
+  if (changedIndexes.size) {
+    try {
+      await persistMultiTaskMessageUpdates(context, [...changedIndexes]);
+      if (settings.mvuReprocessOnInject) {
+        for (const targetIndex of changedIndexes) await reprocessMvuVariables(context, targetIndex);
+      }
+    } catch (error) {
+      notifyStatus(`撤回已经应用，但聊天保存失败：${error?.message || '未知错误'}`, 'warning');
+    }
+  }
+  saveSettings();
+  renderMultiTaskFramework();
+  if (!silent && undoneTaskIds.length) notifyStatus(`已撤回 ${undoneTaskIds.length} 个任务各自最新的一次注入。`);
+  return undoneTaskIds;
+}
+
 function getNextMultiTaskName() {
   const names = new Set(normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.map((task) => task.name));
   let index = 1;
@@ -6651,13 +7108,18 @@ function getNextMultiTaskName() {
   return `任务 ${index}`;
 }
 
+function getMultiTaskDefaultSchemeId(value) {
+  const schemeId = textOf(value);
+  return schemeId === WORLD_BOOK_FOLLOW_TAVERN ? '' : schemeId;
+}
+
 function getNewMultiTaskDefaults() {
   return {
     apiSchemeId: textOf(settings.selectedApiSchemeId),
     taskSchemeId: textOf(settings.selectedTaskSchemeId),
-    presetSchemeId: textOf(settings.selectedPresetSchemeId),
-    worldbookSchemeId: textOf(settings.selectedWorldbookSchemeId),
-    componentSchemeId: '',
+    presetSchemeId: getMultiTaskDefaultSchemeId(settings.selectedPresetSchemeId),
+    worldbookSchemeId: getMultiTaskDefaultSchemeId(settings.selectedWorldbookSchemeId),
+    componentSchemeId: textOf(settings.selectedComponentSchemeId),
     injectMode: settings.injectMode === 'anchor' ? 'anchor' : 'append',
   };
 }
@@ -6670,6 +7132,12 @@ function captureGenerationWorkspaceView() {
     error: settings.lastGenerationError && typeof settings.lastGenerationError === 'object'
       ? { ...settings.lastGenerationError }
       : null,
+    resultMode: settings.lastGeneratedResultMode === 'anchor' ? 'anchor' : 'standard',
+    anchorItems: Array.isArray(settings.lastGeneratedAnchorItems) ? settings.lastGeneratedAnchorItems.map((item) => ({ ...item })) : [],
+    warnings: Array.isArray(settings.lastGeneratedAnchorWarnings) ? [...settings.lastGeneratedAnchorWarnings] : [],
+    target: Number.isInteger(settings.lastGeneratedAnchorTargetIndex)
+      ? { messageIndex: settings.lastGeneratedAnchorTargetIndex }
+      : null,
   };
 }
 
@@ -6679,14 +7147,15 @@ function applyGenerationWorkspaceView(view = {}) {
   lastGeneratedThinking = Array.isArray(view.thinking) ? [...view.thinking] : [];
   settings.lastGeneratedThinking = [...lastGeneratedThinking];
   settings.lastGenerationError = view.error && typeof view.error === 'object' ? { ...view.error } : null;
-  settings.lastGeneratedAnchorItems = [];
-  settings.lastGeneratedAnchorWarnings = [];
-  settings.lastGeneratedResultMode = 'standard';
-  settings.lastGeneratedAnchorTargetIndex = null;
+  settings.lastGeneratedAnchorItems = Array.isArray(view.anchorItems) ? view.anchorItems.map((item) => ({ ...item })) : [];
+  settings.lastGeneratedAnchorWarnings = Array.isArray(view.warnings) ? [...view.warnings] : [];
+  settings.lastGeneratedResultMode = view.resultMode === 'anchor' ? 'anchor' : 'standard';
+  settings.lastGeneratedAnchorTargetIndex = Number.isInteger(view.target?.messageIndex) ? view.target.messageIndex : null;
   const instruction = targetDoc.getElementById('st-esg-temporary-task-instruction');
   const preview = targetDoc.getElementById('st-esg-preview');
   if (instruction) instruction.value = temporaryTaskInstruction;
-  if (preview) preview.value = settings.lastGenerated;
+  if (preview) preview.value = settings.lastGeneratedResultMode === 'anchor' ? '' : settings.lastGenerated;
+  renderAnchorInsertionPlan(settings.lastGeneratedAnchorItems, settings.lastGeneratedAnchorWarnings);
   renderGeneratedThinking();
   renderGenerationResultPanel();
   resizeGeneratedPreview();
@@ -6717,10 +7186,33 @@ function renderMultiTaskFramework() {
   dialog?.querySelector('#st-esg-generate span')?.replaceChildren(mode === 'multi' ? '生成全部' : '生成组件');
   dialog?.querySelector('#st-esg-inject span')?.replaceChildren(mode === 'multi' ? '注入全部' : '注入回复');
   dialog?.querySelector('#st-esg-undo-injection span')?.replaceChildren(mode === 'multi' ? '撤回全部' : '撤回注入');
-  for (const selector of ['#st-esg-generate', '#st-esg-inject', '#st-esg-undo-injection']) {
-    const footerAction = dialog?.querySelector(selector);
-    footerAction?.toggleAttribute('disabled', mode === 'multi');
-    footerAction?.classList.toggle('disabled', mode === 'multi');
+  if (mode === 'multi') {
+    const multiState = normalizeMultiTaskSettings(settings.multiTaskSettings);
+    const hasTasks = multiState.tasks.length > 0;
+    const hasResult = multiState.tasks.some((task) => String(task.output || '').trim() || task.anchorItems?.length);
+    const hasUndo = multiState.tasks.some((task) => task.injectionRecord);
+    const running = multiState.tasks.some((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status));
+    const generate = dialog?.querySelector('#st-esg-generate');
+    generate?.toggleAttribute('disabled', !hasTasks);
+    generate?.classList.toggle('disabled', !hasTasks);
+    generate?.classList.toggle('st-esg-action-running', running);
+    generate?.querySelector('i')?.setAttribute('class', running ? 'fa-solid fa-stop' : 'fa-solid fa-wand-magic-sparkles');
+    generate?.querySelector('span')?.replaceChildren(running ? '停止全部' : '生成全部');
+    const inject = dialog?.querySelector('#st-esg-inject');
+    inject?.toggleAttribute('disabled', !hasResult || running);
+    inject?.classList.toggle('disabled', !hasResult || running);
+    const undo = dialog?.querySelector('#st-esg-undo-injection');
+    undo?.toggleAttribute('disabled', !hasUndo);
+    undo?.classList.toggle('disabled', !hasUndo);
+    undo?.classList.toggle('st-esg-hidden', !hasUndo);
+  } else {
+    for (const selector of ['#st-esg-generate', '#st-esg-inject']) {
+      const action = dialog?.querySelector(selector);
+      action?.removeAttribute('disabled');
+      action?.classList.remove('disabled', 'st-esg-action-running');
+    }
+    dialog?.querySelector('#st-esg-generate i')?.setAttribute('class', 'fa-solid fa-wand-magic-sparkles');
+    refreshInjectionUndoState();
   }
   if (mode === 'multi') hydrateActiveMultiTaskView();
   else if (singleTaskWorkspaceSnapshot) applyGenerationWorkspaceView(singleTaskWorkspaceSnapshot);
@@ -6868,6 +7360,14 @@ async function handleMultiTaskAction(action, reopenSettings = false, requestedTa
   if (action === 'global-settings') { showMultiTaskSettingsDialog('tasks'); return; }
   if (!activeTask) return;
   if (action === 'settings') { showMultiTaskSettingsDialog('tasks'); return; }
+  if (action === 'generate') {
+    if ([MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(activeTask.status)) {
+      cancelMultiTaskGeneration([activeTask.id]);
+    } else await generateMultiTasks([activeTask.id]);
+    return;
+  }
+  if (action === 'inject') { await injectMultiTasks([activeTask.id]); return; }
+  if (action === 'undo') { await undoMultiTaskInjections([activeTask.id], { requireConfirmation: true }); return; }
   if (action === 'rename') {
     const name = await requestTextInputDialog({ title: '重命名任务', label: '任务名称', value: activeTask.name });
     if (!name || name === activeTask.name) { if (reopenSettings) showMultiTaskSettingsDialog('tasks'); return; }
@@ -6881,6 +7381,7 @@ async function handleMultiTaskAction(action, reopenSettings = false, requestedTa
   }
   if (action === 'delete') {
     if (!targetWindow.confirm(`删除任务“${activeTask.name}”？\n\n当前框架中的任务配置和未接入的临时结果会一并删除。`)) { if (reopenSettings) showMultiTaskSettingsDialog('tasks'); return; }
+    cancelMultiTaskGeneration([activeTask.id]);
     settings.multiTaskSettings = deleteMultiTask(settings.multiTaskSettings, activeTask.id).state;
     saveSettings();
     renderMultiTaskFramework();
@@ -7620,14 +8121,24 @@ function bindPanelEvents() {
   $t('#st-esg-generate').on('click', (event) => {
     event.preventDefault();
     event.currentTarget.blur();
-    void generateStatusbar();
+    if (settings.generationMode === 'multi') {
+      const runningTaskIds = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks
+        .filter((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
+        .map((task) => task.id);
+      if (runningTaskIds.length) cancelMultiTaskGeneration(runningTaskIds);
+      else void generateMultiTasks();
+    } else void generateStatusbar();
   });
   $t('#st-esg-inject').on('click', (event) => {
     event.preventDefault();
     event.currentTarget.blur();
-    void injectGeneratedStatusbar();
+    if (settings.generationMode === 'multi') void injectMultiTasks();
+    else void injectGeneratedStatusbar();
   });
-  $t('#st-esg-undo-injection').on('click', () => undoLatestInjection());
+  $t('#st-esg-undo-injection').on('click', () => {
+    if (settings.generationMode === 'multi') void undoMultiTaskInjections(null, { requireConfirmation: true });
+    else void undoLatestInjection();
+  });
   $t('#st-esg-generation-error').on('click', '#st-esg-show-generated-content', () => {
     settings.lastGenerationError = null;
     setFloatingBallVisualState(settings.lastGenerated ? 'waiting' : 'idle');

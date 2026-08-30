@@ -18,7 +18,8 @@ test('workspace keeps the original generation DOM mounted and adds only multi-ta
   assert.doesNotMatch(indexSource, /st-esg-panel-footer'\)\?\.classList\.toggle\('st-esg-hidden'/);
   assert.match(indexSource, /st-esg-temporary-task-instruction/);
   assert.match(indexSource, /st-esg-preview/);
-  assert.match(indexSource, /toggleAttribute\('disabled', mode === 'multi'\)/);
+  assert.doesNotMatch(indexSource, /toggleAttribute\('disabled', mode === 'multi'\)/);
+  assert.match(indexSource, /generate\?\.toggleAttribute\('disabled', !hasTasks\)/);
   assert.match(indexSource, /renderMultiTaskFramework/);
 });
 

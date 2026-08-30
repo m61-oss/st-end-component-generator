@@ -54,7 +54,7 @@ test('renders named task tabs and the scheme-B icon toolbar without duplicating 
   assert.doesNotMatch(markup, /st-esg-multi-task-current-copy|st-esg-multi-task-head/);
   assert.doesNotMatch(markup, /data-multi-task-action="history"/);
   assert.match(markup, /data-multi-task-action="undo"[^>]*aria-label="撤回当前任务"/);
-  assert.match(markup, /data-multi-task-action="generate"[^>]*aria-label="生成当前任务"/);
+  assert.match(markup, /data-multi-task-action="generate"[^>]*aria-label="停止当前任务"/);
   assert.match(markup, /data-multi-task-action="inject"[^>]*aria-label="注入当前任务"/);
   const taskGenerateButton = markup.match(/<button[^>]*data-multi-task-action="generate"[^>]*>/)?.[0] || '';
   assert.match(taskGenerateButton, /st-esg-icon-btn/);
@@ -63,10 +63,10 @@ test('renders named task tabs and the scheme-B icon toolbar without duplicating 
   assert.equal(taskActionButtons.length, 3);
   for (const button of taskActionButtons) {
     assert.match(button, /st-esg-icon-btn/);
-    assert.match(button, / disabled(?: |>|$)/);
     assert.doesNotMatch(button, /menu_button|st-esg-primary-action|st-esg-secondary-action/);
   }
-  for (const icon of ['fa-rotate-left', 'fa-wand-magic-sparkles', 'fa-file-import']) {
+  assert.doesNotMatch(taskGenerateButton, / disabled(?: |>|$)/);
+  for (const icon of ['fa-rotate-left', 'fa-stop', 'fa-file-import']) {
     assert.match(markup, new RegExp(icon));
   }
   assert.doesNotMatch(markup, /st-esg-multi-task-preview|st-esg-multi-task-extra|st-esg-multi-task-result/);

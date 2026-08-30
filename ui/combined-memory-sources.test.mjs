@@ -30,7 +30,7 @@ test('generation includes every checked memory capability without a source-mode 
   assert.match(indexSource, /function isAnimaMemoryEnabled\(\)\s*\{\s*return settings\.animaWorldbookEnabled \|\| settings\.animaStatusVariableEnabled;/);
   assert.match(indexSource, /function isAnimaWorldbookEnabled\(\)\s*\{\s*return settings\.animaWorldbookEnabled === true;/);
   assert.match(indexSource, /function isAnimaStatusVariableEnabled\(\)\s*\{\s*return settings\.animaStatusVariableEnabled === true;/);
-  assert.match(indexSource, /baiBaiBook:\s*settings\.baiBaiBookHistoryEnabled \|\| settings\.baiBaiBookStateEnabled \?\s*\{/);
+  assert.match(indexSource, /baiBaiBook:\s*sourceSettings\.baiBaiBookHistoryEnabled \|\| sourceSettings\.baiBaiBookStateEnabled \?\s*\{/);
   assert.doesNotMatch(indexSource, /settings\.memorySource === 'baibai' \?/);
 });
 

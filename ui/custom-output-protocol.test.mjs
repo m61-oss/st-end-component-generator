@@ -26,7 +26,7 @@ test('stores separate standard and anchor prompt text and roles', () => {
 });
 
 test('generation passes the active protocol override without adding it to task schemes', () => {
-  assert.match(indexSource, /outputProtocol:\s*getActiveOutputProtocolSettings\(outputMode\)/);
+  assert.match(indexSource, /outputProtocol:\s*getActiveOutputProtocolSettings\(outputMode,\s*sourceSettings\)/);
   assert.doesNotMatch(schemeSource, /standardOutputProtocol|anchorOutputProtocol/);
 });
 
