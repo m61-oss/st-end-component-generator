@@ -43,6 +43,7 @@ import {
   syncPromptSelectionsFromGroups,
 } from './sources/source-selection.js?ver=0.2.2';
 import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hydrateTavernWorldbookSelections, isWorldbookSchemeSnapshotUsable, normalizeSchemeList, resolveWorldbookPromptSelectionsForLoad, saveScheme } from './settings/scheme-utils.js?ver=0.2.2';
+import { applyComponentSchemeSnapshot, captureComponentSchemeSnapshot } from './settings/component-schemes.js?ver=0.2.2';
 import { readOpenAiStream } from './api/stream-utils.js?ver=0.2.2';
 import { normalizeApiRetryCount, withApiRetries } from './api/api-retry.js?ver=0.2.2';
 import { stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.2.2';
@@ -275,11 +276,13 @@ const DEFAULT_SETTINGS = {
   taskSchemes: [],
   presetSchemes: [],
   worldbookSchemes: [],
+  componentSchemes: [],
   chatWorldbookBindings: [],
   selectedApiSchemeId: '',
   selectedTaskSchemeId: '',
   selectedPresetSchemeId: '',
   selectedWorldbookSchemeId: '',
+  selectedComponentSchemeId: '',
   activeSchemeIds: {},
   dirtySchemeTypes: {},
   components: [],
@@ -698,6 +701,7 @@ function loadSettings() {
   settings.taskSchemes = normalizeSchemeList(settings.taskSchemes);
   settings.presetSchemes = normalizeSchemeList(settings.presetSchemes);
   settings.worldbookSchemes = normalizeSchemeList(settings.worldbookSchemes);
+  settings.componentSchemes = normalizeSchemeList(settings.componentSchemes);
   settings.generationMode = settings.generationMode === 'multi' ? 'multi' : 'single';
   settings.multiTaskSettings = normalizeMultiTaskSettings(settings.multiTaskSettings);
   settings.chatWorldbookBindings = normalizeChatBindingIndex(settings.chatWorldbookBindings);
@@ -734,6 +738,7 @@ function loadSettings() {
       task: textOf(settings.selectedTaskSchemeId),
       preset: textOf(settings.selectedPresetSchemeId),
       worldbook: textOf(settings.selectedWorldbookSchemeId),
+      component: textOf(settings.selectedComponentSchemeId),
     };
   }
   if (!settings.dirtySchemeTypes || typeof settings.dirtySchemeTypes !== 'object') settings.dirtySchemeTypes = {};
@@ -841,6 +846,16 @@ function loadSettings() {
 }
 
 function saveSettings() {
+  const componentSchemeId = textOf(settings.activeSchemeIds?.component);
+  const componentScheme = componentSchemeId
+    ? findScheme(settings.componentSchemes, componentSchemeId)
+    : null;
+  if (componentScheme) {
+    const projected = applyComponentSchemeSnapshot(settings, componentScheme.snapshot || {});
+    settings.dirtySchemeTypes.component = JSON.stringify(captureComponentSchemeSnapshot(settings))
+      !== JSON.stringify(captureComponentSchemeSnapshot(projected));
+    if (initialized) renderCurrentScheme('component');
+  }
   const store = getSettingsStore();
   Object.assign(store, settings);
   removeTransientGenerationSettings(store);
@@ -3101,6 +3116,7 @@ const SCHEME_CONFIG = {
   task: { listKey: 'taskSchemes', selectedKey: 'selectedTaskSchemeId', label: '任务指令' },
   preset: { listKey: 'presetSchemes', selectedKey: 'selectedPresetSchemeId', label: '预设' },
   worldbook: { listKey: 'worldbookSchemes', selectedKey: 'selectedWorldbookSchemeId', label: '世界书' },
+  component: { listKey: 'componentSchemes', selectedKey: 'selectedComponentSchemeId', label: '组件库' },
 };
 
 function isWorldbookGroup(group) {
@@ -3456,6 +3472,7 @@ function renderAllSchemeOptions() {
 }
 
 function currentSchemeSnapshot(type) {
+  if (type === 'component') return captureComponentSchemeSnapshot(settings);
   return captureSchemeSnapshot(type, settings, importGroups, { isWorldbookGroup });
 }
 
@@ -3687,6 +3704,10 @@ async function applyScheme(type, snapshot) {
   else if (type === 'task') applyTaskScheme(snapshot);
   else if (type === 'preset') await applyPresetScheme(snapshot);
   else if (type === 'worldbook') await applyWorldbookScheme(snapshot);
+  else if (type === 'component') {
+    settings = applyComponentSchemeSnapshot(settings, snapshot);
+    renderComponentList();
+  }
   saveSettings();
 }
 
@@ -6903,6 +6924,11 @@ function renderPluginPanel() {
   dialog.className = 'st-esg-dialog';
   dialog.tabIndex = -1;
   dialog.innerHTML = buildPluginPanelMarkup();
+  const componentPanel = dialog.querySelector('[data-tab-panel="components"]');
+  const componentSchemeCard = targetDoc.createElement('div');
+  componentSchemeCard.className = 'st-esg-card st-esg-component-scheme-card';
+  componentSchemeCard.innerHTML = `${renderSchemeManager('component')}<div class="st-esg-card-desc">保存组件库、小剧场库的启用状态与随机设置；组件内容仍使用当前库中的最新版本。</div>`;
+  componentPanel?.prepend(componentSchemeCard);
   installMultiTaskFrameworkShell(dialog);
   upgradePanelActionToButton(dialog, '#st-esg-generate');
   upgradePanelActionToButton(dialog, '#st-esg-inject');
