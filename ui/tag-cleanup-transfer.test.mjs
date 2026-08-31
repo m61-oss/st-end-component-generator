@@ -16,7 +16,7 @@ test('tag cleanup settings expose one horizontal import/export toolbar', () => {
 });
 
 test('tag cleanup transfer is wired to a versioned helper and refreshes both lists after one save', () => {
-  assert.match(indexSource, /from '.\/settings\/tag-cleanup-transfer\.js\?ver=0\.2\.2'/);
+  assert.match(indexSource, /from '.\/settings\/tag-cleanup-transfer\.js\?ver=0\.2\.3'/);
   assert.match(indexSource, /createTagCleanupExportPackage\(\{[\s\S]*historyRules:\s*getTagRuleEntries\('history'\)[\s\S]*outputRules:\s*getTagRuleEntries\('output'\)/);
   assert.match(indexSource, /mergeTagCleanupImport\([\s\S]*settings\.historyCleanupRules\s*=\s*merged\.historyRules;[\s\S]*settings\.outputCleanupTags\s*=\s*merged\.outputRules\.join\('\\n'\);[\s\S]*saveSettings\(\);[\s\S]*renderTagRuleManager\('history'\);[\s\S]*renderTagRuleManager\('output'\);/);
   const eventBindings = indexSource.match(/function bindPanelEvents\(\)\s*\{[\s\S]*?\n\}/)?.[0] || '';
