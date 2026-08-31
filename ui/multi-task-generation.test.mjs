@@ -3,21 +3,22 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const indexSource = await readFile(new URL('../index.js', import.meta.url), 'utf8');
+const controllerSource = await readFile(new URL('../generation/multi-task-controller.js', import.meta.url), 'utf8');
 const styleSource = await readFile(new URL('../style.css', import.meta.url), 'utf8');
 const workspaceSource = await readFile(new URL('./multi-task-workspace.js', import.meta.url), 'utf8');
 
 test('multi-task generation freezes scheme runtimes and executes through the concurrency queue', () => {
-  assert.match(indexSource, /createMultiTaskRunPlan\(/);
-  assert.match(indexSource, /resolveMultiTaskRuntimeSettings\(/);
-  assert.match(indexSource, /runMultiTaskQueue\(/);
-  assert.match(indexSource, /async function generateMultiTasks\(/);
-  assert.match(indexSource, /settings\.multiTaskSettings\.concurrency|multiTaskState\.concurrency/);
+  assert.match(controllerSource, /createMultiTaskRunPlan\(/);
+  assert.match(controllerSource, /resolveMultiTaskRuntimeSettings\(/);
+  assert.match(controllerSource, /runMultiTaskQueue\(/);
+  assert.match(controllerSource, /async function generate\(/);
+  assert.match(controllerSource, /multiState\.concurrency/);
 });
 
 test('request building accepts task-owned settings and stream callbacks', () => {
   assert.match(indexSource, /buildMessages\(latestMessage,\s*sourceSettings/);
-  assert.match(indexSource, /callExternalApi\(latest\.message,\s*controller\.signal,\s*entry\.runtime/);
-  assert.match(indexSource, /onPreview:\s*\(text\)\s*=>\s*updateMultiTaskStream/);
+  assert.match(controllerSource, /callExternalApi\(latest\.message,\s*controller\.signal,\s*entry\.runtime/);
+  assert.match(controllerSource, /onPreview:\s*\(text\)\s*=>\s*updateStream/);
 });
 
 test('task and footer actions are enabled and route by generation mode', () => {
@@ -33,9 +34,9 @@ test('active task hydration preserves anchor results instead of clearing them', 
 });
 
 test('queued and running tasks can be cancelled before another run starts', () => {
-  assert.match(indexSource, /function cancelMultiTaskGeneration\(taskIds = null\)/);
-  assert.match(indexSource, /currentTask\?\.runId !== plan\.runId[\s\S]{0,180}AbortError/);
-  assert.match(indexSource, /MULTI_TASK_STATUS\.QUEUED,\s*MULTI_TASK_STATUS\.GENERATING/);
+  assert.match(controllerSource, /function cancelGeneration\(taskIds = null\)/);
+  assert.match(controllerSource, /currentTask\?\.runId !== plan\.runId[\s\S]{0,180}AbortError/);
+  assert.match(controllerSource, /status\.QUEUED,\s*status\.GENERATING/);
   assert.match(indexSource, /cancelMultiTaskGeneration\(\[activeTask\.id\]\)/);
 });
 
@@ -50,39 +51,39 @@ test('Tavern-default tasks resolve preset-scoped components from the live Tavern
 });
 
 test('completion-order auto injection queues each task as soon as it becomes ready', () => {
-  assert.match(indexSource, /const enqueueAutoInjection = \(taskId\)[\s\S]{0,500}enqueueMultiTaskInjection\(taskId/);
-  assert.match(indexSource, /status === 'ready'[\s\S]{0,500}else enqueueAutoInjection\(taskId\)/);
-  assert.match(indexSource, /enqueueMultiTaskInjection\(taskId,[\s\S]{0,220}expectedRunId:\s*plan\.runId/);
-  assert.doesNotMatch(indexSource, /if \(settings\.autoInject && completed\)[\s\S]{0,160}injectMultiTasks/);
+  assert.match(controllerSource, /const enqueueAutoInjection = \(taskId\)[\s\S]{0,500}enqueueInjection\(taskId/);
+  assert.match(controllerSource, /nextStatus === 'ready'[\s\S]{0,500}else enqueueAutoInjection\(taskId\)/);
+  assert.match(controllerSource, /enqueueInjection\(taskId,[\s\S]{0,220}expectedRunId:\s*plan\.runId/);
+  assert.doesNotMatch(controllerSource, /if \(settings\.autoInject && completed\)[\s\S]{0,160}injectMultiTasks/);
 });
 
 test('automatic injection can coordinate ready results by configured task order', () => {
-  assert.match(indexSource, /createTaskOrderInjectionCoordinator/);
-  assert.match(indexSource, /multiTaskState\.injectionOrder === MULTI_TASK_INJECTION_ORDER_TASK/);
-  assert.match(indexSource, /taskOrderInjectionCoordinator\.ready\(taskId\)/);
-  assert.match(indexSource, /taskOrderInjectionCoordinator\?\.skip\(taskId\)/);
+  assert.match(controllerSource, /createTaskOrderInjectionCoordinator/);
+  assert.match(controllerSource, /multiState\.injectionOrder === MULTI_TASK_INJECTION_ORDER_TASK/);
+  assert.match(controllerSource, /orderCoordinator\.ready\(taskId\)/);
+  assert.match(controllerSource, /orderCoordinator\?\.skip\(taskId\)/);
 });
 
 test('stale or cancelled task transitions release task-order injection before returning', () => {
-  assert.match(indexSource, /if \(!currentTask \|\| currentTask\.runId !== plan\.runId\) \{[\s\S]{0,180}taskOrderInjectionCoordinator\?\.skip\(taskId\);[\s\S]{0,80}return;/);
+  assert.match(controllerSource, /if \(!currentTask \|\| currentTask\.runId !== plan\.runId\) \{[\s\S]{0,180}orderCoordinator\?\.skip\(taskId\);[\s\S]{0,80}return;/);
 });
 
 test('deferred automatic injection rechecks task state to prevent duplicate manual injection', () => {
-  assert.match(indexSource, /canEnqueueTaskAutoInjection\(currentTask, plan\.runId\)/);
-  const start = indexSource.indexOf('const enqueueAutoInjection');
-  const source = indexSource.slice(start, start + 650);
-  assert.match(source, /status:\s*MULTI_TASK_STATUS\.PENDING_INJECTION/);
-  assert.match(source, /scheduleMultiTaskFrameworkRender\(\)/);
+  assert.match(controllerSource, /canEnqueueTaskAutoInjection\(currentTask, plan\.runId\)/);
+  const start = controllerSource.indexOf('const enqueueAutoInjection');
+  const source = controllerSource.slice(start, start + 650);
+  assert.match(source, /status:\s*status\.PENDING_INJECTION/);
+  assert.match(source, /scheduleRender\(\)/);
 });
 
 test('manual injection locks each result before it enters the serialized queue', () => {
-  const start = indexSource.indexOf('async function injectMultiTasks');
-  const end = indexSource.indexOf('async function injectMultiTaskBatchNow', start);
-  const source = indexSource.slice(start, end);
+  const start = controllerSource.indexOf('async function inject(');
+  const end = controllerSource.indexOf('async function injectBatchNow', start);
+  const source = controllerSource.slice(start, end);
 
-  assert.match(source, /replaceMultiTask\(task\.id,\s*\{\s*status:\s*MULTI_TASK_STATUS\.PENDING_INJECTION\s*\}\)/);
-  assert.match(source, /\[MULTI_TASK_STATUS\.READY,\s*MULTI_TASK_STATUS\.UNDONE\]\.includes\(task\.status\)/);
-  assert.match(source, /scheduleMultiTaskFrameworkRender\(\)/);
+  assert.match(source, /replaceTask\(task\.id,\s*\{\s*status:\s*status\.PENDING_INJECTION\s*\}\)/);
+  assert.match(source, /\[status\.READY,\s*status\.UNDONE\]\.includes\(task\.status\)/);
+  assert.match(source, /scheduleRender\(\)/);
 });
 
 test('floor panel generates all tasks while injection and undo stay scoped to the current floor', () => {
@@ -125,9 +126,8 @@ test('multi-task settings expose automatic injection order and save it immediate
 });
 
 test('active multi-task streaming reuses the single-task incremental thinking renderer', () => {
-  const start = indexSource.indexOf('function updateMultiTaskStream');
-  const end = indexSource.indexOf('function normalizeMultiTaskGeneratedResult', start);
-  const source = indexSource.slice(start, end);
+  const start = indexSource.indexOf('updateActiveStream:');
+  const source = indexSource.slice(start, start + 700);
 
   assert.match(source, /updateStreamedThinking\(streamed\.thinking\)/);
   assert.doesNotMatch(source, /renderGeneratedThinking\(/);

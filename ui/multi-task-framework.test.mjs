@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { createDefaultSettings } from '../settings/default-settings.js';
 
 const indexSource = await readFile(new URL('../index.js', import.meta.url), 'utf8');
+const controllerSource = await readFile(new URL('../generation/multi-task-controller.js', import.meta.url), 'utf8');
 
 test('panel persists an explicit generation mode and normalized multi-task settings', () => {
   const defaults = createDefaultSettings();
@@ -49,16 +50,16 @@ test('multi-task startup batches synchronous queue transitions into one frame re
     indexSource.indexOf('function scheduleMultiTaskFrameworkRender'),
     indexSource.indexOf('function renderMultiTaskFramework'),
   );
-  const transitionSource = indexSource.slice(
-    indexSource.indexOf('onTransition: ({ taskId, status, value, error })'),
-    indexSource.indexOf('execute: async (entry)'),
+  const transitionSource = controllerSource.slice(
+    controllerSource.indexOf('onTransition: ({ taskId'),
+    controllerSource.indexOf('execute: async (entry)'),
   );
 
   assert.match(schedulerSource, /multiTaskFrameworkRenderScheduled/);
   assert.match(schedulerSource, /requestAnimationFrame/);
   assert.match(schedulerSource, /renderMultiTaskRuntimeState\(\)/);
   assert.doesNotMatch(schedulerSource, /saveSettings\(\)|renderMultiTaskFramework\(\)/);
-  assert.match(transitionSource, /scheduleMultiTaskFrameworkRender\(\)/);
+  assert.match(transitionSource, /scheduleRender\(\)/);
   assert.doesNotMatch(transitionSource, /saveSettings\(\);[\s\S]{0,100}renderMultiTaskFramework\(\)/);
 });
 
@@ -98,21 +99,22 @@ test('hydrating a task result does not render anchors or resize the preview twic
 });
 
 test('transient multi-task actions use runtime refreshes instead of saving and rebuilding the framework', () => {
-  const cancelSource = indexSource.slice(
-    indexSource.indexOf('function cancelMultiTaskGeneration'),
-    indexSource.indexOf('function getMultiTaskSchemeLists'),
+  const cancelSource = controllerSource.slice(
+    controllerSource.indexOf('function cancelGeneration'),
+    controllerSource.indexOf('const serializeError'),
   );
-  const injectSource = indexSource.slice(
-    indexSource.indexOf('async function injectMultiTasks'),
-    indexSource.indexOf('async function undoMultiTaskInjections'),
+  const injectSource = controllerSource.slice(
+    controllerSource.indexOf('async function inject('),
+    controllerSource.indexOf('async function undo('),
   );
-  const undoSource = indexSource.slice(
-    indexSource.indexOf('async function undoMultiTaskInjections'),
-    indexSource.indexOf('function getNextMultiTaskName'),
+  const undoSource = controllerSource.slice(
+    controllerSource.indexOf('async function undo('),
+    controllerSource.indexOf('return {', controllerSource.indexOf('async function undo(')),
   );
 
-  for (const source of [cancelSource, injectSource, undoSource]) {
-    assert.match(source, /renderMultiTaskRuntimeState\(\)/);
+  assert.match(cancelSource, /renderRuntimeState\(\)/);
+  for (const source of [injectSource, undoSource]) {
+    assert.match(source, /renderRuntimeState\(\)/);
     assert.doesNotMatch(source, /saveSettings\(\)|renderMultiTaskFramework\(\)/);
   }
 });

@@ -24,7 +24,6 @@ import { applyComponentPositionMove } from './sources/component-order.js?ver=0.2
 import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.2.2';
 import { containsStatusPlaceholder, injectStatusbarText, normalizeStatusPlaceholder, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.2.2';
 import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.2.2';
-import { applyMultiTaskInjection, undoMultiTaskInjection } from './injection/multi-task-injection.js?ver=0.2.2';
 import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics, stripInternalMessageFields } from './generation/prompt-builder.js?ver=0.2.2';
 import { ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, OUTPUT_PROTOCOL_SYSTEM_PROMPT } from './generation/output-protocol.js?ver=0.2.2';
 import { normalizeGeneratedResult } from './generation/output-result.js?ver=0.2.2';
@@ -80,11 +79,8 @@ import {
   renameMultiTask,
   selectMultiTask,
 } from './generation/multi-task-state.js?ver=0.2.2';
-import { createMultiTaskRunPlan, runMultiTaskQueue } from './generation/multi-task-runner.js?ver=0.2.2';
 import { planMultiTaskFloorActions, scopeMultiTaskFloorPanelSettings } from './generation/multi-task-floor-state.js?ver=0.2.2';
-import { createMultiTaskInjectionQueue } from './generation/multi-task-injection-queue.js?ver=0.2.2';
-import { canEnqueueTaskAutoInjection, createTaskOrderInjectionCoordinator } from './generation/multi-task-auto-injection.js?ver=0.2.2';
-import { resolveMultiTaskRuntimeSettings } from './generation/multi-task-runtime.js?ver=0.2.2';
+import { createMultiTaskController } from './generation/multi-task-controller.js?ver=0.2.2';
 import { renderGenerationModeSwitch, renderMultiTaskWorkspace } from './ui/multi-task-workspace.js?ver=0.2.2';
 import {
   THEATER_DEFAULT_GROUP_ID,
@@ -196,12 +192,6 @@ let importGroups = [];
 const promptSourceCache = createPromptSourceCacheState();
 let activeWorldbookGroupIndex = null;
 let generationAbortController = null;
-const multiTaskAbortControllers = new Map();
-const activeMultiTaskRunIds = new Set();
-const multiTaskInjectionQueue = createMultiTaskInjectionQueue({
-  execute: ({ taskId, silent, expectedRunId }) => injectMultiTaskBatchNow([taskId], { silent, expectedRunId }),
-  wait: (milliseconds) => new Promise((resolve) => targetWindow.setTimeout(resolve, milliseconds)),
-});
 let floatingBallVisualState = 'idle';
 let activeAutomaticTarget = null;
 let automaticGenerationRevision = 0;
@@ -264,6 +254,46 @@ const $t = (selectorOrHtml) => $(selectorOrHtml, targetDoc);
 const textOf = (value) => String(value ?? '').trim();
 const escapeHtml = (value) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const multiTaskController = createMultiTaskController({
+  getSettings: () => settings,
+  setMultiTaskSettings: (next) => { settings.multiTaskSettings = next; },
+  getContext,
+  getLatestAssistantMessage,
+  getAssistantMessageAtIndex,
+  getCurrentChatId: getCurrentChatIdSafe,
+  callExternalApi,
+  captureActiveView: captureActiveMultiTaskView,
+  renderRuntimeState: renderMultiTaskRuntimeState,
+  scheduleRender: scheduleMultiTaskFrameworkRender,
+  updateFloorStream: updateMessageFloorPanelMultiTaskStream,
+  updateActiveStream: (taskId, streamed, state) => {
+    if (state.activeTaskId !== taskId || settings.generationMode !== 'multi') return;
+    const preview = targetDoc.getElementById('st-esg-preview');
+    if (preview) preview.value = streamed.text;
+    lastGeneratedThinking = streamed.thinking ? [streamed.thinking] : [];
+    settings.lastGeneratedThinking = [...lastGeneratedThinking];
+    updateStreamedThinking(streamed.thinking);
+    resizeGeneratedPreview();
+  },
+  notify: notifyStatus,
+  recordHistoryView: renderGenerationHistory,
+  getHistoryStorage: getGenerationHistoryStorage,
+  historyStorageKey: GENERATION_HISTORY_STORAGE_KEY,
+  setRecentHistory: (history) => { recentGenerationHistory = history; },
+  containsMvuUpdateVariable,
+  reprocessMvuVariables,
+  confirm: (message) => targetWindow.confirm(message),
+  wait: (milliseconds) => new Promise((resolve) => targetWindow.setTimeout(resolve, milliseconds)),
+  textOf,
+});
+const {
+  replaceTask: replaceMultiTask,
+  cancelGeneration: cancelMultiTaskGeneration,
+  generate: generateMultiTasks,
+  inject: injectMultiTasks,
+  undo: undoMultiTaskInjections,
+} = multiTaskController;
 
 const VISIBLE_GENERATION_LOG_STAGES = new Set([
   'api-start',
@@ -6789,408 +6819,8 @@ function showGenerationHistoryDialog() {
   renderGenerationHistory();
 }
 
-function replaceMultiTask(taskId, patch) {
-  const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
-  settings.multiTaskSettings = {
-    ...state,
-    tasks: state.tasks.map((task) => (task.id === taskId ? { ...task, ...patch } : task)),
-  };
-}
 
-function cancelMultiTaskGeneration(taskIds = null) {
-  const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
-  const requestedIds = Array.isArray(taskIds) ? new Set(taskIds.map(textOf).filter(Boolean)) : null;
-  const cancellable = new Set([MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING]);
-  let changed = false;
-  settings.multiTaskSettings = {
-    ...state,
-    tasks: state.tasks.map((task) => {
-      if ((requestedIds && !requestedIds.has(task.id)) || !cancellable.has(task.status)) return task;
-      multiTaskAbortControllers.get(task.id)?.abort();
-      multiTaskAbortControllers.delete(task.id);
-      changed = true;
-      return {
-        ...task,
-        runId: '',
-        status: task.output || task.anchorItems.length ? MULTI_TASK_STATUS.READY : MULTI_TASK_STATUS.IDLE,
-      };
-    }),
-  };
-  if (changed) renderMultiTaskRuntimeState();
-  return changed;
-}
 
-function getMultiTaskSchemeLists() {
-  return {
-    apiSchemes: settings.apiSchemes,
-    presetSchemes: settings.presetSchemes,
-    worldbookSchemes: settings.worldbookSchemes,
-    componentSchemes: settings.componentSchemes,
-  };
-}
-
-function serializeMultiTaskError(error) {
-  return {
-    message: textOf(error?.message) || '生成失败。',
-    code: textOf(error?.code),
-  };
-}
-
-function updateMultiTaskStream(taskId, text, runId) {
-  const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
-  const task = state.tasks.find((item) => item.id === taskId);
-  if (!task || task.runId !== runId) return;
-  const streamed = normalizeStreamOutputPreview(text);
-  replaceMultiTask(taskId, {
-    output: streamed.text,
-    thinking: streamed.thinking ? [streamed.thinking] : [],
-    error: null,
-  });
-  updateMessageFloorPanelMultiTaskStream(taskId);
-  if (state.activeTaskId !== taskId || settings.generationMode !== 'multi') return;
-  const preview = targetDoc.getElementById('st-esg-preview');
-  if (preview) preview.value = streamed.text;
-  lastGeneratedThinking = streamed.thinking ? [streamed.thinking] : [];
-  settings.lastGeneratedThinking = [...lastGeneratedThinking];
-  updateStreamedThinking(streamed.thinking);
-  resizeGeneratedPreview();
-}
-
-function normalizeMultiTaskGeneratedResult(rawText) {
-  const normalized = normalizeGeneratedResult(rawText);
-  const anchorItems = Array.isArray(normalized.anchorItems) ? normalized.anchorItems : [];
-  const resultMode = normalized.mode.startsWith('anchor-') ? 'anchor' : 'standard';
-  const output = normalized.usable ? normalized.content : '';
-  if (!output.trim() && !anchorItems.length) throw new Error('API 返回内容无法形成可注入结果。');
-  return {
-    output,
-    thinking: Array.isArray(normalized.thinking) ? normalized.thinking : (normalized.thinking ? [normalized.thinking] : []),
-    resultMode,
-    anchorItems,
-    warnings: Array.isArray(normalized.warnings) ? normalized.warnings : [],
-    error: null,
-  };
-}
-
-function recordMultiTaskHistory(result) {
-  const historyResult = result.resultMode === 'anchor'
-    ? { kind: 'anchor', anchorItems: result.anchorItems, warnings: result.warnings }
-    : result.output;
-  recentGenerationHistory = recordGenerationResult(
-    getGenerationHistoryStorage(),
-    GENERATION_HISTORY_STORAGE_KEY,
-    historyResult,
-  );
-  renderGenerationHistory();
-}
-
-async function generateMultiTasks(requestedTaskIds = null) {
-  captureActiveMultiTaskView();
-  const multiTaskState = normalizeMultiTaskSettings(settings.multiTaskSettings);
-  const requestedIds = Array.isArray(requestedTaskIds) ? new Set(requestedTaskIds.map(textOf).filter(Boolean)) : null;
-  const tasks = multiTaskState.tasks.filter((task) => !requestedIds || requestedIds.has(task.id));
-  if (!tasks.length) {
-    notifyStatus('请先在设置中添加任务。', 'warning');
-    return [];
-  }
-  if (settings.rollbackBeforeGeneration) {
-    await undoMultiTaskInjections(tasks.map((task) => task.id), { requireConfirmation: false, silent: true });
-  }
-  const context = getContext();
-  const latest = getLatestAssistantMessage(context.chat);
-  if (!latest) {
-    notifyStatus('没有找到可用于生成的助手回复。', 'warning');
-    return [];
-  }
-  const target = {
-    chatId: getCurrentChatIdSafe(context),
-    messageIndex: latest.index,
-    messageText: String(latest.message.mes ?? ''),
-  };
-  const runtimeByTaskId = new Map();
-  for (const task of tasks) {
-    try {
-      runtimeByTaskId.set(task.id, resolveMultiTaskRuntimeSettings(settings, task, getMultiTaskSchemeLists()));
-    } catch (error) {
-      replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.ERROR, error: serializeMultiTaskError(error) });
-    }
-  }
-  const runnableTasks = tasks.filter((task) => runtimeByTaskId.has(task.id));
-  if (!runnableTasks.length) {
-    renderMultiTaskRuntimeState();
-    notifyStatus('任务缺少 API 方案或组件方案，请先在设置中选择。', 'warning');
-    return [];
-  }
-  runnableTasks.forEach((task) => {
-    multiTaskAbortControllers.get(task.id)?.abort();
-  });
-  const plan = createMultiTaskRunPlan({
-    tasks: runnableTasks,
-    concurrency: multiTaskState.concurrency,
-    target,
-    resolveTask: (task) => runtimeByTaskId.get(task.id),
-  });
-  activeMultiTaskRunIds.add(plan.runId);
-  plan.entries.forEach((entry) => replaceMultiTask(entry.task.id, {
-    runId: plan.runId,
-    status: MULTI_TASK_STATUS.QUEUED,
-    output: '',
-    thinking: [],
-    resultMode: entry.runtime.injectMode === 'anchor' ? 'anchor' : 'standard',
-    anchorItems: [],
-    warnings: [],
-    target,
-    error: null,
-  }));
-  scheduleMultiTaskFrameworkRender();
-  const shouldAutoInject = Boolean(settings.autoInject);
-  const autoInjectionPromises = [];
-  const enqueueAutoInjection = (taskId) => {
-    const currentTask = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.find((task) => task.id === taskId);
-    if (!canEnqueueTaskAutoInjection(currentTask, plan.runId)) return Promise.resolve([]);
-    replaceMultiTask(taskId, { status: MULTI_TASK_STATUS.PENDING_INJECTION });
-    scheduleMultiTaskFrameworkRender();
-    const promise = enqueueMultiTaskInjection(taskId, {
-      intervalMs: multiTaskState.injectionIntervalSeconds * 1000,
-      silent: true,
-      expectedRunId: plan.runId,
-    });
-    autoInjectionPromises.push(promise);
-    return promise;
-  };
-  const taskOrderInjectionCoordinator = shouldAutoInject
-    && multiTaskState.injectionOrder === MULTI_TASK_INJECTION_ORDER_TASK
-    ? createTaskOrderInjectionCoordinator(plan.entries.map((entry) => entry.task.id), {
-      enqueue: enqueueAutoInjection,
-    })
-    : null;
-  const results = await runMultiTaskQueue(plan, {
-    isCurrent: (runId) => activeMultiTaskRunIds.has(runId),
-    onTransition: ({ taskId, status, value, error }) => {
-      const currentTask = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.find((task) => task.id === taskId);
-      if (!currentTask || currentTask.runId !== plan.runId) {
-        taskOrderInjectionCoordinator?.skip(taskId);
-        return;
-      }
-      if (status === 'queued' || status === 'generating') {
-        replaceMultiTask(taskId, { status: status === 'queued' ? MULTI_TASK_STATUS.QUEUED : MULTI_TASK_STATUS.GENERATING });
-      } else if (status === 'ready') {
-        replaceMultiTask(taskId, { ...value, status: MULTI_TASK_STATUS.READY });
-        if (shouldAutoInject) {
-          if (taskOrderInjectionCoordinator) taskOrderInjectionCoordinator.ready(taskId);
-          else enqueueAutoInjection(taskId);
-        }
-      } else if (status === 'error') {
-        replaceMultiTask(taskId, { status: MULTI_TASK_STATUS.ERROR, error: serializeMultiTaskError(error) });
-        taskOrderInjectionCoordinator?.skip(taskId);
-      } else if (status === 'cancelled') {
-        replaceMultiTask(taskId, { status: currentTask.output ? MULTI_TASK_STATUS.READY : MULTI_TASK_STATUS.IDLE });
-        taskOrderInjectionCoordinator?.skip(taskId);
-      }
-      scheduleMultiTaskFrameworkRender();
-    },
-    execute: async (entry) => {
-      const currentTask = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.find((task) => task.id === entry.task.id);
-      if (currentTask?.runId !== plan.runId) {
-        const error = new Error('Task generation was cancelled');
-        error.name = 'AbortError';
-        throw error;
-      }
-      const controller = new AbortController();
-      multiTaskAbortControllers.set(entry.task.id, controller);
-      try {
-        let rawText = '';
-        try {
-          rawText = await callExternalApi(latest.message, controller.signal, entry.runtime, {
-            onPreview: (text) => updateMultiTaskStream(entry.task.id, text, plan.runId),
-            onPromptLog: () => {},
-          });
-        } catch (error) {
-          const partial = String(error?.streamedText ?? '');
-          if (!partial.trim()) throw error;
-          rawText = partial;
-        }
-        const result = normalizeMultiTaskGeneratedResult(rawText);
-        recordMultiTaskHistory(result);
-        return result;
-      } finally {
-        if (multiTaskAbortControllers.get(entry.task.id) === controller) multiTaskAbortControllers.delete(entry.task.id);
-      }
-    },
-  });
-  activeMultiTaskRunIds.delete(plan.runId);
-  const completed = results.filter((item) => item.status === 'fulfilled').length;
-  const failed = results.filter((item) => item.status === 'rejected').length;
-  if (autoInjectionPromises.length) await Promise.allSettled(autoInjectionPromises);
-  notifyStatus(`多任务生成结束：完成 ${completed} 个${failed ? `，失败 ${failed} 个` : ''}。`, failed ? 'warning' : 'info');
-  return results;
-}
-
-function getRequestedMultiTasks(requestedTaskIds = null) {
-  const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
-  const ids = Array.isArray(requestedTaskIds) ? new Set(requestedTaskIds.map(textOf).filter(Boolean)) : null;
-  return state.tasks.filter((task) => !ids || ids.has(task.id));
-}
-
-async function persistMultiTaskMessageUpdates(context, messageIndexes) {
-  for (const messageIndex of messageIndexes) {
-    const message = context.chat?.[messageIndex];
-    if (!message) continue;
-    context.updateMessageBlock(messageIndex, message);
-    const messageUpdatedEvent = context.eventTypes?.MESSAGE_UPDATED;
-    if (messageUpdatedEvent && context.eventSource?.emit) {
-      await context.eventSource.emit(messageUpdatedEvent, messageIndex);
-    }
-  }
-  const saveResult = await context.saveChat();
-  if (saveResult === false) throw new Error('聊天保存接口返回失败。');
-}
-
-function enqueueMultiTaskInjection(taskId, { intervalMs = 0, silent = false, expectedRunId = '' } = {}) {
-  return multiTaskInjectionQueue.enqueue({ taskId, silent, expectedRunId }, { intervalMs });
-}
-
-async function injectMultiTasks(requestedTaskIds = null) {
-  captureActiveMultiTaskView();
-  const tasks = getRequestedMultiTasks(requestedTaskIds)
-    .filter((task) => [MULTI_TASK_STATUS.READY, MULTI_TASK_STATUS.UNDONE].includes(task.status))
-    .filter((task) => String(task.output || '').trim() || task.anchorItems?.length);
-  if (!tasks.length) {
-    notifyStatus('没有可注入的多任务结果。', 'warning');
-    return [];
-  }
-  const intervalMs = tasks.length > 1
-    ? normalizeMultiTaskSettings(settings.multiTaskSettings).injectionIntervalSeconds * 1000
-    : 0;
-  tasks.forEach((task) => replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.PENDING_INJECTION }));
-  scheduleMultiTaskFrameworkRender();
-  const results = await Promise.allSettled(tasks.map((task) => enqueueMultiTaskInjection(task.id, {
-    intervalMs,
-    silent: true,
-  })));
-  const injectedTaskIds = results
-    .filter((result) => result.status === 'fulfilled')
-    .flatMap((result) => result.value);
-  if (injectedTaskIds.length) notifyStatus(`已按顺序分批注入 ${injectedTaskIds.length} 个结果。`);
-  return injectedTaskIds;
-}
-
-async function injectMultiTaskBatchNow(requestedTaskIds = null, { silent = false, expectedRunId = '' } = {}) {
-  const tasks = getRequestedMultiTasks(requestedTaskIds)
-    .filter((task) => !expectedRunId || task.runId === expectedRunId)
-    .filter((task) => ![MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
-    .filter((task) => String(task.output || '').trim() || task.anchorItems?.length);
-  if (!tasks.length) {
-    if (!silent) notifyStatus('没有可注入的多任务结果。', 'warning');
-    return [];
-  }
-  const context = getContext();
-  const currentChatId = getCurrentChatIdSafe(context);
-  const changedIndexes = new Set();
-  const mvuIndexes = new Set();
-  const injectedTaskIds = [];
-  for (const task of tasks) {
-    const targetIndex = Number(task.target?.messageIndex);
-    if (textOf(task.target?.chatId) !== currentChatId || !Number.isInteger(targetIndex)) {
-      replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.ERROR, error: { message: '任务目标聊天已经变化，无法注入。', code: 'target-changed' } });
-      continue;
-    }
-    const latest = getAssistantMessageAtIndex(context.chat, targetIndex);
-    if (!latest) {
-      replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.ERROR, error: { message: '任务目标楼层已经不存在。', code: 'target-missing' } });
-      continue;
-    }
-    try {
-      const prepared = {
-        taskId: task.id,
-        targetIndex,
-        resultMode: task.resultMode,
-        output: stripConfiguredBlocks(task.output, settings.outputCleanupTags).trim(),
-        anchorItems: (Array.isArray(task.anchorItems) ? task.anchorItems : []).map((item) => ({
-          ...item,
-          content: stripConfiguredBlocks(item?.content, settings.outputCleanupTags).trim(),
-        })),
-      };
-      const injected = applyMultiTaskInjection(String(latest.message.mes ?? ''), prepared);
-      latest.message.mes = settings.statusPlaceholderEnabled
-        ? normalizeStatusPlaceholder(injected.text, true)
-        : injected.text;
-      if (Array.isArray(latest.message.swipes) && Number.isInteger(latest.message.swipe_id)) {
-        latest.message.swipes[latest.message.swipe_id] = latest.message.mes;
-      }
-      const record = {
-        ...injected.record,
-        chatId: currentChatId,
-        targetIndex,
-        afterText: latest.message.mes,
-      };
-      replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.INJECTED, injectionRecord: record, error: null });
-      changedIndexes.add(targetIndex);
-      injectedTaskIds.push(task.id);
-      const insertedText = record.operations.map((operation) => operation.text).join('\n');
-      if (settings.mvuReprocessOnInject && containsMvuUpdateVariable(insertedText)) mvuIndexes.add(targetIndex);
-    } catch (error) {
-      replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.ERROR, error: serializeMultiTaskError(error) });
-    }
-  }
-  if (changedIndexes.size) {
-    try {
-      await persistMultiTaskMessageUpdates(context, [...changedIndexes]);
-      for (const targetIndex of mvuIndexes) await reprocessMvuVariables(context, targetIndex);
-    } catch (error) {
-      notifyStatus(`多任务内容已经写入，但聊天保存失败：${error?.message || '未知错误'}`, 'warning');
-    }
-  }
-  renderMultiTaskRuntimeState();
-  if (!silent && injectedTaskIds.length) notifyStatus(`已注入 ${injectedTaskIds.length} 个结果。`);
-  return injectedTaskIds;
-}
-
-async function undoMultiTaskInjections(requestedTaskIds = null, { requireConfirmation = false, silent = false } = {}) {
-  const tasks = getRequestedMultiTasks(requestedTaskIds).filter((task) => task.injectionRecord);
-  if (!tasks.length) {
-    if (!silent) notifyStatus('没有可撤回的多任务注入记录。', 'warning');
-    return [];
-  }
-  if (requireConfirmation && !targetWindow.confirm(`撤回 ${tasks.length} 个任务各自最新的一次注入？\n\n已经单独撤回的任务会自动跳过。`)) return [];
-  const context = getContext();
-  const currentChatId = getCurrentChatIdSafe(context);
-  const changedIndexes = new Set();
-  const undoneTaskIds = [];
-  for (const task of [...tasks].reverse()) {
-    const record = task.injectionRecord;
-    const targetIndex = Number(record?.targetIndex);
-    const latest = getAssistantMessageAtIndex(context.chat, targetIndex);
-    if (textOf(record?.chatId) !== currentChatId || !latest) continue;
-    const undone = undoMultiTaskInjection(String(latest.message.mes ?? ''), record);
-    if (!undone.ok) {
-      replaceMultiTask(task.id, { error: { message: '楼层中的对应注入内容已经变化，无法安全撤回。', code: undone.reason } });
-      continue;
-    }
-    latest.message.mes = settings.statusPlaceholderEnabled
-      ? normalizeStatusPlaceholder(undone.text, true)
-      : undone.text;
-    if (Array.isArray(latest.message.swipes) && Number.isInteger(latest.message.swipe_id)) {
-      latest.message.swipes[latest.message.swipe_id] = latest.message.mes;
-    }
-    replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.UNDONE, injectionRecord: null, error: null });
-    changedIndexes.add(targetIndex);
-    undoneTaskIds.push(task.id);
-  }
-  if (changedIndexes.size) {
-    try {
-      await persistMultiTaskMessageUpdates(context, [...changedIndexes]);
-      if (settings.mvuReprocessOnInject) {
-        for (const targetIndex of changedIndexes) await reprocessMvuVariables(context, targetIndex);
-      }
-    } catch (error) {
-      notifyStatus(`撤回已经应用，但聊天保存失败：${error?.message || '未知错误'}`, 'warning');
-    }
-  }
-  renderMultiTaskRuntimeState();
-  if (!silent && undoneTaskIds.length) notifyStatus(`已撤回 ${undoneTaskIds.length} 个任务各自最新的一次注入。`);
-  return undoneTaskIds;
-}
 
 function getNextMultiTaskName() {
   const names = new Set(normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.map((task) => task.name));

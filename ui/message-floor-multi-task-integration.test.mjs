@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import test from 'node:test';
 
 const indexSource = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+const controllerSource = fs.readFileSync(new URL('../generation/multi-task-controller.js', import.meta.url), 'utf8');
 const styleSource = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 
 test('floor panel renders the shared multi-task tabs and selected task result', () => {
@@ -43,7 +44,8 @@ test('floor panel total generation always includes every configured task after a
 
 test('multi-task stream updates the floor panel without replacing its expanded structure', () => {
   assert.match(indexSource, /function updateMessageFloorPanelMultiTaskStream/);
-  assert.match(indexSource, /updateMultiTaskStream[\s\S]*updateMessageFloorPanelMultiTaskStream\(taskId/);
+  assert.match(indexSource, /updateFloorStream:\s*updateMessageFloorPanelMultiTaskStream/);
+  assert.match(controllerSource, /updateFloorStream\(taskId\)/);
   assert.match(indexSource, /thinkingWasOpen[\s\S]*\.st-esg-floor-thinking[\s\S]*\.open = true/);
 });
 
