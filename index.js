@@ -343,6 +343,7 @@ let promptLogBuilding = false;
 let lastGeneratedThinking = [];
 let recentGenerationHistory = [];
 let singleTaskWorkspaceSnapshot = null;
+let multiTaskFrameworkRenderScheduled = false;
 let activeGenerationHistoryId = null;
 let anchorEditSaveTimer = null;
 let latestInjectionUndoSnapshot = null;
@@ -7032,8 +7033,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
     target,
     error: null,
   }));
-  saveSettings();
-  renderMultiTaskFramework();
+  scheduleMultiTaskFrameworkRender();
   const shouldAutoInject = Boolean(settings.autoInject);
   const autoInjectionPromises = [];
   const enqueueAutoInjection = (taskId) => {
@@ -7077,8 +7077,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
         replaceMultiTask(taskId, { status: currentTask.output ? MULTI_TASK_STATUS.READY : MULTI_TASK_STATUS.IDLE });
         taskOrderInjectionCoordinator?.skip(taskId);
       }
-      saveSettings();
-      renderMultiTaskFramework();
+      scheduleMultiTaskFrameworkRender();
     },
     execute: async (entry) => {
       const currentTask = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.find((task) => task.id === entry.task.id);
@@ -7355,6 +7354,18 @@ function hydrateActiveMultiTaskView() {
   applyGenerationWorkspaceView(task || {});
 }
 
+function scheduleMultiTaskFrameworkRender() {
+  if (multiTaskFrameworkRenderScheduled) return;
+  multiTaskFrameworkRenderScheduled = true;
+  const flush = () => {
+    multiTaskFrameworkRenderScheduled = false;
+    saveSettings();
+    renderMultiTaskFramework();
+  };
+  if (typeof targetWindow.requestAnimationFrame === 'function') targetWindow.requestAnimationFrame(flush);
+  else targetWindow.setTimeout(flush, 0);
+}
+
 function renderMultiTaskFramework() {
   const dialog = getDialog();
   const mode = settings.generationMode === 'multi' ? 'multi' : 'single';
@@ -7397,7 +7408,7 @@ function renderMultiTaskFramework() {
     refreshInjectionUndoState();
   }
   if (mode === 'multi') hydrateActiveMultiTaskView();
-  else if (singleTaskWorkspaceSnapshot) applyGenerationWorkspaceView(singleTaskWorkspaceSnapshot);
+  else applyGenerationWorkspaceView(singleTaskWorkspaceSnapshot || {});
   if (settings.messageFloorPanelEnabled) {
     if (mode === 'multi') syncMessageFloorPanelFromMultiTasks();
     else if (messageFloorPanelState.mode === 'multi') {

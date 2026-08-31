@@ -37,6 +37,28 @@ test('multi-task framework wires the shared settings surface and task view persi
   assert.doesNotMatch(indexSource, /data-multi-task-extra/);
 });
 
+test('switching to single mode restores an empty single workspace when no snapshot exists', () => {
+  assert.match(indexSource, /else applyGenerationWorkspaceView\(singleTaskWorkspaceSnapshot \|\| \{\}\)/);
+  assert.match(indexSource, /messageFloorPanelState\.mode === 'multi'[\s\S]{0,500}createFloorPanelState\(\{ enabled: true \}\)/);
+});
+
+test('multi-task startup batches synchronous queue transitions into one frame render', () => {
+  const schedulerSource = indexSource.slice(
+    indexSource.indexOf('function scheduleMultiTaskFrameworkRender'),
+    indexSource.indexOf('function renderMultiTaskFramework'),
+  );
+  const transitionSource = indexSource.slice(
+    indexSource.indexOf('onTransition: ({ taskId, status, value, error })'),
+    indexSource.indexOf('execute: async (entry)'),
+  );
+
+  assert.match(schedulerSource, /multiTaskFrameworkRenderScheduled/);
+  assert.match(schedulerSource, /requestAnimationFrame/);
+  assert.match(schedulerSource, /saveSettings\(\);[\s\S]{0,100}renderMultiTaskFramework\(\)/);
+  assert.match(transitionSource, /scheduleMultiTaskFrameworkRender\(\)/);
+  assert.doesNotMatch(transitionSource, /saveSettings\(\);[\s\S]{0,100}renderMultiTaskFramework\(\)/);
+});
+
 test('generation history is a shared five-entry dialog instead of a workspace card', () => {
   assert.match(indexSource, /st-esg-generation-history-dialog/);
   assert.match(indexSource, /最多保留五条/);
