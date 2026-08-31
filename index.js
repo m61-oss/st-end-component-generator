@@ -346,6 +346,7 @@ let singleTaskWorkspaceSnapshot = null;
 let multiTaskFrameworkRenderScheduled = false;
 let activeGenerationHistoryId = null;
 let anchorEditSaveTimer = null;
+let settingsSaveTimer = null;
 let latestInjectionUndoSnapshot = null;
 let animaWorldbookSnapshotPromise = null;
 let animaWorldbookSnapshot = [];
@@ -357,6 +358,7 @@ let listSearchQuery = '';
 let listFilterMode = 'all';
 let componentSearchQuery = '';
 let componentFilterMode = 'all';
+let componentListFilterScheduled = false;
 let componentEditMode = false;
 let componentMoveState = null;
 let selectedComponentIds = new Set();
@@ -364,6 +366,7 @@ let componentLibraryOpen = true;
 let componentLibraryContextKey = '';
 let theaterSearchQuery = '';
 let theaterFilterMode = 'all';
+let theaterLibraryFilterScheduled = false;
 let theaterEditMode = false;
 let theaterMoveState = null;
 let selectedTheaterIds = new Set();
@@ -863,6 +866,10 @@ function loadSettings() {
 }
 
 function saveSettings() {
+  if (settingsSaveTimer !== null) {
+    targetWindow.clearTimeout(settingsSaveTimer);
+    settingsSaveTimer = null;
+  }
   const componentSchemeId = textOf(settings.activeSchemeIds?.component);
   const componentScheme = componentSchemeId
     ? findScheme(settings.componentSchemes, componentSchemeId)
@@ -1319,6 +1326,24 @@ function syncMessageFloorPanelFromMultiTasks({ force = true } = {}) {
   renderMessageFloorPanel({ force });
 }
 
+function syncMessageFloorPanelTaskSelection() {
+  if (!settings.messageFloorPanelEnabled || settings.generationMode !== 'multi') return;
+  syncMessageFloorPanelFromMultiTasks({ force: false });
+  const panel = getMessageFloorPanelElement(messageFloorPanelState.target?.messageIndex);
+  if (!panel) return;
+  const taskHost = panel.querySelector('.st-esg-floor-multi-task');
+  if (taskHost) taskHost.innerHTML = renderMultiTaskWorkspace(messageFloorPanelState.multiTaskSettings || settings.multiTaskSettings);
+  const hasThinking = Boolean(messageFloorPanelState.thinking);
+  const thinkingStructureMatches = Boolean(panel.querySelector('.st-esg-floor-thinking')) === hasThinking;
+  const output = panel.querySelector('[data-floor-output]');
+  if (messageFloorPanelState.error || messageFloorPanelState.resultMode === 'anchor' || !thinkingStructureMatches || !output) {
+    renderMessageFloorPanel({ force: true });
+    return;
+  }
+  output.readOnly = !canEditFloorPanelResult(messageFloorPanelState);
+  refreshMessageFloorPanelStreamContent();
+}
+
 function refreshMessageFloorPanelStreamContent() {
   const existingPanel = getMessageFloorPanelElement(messageFloorPanelState.target?.messageIndex);
   const needsThinkingStructure = messageFloorPanelState.expanded && Boolean(messageFloorPanelState.thinking) && !existingPanel?.querySelector('.st-esg-floor-thinking');
@@ -1339,6 +1364,27 @@ function refreshMessageFloorPanelStreamContent() {
     };
     if (typeof targetWindow.requestAnimationFrame === 'function') targetWindow.requestAnimationFrame(restoreScroll);
     else restoreScroll();
+  }
+}
+
+function refreshMessageFloorPanelAnchorItem(index) {
+  const panel = getMessageFloorPanelElement(messageFloorPanelState.target?.messageIndex);
+  const item = messageFloorPanelState.anchorItems?.[index];
+  const card = panel?.querySelector(`[data-floor-anchor-index="${index}"]`);
+  if (!item || !card) return;
+  for (const fieldName of ['anchor', 'content']) {
+    const field = card.querySelector(`[data-floor-anchor-field="${fieldName}"]`);
+    if (!field) continue;
+    const value = String(item[fieldName] || '');
+    if (field.value !== value) field.value = value;
+    if (fieldName === 'anchor') resizeMessageFloorAnchorTextarea(field);
+  }
+  const { target, matches, skipped } = resolveAnchorPlanForDisplay(messageFloorPanelState.anchorItems);
+  const matchState = describeAnchorMatch(item, matches.get(index), skipped.get(index), Boolean(target));
+  const matchLabel = card.querySelector('[data-floor-anchor-match]');
+  if (matchLabel) {
+    matchLabel.className = `st-esg-floor-anchor-match st-esg-floor-anchor-match-${matchState.className}`;
+    matchLabel.textContent = matchState.label;
   }
 }
 
@@ -1490,9 +1536,7 @@ function bindMessageFloorPanel(panel) {
     if (multiTaskTab && messageFloorPanelState.mode === 'multi') {
       event.preventDefault();
       event.stopPropagation();
-      settings.multiTaskSettings = selectMultiTask(settings.multiTaskSettings, String(multiTaskTab.getAttribute('data-multi-task-id') || ''));
-      saveSettings();
-      renderMultiTaskFramework();
+      selectActiveMultiTaskView(String(multiTaskTab.getAttribute('data-multi-task-id') || ''));
       return;
     }
     const actionButton = event.target.closest('[data-floor-action]');
@@ -1538,7 +1582,6 @@ function bindMessageFloorPanel(panel) {
         settings.lastGeneratedAnchorWarnings = [];
         $t('#st-esg-preview').val(value);
         renderAnchorInsertionPlan([], []);
-        saveSettings();
         resizeMessageFloorTextarea(output);
         return;
       }
@@ -1549,7 +1592,6 @@ function bindMessageFloorPanel(panel) {
       messageFloorPanelState.output = settings.lastGenerated;
       $t('#st-esg-preview').val(settings.lastGenerated);
       renderAnchorInsertionPlan([], []);
-      saveSettings();
       resizeMessageFloorTextarea(output);
       return;
     }
@@ -3362,6 +3404,15 @@ function markSchemeDirty(type) {
   saveSettings();
 }
 
+function markSchemeDirtyDeferred(type) {
+  if (!SCHEME_CONFIG[type]) return;
+  if (!settings.dirtySchemeTypes[type]) {
+    settings.dirtySchemeTypes[type] = true;
+    renderSchemeOptions(type);
+  }
+  scheduleSettingsSave();
+}
+
 function markSchemeClean(type, id) {
   setActiveSchemeId(type, id);
   settings.dirtySchemeTypes[type] = false;
@@ -4361,7 +4412,7 @@ function applyFloatingBallPosition(ball) {
   if (settings.ballX !== position.left || settings.ballY !== position.top) {
     settings.ballX = position.left;
     settings.ballY = position.top;
-    saveSettings();
+    scheduleSettingsSave();
   }
 }
 
@@ -4402,6 +4453,17 @@ function applyComponentListFilters() {
   });
   list.find('.st-esg-component-list-toolbar .st-esg-list-count').text(`${visibleCount} / ${items.length}`);
   updateComponentEditSelectionUi();
+}
+
+function scheduleComponentListFilters() {
+  if (componentListFilterScheduled) return;
+  componentListFilterScheduled = true;
+  const flush = () => {
+    componentListFilterScheduled = false;
+    applyComponentListFilters();
+  };
+  if (typeof targetWindow.requestAnimationFrame === 'function') targetWindow.requestAnimationFrame(flush);
+  else targetWindow.setTimeout(flush, 0);
 }
 
 function renderComponentList() {
@@ -4537,7 +4599,7 @@ function renderComponentList() {
   });
   list.find('.st-esg-component-search-input').on('input', function () {
     componentSearchQuery = String($(this).val() || '');
-    applyComponentListFilters();
+    scheduleComponentListFilters();
   });
   list.find('.st-esg-component-filter-select').on('change', function () {
     componentFilterMode = String($(this).val() || 'all');
@@ -4931,6 +4993,17 @@ function applyTheaterLibraryFilters() {
   host.find('.st-esg-theater-batch-move, .st-esg-theater-batch-delete').prop('disabled', selectedTheaterIds.size === 0);
 }
 
+function scheduleTheaterLibraryFilters() {
+  if (theaterLibraryFilterScheduled) return;
+  theaterLibraryFilterScheduled = true;
+  const flush = () => {
+    theaterLibraryFilterScheduled = false;
+    applyTheaterLibraryFilters();
+  };
+  if (typeof targetWindow.requestAnimationFrame === 'function') targetWindow.requestAnimationFrame(flush);
+  else targetWindow.setTimeout(flush, 0);
+}
+
 function getTheaterRandomModeLabel(mode) {
   const normalized = normalizeTheaterRandomMode(mode);
   if (normalized === THEATER_RANDOM_MODE_OFF) return '关闭随机';
@@ -5110,7 +5183,7 @@ function renderTheaterLibrary() {
   host.find('.st-esg-theater-group-count').on('change', function () { const groupId = textOf($(this).attr('data-group-id')); const override = getTheaterRandomOverride(groupId); if (!override) return; override.count = normalizeTheaterRandomCount($(this).val()); saveSettings(); renderTheaterLibrary(); });
   host.find('.st-esg-theater-random-add-group-button').on('click', function (event) { event.preventDefault(); event.stopPropagation(); const select = host.find('.st-esg-theater-random-add-group-select'); const groupId = textOf(select.val()); if (!groupId || getTheaterRandomOverride(groupId)) return; settings.theaterGroupRandomOverrides.push({ groupId, mode: settings.theaterGroupedFallbackMode, count: settings.theaterGroupedFallbackCount }); saveSettings(); renderTheaterLibrary(); });
   host.find('.st-esg-theater-random-remove-group').on('click', function (event) { event.preventDefault(); event.stopPropagation(); const groupId = textOf($(this).attr('data-group-id')); settings.theaterGroupRandomOverrides = settings.theaterGroupRandomOverrides.filter((override) => textOf(override?.groupId) !== groupId); saveSettings(); renderTheaterLibrary(); });
-  host.find('.st-esg-theater-search-input').on('input', function () { theaterSearchQuery = String($(this).val() || ''); applyTheaterLibraryFilters(); });
+  host.find('.st-esg-theater-search-input').on('input', function () { theaterSearchQuery = String($(this).val() || ''); scheduleTheaterLibraryFilters(); });
   host.find('.st-esg-theater-filter-select').on('change', function () { theaterFilterMode = String($(this).val() || 'all'); applyTheaterLibraryFilters(); });
   host.find('[data-theater-position-after]').on('click', function (event) {
     if (!theaterMoveState) return;
@@ -6903,10 +6976,7 @@ function cancelMultiTaskGeneration(taskIds = null) {
       };
     }),
   };
-  if (changed) {
-    saveSettings();
-    renderMultiTaskFramework();
-  }
+  if (changed) renderMultiTaskRuntimeState();
   return changed;
 }
 
@@ -7007,8 +7077,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
   }
   const runnableTasks = tasks.filter((task) => runtimeByTaskId.has(task.id));
   if (!runnableTasks.length) {
-    saveSettings();
-    renderMultiTaskFramework();
+    renderMultiTaskRuntimeState();
     notifyStatus('任务缺少 API 方案或组件方案，请先在设置中选择。', 'warning');
     return [];
   }
@@ -7229,8 +7298,7 @@ async function injectMultiTaskBatchNow(requestedTaskIds = null, { silent = false
       notifyStatus(`多任务内容已经写入，但聊天保存失败：${error?.message || '未知错误'}`, 'warning');
     }
   }
-  saveSettings();
-  renderMultiTaskFramework();
+  renderMultiTaskRuntimeState();
   if (!silent && injectedTaskIds.length) notifyStatus(`已注入 ${injectedTaskIds.length} 个结果。`);
   return injectedTaskIds;
 }
@@ -7276,8 +7344,7 @@ async function undoMultiTaskInjections(requestedTaskIds = null, { requireConfirm
       notifyStatus(`撤回已经应用，但聊天保存失败：${error?.message || '未知错误'}`, 'warning');
     }
   }
-  saveSettings();
-  renderMultiTaskFramework();
+  renderMultiTaskRuntimeState();
   if (!silent && undoneTaskIds.length) notifyStatus(`已撤回 ${undoneTaskIds.length} 个任务各自最新的一次注入。`);
   return undoneTaskIds;
 }
@@ -7336,10 +7403,8 @@ function applyGenerationWorkspaceView(view = {}) {
   const preview = targetDoc.getElementById('st-esg-preview');
   if (instruction) instruction.value = temporaryTaskInstruction;
   if (preview) preview.value = settings.lastGeneratedResultMode === 'anchor' ? '' : settings.lastGenerated;
-  renderAnchorInsertionPlan(settings.lastGeneratedAnchorItems, settings.lastGeneratedAnchorWarnings);
   renderGeneratedThinking();
   renderGenerationResultPanel();
-  resizeGeneratedPreview();
 }
 
 function captureActiveMultiTaskView() {
@@ -7354,13 +7419,80 @@ function hydrateActiveMultiTaskView() {
   applyGenerationWorkspaceView(task || {});
 }
 
+function persistActiveMultiTaskSelection() {
+  const store = getSettingsStore();
+  const persisted = store.multiTaskSettings && typeof store.multiTaskSettings === 'object'
+    ? store.multiTaskSettings
+    : {};
+  store.multiTaskSettings = {
+    ...persisted,
+    activeTaskId: normalizeMultiTaskSettings(settings.multiTaskSettings).activeTaskId,
+  };
+  getContext().saveSettingsDebounced();
+}
+
+function scheduleSettingsSave() {
+  if (settingsSaveTimer !== null) targetWindow.clearTimeout(settingsSaveTimer);
+  settingsSaveTimer = targetWindow.setTimeout(() => {
+    settingsSaveTimer = null;
+    saveSettings();
+  }, 180);
+}
+
+function renderActiveMultiTaskViews() {
+  const multiHost = getDialog()?.querySelector('#st-esg-multi-task-host');
+  if (multiHost) multiHost.innerHTML = renderMultiTaskWorkspace(settings.multiTaskSettings);
+  hydrateActiveMultiTaskView();
+  if (settings.messageFloorPanelEnabled) syncMessageFloorPanelTaskSelection();
+}
+
+function selectActiveMultiTaskView(taskId) {
+  const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  const nextTaskId = textOf(taskId);
+  if (!nextTaskId || nextTaskId === state.activeTaskId || !state.tasks.some((task) => task.id === nextTaskId)) return;
+  captureActiveMultiTaskView();
+  settings.multiTaskSettings = selectMultiTask(settings.multiTaskSettings, nextTaskId);
+  persistActiveMultiTaskSelection();
+  renderActiveMultiTaskViews();
+}
+
+function updateMultiTaskActionState(dialog, multiState = normalizeMultiTaskSettings(settings.multiTaskSettings)) {
+  const hasTasks = multiState.tasks.length > 0;
+  const hasResult = multiState.tasks.some((task) => String(task.output || '').trim() || task.anchorItems?.length);
+  const hasUndo = multiState.tasks.some((task) => task.injectionRecord);
+  const running = multiState.tasks.some((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status));
+  const generate = dialog?.querySelector('#st-esg-generate');
+  generate?.toggleAttribute('disabled', !hasTasks);
+  generate?.classList.toggle('disabled', !hasTasks);
+  generate?.classList.toggle('st-esg-action-running', running);
+  generate?.querySelector('i')?.setAttribute('class', running ? 'fa-solid fa-stop' : 'fa-solid fa-wand-magic-sparkles');
+  generate?.querySelector('span')?.replaceChildren(running ? '停止全部' : '生成全部');
+  const inject = dialog?.querySelector('#st-esg-inject');
+  inject?.toggleAttribute('disabled', !hasResult || running);
+  inject?.classList.toggle('disabled', !hasResult || running);
+  const undo = dialog?.querySelector('#st-esg-undo-injection');
+  undo?.toggleAttribute('disabled', !hasUndo);
+  undo?.classList.toggle('disabled', !hasUndo);
+  undo?.classList.toggle('st-esg-hidden', !hasUndo);
+}
+
+function renderMultiTaskRuntimeState() {
+  if (settings.generationMode !== 'multi') return;
+  const dialog = getDialog();
+  const multiState = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  const multiHost = dialog?.querySelector('#st-esg-multi-task-host');
+  if (multiHost) multiHost.innerHTML = renderMultiTaskWorkspace(multiState);
+  updateMultiTaskActionState(dialog, multiState);
+  hydrateActiveMultiTaskView();
+  if (settings.messageFloorPanelEnabled) syncMessageFloorPanelFromMultiTasks();
+}
+
 function scheduleMultiTaskFrameworkRender() {
   if (multiTaskFrameworkRenderScheduled) return;
   multiTaskFrameworkRenderScheduled = true;
   const flush = () => {
     multiTaskFrameworkRenderScheduled = false;
-    saveSettings();
-    renderMultiTaskFramework();
+    renderMultiTaskRuntimeState();
   };
   if (typeof targetWindow.requestAnimationFrame === 'function') targetWindow.requestAnimationFrame(flush);
   else targetWindow.setTimeout(flush, 0);
@@ -7381,23 +7513,7 @@ function renderMultiTaskFramework() {
   dialog?.querySelector('#st-esg-undo-injection span')?.replaceChildren(mode === 'multi' ? '撤回全部' : '撤回注入');
   if (mode === 'multi') {
     const multiState = normalizeMultiTaskSettings(settings.multiTaskSettings);
-    const hasTasks = multiState.tasks.length > 0;
-    const hasResult = multiState.tasks.some((task) => String(task.output || '').trim() || task.anchorItems?.length);
-    const hasUndo = multiState.tasks.some((task) => task.injectionRecord);
-    const running = multiState.tasks.some((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status));
-    const generate = dialog?.querySelector('#st-esg-generate');
-    generate?.toggleAttribute('disabled', !hasTasks);
-    generate?.classList.toggle('disabled', !hasTasks);
-    generate?.classList.toggle('st-esg-action-running', running);
-    generate?.querySelector('i')?.setAttribute('class', running ? 'fa-solid fa-stop' : 'fa-solid fa-wand-magic-sparkles');
-    generate?.querySelector('span')?.replaceChildren(running ? '停止全部' : '生成全部');
-    const inject = dialog?.querySelector('#st-esg-inject');
-    inject?.toggleAttribute('disabled', !hasResult || running);
-    inject?.classList.toggle('disabled', !hasResult || running);
-    const undo = dialog?.querySelector('#st-esg-undo-injection');
-    undo?.toggleAttribute('disabled', !hasUndo);
-    undo?.classList.toggle('disabled', !hasUndo);
-    undo?.classList.toggle('st-esg-hidden', !hasUndo);
+    updateMultiTaskActionState(dialog, multiState);
   } else {
     for (const selector of ['#st-esg-generate', '#st-esg-inject']) {
       const action = dialog?.querySelector(selector);
@@ -7626,10 +7742,7 @@ function bindMultiTaskFrameworkEvents() {
       showGenerationHistoryDialog();
     })
     .on('click.stEsgMultiTask', '[data-multi-task-id]', function () {
-      captureActiveMultiTaskView();
-      settings.multiTaskSettings = selectMultiTask(settings.multiTaskSettings, String($(this).attr('data-multi-task-id')));
-      saveSettings();
-      renderMultiTaskFramework();
+      selectActiveMultiTaskView(String($(this).attr('data-multi-task-id')));
     })
     .on('click.stEsgMultiTask', '[data-multi-task-action]', function () {
       void handleMultiTaskAction(String($(this).attr('data-multi-task-action')));
@@ -8047,7 +8160,7 @@ function bindPanelEvents() {
     item[fieldName] = String(field.val() ?? '');
     if (settings.messageFloorPanelEnabled) {
       messageFloorPanelState.anchorItems = settings.lastGeneratedAnchorItems.map((entry) => ({ ...entry }));
-      renderMessageFloorPanel({ force: true });
+      refreshMessageFloorPanelAnchorItem(index);
     }
     updateAnchorPlanStatusUi();
     scheduleAnchorEditPersistence();
@@ -8075,13 +8188,13 @@ function bindPanelEvents() {
   $t('#st-esg-ball-size').on('input', function () {
     settings.ballSize = normalizeFloatingBallSize($(this).val());
     $t('#st-esg-ball-size-value').text(`${settings.ballSize}px`);
-    saveSettings();
+    scheduleSettingsSave();
     renderFloatingBall();
   });
   $t('#st-esg-ball-opacity').on('input', function () {
     settings.ballOpacity = normalizeFloatingBallOpacity(Number($(this).val()) / 100);
     $t('#st-esg-ball-opacity-value').text(`${Math.round(settings.ballOpacity * 100)}%`);
-    saveSettings();
+    scheduleSettingsSave();
     renderFloatingBall();
   });
   targetDoc.getElementById('st-esg-ball-animation-enabled')?.addEventListener('change', function () {
@@ -8121,7 +8234,7 @@ function bindPanelEvents() {
   });
   $t('#st-esg-auto-generate-trigger').on('input', function () {
     settings.automaticGenerationTriggerText = String($(this).val() ?? '');
-    saveSettings();
+    scheduleSettingsSave();
   });
   $t('#st-esg-auto-inject').on('change', function () {
     settings.autoInject = Boolean($(this).prop('checked'));
@@ -8140,7 +8253,7 @@ function bindPanelEvents() {
     const parsed = Number(raw);
     if (!Number.isFinite(parsed)) return;
     settings.recentMessageCount = Math.max(1, Math.floor(parsed));
-    saveSettings();
+    scheduleSettingsSave();
   }).on('change blur', function () {
     commitRecentMessageCountInput(this);
   });
@@ -8154,8 +8267,7 @@ function bindPanelEvents() {
   });
   $t('#st-esg-task').on('input', function () {
     settings.taskPrompt = String($(this).val());
-    if (!settings.dirtySchemeTypes.task) markSchemeDirty('task');
-    else saveSettings();
+    markSchemeDirtyDeferred('task');
   });
   $t('[data-output-protocol-mode]').on('click', function (event) {
     event.preventDefault();
@@ -8168,7 +8280,7 @@ function bindPanelEvents() {
   $t('#st-esg-output-protocol-text').on('input', function () {
     const keys = getOutputProtocolSettingKeys();
     settings[keys.text] = String($(this).val() ?? '');
-    saveSettings();
+    scheduleSettingsSave();
   });
   $t('#st-esg-output-protocol-role').on('change', function () {
     const keys = getOutputProtocolSettingKeys();
@@ -8189,7 +8301,7 @@ function bindPanelEvents() {
     if (settings.generationMode === 'multi') {
       const task = getActiveMultiTask();
       if (task) replaceMultiTask(task.id, { extraInstruction: temporaryTaskInstruction });
-      saveSettings();
+      scheduleSettingsSave();
     }
   });
   $t('#st-esg-clear-temporary-task-instruction').on('click', function (event) {
@@ -8256,7 +8368,6 @@ function bindPanelEvents() {
     if (settings.generationMode === 'multi') {
       const task = getActiveMultiTask();
       if (task) replaceMultiTask(task.id, { output: settings.lastGenerated });
-      saveSettings();
     }
     resizeGeneratedPreview();
     renderAnchorInsertionPlan([], []);
@@ -8264,11 +8375,10 @@ function bindPanelEvents() {
       messageFloorPanelState.resultMode = 'standard';
       messageFloorPanelState.output = settings.lastGenerated;
       messageFloorPanelState.anchorItems = [];
-      renderMessageFloorPanel({ force: true });
+      refreshMessageFloorPanelStreamContent();
     }
-    saveSettings();
   });
-  $t('#st-esg-api-url').on('input', function () { settings.apiUrl = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
+  $t('#st-esg-api-url').on('input', function () { settings.apiUrl = String($(this).val()); markSchemeDirtyDeferred('api'); });
   $t('.st-esg-api-tab').on('click', function () {
     settings.apiMode = String($(this).data('api-mode') || 'custom');
     settings.useMainApi = false;
@@ -8283,8 +8393,8 @@ function bindPanelEvents() {
     setStatus(settings.tavernProfile ? '已选择酒馆预设' : '已取消选择酒馆预设');
   });
   $t('#st-esg-refresh-tavern-profiles').on('click', function () { refreshTavernProfiles(); });
-  $t('#st-esg-api-key').on('input', function () { settings.apiKey = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
-  $t('#st-esg-api-model').on('input', function () { settings.apiModel = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
+  $t('#st-esg-api-key').on('input', function () { settings.apiKey = String($(this).val()); markSchemeDirtyDeferred('api'); });
+  $t('#st-esg-api-model').on('input', function () { settings.apiModel = String($(this).val()); markSchemeDirtyDeferred('api'); });
   $t('#st-esg-api-model-picker').on('change', function () {
     const selected = String($(this).val() || '');
     if (selected === '__manual__') {
@@ -8297,10 +8407,10 @@ function bindPanelEvents() {
     markSchemeDirty('api');
     saveSettings();
   });
-  $t('#st-esg-max-tokens').on('input', function () { settings.maxTokens = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
-  $t('#st-esg-temperature').on('input', function () { settings.temperature = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
+  $t('#st-esg-max-tokens').on('input', function () { settings.maxTokens = String($(this).val()); markSchemeDirtyDeferred('api'); });
+  $t('#st-esg-temperature').on('input', function () { settings.temperature = String($(this).val()); markSchemeDirtyDeferred('api'); });
   $t('#st-esg-streaming-enabled').on('change', function () { settings.streamingEnabled = Boolean($(this).prop('checked')); markSchemeDirty('api'); saveSettings(); });
-  $t('#st-esg-api-retry-count').on('input', function () { settings.apiRetryCount = String($(this).val()); markSchemeDirty('api'); saveSettings(); });
+  $t('#st-esg-api-retry-count').on('input', function () { settings.apiRetryCount = String($(this).val()); markSchemeDirtyDeferred('api'); });
   $t('#st-esg-api-retry-count').on('change blur', function () { settings.apiRetryCount = normalizeApiRetryCount($(this).val()); $(this).val(settings.apiRetryCount); markSchemeDirty('api'); saveSettings(); });
   $t('#st-esg-prompt-template-compat').on('change', function () { settings.promptTemplateCompatEnabled = Boolean($(this).prop('checked')); saveSettings(); });
   $t('#st-esg-inject-mode').on('change', function () { settings.injectMode = String($(this).val()); saveSettings(); renderGenerationSettings(); });

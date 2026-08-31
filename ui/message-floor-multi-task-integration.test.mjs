@@ -23,3 +23,35 @@ test('multi-task stream updates the floor panel without replacing its expanded s
   assert.match(indexSource, /updateMultiTaskStream[\s\S]*updateMessageFloorPanelMultiTaskStream\(taskId/);
   assert.match(indexSource, /thinkingWasOpen[\s\S]*\.st-esg-floor-thinking[\s\S]*\.open = true/);
 });
+
+test('editing generated text synchronizes the existing floor field without rebuilding the panel', () => {
+  const previewInputSource = indexSource.slice(
+    indexSource.indexOf("$t('#st-esg-preview').on('input'"),
+    indexSource.indexOf("$t('#st-esg-api-url').on('input'"),
+  );
+
+  assert.match(previewInputSource, /refreshMessageFloorPanelStreamContent\(\)/);
+  assert.doesNotMatch(previewInputSource, /renderMessageFloorPanel\(\{ force: true \}\)/);
+  assert.equal((previewInputSource.match(/saveSettings\(\)/g) || []).length, 0);
+});
+
+test('editing an anchor synchronizes only the matching floor card without rebuilding the panel', () => {
+  const anchorInputSource = indexSource.slice(
+    indexSource.indexOf("off('input.stEsgAnchor change.stEsgAnchor')"),
+    indexSource.indexOf("$t('.st-esg-scheme-select').on('change'"),
+  );
+
+  assert.match(indexSource, /function refreshMessageFloorPanelAnchorItem\(index\)/);
+  assert.match(anchorInputSource, /refreshMessageFloorPanelAnchorItem\(index\)/);
+  assert.doesNotMatch(anchorInputSource, /renderMessageFloorPanel\(\{ force: true \}\)/);
+});
+
+test('editing a floor result does not persist transient output on every keystroke', () => {
+  const floorInputSource = indexSource.slice(
+    indexSource.indexOf("panel.addEventListener('input'"),
+    indexSource.indexOf("panel.addEventListener('click'", indexSource.indexOf("panel.addEventListener('input'")),
+  );
+
+  assert.doesNotMatch(floorInputSource, /saveSettings\(\)/);
+  assert.match(floorInputSource, /scheduleAnchorEditPersistence\(\)/);
+});

@@ -54,9 +54,98 @@ test('multi-task startup batches synchronous queue transitions into one frame re
 
   assert.match(schedulerSource, /multiTaskFrameworkRenderScheduled/);
   assert.match(schedulerSource, /requestAnimationFrame/);
-  assert.match(schedulerSource, /saveSettings\(\);[\s\S]{0,100}renderMultiTaskFramework\(\)/);
+  assert.match(schedulerSource, /renderMultiTaskRuntimeState\(\)/);
+  assert.doesNotMatch(schedulerSource, /saveSettings\(\)|renderMultiTaskFramework\(\)/);
   assert.match(transitionSource, /scheduleMultiTaskFrameworkRender\(\)/);
   assert.doesNotMatch(transitionSource, /saveSettings\(\);[\s\S]{0,100}renderMultiTaskFramework\(\)/);
+});
+
+test('task switching updates only task views and persists the active id without a full framework render', () => {
+  const selectionSource = indexSource.slice(
+    indexSource.indexOf('function renderActiveMultiTaskViews'),
+    indexSource.indexOf('function scheduleMultiTaskFrameworkRender'),
+  );
+  const floorTabSource = indexSource.slice(
+    indexSource.indexOf("const multiTaskTab = event.target.closest('[data-multi-task-id]')"),
+    indexSource.indexOf("const actionButton = event.target.closest('[data-floor-action]')"),
+  );
+  const workspaceTabSource = indexSource.slice(
+    indexSource.indexOf(".on('click.stEsgMultiTask', '[data-multi-task-id]'"),
+    indexSource.indexOf(".on('click.stEsgMultiTask', '[data-multi-task-action]'"),
+  );
+
+  assert.match(selectionSource, /persistActiveMultiTaskSelection\(\)/);
+  assert.match(selectionSource, /renderActiveMultiTaskViews\(\)/);
+  assert.match(selectionSource, /syncMessageFloorPanelTaskSelection\(\)/);
+  assert.doesNotMatch(selectionSource, /saveSettings\(\)|renderMultiTaskFramework\(\)/);
+  assert.match(floorTabSource, /selectActiveMultiTaskView/);
+  assert.doesNotMatch(floorTabSource, /saveSettings\(\)|renderMultiTaskFramework\(\)/);
+  assert.match(workspaceTabSource, /selectActiveMultiTaskView/);
+  assert.doesNotMatch(workspaceTabSource, /saveSettings\(\)|renderMultiTaskFramework\(\)/);
+});
+
+test('hydrating a task result does not render anchors or resize the preview twice', () => {
+  const applySource = indexSource.slice(
+    indexSource.indexOf('function applyGenerationWorkspaceView'),
+    indexSource.indexOf('function captureActiveMultiTaskView'),
+  );
+
+  assert.match(applySource, /renderGenerationResultPanel\(\)/);
+  assert.doesNotMatch(applySource, /renderAnchorInsertionPlan\(/);
+  assert.doesNotMatch(applySource, /resizeGeneratedPreview\(\)/);
+});
+
+test('transient multi-task actions use runtime refreshes instead of saving and rebuilding the framework', () => {
+  const cancelSource = indexSource.slice(
+    indexSource.indexOf('function cancelMultiTaskGeneration'),
+    indexSource.indexOf('function getMultiTaskSchemeLists'),
+  );
+  const injectSource = indexSource.slice(
+    indexSource.indexOf('async function injectMultiTasks'),
+    indexSource.indexOf('async function undoMultiTaskInjections'),
+  );
+  const undoSource = indexSource.slice(
+    indexSource.indexOf('async function undoMultiTaskInjections'),
+    indexSource.indexOf('function getNextMultiTaskName'),
+  );
+
+  for (const source of [cancelSource, injectSource, undoSource]) {
+    assert.match(source, /renderMultiTaskRuntimeState\(\)/);
+    assert.doesNotMatch(source, /saveSettings\(\)|renderMultiTaskFramework\(\)/);
+  }
+});
+
+test('high-frequency text inputs defer expensive full settings persistence', () => {
+  assert.match(indexSource, /function scheduleSettingsSave\(\)/);
+  for (const [start, end] of [
+    ["$t('#st-esg-auto-generate-trigger').on('input'", "$t('#st-esg-auto-inject').on('change'"],
+    ["$t('#st-esg-output-protocol-text').on('input'", "$t('#st-esg-output-protocol-role').on('change'"],
+    ["$t('#st-esg-temporary-task-instruction').on('input'", "$t('#st-esg-clear-temporary-task-instruction').on('click'"],
+    ["$t('#st-esg-api-key').on('input'", "$t('#st-esg-api-model-picker').on('change'"],
+    ["$t('#st-esg-ball-size').on('input'", "$t('#st-esg-ball-opacity').on('input'"],
+    ["$t('#st-esg-ball-opacity').on('input'", "targetDoc.getElementById('st-esg-ball-animation-enabled')"],
+  ]) {
+    const source = indexSource.slice(indexSource.indexOf(start), indexSource.indexOf(end));
+    assert.match(source, /scheduleSettingsSave\(\)|markSchemeDirtyDeferred\('api'\)/);
+    assert.doesNotMatch(source, /saveSettings\(\)/);
+  }
+});
+
+test('large component and theater searches batch DOM filtering to one animation frame', () => {
+  assert.match(indexSource, /function scheduleComponentListFilters\(\)/);
+  assert.match(indexSource, /function scheduleTheaterLibraryFilters\(\)/);
+  const componentSearch = indexSource.slice(
+    indexSource.indexOf("list.find('.st-esg-component-search-input').on('input'"),
+    indexSource.indexOf("list.find('.st-esg-component-filter-select').on('change'"),
+  );
+  const theaterSearch = indexSource.slice(
+    indexSource.indexOf("host.find('.st-esg-theater-search-input').on('input'"),
+    indexSource.indexOf("host.find('.st-esg-theater-filter-select').on('change'"),
+  );
+  assert.match(componentSearch, /scheduleComponentListFilters\(\)/);
+  assert.doesNotMatch(componentSearch, /applyComponentListFilters\(\)/);
+  assert.match(theaterSearch, /scheduleTheaterLibraryFilters\(\)/);
+  assert.doesNotMatch(theaterSearch, /applyTheaterLibraryFilters\(\)/);
 });
 
 test('generation history is a shared five-entry dialog instead of a workspace card', () => {
