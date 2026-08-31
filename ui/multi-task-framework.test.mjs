@@ -5,6 +5,7 @@ import { createDefaultSettings } from '../settings/default-settings.js';
 
 const indexSource = await readFile(new URL('../index.js', import.meta.url), 'utf8');
 const controllerSource = await readFile(new URL('../generation/multi-task-controller.js', import.meta.url), 'utf8');
+const workspaceControllerSource = await readFile(new URL('./multi-task-workspace-controller.js', import.meta.url), 'utf8');
 const settingsDialogSource = await readFile(new URL('./multi-task-settings-dialog.js', import.meta.url), 'utf8');
 const taskControllerSource = await readFile(new URL('../generation/multi-task-task-controller.js', import.meta.url), 'utf8');
 
@@ -24,7 +25,7 @@ test('workspace keeps the original generation DOM mounted and adds only multi-ta
   assert.match(indexSource, /st-esg-temporary-task-instruction/);
   assert.match(indexSource, /st-esg-preview/);
   assert.doesNotMatch(indexSource, /toggleAttribute\('disabled', mode === 'multi'\)/);
-  assert.match(indexSource, /generate\?\.toggleAttribute\('disabled', !hasTasks\)/);
+  assert.match(workspaceControllerSource, /generate\?\.toggleAttribute\('disabled', !hasTasks\)/);
   assert.match(indexSource, /renderMultiTaskFramework/);
 });
 
@@ -48,27 +49,27 @@ test('switching to single mode restores an empty single workspace when no snapsh
 });
 
 test('multi-task startup batches synchronous queue transitions into one frame render', () => {
-  const schedulerSource = indexSource.slice(
-    indexSource.indexOf('function scheduleMultiTaskFrameworkRender'),
-    indexSource.indexOf('function renderMultiTaskFramework'),
+  const schedulerSource = workspaceControllerSource.slice(
+    workspaceControllerSource.indexOf('function scheduleRender'),
+    workspaceControllerSource.indexOf('return {'),
   );
   const transitionSource = controllerSource.slice(
     controllerSource.indexOf('onTransition: ({ taskId'),
     controllerSource.indexOf('execute: async (entry)'),
   );
 
-  assert.match(schedulerSource, /multiTaskFrameworkRenderScheduled/);
-  assert.match(schedulerSource, /requestAnimationFrame/);
-  assert.match(schedulerSource, /renderMultiTaskRuntimeState\(\)/);
+  assert.match(schedulerSource, /renderScheduled/);
+  assert.match(schedulerSource, /requestFrame/);
+  assert.match(schedulerSource, /renderRuntimeState\(\)/);
   assert.doesNotMatch(schedulerSource, /saveSettings\(\)|renderMultiTaskFramework\(\)/);
   assert.match(transitionSource, /scheduleRender\(\)/);
   assert.doesNotMatch(transitionSource, /saveSettings\(\);[\s\S]{0,100}renderMultiTaskFramework\(\)/);
 });
 
 test('task switching updates only task views and persists the active id without a full framework render', () => {
-  const selectionSource = indexSource.slice(
-    indexSource.indexOf('function renderActiveMultiTaskViews'),
-    indexSource.indexOf('function updateMultiTaskActionState'),
+  const selectionSource = workspaceControllerSource.slice(
+    workspaceControllerSource.indexOf('function defaultRenderActiveViews'),
+    workspaceControllerSource.indexOf('function updateActionState'),
   );
   const floorTabSource = indexSource.slice(
     indexSource.indexOf("const multiTaskTab = event.target.closest('[data-multi-task-id]')"),
@@ -79,9 +80,9 @@ test('task switching updates only task views and persists the active id without 
     indexSource.indexOf(".on('click.stEsgMultiTask', '[data-multi-task-action]'"),
   );
 
-  assert.match(selectionSource, /persistActiveMultiTaskSelection\(\)/);
-  assert.match(selectionSource, /renderActiveMultiTaskViews\(\)/);
-  assert.match(selectionSource, /syncMessageFloorPanelTaskSelection\(\)/);
+  assert.match(selectionSource, /persistActiveTaskSelection\(\)/);
+  assert.match(selectionSource, /renderActiveViews\(\)/);
+  assert.match(selectionSource, /syncFloorSelection\(\)/);
   assert.doesNotMatch(selectionSource, /saveSettings\(\)|renderMultiTaskFramework\(\)/);
   assert.match(floorTabSource, /selectActiveMultiTaskView/);
   assert.doesNotMatch(floorTabSource, /saveSettings\(\)|renderMultiTaskFramework\(\)/);
