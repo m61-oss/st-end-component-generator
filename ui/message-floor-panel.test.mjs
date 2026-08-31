@@ -14,9 +14,9 @@ import {
   isFloorPanelTargetCurrent,
   canEditFloorPanelResult,
   createMultiTaskFloorPanelView,
+  scopeMultiTaskFloorPanelSettings,
   nextFloorPanelGeneration,
 } from './message-floor-panel.js';
-import { scopeMultiTaskFloorPanelSettings } from '../generation/multi-task-floor-state.js';
 
 test('multi-task floor keeps every task capsule but clears results from other floors', () => {
   const scoped = scopeMultiTaskFloorPanelSettings({

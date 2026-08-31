@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { createDefaultSettings } from '../settings/default-settings.js';
 
 const indexSource = await readFile(new URL('../index.js', import.meta.url), 'utf8');
 const styleSource = await readFile(new URL('../style.css', import.meta.url), 'utf8');
@@ -57,9 +56,8 @@ test('does not leave a duplicate testing title inside the disclosure', () => {
 });
 
 test('defaults and migrates both output protocol roles to assistant once', () => {
-  const defaults = createDefaultSettings();
-  assert.equal(defaults.standardOutputProtocolRole, 'assistant');
-  assert.equal(defaults.anchorOutputProtocolRole, 'assistant');
+  assert.match(indexSource, /standardOutputProtocolRole:\s*'assistant'/);
+  assert.match(indexSource, /anchorOutputProtocolRole:\s*'assistant'/);
   assert.match(indexSource, /outputProtocolAssistantDefaultApplied/);
   assert.match(indexSource, /settings\.standardOutputProtocolRole = 'assistant'/);
   assert.match(indexSource, /settings\.anchorOutputProtocolRole = 'assistant'/);

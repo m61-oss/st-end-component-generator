@@ -24,13 +24,14 @@ import { applyComponentPositionMove } from './sources/component-order.js?ver=0.2
 import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.2.2';
 import { containsStatusPlaceholder, injectStatusbarText, normalizeStatusPlaceholder, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.2.2';
 import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.2.2';
+import { applyMultiTaskInjection, undoMultiTaskInjection } from './injection/multi-task-injection.js?ver=0.2.2';
 import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics, stripInternalMessageFields } from './generation/prompt-builder.js?ver=0.2.2';
 import { ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, OUTPUT_PROTOCOL_SYSTEM_PROMPT } from './generation/output-protocol.js?ver=0.2.2';
 import { normalizeGeneratedResult } from './generation/output-result.js?ver=0.2.2';
 import { applyAnchorInsertions, buildAnchorPreviewSegments, isAnchorInsertionEnabled, locateAnchorInsertions } from './injection/anchor-insertion.js?ver=0.2.2';
 import { normalizeStreamOutputPreview } from './generation/stream-output-preview.js?ver=0.2.2';
 import { composeTaskInstruction } from './generation/task-instruction.js?ver=0.2.2';
-import { CHAT_HISTORY_RANGE_RECENT, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.2.2';
+import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.2.2';
 import { renderPromptTemplate } from './generation/template-compat.js?ver=0.2.2';
 import { replaceTavernHelperMacrosInMessages } from './generation/tavern-helper-macros.js?ver=0.2.2';
 import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.2.2';
@@ -66,6 +67,7 @@ import {
   isFloorPanelGenerationCurrent,
   isFloorPanelTargetAddressable,
   nextFloorPanelGeneration,
+  scopeMultiTaskFloorPanelSettings,
 } from './ui/message-floor-panel.js?ver=0.2.2';
 import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.2.2';
 import { loadGenerationHistory, recordGenerationResult, updateGenerationHistoryEntry } from './generation/generation-history.js?ver=0.2.2';
@@ -79,8 +81,10 @@ import {
   renameMultiTask,
   selectMultiTask,
 } from './generation/multi-task-state.js?ver=0.2.2';
-import { planMultiTaskFloorActions, scopeMultiTaskFloorPanelSettings } from './generation/multi-task-floor-state.js?ver=0.2.2';
-import { createMultiTaskController } from './generation/multi-task-controller.js?ver=0.2.2';
+import { createMultiTaskRunPlan, runMultiTaskQueue } from './generation/multi-task-runner.js?ver=0.2.2';
+import { createMultiTaskInjectionQueue } from './generation/multi-task-injection-queue.js?ver=0.2.2';
+import { canEnqueueTaskAutoInjection, createTaskOrderInjectionCoordinator } from './generation/multi-task-auto-injection.js?ver=0.2.2';
+import { resolveMultiTaskRuntimeSettings } from './generation/multi-task-runtime.js?ver=0.2.2';
 import { renderGenerationModeSwitch, renderMultiTaskWorkspace } from './ui/multi-task-workspace.js?ver=0.2.2';
 import {
   THEATER_DEFAULT_GROUP_ID,
@@ -126,7 +130,7 @@ import {
   markWorldbookSourceDirty,
   takeDirtyWorldbookSources,
 } from './sources/prompt-source-cache.js?ver=0.2.2';
-import { resolveTaskPlacementSelection } from './settings/task-placement.js?ver=0.2.2';
+import { TASK_PLACEMENT_AFTER_CHAT_HISTORY, resolveTaskPlacementSelection } from './settings/task-placement.js?ver=0.2.2';
 import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.2.2';
 import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.2.2';
 import {
@@ -151,8 +155,6 @@ import {
 } from './settings/chat-worldbook-binding.js?ver=0.2.2';
 import { buildDataManagementModel, clearSettingsDataCategory, formatByteSize } from './settings/data-management.js?ver=0.2.2';
 import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCleanupImport } from './settings/tag-cleanup-transfer.js?ver=0.2.2';
-import { createPersistedMultiTaskSettings, removeTransientGenerationSettings, resetTransientGenerationState } from './settings/runtime-persistence.js?ver=0.2.2';
-import { MAX_OUTPUT_TOKENS, SOURCE_MODE_IMPORT, SOURCE_MODE_PROMPT, createDefaultSettings } from './settings/default-settings.js?ver=0.2.2';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.2.2';
@@ -160,9 +162,23 @@ const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置组件生成器';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
 const GENERATION_HISTORY_STORAGE_KEY = `${EXTENSION_ID}.recentGenerationHistory`;
+// 生成页当前结果只属于本次页面运行会话；跨刷新查看应使用最近生成记录。
+const TRANSIENT_GENERATION_SETTING_KEYS = Object.freeze([
+  'lastGenerated',
+  'lastGeneratedAnchorItems',
+  'lastGeneratedAnchorWarnings',
+  'lastGeneratedResultMode',
+  'lastGeneratedAnchorTargetIndex',
+  'lastGeneratedStatusPlaceholderPresent',
+  'lastGeneratedThinking',
+  'lastGenerationError',
+]);
+const SOURCE_MODE_PROMPT = 'prompt';
+const SOURCE_MODE_IMPORT = 'import';
 const WORLD_BOOK_FOLLOW_TAVERN = '__follow_tavern__';
 const DEFAULT_COMPONENT_GROUP_VALUE = '__default_group__';
 const ANIMA_WORLD_BOOK_CAPTURE_RETRY_DELAY_MS = 100;
+const MAX_OUTPUT_TOKENS = 65535;
 const FLOATING_BALL_MIN_SIZE = 28;
 const FLOATING_BALL_MAX_SIZE = 72;
 const FLOATING_BALL_MIN_OPACITY = 0.2;
@@ -178,7 +194,121 @@ const WORLDBOOK_CATEGORY_ORDER = [
   ['inactive', '未启用世界书'],
 ];
 
-const DEFAULT_SETTINGS = createDefaultSettings();
+const DEFAULT_SETTINGS = {
+  enabled: false,
+  mode: 'manual',
+  autoGenerate: null,
+  automaticGenerationTriggerText: '',
+  autoInject: null,
+  activeTab: 'workspace',
+  generationMode: 'single',
+  multiTaskSettings: { concurrency: 1, injectionIntervalSeconds: 1, injectionOrder: 'completion', activeTaskId: '', tasks: [] },
+  taskPrompt: [
+    '现在停止生成正文，为最新的正文补充下面这些内容。',
+    '{{external_components}}',
+    '上方为需要补充的内容，现在开始输出思考过程并按规则和格式输出需要补充的内容，禁止额外生成正文。',
+  ].join('\n'),
+  standardOutputProtocol: OUTPUT_PROTOCOL_SYSTEM_PROMPT,
+  standardOutputProtocolRole: 'assistant',
+  anchorOutputProtocol: ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT,
+  anchorOutputProtocolRole: 'assistant',
+  outputProtocolAssistantDefaultApplied: false,
+  apiUrl: '',
+  apiKey: '',
+  apiModel: '',
+  apiMode: 'custom',
+  useMainApi: false,
+  tavernProfile: '',
+  apiModelOptions: [],
+  maxTokens: String(MAX_OUTPUT_TOKENS),
+  temperature: '1',
+  additionalBodyYaml: '',
+  excludedBodyYaml: '',
+  additionalHeadersYaml: '',
+  streamingEnabled: false,
+  apiRetryCount: 0,
+  promptTemplateCompatEnabled: false,
+  injectMode: 'replace',
+  rollbackBeforeGeneration: false,
+  statusPlaceholderEnabled: false,
+  mvuReprocessOnInject: true,
+  historyCleanupTags: '',
+  historyCleanupRules: [],
+  historyRangeMode: CHAT_HISTORY_RANGE_VISIBLE,
+  recentMessageCount: 10,
+  outputCleanupTags: '',
+  lastGenerated: '',
+  lastGeneratedAnchorItems: [],
+  lastGeneratedAnchorWarnings: [],
+  lastGeneratedResultMode: 'standard',
+  lastGeneratedAnchorTargetIndex: null,
+  lastGeneratedStatusPlaceholderPresent: false,
+  lastGeneratedThinking: [],
+  lastGenerationError: null,
+  lastPromptLog: '',
+  compressSystemMessages: false,
+  taskPlacementEnabled: true,
+  taskPlacementAfterSourceId: TASK_PLACEMENT_AFTER_CHAT_HISTORY,
+  replaceLastUserMessageWithTask: true,
+  omitOriginalUserMessages: false,
+  baiBaiBookHistoryEnabled: false,
+  baiBaiBookStateEnabled: false,
+  memorySource: 'none',
+  combinedMemorySourcesMigrated: false,
+  animaWorldbookEnabled: false,
+  animaStatusVariableEnabled: false,
+  animaStatusAfterMessageEnabled: false,
+  ballX: null,
+  ballY: null,
+  ballPositionVersion: 2,
+  ballVisible: false,
+  ballSize: 38,
+  ballOpacity: 0.82,
+  ballAnimationEnabled: true,
+  ballSnapEnabled: false,
+  ballDock: 'none',
+  qrGenerateEnabled: false,
+  qrInjectEnabled: false,
+  messageFloorPanelEnabled: true,
+  messageFloorPanelDefaultApplied: false,
+  theme: 'dark',
+  activeSourcePreset: '',
+  sourceMode: SOURCE_MODE_PROMPT,
+  sourceModes: { preset: SOURCE_MODE_PROMPT, worldbook: SOURCE_MODE_PROMPT },
+  promptSelections: {},
+  importSelections: {},
+  sourceContentOverrides: {},
+  worldbookActivationOverrides: {},
+  worldbookKeywordOverrides: {},
+  worldbookInitialized: false,
+  worldbookDraftSources: [],
+  apiSchemes: [],
+  taskSchemes: [],
+  presetSchemes: [],
+  worldbookSchemes: [],
+  componentSchemes: [],
+  chatWorldbookBindings: [],
+  selectedApiSchemeId: '',
+  selectedTaskSchemeId: '',
+  selectedPresetSchemeId: '',
+  selectedWorldbookSchemeId: '',
+  selectedComponentSchemeId: '',
+  activeSchemeIds: {},
+  dirtySchemeTypes: {},
+  components: [],
+  componentGroups: [],
+  defaultGroupEnabled: {},
+  componentGroupsMigrated: false,
+  theaterComponents: [],
+  theaterGroups: [],
+  theaterDefaultGroupEnabled: true,
+  theaterRandomScope: THEATER_RANDOM_SCOPE_GLOBAL,
+  theaterRandomMode: THEATER_RANDOM_MODE_OFF,
+  theaterRandomCount: 1,
+  theaterGroupedFallbackMode: THEATER_RANDOM_MODE_OFF,
+  theaterGroupedFallbackCount: 1,
+  theaterGroupRandomOverrides: [],
+};
 
 const targetWindow = (() => {
   try { return window.parent?.document?.body ? window.parent : window; } catch (_) { return window; }
@@ -192,6 +322,12 @@ let importGroups = [];
 const promptSourceCache = createPromptSourceCacheState();
 let activeWorldbookGroupIndex = null;
 let generationAbortController = null;
+const multiTaskAbortControllers = new Map();
+const activeMultiTaskRunIds = new Set();
+const multiTaskInjectionQueue = createMultiTaskInjectionQueue({
+  execute: ({ taskId, silent, expectedRunId }) => injectMultiTaskBatchNow([taskId], { silent, expectedRunId }),
+  wait: (milliseconds) => new Promise((resolve) => targetWindow.setTimeout(resolve, milliseconds)),
+});
 let floatingBallVisualState = 'idle';
 let activeAutomaticTarget = null;
 let automaticGenerationRevision = 0;
@@ -254,46 +390,6 @@ const $t = (selectorOrHtml) => $(selectorOrHtml, targetDoc);
 const textOf = (value) => String(value ?? '').trim();
 const escapeHtml = (value) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-
-const multiTaskController = createMultiTaskController({
-  getSettings: () => settings,
-  setMultiTaskSettings: (next) => { settings.multiTaskSettings = next; },
-  getContext,
-  getLatestAssistantMessage,
-  getAssistantMessageAtIndex,
-  getCurrentChatId: getCurrentChatIdSafe,
-  callExternalApi,
-  captureActiveView: captureActiveMultiTaskView,
-  renderRuntimeState: renderMultiTaskRuntimeState,
-  scheduleRender: scheduleMultiTaskFrameworkRender,
-  updateFloorStream: updateMessageFloorPanelMultiTaskStream,
-  updateActiveStream: (taskId, streamed, state) => {
-    if (state.activeTaskId !== taskId || settings.generationMode !== 'multi') return;
-    const preview = targetDoc.getElementById('st-esg-preview');
-    if (preview) preview.value = streamed.text;
-    lastGeneratedThinking = streamed.thinking ? [streamed.thinking] : [];
-    settings.lastGeneratedThinking = [...lastGeneratedThinking];
-    updateStreamedThinking(streamed.thinking);
-    resizeGeneratedPreview();
-  },
-  notify: notifyStatus,
-  recordHistoryView: renderGenerationHistory,
-  getHistoryStorage: getGenerationHistoryStorage,
-  historyStorageKey: GENERATION_HISTORY_STORAGE_KEY,
-  setRecentHistory: (history) => { recentGenerationHistory = history; },
-  containsMvuUpdateVariable,
-  reprocessMvuVariables,
-  confirm: (message) => targetWindow.confirm(message),
-  wait: (milliseconds) => new Promise((resolve) => targetWindow.setTimeout(resolve, milliseconds)),
-  textOf,
-});
-const {
-  replaceTask: replaceMultiTask,
-  cancelGeneration: cancelMultiTaskGeneration,
-  generate: generateMultiTasks,
-  inject: injectMultiTasks,
-  undo: undoMultiTaskInjections,
-} = multiTaskController;
 
 const VISIBLE_GENERATION_LOG_STAGES = new Set([
   'api-start',
@@ -507,6 +603,27 @@ function getSettingsStore() {
   const context = getContext();
   context.extensionSettings[EXTENSION_ID] ??= {};
   return context.extensionSettings[EXTENSION_ID];
+}
+
+function resetTransientGenerationState(target) {
+  target.lastGenerated = '';
+  target.lastGeneratedAnchorItems = [];
+  target.lastGeneratedAnchorWarnings = [];
+  target.lastGeneratedResultMode = 'standard';
+  target.lastGeneratedAnchorTargetIndex = null;
+  target.lastGeneratedStatusPlaceholderPresent = false;
+  target.lastGeneratedThinking = [];
+  target.lastGenerationError = null;
+}
+
+function removeTransientGenerationSettings(store) {
+  let changed = false;
+  for (const key of TRANSIENT_GENERATION_SETTING_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(store, key)) continue;
+    delete store[key];
+    changed = true;
+  }
+  return changed;
 }
 
 function loadSettings() {
@@ -766,7 +883,25 @@ function saveSettings() {
   const store = getSettingsStore();
   Object.assign(store, settings);
   removeTransientGenerationSettings(store);
-  store.multiTaskSettings = createPersistedMultiTaskSettings(settings.multiTaskSettings);
+  const multiTaskState = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  store.multiTaskSettings = {
+    concurrency: multiTaskState.concurrency,
+    injectionIntervalSeconds: multiTaskState.injectionIntervalSeconds,
+    injectionOrder: multiTaskState.injectionOrder,
+    activeTaskId: multiTaskState.activeTaskId,
+    tasks: multiTaskState.tasks.map((task) => ({
+      id: task.id,
+      name: task.name,
+      apiSchemeId: task.apiSchemeId,
+      taskSchemeId: task.taskSchemeId,
+      presetSchemeId: task.presetSchemeId,
+      worldbookSchemeId: task.worldbookSchemeId,
+      componentSchemeId: task.componentSchemeId,
+      injectMode: task.injectMode,
+      extraInstruction: task.extraInstruction,
+      status: MULTI_TASK_STATUS.IDLE,
+    })),
+  };
   try {
     targetWindow.localStorage?.setItem(PROMPT_TEMPLATE_COMPAT_STORAGE_KEY, String(Boolean(settings.promptTemplateCompatEnabled)));
   } catch (_) {}
@@ -1352,16 +1487,28 @@ async function runMessageFloorPanelAction(action) {
     const latest = getMessageFloorPanelActionTarget();
     if (!latest) return;
     const allTasks = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks;
+    const allTaskIds = allTasks.map((task) => task.id);
     const scoped = scopeMultiTaskFloorPanelSettings({ ...settings.multiTaskSettings, tasks: allTasks }, messageFloorPanelState.target);
-    const floorActions = planMultiTaskFloorActions({ allTasks, floorTasks: scoped.tasks });
+    const floorInjectTaskIds = scoped.tasks
+      .filter((task) => [MULTI_TASK_STATUS.READY, MULTI_TASK_STATUS.UNDONE].includes(task.status))
+      .filter((task) => String(task.output || '').trim() || task.anchorItems?.length)
+      .map((task) => task.id);
+    const floorUndoTaskIds = scoped.tasks.filter((task) => task.injectionRecord).map((task) => task.id);
     if (action === 'stop') {
-      cancelMultiTaskGeneration(floorActions.runningTaskIds);
+      const runningTaskIds = scoped.tasks
+        .filter((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
+        .map((task) => task.id);
+      cancelMultiTaskGeneration(runningTaskIds);
       return;
     }
-    if (action === 'generate') await generateMultiTasks(floorActions.generateTaskIds);
-    else if (action === 'retry') await generateMultiTasks(floorActions.retryTaskIds);
-    else if (action === 'inject') await injectMultiTasks(floorActions.injectTaskIds);
-    else if (action === 'undo') await undoMultiTaskInjections(floorActions.undoTaskIds, { requireConfirmation: true });
+    if (action === 'generate') await generateMultiTasks(allTaskIds);
+    else if (action === 'retry') {
+      const failedTaskIds = scoped.tasks
+        .filter((task) => task.status === MULTI_TASK_STATUS.ERROR)
+        .map((task) => task.id);
+      await generateMultiTasks(failedTaskIds);
+    } else if (action === 'inject') await injectMultiTasks(floorInjectTaskIds);
+    else if (action === 'undo') await undoMultiTaskInjections(floorUndoTaskIds, { requireConfirmation: true });
     return;
   }
   if (action === 'stop') {
@@ -6819,8 +6966,408 @@ function showGenerationHistoryDialog() {
   renderGenerationHistory();
 }
 
+function replaceMultiTask(taskId, patch) {
+  const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  settings.multiTaskSettings = {
+    ...state,
+    tasks: state.tasks.map((task) => (task.id === taskId ? { ...task, ...patch } : task)),
+  };
+}
 
+function cancelMultiTaskGeneration(taskIds = null) {
+  const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  const requestedIds = Array.isArray(taskIds) ? new Set(taskIds.map(textOf).filter(Boolean)) : null;
+  const cancellable = new Set([MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING]);
+  let changed = false;
+  settings.multiTaskSettings = {
+    ...state,
+    tasks: state.tasks.map((task) => {
+      if ((requestedIds && !requestedIds.has(task.id)) || !cancellable.has(task.status)) return task;
+      multiTaskAbortControllers.get(task.id)?.abort();
+      multiTaskAbortControllers.delete(task.id);
+      changed = true;
+      return {
+        ...task,
+        runId: '',
+        status: task.output || task.anchorItems.length ? MULTI_TASK_STATUS.READY : MULTI_TASK_STATUS.IDLE,
+      };
+    }),
+  };
+  if (changed) renderMultiTaskRuntimeState();
+  return changed;
+}
 
+function getMultiTaskSchemeLists() {
+  return {
+    apiSchemes: settings.apiSchemes,
+    presetSchemes: settings.presetSchemes,
+    worldbookSchemes: settings.worldbookSchemes,
+    componentSchemes: settings.componentSchemes,
+  };
+}
+
+function serializeMultiTaskError(error) {
+  return {
+    message: textOf(error?.message) || '生成失败。',
+    code: textOf(error?.code),
+  };
+}
+
+function updateMultiTaskStream(taskId, text, runId) {
+  const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  const task = state.tasks.find((item) => item.id === taskId);
+  if (!task || task.runId !== runId) return;
+  const streamed = normalizeStreamOutputPreview(text);
+  replaceMultiTask(taskId, {
+    output: streamed.text,
+    thinking: streamed.thinking ? [streamed.thinking] : [],
+    error: null,
+  });
+  updateMessageFloorPanelMultiTaskStream(taskId);
+  if (state.activeTaskId !== taskId || settings.generationMode !== 'multi') return;
+  const preview = targetDoc.getElementById('st-esg-preview');
+  if (preview) preview.value = streamed.text;
+  lastGeneratedThinking = streamed.thinking ? [streamed.thinking] : [];
+  settings.lastGeneratedThinking = [...lastGeneratedThinking];
+  updateStreamedThinking(streamed.thinking);
+  resizeGeneratedPreview();
+}
+
+function normalizeMultiTaskGeneratedResult(rawText) {
+  const normalized = normalizeGeneratedResult(rawText);
+  const anchorItems = Array.isArray(normalized.anchorItems) ? normalized.anchorItems : [];
+  const resultMode = normalized.mode.startsWith('anchor-') ? 'anchor' : 'standard';
+  const output = normalized.usable ? normalized.content : '';
+  if (!output.trim() && !anchorItems.length) throw new Error('API 返回内容无法形成可注入结果。');
+  return {
+    output,
+    thinking: Array.isArray(normalized.thinking) ? normalized.thinking : (normalized.thinking ? [normalized.thinking] : []),
+    resultMode,
+    anchorItems,
+    warnings: Array.isArray(normalized.warnings) ? normalized.warnings : [],
+    error: null,
+  };
+}
+
+function recordMultiTaskHistory(result) {
+  const historyResult = result.resultMode === 'anchor'
+    ? { kind: 'anchor', anchorItems: result.anchorItems, warnings: result.warnings }
+    : result.output;
+  recentGenerationHistory = recordGenerationResult(
+    getGenerationHistoryStorage(),
+    GENERATION_HISTORY_STORAGE_KEY,
+    historyResult,
+  );
+  renderGenerationHistory();
+}
+
+async function generateMultiTasks(requestedTaskIds = null) {
+  captureActiveMultiTaskView();
+  const multiTaskState = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  const requestedIds = Array.isArray(requestedTaskIds) ? new Set(requestedTaskIds.map(textOf).filter(Boolean)) : null;
+  const tasks = multiTaskState.tasks.filter((task) => !requestedIds || requestedIds.has(task.id));
+  if (!tasks.length) {
+    notifyStatus('请先在设置中添加任务。', 'warning');
+    return [];
+  }
+  if (settings.rollbackBeforeGeneration) {
+    await undoMultiTaskInjections(tasks.map((task) => task.id), { requireConfirmation: false, silent: true });
+  }
+  const context = getContext();
+  const latest = getLatestAssistantMessage(context.chat);
+  if (!latest) {
+    notifyStatus('没有找到可用于生成的助手回复。', 'warning');
+    return [];
+  }
+  const target = {
+    chatId: getCurrentChatIdSafe(context),
+    messageIndex: latest.index,
+    messageText: String(latest.message.mes ?? ''),
+  };
+  const runtimeByTaskId = new Map();
+  for (const task of tasks) {
+    try {
+      runtimeByTaskId.set(task.id, resolveMultiTaskRuntimeSettings(settings, task, getMultiTaskSchemeLists()));
+    } catch (error) {
+      replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.ERROR, error: serializeMultiTaskError(error) });
+    }
+  }
+  const runnableTasks = tasks.filter((task) => runtimeByTaskId.has(task.id));
+  if (!runnableTasks.length) {
+    renderMultiTaskRuntimeState();
+    notifyStatus('任务缺少 API 方案或组件方案，请先在设置中选择。', 'warning');
+    return [];
+  }
+  runnableTasks.forEach((task) => {
+    multiTaskAbortControllers.get(task.id)?.abort();
+  });
+  const plan = createMultiTaskRunPlan({
+    tasks: runnableTasks,
+    concurrency: multiTaskState.concurrency,
+    target,
+    resolveTask: (task) => runtimeByTaskId.get(task.id),
+  });
+  activeMultiTaskRunIds.add(plan.runId);
+  plan.entries.forEach((entry) => replaceMultiTask(entry.task.id, {
+    runId: plan.runId,
+    status: MULTI_TASK_STATUS.QUEUED,
+    output: '',
+    thinking: [],
+    resultMode: entry.runtime.injectMode === 'anchor' ? 'anchor' : 'standard',
+    anchorItems: [],
+    warnings: [],
+    target,
+    error: null,
+  }));
+  scheduleMultiTaskFrameworkRender();
+  const shouldAutoInject = Boolean(settings.autoInject);
+  const autoInjectionPromises = [];
+  const enqueueAutoInjection = (taskId) => {
+    const currentTask = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.find((task) => task.id === taskId);
+    if (!canEnqueueTaskAutoInjection(currentTask, plan.runId)) return Promise.resolve([]);
+    replaceMultiTask(taskId, { status: MULTI_TASK_STATUS.PENDING_INJECTION });
+    scheduleMultiTaskFrameworkRender();
+    const promise = enqueueMultiTaskInjection(taskId, {
+      intervalMs: multiTaskState.injectionIntervalSeconds * 1000,
+      silent: true,
+      expectedRunId: plan.runId,
+    });
+    autoInjectionPromises.push(promise);
+    return promise;
+  };
+  const taskOrderInjectionCoordinator = shouldAutoInject
+    && multiTaskState.injectionOrder === MULTI_TASK_INJECTION_ORDER_TASK
+    ? createTaskOrderInjectionCoordinator(plan.entries.map((entry) => entry.task.id), {
+      enqueue: enqueueAutoInjection,
+    })
+    : null;
+  const results = await runMultiTaskQueue(plan, {
+    isCurrent: (runId) => activeMultiTaskRunIds.has(runId),
+    onTransition: ({ taskId, status, value, error }) => {
+      const currentTask = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.find((task) => task.id === taskId);
+      if (!currentTask || currentTask.runId !== plan.runId) {
+        taskOrderInjectionCoordinator?.skip(taskId);
+        return;
+      }
+      if (status === 'queued' || status === 'generating') {
+        replaceMultiTask(taskId, { status: status === 'queued' ? MULTI_TASK_STATUS.QUEUED : MULTI_TASK_STATUS.GENERATING });
+      } else if (status === 'ready') {
+        replaceMultiTask(taskId, { ...value, status: MULTI_TASK_STATUS.READY });
+        if (shouldAutoInject) {
+          if (taskOrderInjectionCoordinator) taskOrderInjectionCoordinator.ready(taskId);
+          else enqueueAutoInjection(taskId);
+        }
+      } else if (status === 'error') {
+        replaceMultiTask(taskId, { status: MULTI_TASK_STATUS.ERROR, error: serializeMultiTaskError(error) });
+        taskOrderInjectionCoordinator?.skip(taskId);
+      } else if (status === 'cancelled') {
+        replaceMultiTask(taskId, { status: currentTask.output ? MULTI_TASK_STATUS.READY : MULTI_TASK_STATUS.IDLE });
+        taskOrderInjectionCoordinator?.skip(taskId);
+      }
+      scheduleMultiTaskFrameworkRender();
+    },
+    execute: async (entry) => {
+      const currentTask = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.find((task) => task.id === entry.task.id);
+      if (currentTask?.runId !== plan.runId) {
+        const error = new Error('Task generation was cancelled');
+        error.name = 'AbortError';
+        throw error;
+      }
+      const controller = new AbortController();
+      multiTaskAbortControllers.set(entry.task.id, controller);
+      try {
+        let rawText = '';
+        try {
+          rawText = await callExternalApi(latest.message, controller.signal, entry.runtime, {
+            onPreview: (text) => updateMultiTaskStream(entry.task.id, text, plan.runId),
+            onPromptLog: () => {},
+          });
+        } catch (error) {
+          const partial = String(error?.streamedText ?? '');
+          if (!partial.trim()) throw error;
+          rawText = partial;
+        }
+        const result = normalizeMultiTaskGeneratedResult(rawText);
+        recordMultiTaskHistory(result);
+        return result;
+      } finally {
+        if (multiTaskAbortControllers.get(entry.task.id) === controller) multiTaskAbortControllers.delete(entry.task.id);
+      }
+    },
+  });
+  activeMultiTaskRunIds.delete(plan.runId);
+  const completed = results.filter((item) => item.status === 'fulfilled').length;
+  const failed = results.filter((item) => item.status === 'rejected').length;
+  if (autoInjectionPromises.length) await Promise.allSettled(autoInjectionPromises);
+  notifyStatus(`多任务生成结束：完成 ${completed} 个${failed ? `，失败 ${failed} 个` : ''}。`, failed ? 'warning' : 'info');
+  return results;
+}
+
+function getRequestedMultiTasks(requestedTaskIds = null) {
+  const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  const ids = Array.isArray(requestedTaskIds) ? new Set(requestedTaskIds.map(textOf).filter(Boolean)) : null;
+  return state.tasks.filter((task) => !ids || ids.has(task.id));
+}
+
+async function persistMultiTaskMessageUpdates(context, messageIndexes) {
+  for (const messageIndex of messageIndexes) {
+    const message = context.chat?.[messageIndex];
+    if (!message) continue;
+    context.updateMessageBlock(messageIndex, message);
+    const messageUpdatedEvent = context.eventTypes?.MESSAGE_UPDATED;
+    if (messageUpdatedEvent && context.eventSource?.emit) {
+      await context.eventSource.emit(messageUpdatedEvent, messageIndex);
+    }
+  }
+  const saveResult = await context.saveChat();
+  if (saveResult === false) throw new Error('聊天保存接口返回失败。');
+}
+
+function enqueueMultiTaskInjection(taskId, { intervalMs = 0, silent = false, expectedRunId = '' } = {}) {
+  return multiTaskInjectionQueue.enqueue({ taskId, silent, expectedRunId }, { intervalMs });
+}
+
+async function injectMultiTasks(requestedTaskIds = null) {
+  captureActiveMultiTaskView();
+  const tasks = getRequestedMultiTasks(requestedTaskIds)
+    .filter((task) => [MULTI_TASK_STATUS.READY, MULTI_TASK_STATUS.UNDONE].includes(task.status))
+    .filter((task) => String(task.output || '').trim() || task.anchorItems?.length);
+  if (!tasks.length) {
+    notifyStatus('没有可注入的多任务结果。', 'warning');
+    return [];
+  }
+  const intervalMs = tasks.length > 1
+    ? normalizeMultiTaskSettings(settings.multiTaskSettings).injectionIntervalSeconds * 1000
+    : 0;
+  tasks.forEach((task) => replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.PENDING_INJECTION }));
+  scheduleMultiTaskFrameworkRender();
+  const results = await Promise.allSettled(tasks.map((task) => enqueueMultiTaskInjection(task.id, {
+    intervalMs,
+    silent: true,
+  })));
+  const injectedTaskIds = results
+    .filter((result) => result.status === 'fulfilled')
+    .flatMap((result) => result.value);
+  if (injectedTaskIds.length) notifyStatus(`已按顺序分批注入 ${injectedTaskIds.length} 个结果。`);
+  return injectedTaskIds;
+}
+
+async function injectMultiTaskBatchNow(requestedTaskIds = null, { silent = false, expectedRunId = '' } = {}) {
+  const tasks = getRequestedMultiTasks(requestedTaskIds)
+    .filter((task) => !expectedRunId || task.runId === expectedRunId)
+    .filter((task) => ![MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
+    .filter((task) => String(task.output || '').trim() || task.anchorItems?.length);
+  if (!tasks.length) {
+    if (!silent) notifyStatus('没有可注入的多任务结果。', 'warning');
+    return [];
+  }
+  const context = getContext();
+  const currentChatId = getCurrentChatIdSafe(context);
+  const changedIndexes = new Set();
+  const mvuIndexes = new Set();
+  const injectedTaskIds = [];
+  for (const task of tasks) {
+    const targetIndex = Number(task.target?.messageIndex);
+    if (textOf(task.target?.chatId) !== currentChatId || !Number.isInteger(targetIndex)) {
+      replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.ERROR, error: { message: '任务目标聊天已经变化，无法注入。', code: 'target-changed' } });
+      continue;
+    }
+    const latest = getAssistantMessageAtIndex(context.chat, targetIndex);
+    if (!latest) {
+      replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.ERROR, error: { message: '任务目标楼层已经不存在。', code: 'target-missing' } });
+      continue;
+    }
+    try {
+      const prepared = {
+        taskId: task.id,
+        targetIndex,
+        resultMode: task.resultMode,
+        output: stripConfiguredBlocks(task.output, settings.outputCleanupTags).trim(),
+        anchorItems: (Array.isArray(task.anchorItems) ? task.anchorItems : []).map((item) => ({
+          ...item,
+          content: stripConfiguredBlocks(item?.content, settings.outputCleanupTags).trim(),
+        })),
+      };
+      const injected = applyMultiTaskInjection(String(latest.message.mes ?? ''), prepared);
+      latest.message.mes = settings.statusPlaceholderEnabled
+        ? normalizeStatusPlaceholder(injected.text, true)
+        : injected.text;
+      if (Array.isArray(latest.message.swipes) && Number.isInteger(latest.message.swipe_id)) {
+        latest.message.swipes[latest.message.swipe_id] = latest.message.mes;
+      }
+      const record = {
+        ...injected.record,
+        chatId: currentChatId,
+        targetIndex,
+        afterText: latest.message.mes,
+      };
+      replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.INJECTED, injectionRecord: record, error: null });
+      changedIndexes.add(targetIndex);
+      injectedTaskIds.push(task.id);
+      const insertedText = record.operations.map((operation) => operation.text).join('\n');
+      if (settings.mvuReprocessOnInject && containsMvuUpdateVariable(insertedText)) mvuIndexes.add(targetIndex);
+    } catch (error) {
+      replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.ERROR, error: serializeMultiTaskError(error) });
+    }
+  }
+  if (changedIndexes.size) {
+    try {
+      await persistMultiTaskMessageUpdates(context, [...changedIndexes]);
+      for (const targetIndex of mvuIndexes) await reprocessMvuVariables(context, targetIndex);
+    } catch (error) {
+      notifyStatus(`多任务内容已经写入，但聊天保存失败：${error?.message || '未知错误'}`, 'warning');
+    }
+  }
+  renderMultiTaskRuntimeState();
+  if (!silent && injectedTaskIds.length) notifyStatus(`已注入 ${injectedTaskIds.length} 个结果。`);
+  return injectedTaskIds;
+}
+
+async function undoMultiTaskInjections(requestedTaskIds = null, { requireConfirmation = false, silent = false } = {}) {
+  const tasks = getRequestedMultiTasks(requestedTaskIds).filter((task) => task.injectionRecord);
+  if (!tasks.length) {
+    if (!silent) notifyStatus('没有可撤回的多任务注入记录。', 'warning');
+    return [];
+  }
+  if (requireConfirmation && !targetWindow.confirm(`撤回 ${tasks.length} 个任务各自最新的一次注入？\n\n已经单独撤回的任务会自动跳过。`)) return [];
+  const context = getContext();
+  const currentChatId = getCurrentChatIdSafe(context);
+  const changedIndexes = new Set();
+  const undoneTaskIds = [];
+  for (const task of [...tasks].reverse()) {
+    const record = task.injectionRecord;
+    const targetIndex = Number(record?.targetIndex);
+    const latest = getAssistantMessageAtIndex(context.chat, targetIndex);
+    if (textOf(record?.chatId) !== currentChatId || !latest) continue;
+    const undone = undoMultiTaskInjection(String(latest.message.mes ?? ''), record);
+    if (!undone.ok) {
+      replaceMultiTask(task.id, { error: { message: '楼层中的对应注入内容已经变化，无法安全撤回。', code: undone.reason } });
+      continue;
+    }
+    latest.message.mes = settings.statusPlaceholderEnabled
+      ? normalizeStatusPlaceholder(undone.text, true)
+      : undone.text;
+    if (Array.isArray(latest.message.swipes) && Number.isInteger(latest.message.swipe_id)) {
+      latest.message.swipes[latest.message.swipe_id] = latest.message.mes;
+    }
+    replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.UNDONE, injectionRecord: null, error: null });
+    changedIndexes.add(targetIndex);
+    undoneTaskIds.push(task.id);
+  }
+  if (changedIndexes.size) {
+    try {
+      await persistMultiTaskMessageUpdates(context, [...changedIndexes]);
+      if (settings.mvuReprocessOnInject) {
+        for (const targetIndex of changedIndexes) await reprocessMvuVariables(context, targetIndex);
+      }
+    } catch (error) {
+      notifyStatus(`撤回已经应用，但聊天保存失败：${error?.message || '未知错误'}`, 'warning');
+    }
+  }
+  renderMultiTaskRuntimeState();
+  if (!silent && undoneTaskIds.length) notifyStatus(`已撤回 ${undoneTaskIds.length} 个任务各自最新的一次注入。`);
+  return undoneTaskIds;
+}
 
 function getNextMultiTaskName() {
   const names = new Set(normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.map((task) => task.name));

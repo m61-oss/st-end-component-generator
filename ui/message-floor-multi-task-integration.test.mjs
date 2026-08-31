@@ -3,7 +3,6 @@ import fs from 'node:fs';
 import test from 'node:test';
 
 const indexSource = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
-const controllerSource = fs.readFileSync(new URL('../generation/multi-task-controller.js', import.meta.url), 'utf8');
 const styleSource = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 
 test('floor panel renders the shared multi-task tabs and selected task result', () => {
@@ -25,9 +24,10 @@ test('floor panel retry regenerates only failed multi-task items', () => {
     indexSource.indexOf('function bindMessageFloorPanel'),
   );
 
-  assert.match(actionSource, /const floorActions = planMultiTaskFloorActions\(/);
-  assert.match(actionSource, /action === 'retry'[\s\S]*generateMultiTasks\(floorActions\.retryTaskIds\)/);
-  assert.match(actionSource, /action === 'generate'[\s\S]*generateMultiTasks\(floorActions\.generateTaskIds\)/);
+  assert.match(actionSource, /MULTI_TASK_STATUS\.ERROR/);
+  assert.match(actionSource, /const failedTaskIds = scoped\.tasks/);
+  assert.match(actionSource, /action === 'retry'[\s\S]*generateMultiTasks\(failedTaskIds\)/);
+  assert.match(actionSource, /action === 'generate'[\s\S]*generateMultiTasks\(allTaskIds\)/);
 });
 
 test('floor panel total generation always includes every configured task after a partial run', () => {
@@ -36,16 +36,14 @@ test('floor panel total generation always includes every configured task after a
     indexSource.indexOf('function bindMessageFloorPanel'),
   );
 
-  assert.match(indexSource, /import \{ planMultiTaskFloorActions, scopeMultiTaskFloorPanelSettings \} from '\.\/generation\/multi-task-floor-state\.js\?ver=0\.2\.2'/);
-  assert.match(actionSource, /const floorActions = planMultiTaskFloorActions\(/);
-  assert.match(actionSource, /action === 'generate'[\s\S]*generateMultiTasks\(floorActions\.generateTaskIds\)/);
+  assert.match(actionSource, /const allTaskIds = allTasks\.map\(\(task\) => task\.id\)/);
+  assert.match(actionSource, /action === 'generate'[\s\S]*generateMultiTasks\(allTaskIds\)/);
   assert.doesNotMatch(actionSource, /generationTaskIds = floorTaskIds\.length/);
 });
 
 test('multi-task stream updates the floor panel without replacing its expanded structure', () => {
   assert.match(indexSource, /function updateMessageFloorPanelMultiTaskStream/);
-  assert.match(indexSource, /updateFloorStream:\s*updateMessageFloorPanelMultiTaskStream/);
-  assert.match(controllerSource, /updateFloorStream\(taskId\)/);
+  assert.match(indexSource, /updateMultiTaskStream[\s\S]*updateMessageFloorPanelMultiTaskStream\(taskId/);
   assert.match(indexSource, /thinkingWasOpen[\s\S]*\.st-esg-floor-thinking[\s\S]*\.open = true/);
 });
 
