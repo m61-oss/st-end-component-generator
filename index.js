@@ -67,7 +67,6 @@ import {
   isFloorPanelGenerationCurrent,
   isFloorPanelTargetAddressable,
   nextFloorPanelGeneration,
-  scopeMultiTaskFloorPanelSettings,
 } from './ui/message-floor-panel.js?ver=0.2.2';
 import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.2.2';
 import { loadGenerationHistory, recordGenerationResult, updateGenerationHistoryEntry } from './generation/generation-history.js?ver=0.2.2';
@@ -82,6 +81,7 @@ import {
   selectMultiTask,
 } from './generation/multi-task-state.js?ver=0.2.2';
 import { createMultiTaskRunPlan, runMultiTaskQueue } from './generation/multi-task-runner.js?ver=0.2.2';
+import { planMultiTaskFloorActions, scopeMultiTaskFloorPanelSettings } from './generation/multi-task-floor-state.js?ver=0.2.2';
 import { createMultiTaskInjectionQueue } from './generation/multi-task-injection-queue.js?ver=0.2.2';
 import { canEnqueueTaskAutoInjection, createTaskOrderInjectionCoordinator } from './generation/multi-task-auto-injection.js?ver=0.2.2';
 import { resolveMultiTaskRuntimeSettings } from './generation/multi-task-runtime.js?ver=0.2.2';
@@ -1487,28 +1487,16 @@ async function runMessageFloorPanelAction(action) {
     const latest = getMessageFloorPanelActionTarget();
     if (!latest) return;
     const allTasks = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks;
-    const allTaskIds = allTasks.map((task) => task.id);
     const scoped = scopeMultiTaskFloorPanelSettings({ ...settings.multiTaskSettings, tasks: allTasks }, messageFloorPanelState.target);
-    const floorInjectTaskIds = scoped.tasks
-      .filter((task) => [MULTI_TASK_STATUS.READY, MULTI_TASK_STATUS.UNDONE].includes(task.status))
-      .filter((task) => String(task.output || '').trim() || task.anchorItems?.length)
-      .map((task) => task.id);
-    const floorUndoTaskIds = scoped.tasks.filter((task) => task.injectionRecord).map((task) => task.id);
+    const floorActions = planMultiTaskFloorActions({ allTasks, floorTasks: scoped.tasks });
     if (action === 'stop') {
-      const runningTaskIds = scoped.tasks
-        .filter((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
-        .map((task) => task.id);
-      cancelMultiTaskGeneration(runningTaskIds);
+      cancelMultiTaskGeneration(floorActions.runningTaskIds);
       return;
     }
-    if (action === 'generate') await generateMultiTasks(allTaskIds);
-    else if (action === 'retry') {
-      const failedTaskIds = scoped.tasks
-        .filter((task) => task.status === MULTI_TASK_STATUS.ERROR)
-        .map((task) => task.id);
-      await generateMultiTasks(failedTaskIds);
-    } else if (action === 'inject') await injectMultiTasks(floorInjectTaskIds);
-    else if (action === 'undo') await undoMultiTaskInjections(floorUndoTaskIds, { requireConfirmation: true });
+    if (action === 'generate') await generateMultiTasks(floorActions.generateTaskIds);
+    else if (action === 'retry') await generateMultiTasks(floorActions.retryTaskIds);
+    else if (action === 'inject') await injectMultiTasks(floorActions.injectTaskIds);
+    else if (action === 'undo') await undoMultiTaskInjections(floorActions.undoTaskIds, { requireConfirmation: true });
     return;
   }
   if (action === 'stop') {

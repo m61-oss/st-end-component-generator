@@ -91,9 +91,10 @@ test('floor panel generates all tasks while injection and undo stay scoped to th
   const source = indexSource.slice(start, end);
 
   assert.match(source, /scopeMultiTaskFloorPanelSettings\(/);
-  assert.match(source, /generateMultiTasks\(allTaskIds\)/);
-  assert.match(source, /injectMultiTasks\(floorInjectTaskIds\)/);
-  assert.match(source, /undoMultiTaskInjections\(floorUndoTaskIds/);
+  assert.match(source, /planMultiTaskFloorActions\(/);
+  assert.match(source, /generateMultiTasks\(floorActions\.generateTaskIds\)/);
+  assert.match(source, /injectMultiTasks\(floorActions\.injectTaskIds\)/);
+  assert.match(source, /undoMultiTaskInjections\(floorActions\.undoTaskIds/);
 });
 
 test('running generation disables mode switching and guards the mode click handler', () => {
