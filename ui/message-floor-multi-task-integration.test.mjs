@@ -25,8 +25,9 @@ test('floor panel retry regenerates only failed multi-task items', () => {
   );
 
   assert.match(actionSource, /MULTI_TASK_STATUS\.ERROR/);
+  assert.match(actionSource, /const failedTaskIds = scoped\.tasks/);
   assert.match(actionSource, /action === 'retry'[\s\S]*generateMultiTasks\(failedTaskIds\)/);
-  assert.match(actionSource, /action === 'generate'[\s\S]*generateMultiTasks\(\)/);
+  assert.match(actionSource, /action === 'generate'[\s\S]*generateMultiTasks\(generationTaskIds\)/);
 });
 
 test('multi-task stream updates the floor panel without replacing its expanded structure', () => {

@@ -3,24 +3,24 @@ import test from 'node:test';
 
 import { normalizeGeneratedResult } from './output-result.js';
 
-test('normalizes JSON thinking and then applies legacy configured block extraction', () => {
+test('keeps configured blocks in JSON output preview and separates only protocol thinking', () => {
   const result = normalizeGeneratedResult(JSON.stringify({
     thinking: 'Phase.0\nPhase.1',
     output: '<thinking>legacy thinking</thinking>正文',
   }), 'thinking');
 
-  assert.equal(result.content, '正文');
-  assert.deepEqual(result.thinking, ['Phase.0\nPhase.1', 'legacy thinking']);
+  assert.equal(result.content, '<thinking>legacy thinking</thinking>正文');
+  assert.deepEqual(result.thinking, ['Phase.0\nPhase.1']);
   assert.equal(result.mode, 'json');
   assert.equal(result.complete, true);
   assert.equal(result.usable, true);
 });
 
-test('keeps legacy non-JSON output compatible with configured tags', () => {
+test('keeps configured blocks in legacy output preview until injection', () => {
   const result = normalizeGeneratedResult('<thinking>legacy</thinking>正文', 'thinking');
 
-  assert.equal(result.content, '正文');
-  assert.deepEqual(result.thinking, ['legacy']);
+  assert.equal(result.content, '<thinking>legacy</thinking>正文');
+  assert.deepEqual(result.thinking, []);
   assert.equal(result.mode, 'legacy');
   assert.equal(result.usable, true);
 });

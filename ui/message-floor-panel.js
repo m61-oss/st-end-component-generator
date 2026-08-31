@@ -126,25 +126,36 @@ function scopeMultiTaskFloorPanelSettings(value = {}, target = {}) {
   const tasks = Array.isArray(value?.tasks) ? value.tasks : [];
   const chatId = String(target?.chatId ?? '');
   const messageIndex = Number(target?.messageIndex);
+  const addressMatches = (candidateChatId, candidateMessageIndex) => (
+    Boolean(candidateChatId)
+    && Number.isInteger(candidateMessageIndex)
+    && candidateChatId === chatId
+    && candidateMessageIndex === messageIndex
+  );
+  const described = tasks.map((task) => {
+    const targetChatId = String(task?.target?.chatId ?? '');
+    const targetMessageIndex = Number(task?.target?.messageIndex);
+    const recordChatId = String(task?.injectionRecord?.chatId ?? '');
+    const recordMessageIndex = Number(task?.injectionRecord?.targetIndex);
+    const targetMatches = addressMatches(targetChatId, targetMessageIndex);
+    const recordMatches = addressMatches(recordChatId, recordMessageIndex);
+    const hasAddress = (Boolean(targetChatId) && Number.isInteger(targetMessageIndex))
+      || (Boolean(recordChatId) && Number.isInteger(recordMessageIndex));
+    return { task, targetMatches, recordMatches, hasAddress };
+  });
+  const current = described.filter((item) => item.targetMatches || item.recordMatches);
+  const visible = current.length ? current : described.filter((item) => !item.hasAddress);
+  const scopedTasks = visible.map(({ task, recordMatches }) => ({
+    ...task,
+    injectionRecord: recordMatches ? task.injectionRecord : null,
+  }));
+  const activeTaskId = scopedTasks.some((task) => String(task.id ?? '') === String(value?.activeTaskId ?? ''))
+    ? String(value.activeTaskId)
+    : String(scopedTasks[0]?.id ?? '');
   return {
     ...value,
-    tasks: tasks.map((task) => {
-      const taskChatId = String(task?.target?.chatId ?? task?.injectionRecord?.chatId ?? '');
-      const taskMessageIndex = Number(task?.target?.messageIndex ?? task?.injectionRecord?.targetIndex);
-      const hasTarget = Boolean(taskChatId) && Number.isInteger(taskMessageIndex);
-      if (!hasTarget || (taskChatId === chatId && taskMessageIndex === messageIndex)) return task;
-      return {
-        ...task,
-        status: 'idle',
-        output: '',
-        thinking: [],
-        resultMode: 'standard',
-        anchorItems: [],
-        warnings: [],
-        injectionRecord: null,
-        error: null,
-      };
-    }),
+    activeTaskId,
+    tasks: scopedTasks,
   };
 }
 

@@ -26,6 +26,19 @@ test('renders compact generation mode tabs with shared history and settings icon
   assert.match(markup, />多任务</);
 });
 
+test('disables only generation mode switching while a task is running', () => {
+  const markup = renderGenerationModeSwitch('multi', { switchingDisabled: true });
+  const single = markup.match(/<button[^>]*data-generation-mode="single"[^>]*>/)?.[0] || '';
+  const multi = markup.match(/<button[^>]*data-generation-mode="multi"[^>]*>/)?.[0] || '';
+  const history = markup.match(/<button[^>]*data-generation-history-open[^>]*>/)?.[0] || '';
+  const settings = markup.match(/<button[^>]*data-generation-mode-settings[^>]*>/)?.[0] || '';
+
+  assert.match(single, /disabled/);
+  assert.match(multi, /disabled/);
+  assert.doesNotMatch(history, /disabled/);
+  assert.doesNotMatch(settings, /disabled/);
+});
+
 test('renders a compact empty hint and leaves task creation inside the settings gear', () => {
   const markup = renderMultiTaskWorkspace({ tasks: [] });
   assert.match(markup, /st-esg-multi-task-empty/);
@@ -38,6 +51,17 @@ test('does not repeat an idle ready label beside the task status lamp', () => {
   const state = createMultiTask({}, '任务 1', { id: 'task-1' }).state;
   const markup = renderMultiTaskWorkspace(state);
   assert.doesNotMatch(markup, />就绪</);
+});
+
+test('disables injection while a result is pending injection or already injected', () => {
+  for (const status of ['pending-injection', 'injected']) {
+    const markup = renderMultiTaskWorkspace({
+      activeTaskId: 'task-1',
+      tasks: [{ id: 'task-1', name: 'Task 1', status, output: 'result' }],
+    });
+    const inject = markup.match(/<button[^>]*data-multi-task-action="inject"[^>]*>/)?.[0] || '';
+    assert.match(inject, /disabled/, status);
+  }
 });
 
 test('renders named task tabs and the scheme-B icon toolbar without duplicating generation fields', () => {

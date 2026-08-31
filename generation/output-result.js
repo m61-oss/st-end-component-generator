@@ -1,4 +1,3 @@
-import { extractConfiguredBlocks } from '../injection/tag-rules.js';
 import { parseAnchorOutput } from './anchor-output-protocol.js';
 import { parseOutputProtocolResponse } from './output-protocol.js';
 
@@ -16,7 +15,7 @@ function isProtocolLikeLegacyText(value) {
   return /["']thinking["']\s*:/i.test(withoutFence);
 }
 
-export function normalizeGeneratedResult(rawText, outputCleanupTags = '') {
+export function normalizeGeneratedResult(rawText) {
   const anchor = parseAnchorOutput(rawText);
   if (anchor) {
     return {
@@ -63,10 +62,9 @@ export function normalizeGeneratedResult(rawText, outputCleanupTags = '') {
     };
   }
 
-  const extracted = extractConfiguredBlocks(parsed.content, outputCleanupTags);
   return {
-    content: extracted.body.trim(),
-    thinking: [parsed.thinking, ...extracted.blocks].filter(Boolean),
+    content: parsed.content.trim(),
+    thinking: [parsed.thinking].filter(Boolean),
     mode: parsed.mode,
     complete: parsed.complete,
     usable: true,

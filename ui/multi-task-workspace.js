@@ -18,12 +18,13 @@ const escapeHtml = (value) => String(value ?? '')
   .replaceAll('"', '&quot;')
   .replaceAll("'", '&#039;');
 
-export function renderGenerationModeSwitch(mode = 'single') {
+export function renderGenerationModeSwitch(mode = 'single', { switchingDisabled = false } = {}) {
   const activeMode = mode === 'multi' ? 'multi' : 'single';
+  const disabled = switchingDisabled ? ' disabled' : '';
   return `<div class="st-esg-generation-mode-switch">
     <div class="st-esg-generation-mode-tabs" role="group" aria-label="生成模式">
-      <button class="st-esg-generation-mode${activeMode === 'single' ? ' active' : ''}" type="button" data-generation-mode="single" aria-pressed="${activeMode === 'single'}">单任务</button>
-      <button class="st-esg-generation-mode${activeMode === 'multi' ? ' active' : ''}" type="button" data-generation-mode="multi" aria-pressed="${activeMode === 'multi'}">多任务</button>
+      <button class="st-esg-generation-mode${activeMode === 'single' ? ' active' : ''}" type="button" data-generation-mode="single" aria-pressed="${activeMode === 'single'}"${disabled}>单任务</button>
+      <button class="st-esg-generation-mode${activeMode === 'multi' ? ' active' : ''}" type="button" data-generation-mode="multi" aria-pressed="${activeMode === 'multi'}"${disabled}>多任务</button>
     </div>
     <div class="st-esg-generation-mode-actions">
       <button class="st-esg-icon-btn st-esg-generation-mode-history" type="button" data-generation-history-open title="最近生成记录" aria-label="最近生成记录"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></button>
@@ -44,11 +45,12 @@ function renderTaskTools(state) {
   const task = state.tasks.find((item) => item.id === state.activeTaskId) || state.tasks[0];
   const running = task.status === MULTI_TASK_STATUS.QUEUED || task.status === MULTI_TASK_STATUS.GENERATING;
   const hasResult = Boolean(String(task.output || '').trim() || task.anchorItems?.length);
+  const canInject = hasResult && [MULTI_TASK_STATUS.READY, MULTI_TASK_STATUS.UNDONE].includes(task.status);
   const hasUndo = Boolean(task.injectionRecord);
   return `<div class="st-esg-multi-task-tools" data-active-multi-task-id="${escapeHtml(task.id)}" aria-label="当前任务操作">
         <button class="st-esg-icon-btn" type="button" data-multi-task-action="undo" ${hasUndo ? '' : 'disabled'} title="撤回当前任务的最新注入" aria-label="撤回当前任务"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button>
         <button class="st-esg-icon-btn${running ? ' st-esg-action-running' : ''}" type="button" data-multi-task-action="generate" title="${running ? '停止当前任务' : '生成当前任务'}" aria-label="${running ? '停止当前任务' : '生成当前任务'}"><i class="fa-solid ${running ? 'fa-stop' : 'fa-wand-magic-sparkles'}" aria-hidden="true"></i></button>
-        <button class="st-esg-icon-btn" type="button" data-multi-task-action="inject" ${hasResult && !running ? '' : 'disabled'} title="注入当前任务" aria-label="注入当前任务"><i class="fa-solid fa-file-import" aria-hidden="true"></i></button>
+        <button class="st-esg-icon-btn" type="button" data-multi-task-action="inject" ${canInject && !running ? '' : 'disabled'} title="注入当前任务" aria-label="注入当前任务"><i class="fa-solid fa-file-import" aria-hidden="true"></i></button>
       </div>`;
 }
 

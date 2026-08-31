@@ -69,6 +69,46 @@ test('stale or cancelled task transitions release task-order injection before re
 
 test('deferred automatic injection rechecks task state to prevent duplicate manual injection', () => {
   assert.match(indexSource, /canEnqueueTaskAutoInjection\(currentTask, plan\.runId\)/);
+  const start = indexSource.indexOf('const enqueueAutoInjection');
+  const source = indexSource.slice(start, start + 650);
+  assert.match(source, /status:\s*MULTI_TASK_STATUS\.PENDING_INJECTION/);
+  assert.match(source, /scheduleMultiTaskFrameworkRender\(\)/);
+});
+
+test('manual injection locks each result before it enters the serialized queue', () => {
+  const start = indexSource.indexOf('async function injectMultiTasks');
+  const end = indexSource.indexOf('async function injectMultiTaskBatchNow', start);
+  const source = indexSource.slice(start, end);
+
+  assert.match(source, /replaceMultiTask\(task\.id,\s*\{\s*status:\s*MULTI_TASK_STATUS\.PENDING_INJECTION\s*\}\)/);
+  assert.match(source, /\[MULTI_TASK_STATUS\.READY,\s*MULTI_TASK_STATUS\.UNDONE\]\.includes\(task\.status\)/);
+  assert.match(source, /scheduleMultiTaskFrameworkRender\(\)/);
+});
+
+test('floor panel actions pass only current-floor task ids to multi-task operations', () => {
+  const start = indexSource.indexOf('async function runMessageFloorPanelAction');
+  const end = indexSource.indexOf('function bindMessageFloorPanelEvents', start);
+  const source = indexSource.slice(start, end);
+
+  assert.match(source, /scopeMultiTaskFloorPanelSettings\(/);
+  assert.match(source, /injectMultiTasks\(floorTaskIds\)/);
+  assert.match(source, /undoMultiTaskInjections\(floorUndoTaskIds/);
+  assert.match(source, /generateMultiTasks\(generationTaskIds/);
+});
+
+test('running generation disables mode switching and guards the mode click handler', () => {
+  assert.match(indexSource, /renderGenerationModeSwitch\(mode,\s*\{\s*switchingDisabled:\s*running\s*\}\)/);
+  const start = indexSource.indexOf(".on('click.stEsgMultiTask', '[data-generation-mode]'");
+  const source = indexSource.slice(start, start + 650);
+  assert.match(source, /isAnyGenerationRunning\(\)/);
+});
+
+test('quick reply injection follows the active generation mode', () => {
+  const start = indexSource.indexOf('function updateQuickReplyShortcutActions');
+  const source = indexSource.slice(start, start + 420);
+  assert.match(source, /settings\.generationMode === 'multi'/);
+  assert.match(source, /injectMultiTasks\(\)/);
+  assert.match(source, /injectGeneratedStatusbar\(\)/);
 });
 
 test('multi-task settings expose an immediate injection interval from zero to ten seconds', () => {

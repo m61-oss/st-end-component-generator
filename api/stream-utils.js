@@ -11,13 +11,14 @@ export async function readOpenAiStream(response, onDelta = () => {}) {
   let fullText = '';
 
   const flushEvents = () => {
-    const events = buffer.split(/\n\n/);
+    const events = buffer.split(/\r?\n\r?\n/);
     buffer = events.pop() || '';
     for (const event of events) {
       const lines = event.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.startsWith('data:'));
       for (const line of lines) {
         const data = line.slice(5).trim();
-        if (!data || data === '[DONE]') continue;
+        if (!data) continue;
+        if (data === '[DONE]') return true;
         let payload = null;
         try { payload = JSON.parse(data); } catch (_) { continue; }
         const delta = extractStreamDelta(payload);
@@ -26,13 +27,17 @@ export async function readOpenAiStream(response, onDelta = () => {}) {
         onDelta(delta, fullText);
       }
     }
+    return false;
   };
 
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-    flushEvents();
+    if (flushEvents()) {
+      await reader.cancel?.();
+      return fullText;
+    }
   }
   buffer += decoder.decode();
   if (buffer.trim()) {

@@ -8,7 +8,7 @@ test('panel persists an explicit generation mode and normalized multi-task setti
   assert.match(indexSource, /generationMode:\s*'single'/);
   assert.match(indexSource, /multiTaskSettings:\s*\{\s*concurrency:\s*1/);
   assert.match(indexSource, /normalizeMultiTaskSettings\(settings\.multiTaskSettings\)/);
-  assert.match(indexSource, /renderGenerationModeSwitch\(mode\)/);
+  assert.match(indexSource, /renderGenerationModeSwitch\(mode, \{ switchingDisabled: running \}\)/);
 });
 
 test('workspace keeps the original generation DOM mounted and adds only multi-task chrome', () => {

@@ -548,8 +548,8 @@ function getQuickReplyShortcutEntries() {
 
 function updateQuickReplyShortcutActions() {
   targetWindow[QR_SHORTCUT_ACTIONS_KEY] = {
-    generate: () => generateStatusbar('quickReply'),
-    inject: () => injectGeneratedStatusbar(),
+    generate: () => settings.generationMode === 'multi' ? generateMultiTasks() : generateStatusbar('quickReply'),
+    inject: () => settings.generationMode === 'multi' ? injectMultiTasks() : injectGeneratedStatusbar(),
   };
 }
 
@@ -1484,23 +1484,28 @@ function getMessageFloorPanelActionTarget() {
 
 async function runMessageFloorPanelAction(action) {
   if (messageFloorPanelState.mode === 'multi') {
+    const latest = getMessageFloorPanelActionTarget();
+    if (!latest) return;
+    const allTasks = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks;
+    const scoped = scopeMultiTaskFloorPanelSettings({ ...settings.multiTaskSettings, tasks: allTasks }, messageFloorPanelState.target);
+    const floorTaskIds = scoped.tasks.map((task) => task.id);
+    const floorUndoTaskIds = scoped.tasks.filter((task) => task.injectionRecord).map((task) => task.id);
+    const generationTaskIds = floorTaskIds.length ? floorTaskIds : allTasks.map((task) => task.id);
     if (action === 'stop') {
-      const runningTaskIds = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks
+      const runningTaskIds = scoped.tasks
         .filter((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
         .map((task) => task.id);
       cancelMultiTaskGeneration(runningTaskIds);
       return;
     }
-    const latest = getMessageFloorPanelActionTarget();
-    if (!latest) return;
-    if (action === 'generate') await generateMultiTasks();
+    if (action === 'generate') await generateMultiTasks(generationTaskIds);
     else if (action === 'retry') {
-      const failedTaskIds = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks
+      const failedTaskIds = scoped.tasks
         .filter((task) => task.status === MULTI_TASK_STATUS.ERROR)
         .map((task) => task.id);
       await generateMultiTasks(failedTaskIds);
-    } else if (action === 'inject') await injectMultiTasks();
-    else if (action === 'undo') await undoMultiTaskInjections(null, { requireConfirmation: true });
+    } else if (action === 'inject') await injectMultiTasks(floorTaskIds);
+    else if (action === 'undo') await undoMultiTaskInjections(floorUndoTaskIds, { requireConfirmation: true });
     return;
   }
   if (action === 'stop') {
@@ -2129,7 +2134,7 @@ function scheduleAnchorEditPersistence() {
 }
 
 function applyGeneratedResult(rawText) {
-  const normalized = normalizeGeneratedResult(rawText, settings.outputCleanupTags);
+  const normalized = normalizeGeneratedResult(rawText);
   const raw = String(rawText ?? '');
   settings.lastGeneratedResultMode = normalized.mode.startsWith('anchor-') ? 'anchor' : 'standard';
   settings.lastGeneratedAnchorItems = Array.isArray(normalized.anchorItems) ? normalized.anchorItems : [];
@@ -2263,6 +2268,7 @@ function setGeneratingState(isGenerating) {
   }
   if (isGenerating) setFloatingBallVisualState('generating');
   else if (floatingBallVisualState === 'generating') setFloatingBallVisualState('idle');
+  renderGenerationModeSwitchControl();
 }
 
 function waitForInteractionPaint() {
@@ -3994,7 +4000,13 @@ async function handleSchemeAction(type, action) {
     if (selectedId === WORLD_BOOK_FOLLOW_TAVERN) { notifyStatus('酒馆默认不能删除。', 'warning'); return; }
     const name = findScheme(list, selectedId)?.name || '';
     if (!name) { notifyStatus('找不到要删除的方案。', 'error'); return; }
-    if (!targetWindow.confirm(`确认删除方案“${name}”？此操作无法恢复。`)) return;
+    const boundComponentCount = type === 'preset'
+      ? settings.components.filter((component) => component.scope === COMPONENT_SCOPE_PRESET && textOf(component.presetSchemeId) === selectedId).length
+      : 0;
+    const boundComponentNotice = boundComponentCount
+      ? `\n\n同时会一并删除该方案的 ${boundComponentCount} 个绑定组件。`
+      : '';
+    if (!targetWindow.confirm(`确认删除方案“${name}”？此操作无法恢复。${boundComponentNotice}`)) return;
     setSchemeList(type, deleteScheme(list, selectedId));
     if (type === 'preset') settings.components = settings.components.filter((component) => !(component.scope === COMPONENT_SCOPE_PRESET && textOf(component.presetSchemeId) === selectedId));
     setSelectedSchemeId(type, '');
@@ -4835,6 +4847,7 @@ function renderComponentList() {
     preview.innerHTML = renderComponentPreview(item);
     preview.dataset.loaded = 'true';
   });
+  list.off('.stEsgComponentEditor');
   list.on('click.stEsgComponentEditor', '.st-esg-component-name-input, .st-esg-component-content', (event) => event.stopPropagation());
   list.on('click.stEsgComponentEditor', '.st-esg-component-edit-confirm', function (event) {
     event.preventDefault();
@@ -5759,7 +5772,7 @@ function setSourceSelection(item, checked) {
   }
   getSourceSelectionStore(item)[item.key] = Boolean(checked);
   if (getSourceMode(sourceType) === SOURCE_MODE_PROMPT) markSchemeDirty(sourceType);
-  saveSettings();
+  else saveSettings();
 }
 
 function syncSelectionForChecks(checks) {
@@ -5935,7 +5948,6 @@ function setSourceItemOverrides(item, value, keywordValue = '') {
     }
   }
   markSchemeDirty(item?.scope === SOURCE_WORLDBOOK ? 'worldbook' : 'preset');
-  saveSettings();
 }
 
 function getWorldbookActivationMode(item) {
@@ -5952,7 +5964,6 @@ function setWorldbookActivationMode(item, mode) {
   if (normalized === nativeMode) delete settings.worldbookActivationOverrides[item.key];
   else settings.worldbookActivationOverrides[item.key] = normalized;
   markSchemeDirty('worldbook');
-  saveSettings();
 }
 
 function getWorldbookScanDepth() {
@@ -6416,7 +6427,6 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     const removed = removeWorldbookSourceRecords(getWorldbookRecordStores(), source);
     Object.assign(settings, removed.stores);
     markSchemeDirty('worldbook');
-    saveSettings();
     activeWorldbookGroupIndex = null;
     await scanImportCandidates();
     setStatus(`已移除世界书记录“${source}”。请覆盖保存当前方案以永久保存这次修改。`);
@@ -6436,7 +6446,6 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
       ? group.items.filter((item) => getSourceSelection(item, group)).length
       : group.pluginEnabledCount, { staleEnabledCount: group.staleEnabledCount });
     markSchemeDirty('worldbook');
-    saveSettings();
     renderImportCandidates({ renderPreset: false });
     setStatus('已删除未匹配的旧方案条目记录。请覆盖保存当前方案。');
   });
@@ -6508,7 +6517,6 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     delete settings.sourceContentOverrides[item.key];
     delete settings.worldbookKeywordOverrides[item.key];
     markSchemeDirty(item.scope === SOURCE_WORLDBOOK ? 'worldbook' : 'preset');
-    saveSettings();
     renderImportCandidates();
     setStatus('已恢复原生条目。');
   });
@@ -6553,8 +6561,9 @@ function importCheckedCandidates(sourceType) {
     const group = importGroups[Number(row.data('group-index'))];
     const item = group?.items?.[Number(row.data('item-index'))];
     if (!item || getSourceType(item) !== getSourceType(sourceType)) continue;
-    const importedComponent = { name: item.name, scope: targetScope, presetSchemeId, bindName, content: item.content, enabled: true, source: item.source, sourceType: item.scope, sourceOrder: item.sourceOrder, sourceUid: item.sourceUid, groupId: '' };
-    if (library === 'theater') settings.theaterComponents.push({ id: createNewTheaterId(), name: item.name, content: item.content, enabled: true, source: item.source, sourceType: item.scope, sourceOrder: item.sourceOrder, sourceUid: item.sourceUid, groupId: '' });
+    const content = getSourceContentValue(item);
+    const importedComponent = { name: item.name, scope: targetScope, presetSchemeId, bindName, content, enabled: true, source: item.source, sourceType: item.scope, sourceOrder: item.sourceOrder, sourceUid: item.sourceUid, groupId: '' };
+    if (library === 'theater') settings.theaterComponents.push({ id: createNewTheaterId(), name: item.name, content, enabled: true, source: item.source, sourceType: item.scope, sourceOrder: item.sourceOrder, sourceUid: item.sourceUid, groupId: '' });
     else settings.components.push({ id: createNewComponentId(), ...importedComponent });
     added += 1;
   }
@@ -7021,8 +7030,8 @@ function updateMultiTaskStream(taskId, text, runId) {
   resizeGeneratedPreview();
 }
 
-function normalizeMultiTaskGeneratedResult(rawText, runtimeSettings) {
-  const normalized = normalizeGeneratedResult(rawText, runtimeSettings.outputCleanupTags);
+function normalizeMultiTaskGeneratedResult(rawText) {
+  const normalized = normalizeGeneratedResult(rawText);
   const anchorItems = Array.isArray(normalized.anchorItems) ? normalized.anchorItems : [];
   const resultMode = normalized.mode.startsWith('anchor-') ? 'anchor' : 'standard';
   const output = normalized.usable ? normalized.content : '';
@@ -7114,6 +7123,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
     const currentTask = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.find((task) => task.id === taskId);
     if (!canEnqueueTaskAutoInjection(currentTask, plan.runId)) return Promise.resolve([]);
     replaceMultiTask(taskId, { status: MULTI_TASK_STATUS.PENDING_INJECTION });
+    scheduleMultiTaskFrameworkRender();
     const promise = enqueueMultiTaskInjection(taskId, {
       intervalMs: multiTaskState.injectionIntervalSeconds * 1000,
       silent: true,
@@ -7174,7 +7184,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
           if (!partial.trim()) throw error;
           rawText = partial;
         }
-        const result = normalizeMultiTaskGeneratedResult(rawText, entry.runtime);
+        const result = normalizeMultiTaskGeneratedResult(rawText);
         recordMultiTaskHistory(result);
         return result;
       } finally {
@@ -7217,7 +7227,7 @@ function enqueueMultiTaskInjection(taskId, { intervalMs = 0, silent = false, exp
 async function injectMultiTasks(requestedTaskIds = null) {
   captureActiveMultiTaskView();
   const tasks = getRequestedMultiTasks(requestedTaskIds)
-    .filter((task) => ![MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
+    .filter((task) => [MULTI_TASK_STATUS.READY, MULTI_TASK_STATUS.UNDONE].includes(task.status))
     .filter((task) => String(task.output || '').trim() || task.anchorItems?.length);
   if (!tasks.length) {
     notifyStatus('没有可注入的多任务结果。', 'warning');
@@ -7226,6 +7236,8 @@ async function injectMultiTasks(requestedTaskIds = null) {
   const intervalMs = tasks.length > 1
     ? normalizeMultiTaskSettings(settings.multiTaskSettings).injectionIntervalSeconds * 1000
     : 0;
+  tasks.forEach((task) => replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.PENDING_INJECTION }));
+  scheduleMultiTaskFrameworkRender();
   const results = await Promise.allSettled(tasks.map((task) => enqueueMultiTaskInjection(task.id, {
     intervalMs,
     silent: true,
@@ -7463,7 +7475,10 @@ function selectActiveMultiTaskView(taskId) {
 
 function updateMultiTaskActionState(dialog, multiState = normalizeMultiTaskSettings(settings.multiTaskSettings)) {
   const hasTasks = multiState.tasks.length > 0;
-  const hasResult = multiState.tasks.some((task) => String(task.output || '').trim() || task.anchorItems?.length);
+  const hasResult = multiState.tasks.some((task) => (
+    [MULTI_TASK_STATUS.READY, MULTI_TASK_STATUS.UNDONE].includes(task.status)
+    && (String(task.output || '').trim() || task.anchorItems?.length)
+  ));
   const hasUndo = multiState.tasks.some((task) => task.injectionRecord);
   const running = multiState.tasks.some((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status));
   const generate = dialog?.querySelector('#st-esg-generate');
@@ -7485,11 +7500,25 @@ function renderMultiTaskRuntimeState() {
   if (settings.generationMode !== 'multi') return;
   const dialog = getDialog();
   const multiState = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  renderGenerationModeSwitchControl(dialog);
   const multiHost = dialog?.querySelector('#st-esg-multi-task-host');
   if (multiHost) multiHost.innerHTML = renderMultiTaskWorkspace(multiState);
   updateMultiTaskActionState(dialog, multiState);
   hydrateActiveMultiTaskView();
   if (settings.messageFloorPanelEnabled) syncMessageFloorPanelFromMultiTasks();
+}
+
+function isAnyGenerationRunning() {
+  if (generationAbortController) return true;
+  return normalizeMultiTaskSettings(settings.multiTaskSettings).tasks
+    .some((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status));
+}
+
+function renderGenerationModeSwitchControl(dialog = getDialog()) {
+  const modeHost = dialog?.querySelector('#st-esg-generation-mode-host');
+  if (!modeHost) return;
+  const mode = settings.generationMode === 'multi' ? 'multi' : 'single';
+  modeHost.innerHTML = renderGenerationModeSwitch(mode, { switchingDisabled: isAnyGenerationRunning() });
 }
 
 function scheduleMultiTaskFrameworkRender() {
@@ -7507,8 +7536,9 @@ function renderMultiTaskFramework() {
   const dialog = getDialog();
   const mode = settings.generationMode === 'multi' ? 'multi' : 'single';
   dialog?.querySelector('#st-esg-generation-mode-host')?.replaceChildren();
+  const running = isAnyGenerationRunning();
   const modeHost = dialog?.querySelector('#st-esg-generation-mode-host');
-  if (modeHost) modeHost.innerHTML = renderGenerationModeSwitch(mode);
+  if (modeHost) modeHost.innerHTML = renderGenerationModeSwitch(mode, { switchingDisabled: running });
   const multiHost = dialog?.querySelector('#st-esg-multi-task-host');
   multiHost?.classList.toggle('st-esg-hidden', mode !== 'multi');
   if (multiHost) multiHost.innerHTML = renderMultiTaskWorkspace(settings.multiTaskSettings);
@@ -7734,6 +7764,10 @@ function bindMultiTaskFrameworkEvents() {
     .on('click.stEsgMultiTask', '[data-generation-mode]', function () {
       const nextMode = String($(this).attr('data-generation-mode')) === 'multi' ? 'multi' : 'single';
       if (nextMode === settings.generationMode) return;
+      if (isAnyGenerationRunning()) {
+        notifyStatus('生成进行中，暂时不能切换任务模式。', 'warning');
+        return;
+      }
       if (settings.generationMode === 'multi') captureActiveMultiTaskView();
       else singleTaskWorkspaceSnapshot = captureGenerationWorkspaceView();
       settings.generationMode = nextMode;
@@ -8323,23 +8357,19 @@ function bindPanelEvents() {
   $t('#st-esg-task-placement-enabled').on('change', function () {
     settings.taskPlacementEnabled = Boolean($(this).prop('checked'));
     markSchemeDirty('preset');
-    saveSettings();
     renderTaskPlacementOptions();
   });
   $t('#st-esg-task-placement-after').on('change', function () {
     settings.taskPlacementAfterSourceId = String($(this).val() || '');
     markSchemeDirty('preset');
-    saveSettings();
   });
   $t('#st-esg-replace-last-user-message').on('change', function () {
     settings.replaceLastUserMessageWithTask = Boolean($(this).prop('checked'));
     markSchemeDirty('preset');
-    saveSettings();
   });
   $t('#st-esg-omit-original-user-messages').on('change', function () {
     settings.omitOriginalUserMessages = Boolean($(this).prop('checked'));
     markSchemeDirty('preset');
-    saveSettings();
   });
   $t('#st-esg-baibai-history-enabled').on('change', function () { settings.baiBaiBookHistoryEnabled = Boolean($(this).prop('checked')); saveSettings(); });
   $t('#st-esg-baibai-state-enabled').on('change', function () { settings.baiBaiBookStateEnabled = Boolean($(this).prop('checked')); saveSettings(); });
@@ -8362,7 +8392,6 @@ function bindPanelEvents() {
     settings.taskPrompt = DEFAULT_SETTINGS.taskPrompt;
     $t('#st-esg-task').val(settings.taskPrompt);
     markSchemeDirty('task');
-    saveSettings();
     setStatus('已恢复默认提示词。');
   });
   $t('#st-esg-preview').on('input', function () {
@@ -8388,13 +8417,11 @@ function bindPanelEvents() {
     settings.apiMode = String($(this).data('api-mode') || 'custom');
     settings.useMainApi = false;
     markSchemeDirty('api');
-    saveSettings();
     renderApiModeUi();
   });
   $t('#st-esg-tavern-profile').on('change', function () {
     settings.tavernProfile = String($(this).val() || '');
     markSchemeDirty('api');
-    saveSettings();
     setStatus(settings.tavernProfile ? '已选择酒馆预设' : '已取消选择酒馆预设');
   });
   $t('#st-esg-refresh-tavern-profiles').on('click', function () { refreshTavernProfiles(); });
@@ -8410,13 +8437,12 @@ function bindPanelEvents() {
     settings.apiModel = selected;
     $t('#st-esg-api-model').val(selected);
     markSchemeDirty('api');
-    saveSettings();
   });
   $t('#st-esg-max-tokens').on('input', function () { settings.maxTokens = String($(this).val()); markSchemeDirtyDeferred('api'); });
   $t('#st-esg-temperature').on('input', function () { settings.temperature = String($(this).val()); markSchemeDirtyDeferred('api'); });
-  $t('#st-esg-streaming-enabled').on('change', function () { settings.streamingEnabled = Boolean($(this).prop('checked')); markSchemeDirty('api'); saveSettings(); });
+  $t('#st-esg-streaming-enabled').on('change', function () { settings.streamingEnabled = Boolean($(this).prop('checked')); markSchemeDirty('api'); });
   $t('#st-esg-api-retry-count').on('input', function () { settings.apiRetryCount = String($(this).val()); markSchemeDirtyDeferred('api'); });
-  $t('#st-esg-api-retry-count').on('change blur', function () { settings.apiRetryCount = normalizeApiRetryCount($(this).val()); $(this).val(settings.apiRetryCount); markSchemeDirty('api'); saveSettings(); });
+  $t('#st-esg-api-retry-count').on('change blur', function () { settings.apiRetryCount = normalizeApiRetryCount($(this).val()); $(this).val(settings.apiRetryCount); markSchemeDirty('api'); });
   $t('#st-esg-prompt-template-compat').on('change', function () { settings.promptTemplateCompatEnabled = Boolean($(this).prop('checked')); saveSettings(); });
   $t('#st-esg-inject-mode').on('change', function () { settings.injectMode = String($(this).val()); saveSettings(); renderGenerationSettings(); });
   $t('#st-esg-rollback-before-generation').on('change', function () { settings.rollbackBeforeGeneration = Boolean($(this).prop('checked')); saveSettings(); });
