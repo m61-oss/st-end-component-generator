@@ -1,12 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { createDefaultSettings } from '../settings/default-settings.js';
 
 const indexSource = await readFile(new URL('../index.js', import.meta.url), 'utf8');
 
 test('panel persists an explicit generation mode and normalized multi-task settings', () => {
-  assert.match(indexSource, /generationMode:\s*'single'/);
-  assert.match(indexSource, /multiTaskSettings:\s*\{\s*concurrency:\s*1/);
+  const defaults = createDefaultSettings();
+  assert.equal(defaults.generationMode, 'single');
+  assert.equal(defaults.multiTaskSettings.concurrency, 1);
   assert.match(indexSource, /normalizeMultiTaskSettings\(settings\.multiTaskSettings\)/);
   assert.match(indexSource, /renderGenerationModeSwitch\(mode, \{ switchingDisabled: running \}\)/);
 });

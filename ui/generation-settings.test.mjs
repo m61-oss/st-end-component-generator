@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 import { getGenerationInjectionModeHelp, normalizeGenerationInjectionMode } from './generation-settings.js';
+import { createDefaultSettings } from '../settings/default-settings.js';
 
 test('returns only the explanation for the selected injection mode', () => {
   const replace = getGenerationInjectionModeHelp('replace');
@@ -26,7 +27,7 @@ test('falls back to replace for an unknown injection mode', () => {
 test('renders a persisted automatic-generation trigger input only with automatic generation', async () => {
   const indexSource = await readFile(new URL('../index.js', import.meta.url), 'utf8');
 
-  assert.match(indexSource, /automaticGenerationTriggerText:\s*''/);
+  assert.equal(createDefaultSettings().automaticGenerationTriggerText, '');
   assert.match(indexSource, /id="st-esg-auto-generate-trigger-row"/);
   assert.match(indexSource, /id="st-esg-auto-generate-trigger"/);
   assert.match(indexSource, /#st-esg-auto-generate-trigger-row[^\n]+toggleClass\('st-esg-hidden',\s*!settings\.autoGenerate\)/);

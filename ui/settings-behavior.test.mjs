@@ -44,3 +44,9 @@ test('settings persistence delegates transient cleanup and multi-task projection
   assert.match(source, /store\.multiTaskSettings = createPersistedMultiTaskSettings\(settings\.multiTaskSettings\)/);
   assert.doesNotMatch(source, /tasks:\s*multiTaskState\.tasks\.map/);
 });
+
+test('index receives its default settings schema from the settings boundary', () => {
+  assert.match(indexSource, /from '\.\/settings\/default-settings\.js\?ver=0\.2\.2'/);
+  assert.match(indexSource, /const DEFAULT_SETTINGS = createDefaultSettings\(\)/);
+  assert.doesNotMatch(indexSource, /const DEFAULT_SETTINGS = \{/);
+});

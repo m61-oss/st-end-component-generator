@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { createDefaultSettings } from '../settings/default-settings.js';
 
 const [indexSource, styleSource] = await Promise.all([
   readFile(new URL('../index.js', import.meta.url), 'utf8'),
@@ -18,7 +19,7 @@ test('memory settings present BaiBai Book and Anima as independent grouped check
 });
 
 test('legacy mutually exclusive settings migrate once without activating hidden choices', () => {
-  assert.match(indexSource, /combinedMemorySourcesMigrated:\s*false/);
+  assert.equal(createDefaultSettings().combinedMemorySourcesMigrated, false);
   assert.match(indexSource, /if \(settings\.combinedMemorySourcesMigrated !== true\)/);
   assert.match(indexSource, /settings\.memorySource !== 'baibai'[\s\S]*baiBaiBookHistoryEnabled = false[\s\S]*baiBaiBookStateEnabled = false/);
   assert.match(indexSource, /settings\.memorySource !== 'anima'[\s\S]*animaWorldbookEnabled = false[\s\S]*animaStatusVariableEnabled = false/);

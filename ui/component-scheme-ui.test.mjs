@@ -1,12 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { createDefaultSettings } from '../settings/default-settings.js';
 
 const source = await readFile(new URL('../index.js', import.meta.url), 'utf8');
 
 test('component schemes are persisted and use the existing scheme manager controls', () => {
-  assert.match(source, /componentSchemes:\s*\[\]/);
-  assert.match(source, /selectedComponentSchemeId:\s*''/);
+  const defaults = createDefaultSettings();
+  assert.deepEqual(defaults.componentSchemes, []);
+  assert.equal(defaults.selectedComponentSchemeId, '');
   assert.match(source, /component:\s*\{\s*listKey:\s*'componentSchemes'/);
   assert.match(source, /renderSchemeManager\('component'\)/);
 });

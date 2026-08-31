@@ -31,7 +31,7 @@ import { normalizeGeneratedResult } from './generation/output-result.js?ver=0.2.
 import { applyAnchorInsertions, buildAnchorPreviewSegments, isAnchorInsertionEnabled, locateAnchorInsertions } from './injection/anchor-insertion.js?ver=0.2.2';
 import { normalizeStreamOutputPreview } from './generation/stream-output-preview.js?ver=0.2.2';
 import { composeTaskInstruction } from './generation/task-instruction.js?ver=0.2.2';
-import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.2.2';
+import { CHAT_HISTORY_RANGE_RECENT, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.2.2';
 import { renderPromptTemplate } from './generation/template-compat.js?ver=0.2.2';
 import { replaceTavernHelperMacrosInMessages } from './generation/tavern-helper-macros.js?ver=0.2.2';
 import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.2.2';
@@ -130,7 +130,7 @@ import {
   markWorldbookSourceDirty,
   takeDirtyWorldbookSources,
 } from './sources/prompt-source-cache.js?ver=0.2.2';
-import { TASK_PLACEMENT_AFTER_CHAT_HISTORY, resolveTaskPlacementSelection } from './settings/task-placement.js?ver=0.2.2';
+import { resolveTaskPlacementSelection } from './settings/task-placement.js?ver=0.2.2';
 import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.2.2';
 import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.2.2';
 import {
@@ -156,6 +156,7 @@ import {
 import { buildDataManagementModel, clearSettingsDataCategory, formatByteSize } from './settings/data-management.js?ver=0.2.2';
 import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCleanupImport } from './settings/tag-cleanup-transfer.js?ver=0.2.2';
 import { createPersistedMultiTaskSettings, removeTransientGenerationSettings, resetTransientGenerationState } from './settings/runtime-persistence.js?ver=0.2.2';
+import { MAX_OUTPUT_TOKENS, SOURCE_MODE_IMPORT, SOURCE_MODE_PROMPT, createDefaultSettings } from './settings/default-settings.js?ver=0.2.2';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.2.2';
@@ -163,12 +164,9 @@ const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置组件生成器';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
 const GENERATION_HISTORY_STORAGE_KEY = `${EXTENSION_ID}.recentGenerationHistory`;
-const SOURCE_MODE_PROMPT = 'prompt';
-const SOURCE_MODE_IMPORT = 'import';
 const WORLD_BOOK_FOLLOW_TAVERN = '__follow_tavern__';
 const DEFAULT_COMPONENT_GROUP_VALUE = '__default_group__';
 const ANIMA_WORLD_BOOK_CAPTURE_RETRY_DELAY_MS = 100;
-const MAX_OUTPUT_TOKENS = 65535;
 const FLOATING_BALL_MIN_SIZE = 28;
 const FLOATING_BALL_MAX_SIZE = 72;
 const FLOATING_BALL_MIN_OPACITY = 0.2;
@@ -184,121 +182,7 @@ const WORLDBOOK_CATEGORY_ORDER = [
   ['inactive', '未启用世界书'],
 ];
 
-const DEFAULT_SETTINGS = {
-  enabled: false,
-  mode: 'manual',
-  autoGenerate: null,
-  automaticGenerationTriggerText: '',
-  autoInject: null,
-  activeTab: 'workspace',
-  generationMode: 'single',
-  multiTaskSettings: { concurrency: 1, injectionIntervalSeconds: 1, injectionOrder: 'completion', activeTaskId: '', tasks: [] },
-  taskPrompt: [
-    '现在停止生成正文，为最新的正文补充下面这些内容。',
-    '{{external_components}}',
-    '上方为需要补充的内容，现在开始输出思考过程并按规则和格式输出需要补充的内容，禁止额外生成正文。',
-  ].join('\n'),
-  standardOutputProtocol: OUTPUT_PROTOCOL_SYSTEM_PROMPT,
-  standardOutputProtocolRole: 'assistant',
-  anchorOutputProtocol: ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT,
-  anchorOutputProtocolRole: 'assistant',
-  outputProtocolAssistantDefaultApplied: false,
-  apiUrl: '',
-  apiKey: '',
-  apiModel: '',
-  apiMode: 'custom',
-  useMainApi: false,
-  tavernProfile: '',
-  apiModelOptions: [],
-  maxTokens: String(MAX_OUTPUT_TOKENS),
-  temperature: '1',
-  additionalBodyYaml: '',
-  excludedBodyYaml: '',
-  additionalHeadersYaml: '',
-  streamingEnabled: false,
-  apiRetryCount: 0,
-  promptTemplateCompatEnabled: false,
-  injectMode: 'replace',
-  rollbackBeforeGeneration: false,
-  statusPlaceholderEnabled: false,
-  mvuReprocessOnInject: true,
-  historyCleanupTags: '',
-  historyCleanupRules: [],
-  historyRangeMode: CHAT_HISTORY_RANGE_VISIBLE,
-  recentMessageCount: 10,
-  outputCleanupTags: '',
-  lastGenerated: '',
-  lastGeneratedAnchorItems: [],
-  lastGeneratedAnchorWarnings: [],
-  lastGeneratedResultMode: 'standard',
-  lastGeneratedAnchorTargetIndex: null,
-  lastGeneratedStatusPlaceholderPresent: false,
-  lastGeneratedThinking: [],
-  lastGenerationError: null,
-  lastPromptLog: '',
-  compressSystemMessages: false,
-  taskPlacementEnabled: true,
-  taskPlacementAfterSourceId: TASK_PLACEMENT_AFTER_CHAT_HISTORY,
-  replaceLastUserMessageWithTask: true,
-  omitOriginalUserMessages: false,
-  baiBaiBookHistoryEnabled: false,
-  baiBaiBookStateEnabled: false,
-  memorySource: 'none',
-  combinedMemorySourcesMigrated: false,
-  animaWorldbookEnabled: false,
-  animaStatusVariableEnabled: false,
-  animaStatusAfterMessageEnabled: false,
-  ballX: null,
-  ballY: null,
-  ballPositionVersion: 2,
-  ballVisible: false,
-  ballSize: 38,
-  ballOpacity: 0.82,
-  ballAnimationEnabled: true,
-  ballSnapEnabled: false,
-  ballDock: 'none',
-  qrGenerateEnabled: false,
-  qrInjectEnabled: false,
-  messageFloorPanelEnabled: true,
-  messageFloorPanelDefaultApplied: false,
-  theme: 'dark',
-  activeSourcePreset: '',
-  sourceMode: SOURCE_MODE_PROMPT,
-  sourceModes: { preset: SOURCE_MODE_PROMPT, worldbook: SOURCE_MODE_PROMPT },
-  promptSelections: {},
-  importSelections: {},
-  sourceContentOverrides: {},
-  worldbookActivationOverrides: {},
-  worldbookKeywordOverrides: {},
-  worldbookInitialized: false,
-  worldbookDraftSources: [],
-  apiSchemes: [],
-  taskSchemes: [],
-  presetSchemes: [],
-  worldbookSchemes: [],
-  componentSchemes: [],
-  chatWorldbookBindings: [],
-  selectedApiSchemeId: '',
-  selectedTaskSchemeId: '',
-  selectedPresetSchemeId: '',
-  selectedWorldbookSchemeId: '',
-  selectedComponentSchemeId: '',
-  activeSchemeIds: {},
-  dirtySchemeTypes: {},
-  components: [],
-  componentGroups: [],
-  defaultGroupEnabled: {},
-  componentGroupsMigrated: false,
-  theaterComponents: [],
-  theaterGroups: [],
-  theaterDefaultGroupEnabled: true,
-  theaterRandomScope: THEATER_RANDOM_SCOPE_GLOBAL,
-  theaterRandomMode: THEATER_RANDOM_MODE_OFF,
-  theaterRandomCount: 1,
-  theaterGroupedFallbackMode: THEATER_RANDOM_MODE_OFF,
-  theaterGroupedFallbackCount: 1,
-  theaterGroupRandomOverrides: [],
-};
+const DEFAULT_SETTINGS = createDefaultSettings();
 
 const targetWindow = (() => {
   try { return window.parent?.document?.body ? window.parent : window; } catch (_) { return window; }
