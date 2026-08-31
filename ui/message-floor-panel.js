@@ -143,12 +143,26 @@ function scopeMultiTaskFloorPanelSettings(value = {}, target = {}) {
       || (Boolean(recordChatId) && Number.isInteger(recordMessageIndex));
     return { task, targetMatches, recordMatches, hasAddress };
   });
-  const current = described.filter((item) => item.targetMatches || item.recordMatches);
-  const visible = current.length ? current : described.filter((item) => !item.hasAddress);
-  const scopedTasks = visible.map(({ task, recordMatches }) => ({
-    ...task,
-    injectionRecord: recordMatches ? task.injectionRecord : null,
-  }));
+  const scopedTasks = described.map(({ task, targetMatches, recordMatches, hasAddress }) => {
+    if (targetMatches || recordMatches) {
+      return {
+        ...task,
+        injectionRecord: recordMatches ? task.injectionRecord : null,
+      };
+    }
+    if (!hasAddress) return task;
+    return {
+      ...task,
+      status: 'idle',
+      output: '',
+      thinking: [],
+      resultMode: 'standard',
+      anchorItems: [],
+      warnings: [],
+      injectionRecord: null,
+      error: null,
+    };
+  });
   const activeTaskId = scopedTasks.some((task) => String(task.id ?? '') === String(value?.activeTaskId ?? ''))
     ? String(value.activeTaskId)
     : String(scopedTasks[0]?.id ?? '');

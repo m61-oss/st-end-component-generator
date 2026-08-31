@@ -1487,10 +1487,13 @@ async function runMessageFloorPanelAction(action) {
     const latest = getMessageFloorPanelActionTarget();
     if (!latest) return;
     const allTasks = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks;
+    const allTaskIds = allTasks.map((task) => task.id);
     const scoped = scopeMultiTaskFloorPanelSettings({ ...settings.multiTaskSettings, tasks: allTasks }, messageFloorPanelState.target);
-    const floorTaskIds = scoped.tasks.map((task) => task.id);
+    const floorInjectTaskIds = scoped.tasks
+      .filter((task) => [MULTI_TASK_STATUS.READY, MULTI_TASK_STATUS.UNDONE].includes(task.status))
+      .filter((task) => String(task.output || '').trim() || task.anchorItems?.length)
+      .map((task) => task.id);
     const floorUndoTaskIds = scoped.tasks.filter((task) => task.injectionRecord).map((task) => task.id);
-    const generationTaskIds = floorTaskIds.length ? floorTaskIds : allTasks.map((task) => task.id);
     if (action === 'stop') {
       const runningTaskIds = scoped.tasks
         .filter((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
@@ -1498,13 +1501,13 @@ async function runMessageFloorPanelAction(action) {
       cancelMultiTaskGeneration(runningTaskIds);
       return;
     }
-    if (action === 'generate') await generateMultiTasks(generationTaskIds);
+    if (action === 'generate') await generateMultiTasks(allTaskIds);
     else if (action === 'retry') {
       const failedTaskIds = scoped.tasks
         .filter((task) => task.status === MULTI_TASK_STATUS.ERROR)
         .map((task) => task.id);
       await generateMultiTasks(failedTaskIds);
-    } else if (action === 'inject') await injectMultiTasks(floorTaskIds);
+    } else if (action === 'inject') await injectMultiTasks(floorInjectTaskIds);
     else if (action === 'undo') await undoMultiTaskInjections(floorUndoTaskIds, { requireConfirmation: true });
     return;
   }

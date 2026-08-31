@@ -18,7 +18,7 @@ import {
   nextFloorPanelGeneration,
 } from './message-floor-panel.js';
 
-test('multi-task floor only exposes tasks that belong to the current floor', () => {
+test('multi-task floor keeps every task capsule but clears results from other floors', () => {
   const scoped = scopeMultiTaskFloorPanelSettings({
     activeTaskId: 'old',
     tasks: [
@@ -27,12 +27,15 @@ test('multi-task floor only exposes tasks that belong to the current floor', () 
     ],
   }, { chatId: 'chat-a', messageIndex: 4 });
 
-  assert.deepEqual(scoped.tasks.map((task) => task.id), ['current']);
-  assert.equal(scoped.tasks[0].output, 'current result');
-  assert.equal(scoped.activeTaskId, 'current');
+  assert.deepEqual(scoped.tasks.map((task) => task.id), ['old', 'current']);
+  assert.equal(scoped.tasks[0].status, 'idle');
+  assert.equal(scoped.tasks[0].output, '');
+  assert.equal(scoped.tasks[0].injectionRecord, null);
+  assert.equal(scoped.tasks[1].output, 'current result');
+  assert.equal(scoped.activeTaskId, 'old');
 });
 
-test('multi-task floor keeps unbound tasks available before the first generation on a floor', () => {
+test('multi-task floor keeps unbound and previously generated task capsules together', () => {
   const scoped = scopeMultiTaskFloorPanelSettings({
     activeTaskId: 'old',
     tasks: [
@@ -41,8 +44,10 @@ test('multi-task floor keeps unbound tasks available before the first generation
     ],
   }, { chatId: 'chat-a', messageIndex: 4 });
 
-  assert.deepEqual(scoped.tasks.map((task) => task.id), ['new']);
-  assert.equal(scoped.activeTaskId, 'new');
+  assert.deepEqual(scoped.tasks.map((task) => task.id), ['old', 'new']);
+  assert.equal(scoped.tasks[0].status, 'idle');
+  assert.equal(scoped.tasks[0].output, '');
+  assert.equal(scoped.activeTaskId, 'old');
 });
 
 test('multi-task floor view follows the selected task while aggregating the whole run status', () => {

@@ -27,7 +27,18 @@ test('floor panel retry regenerates only failed multi-task items', () => {
   assert.match(actionSource, /MULTI_TASK_STATUS\.ERROR/);
   assert.match(actionSource, /const failedTaskIds = scoped\.tasks/);
   assert.match(actionSource, /action === 'retry'[\s\S]*generateMultiTasks\(failedTaskIds\)/);
-  assert.match(actionSource, /action === 'generate'[\s\S]*generateMultiTasks\(generationTaskIds\)/);
+  assert.match(actionSource, /action === 'generate'[\s\S]*generateMultiTasks\(allTaskIds\)/);
+});
+
+test('floor panel total generation always includes every configured task after a partial run', () => {
+  const actionSource = indexSource.slice(
+    indexSource.indexOf('async function runMessageFloorPanelAction'),
+    indexSource.indexOf('function bindMessageFloorPanel'),
+  );
+
+  assert.match(actionSource, /const allTaskIds = allTasks\.map\(\(task\) => task\.id\)/);
+  assert.match(actionSource, /action === 'generate'[\s\S]*generateMultiTasks\(allTaskIds\)/);
+  assert.doesNotMatch(actionSource, /generationTaskIds = floorTaskIds\.length/);
 });
 
 test('multi-task stream updates the floor panel without replacing its expanded structure', () => {

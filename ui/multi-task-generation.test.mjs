@@ -85,15 +85,15 @@ test('manual injection locks each result before it enters the serialized queue',
   assert.match(source, /scheduleMultiTaskFrameworkRender\(\)/);
 });
 
-test('floor panel actions pass only current-floor task ids to multi-task operations', () => {
+test('floor panel generates all tasks while injection and undo stay scoped to the current floor', () => {
   const start = indexSource.indexOf('async function runMessageFloorPanelAction');
-  const end = indexSource.indexOf('function bindMessageFloorPanelEvents', start);
+  const end = indexSource.indexOf('function bindMessageFloorPanel', start);
   const source = indexSource.slice(start, end);
 
   assert.match(source, /scopeMultiTaskFloorPanelSettings\(/);
-  assert.match(source, /injectMultiTasks\(floorTaskIds\)/);
+  assert.match(source, /generateMultiTasks\(allTaskIds\)/);
+  assert.match(source, /injectMultiTasks\(floorInjectTaskIds\)/);
   assert.match(source, /undoMultiTaskInjections\(floorUndoTaskIds/);
-  assert.match(source, /generateMultiTasks\(generationTaskIds/);
 });
 
 test('running generation disables mode switching and guards the mode click handler', () => {
