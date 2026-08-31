@@ -36,3 +36,11 @@ test('component editor delegation is cleared before each list rebind', () => {
 test('markSchemeDirty callers do not immediately save the same settings twice', () => {
   assert.doesNotMatch(indexSource, /markSchemeDirty\([^\n]+\);\s*\r?\n\s*saveSettings\(\);/);
 });
+
+test('settings persistence delegates transient cleanup and multi-task projection to one boundary module', () => {
+  assert.match(indexSource, /from '\.\/settings\/runtime-persistence\.js\?ver=0\.2\.2'/);
+  const source = functionSource('saveSettings', 'isAnimaMemoryEnabled');
+  assert.match(source, /removeTransientGenerationSettings\(store\)/);
+  assert.match(source, /store\.multiTaskSettings = createPersistedMultiTaskSettings\(settings\.multiTaskSettings\)/);
+  assert.doesNotMatch(source, /tasks:\s*multiTaskState\.tasks\.map/);
+});

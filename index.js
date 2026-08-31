@@ -155,6 +155,7 @@ import {
 } from './settings/chat-worldbook-binding.js?ver=0.2.2';
 import { buildDataManagementModel, clearSettingsDataCategory, formatByteSize } from './settings/data-management.js?ver=0.2.2';
 import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCleanupImport } from './settings/tag-cleanup-transfer.js?ver=0.2.2';
+import { createPersistedMultiTaskSettings, removeTransientGenerationSettings, resetTransientGenerationState } from './settings/runtime-persistence.js?ver=0.2.2';
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.2.2';
@@ -162,17 +163,6 @@ const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置组件生成器';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
 const GENERATION_HISTORY_STORAGE_KEY = `${EXTENSION_ID}.recentGenerationHistory`;
-// 生成页当前结果只属于本次页面运行会话；跨刷新查看应使用最近生成记录。
-const TRANSIENT_GENERATION_SETTING_KEYS = Object.freeze([
-  'lastGenerated',
-  'lastGeneratedAnchorItems',
-  'lastGeneratedAnchorWarnings',
-  'lastGeneratedResultMode',
-  'lastGeneratedAnchorTargetIndex',
-  'lastGeneratedStatusPlaceholderPresent',
-  'lastGeneratedThinking',
-  'lastGenerationError',
-]);
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLD_BOOK_FOLLOW_TAVERN = '__follow_tavern__';
@@ -605,27 +595,6 @@ function getSettingsStore() {
   return context.extensionSettings[EXTENSION_ID];
 }
 
-function resetTransientGenerationState(target) {
-  target.lastGenerated = '';
-  target.lastGeneratedAnchorItems = [];
-  target.lastGeneratedAnchorWarnings = [];
-  target.lastGeneratedResultMode = 'standard';
-  target.lastGeneratedAnchorTargetIndex = null;
-  target.lastGeneratedStatusPlaceholderPresent = false;
-  target.lastGeneratedThinking = [];
-  target.lastGenerationError = null;
-}
-
-function removeTransientGenerationSettings(store) {
-  let changed = false;
-  for (const key of TRANSIENT_GENERATION_SETTING_KEYS) {
-    if (!Object.prototype.hasOwnProperty.call(store, key)) continue;
-    delete store[key];
-    changed = true;
-  }
-  return changed;
-}
-
 function loadSettings() {
   const storedSettings = getSettingsStore();
   const isFreshInstall = Object.keys(storedSettings).length === 0;
@@ -883,25 +852,7 @@ function saveSettings() {
   const store = getSettingsStore();
   Object.assign(store, settings);
   removeTransientGenerationSettings(store);
-  const multiTaskState = normalizeMultiTaskSettings(settings.multiTaskSettings);
-  store.multiTaskSettings = {
-    concurrency: multiTaskState.concurrency,
-    injectionIntervalSeconds: multiTaskState.injectionIntervalSeconds,
-    injectionOrder: multiTaskState.injectionOrder,
-    activeTaskId: multiTaskState.activeTaskId,
-    tasks: multiTaskState.tasks.map((task) => ({
-      id: task.id,
-      name: task.name,
-      apiSchemeId: task.apiSchemeId,
-      taskSchemeId: task.taskSchemeId,
-      presetSchemeId: task.presetSchemeId,
-      worldbookSchemeId: task.worldbookSchemeId,
-      componentSchemeId: task.componentSchemeId,
-      injectMode: task.injectMode,
-      extraInstruction: task.extraInstruction,
-      status: MULTI_TASK_STATUS.IDLE,
-    })),
-  };
+  store.multiTaskSettings = createPersistedMultiTaskSettings(settings.multiTaskSettings);
   try {
     targetWindow.localStorage?.setItem(PROMPT_TEMPLATE_COMPAT_STORAGE_KEY, String(Boolean(settings.promptTemplateCompatEnabled)));
   } catch (_) {}
