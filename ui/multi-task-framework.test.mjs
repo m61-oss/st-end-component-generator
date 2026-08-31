@@ -5,9 +5,6 @@ import { createDefaultSettings } from '../settings/default-settings.js';
 
 const indexSource = await readFile(new URL('../index.js', import.meta.url), 'utf8');
 const controllerSource = await readFile(new URL('../generation/multi-task-controller.js', import.meta.url), 'utf8');
-const workspaceControllerSource = await readFile(new URL('./multi-task-workspace-controller.js', import.meta.url), 'utf8');
-const settingsDialogSource = await readFile(new URL('./multi-task-settings-dialog.js', import.meta.url), 'utf8');
-const taskControllerSource = await readFile(new URL('../generation/multi-task-task-controller.js', import.meta.url), 'utf8');
 
 test('panel persists an explicit generation mode and normalized multi-task settings', () => {
   const defaults = createDefaultSettings();
@@ -25,13 +22,13 @@ test('workspace keeps the original generation DOM mounted and adds only multi-ta
   assert.match(indexSource, /st-esg-temporary-task-instruction/);
   assert.match(indexSource, /st-esg-preview/);
   assert.doesNotMatch(indexSource, /toggleAttribute\('disabled', mode === 'multi'\)/);
-  assert.match(workspaceControllerSource, /generate\?\.toggleAttribute\('disabled', !hasTasks\)/);
+  assert.match(indexSource, /generate\?\.toggleAttribute\('disabled', !hasTasks\)/);
   assert.match(indexSource, /renderMultiTaskFramework/);
 });
 
 test('multi-task framework wires the shared settings surface and task view persistence', () => {
   for (const action of ['add', 'settings', 'rename', 'delete']) {
-    assert.match(taskControllerSource, new RegExp(`action === '${action}'`));
+    assert.match(indexSource, new RegExp(`action === '${action}'`));
   }
   assert.match(indexSource, /data-generation-mode/);
   assert.match(indexSource, /data-generation-mode-settings/);
@@ -49,27 +46,27 @@ test('switching to single mode restores an empty single workspace when no snapsh
 });
 
 test('multi-task startup batches synchronous queue transitions into one frame render', () => {
-  const schedulerSource = workspaceControllerSource.slice(
-    workspaceControllerSource.indexOf('function scheduleRender'),
-    workspaceControllerSource.indexOf('return {'),
+  const schedulerSource = indexSource.slice(
+    indexSource.indexOf('function scheduleMultiTaskFrameworkRender'),
+    indexSource.indexOf('function renderMultiTaskFramework'),
   );
   const transitionSource = controllerSource.slice(
     controllerSource.indexOf('onTransition: ({ taskId'),
     controllerSource.indexOf('execute: async (entry)'),
   );
 
-  assert.match(schedulerSource, /renderScheduled/);
-  assert.match(schedulerSource, /requestFrame/);
-  assert.match(schedulerSource, /renderRuntimeState\(\)/);
+  assert.match(schedulerSource, /multiTaskFrameworkRenderScheduled/);
+  assert.match(schedulerSource, /requestAnimationFrame/);
+  assert.match(schedulerSource, /renderMultiTaskRuntimeState\(\)/);
   assert.doesNotMatch(schedulerSource, /saveSettings\(\)|renderMultiTaskFramework\(\)/);
   assert.match(transitionSource, /scheduleRender\(\)/);
   assert.doesNotMatch(transitionSource, /saveSettings\(\);[\s\S]{0,100}renderMultiTaskFramework\(\)/);
 });
 
 test('task switching updates only task views and persists the active id without a full framework render', () => {
-  const selectionSource = workspaceControllerSource.slice(
-    workspaceControllerSource.indexOf('function defaultRenderActiveViews'),
-    workspaceControllerSource.indexOf('function updateActionState'),
+  const selectionSource = indexSource.slice(
+    indexSource.indexOf('function renderActiveMultiTaskViews'),
+    indexSource.indexOf('function scheduleMultiTaskFrameworkRender'),
   );
   const floorTabSource = indexSource.slice(
     indexSource.indexOf("const multiTaskTab = event.target.closest('[data-multi-task-id]')"),
@@ -80,9 +77,9 @@ test('task switching updates only task views and persists the active id without 
     indexSource.indexOf(".on('click.stEsgMultiTask', '[data-multi-task-action]'"),
   );
 
-  assert.match(selectionSource, /persistActiveTaskSelection\(\)/);
-  assert.match(selectionSource, /renderActiveViews\(\)/);
-  assert.match(selectionSource, /syncFloorSelection\(\)/);
+  assert.match(selectionSource, /persistActiveMultiTaskSelection\(\)/);
+  assert.match(selectionSource, /renderActiveMultiTaskViews\(\)/);
+  assert.match(selectionSource, /syncMessageFloorPanelTaskSelection\(\)/);
   assert.doesNotMatch(selectionSource, /saveSettings\(\)|renderMultiTaskFramework\(\)/);
   assert.match(floorTabSource, /selectActiveMultiTaskView/);
   assert.doesNotMatch(floorTabSource, /saveSettings\(\)|renderMultiTaskFramework\(\)/);
@@ -93,7 +90,7 @@ test('task switching updates only task views and persists the active id without 
 test('hydrating a task result does not render anchors or resize the preview twice', () => {
   const applySource = indexSource.slice(
     indexSource.indexOf('function applyGenerationWorkspaceView'),
-    indexSource.indexOf('function scheduleSettingsSave'),
+    indexSource.indexOf('function captureActiveMultiTaskView'),
   );
 
   assert.match(applySource, /renderGenerationResultPanel\(\)/);
@@ -162,49 +159,57 @@ test('generation history is a shared five-entry dialog instead of a workspace ca
 });
 
 test('the one settings gear exposes common and task configuration pages regardless of generation mode', () => {
-  assert.match(settingsDialogSource, /data-generation-settings-card-host/);
-  assert.match(settingsDialogSource, /data-single-task-injection-host/);
-  assert.match(settingsDialogSource, /data-generation-settings-page="general"/);
-  assert.match(settingsDialogSource, /data-generation-settings-page="tasks"/);
-  assert.match(settingsDialogSource, /data-generation-settings-panel="general"/);
-  assert.match(settingsDialogSource, /data-generation-settings-panel="tasks"/);
-  assert.match(settingsDialogSource, />通用设置</);
-  assert.match(settingsDialogSource, />任务配置</);
-  assert.doesNotMatch(settingsDialogSource, /data-multi-task-settings-tab=/);
-  assert.doesNotMatch(settingsDialogSource, /data-multi-task-settings-panel=/);
+  assert.match(indexSource, /data-generation-settings-card-host/);
+  assert.match(indexSource, /data-single-task-injection-host/);
+  assert.match(indexSource, /data-generation-settings-page="general"/);
+  assert.match(indexSource, /data-generation-settings-page="tasks"/);
+  assert.match(indexSource, /data-generation-settings-panel="general"/);
+  assert.match(indexSource, /data-generation-settings-panel="tasks"/);
+  assert.match(indexSource, />通用设置</);
+  assert.match(indexSource, />任务配置</);
+  assert.doesNotMatch(indexSource, /data-multi-task-settings-tab=/);
+  assert.doesNotMatch(indexSource, /data-multi-task-settings-panel=/);
   assert.match(indexSource, /function showGenerationModeSettingsDialog\(\)\s*\{\s*showMultiTaskSettingsDialog\(\);\s*\}/);
-  assert.doesNotMatch(settingsDialogSource, /name=\?"autoInject/);
-  assert.doesNotMatch(settingsDialogSource, /name=\?"rollbackBeforeGeneration/);
-  assert.doesNotMatch(settingsDialogSource, /组件方案将在后续阶段接入/);
+  assert.doesNotMatch(indexSource, /name="autoInject"/);
+  assert.doesNotMatch(indexSource, /name="rollbackBeforeGeneration"/);
+  assert.doesNotMatch(indexSource, /组件方案将在后续阶段接入/);
 });
 
 test('task configuration lists every task with inline management instead of a current-task picker', () => {
-  assert.match(settingsDialogSource, /state\.tasks\.map\(\(item\)\s*=>/);
-  assert.match(settingsDialogSource, /data-multi-task-settings-task-id=/);
-  assert.match(settingsDialogSource, /data-multi-task-task-field="presetSchemeId"/);
-  assert.match(settingsDialogSource, />多任务<\/strong>[\s\S]*data-multi-task-settings-action="add"/);
-  assert.match(settingsDialogSource, /data-multi-task-settings-action="rename"[^>]*data-multi-task-task-id=/);
-  assert.match(settingsDialogSource, /data-multi-task-settings-action="delete"[^>]*data-multi-task-task-id=/);
-  assert.match(settingsDialogSource, /closest\('\[data-multi-task-settings-task-id\]'\)/);
-  assert.doesNotMatch(settingsDialogSource, /data-multi-task-settings-select/);
+  assert.match(indexSource, /state\.tasks\.map\(\(item\)\s*=>/);
+  assert.match(indexSource, /data-multi-task-settings-task-id=/);
+  assert.match(indexSource, /data-multi-task-task-field="presetSchemeId"/);
+  assert.match(indexSource, />多任务<\/strong>[\s\S]*data-multi-task-settings-action="add"/);
+  assert.match(indexSource, /data-multi-task-settings-action="rename"[^>]*data-multi-task-task-id=/);
+  assert.match(indexSource, /data-multi-task-settings-action="delete"[^>]*data-multi-task-task-id=/);
+  assert.match(indexSource, /closest\('\[data-multi-task-settings-task-id\]'\)/);
+  assert.doesNotMatch(indexSource, /data-multi-task-settings-select/);
 });
 
 test('multi-task controls save immediately without save or cancel actions', () => {
+  const settingsDialogSource = indexSource.slice(
+    indexSource.indexOf('function showMultiTaskSettingsDialog'),
+    indexSource.indexOf('function showGenerationModeSettingsDialog'),
+  );
   assert.match(settingsDialogSource, /data-multi-task-task-field.*addEventListener\('change'/s);
-  assert.match(settingsDialogSource, /concurrency.*addEventListener\('change'/s);
+  assert.match(settingsDialogSource, /name="concurrency".*addEventListener\('change'/s);
   assert.match(settingsDialogSource, /超出并发数的任务会自动排队/);
-  assert.match(settingsDialogSource, /replaceTask\(taskId,/);
+  assert.match(settingsDialogSource, /replaceMultiTask\(taskId, \{ \[field\]: value \}\)/);
   assert.doesNotMatch(settingsDialogSource, /type="submit"/);
   assert.doesNotMatch(settingsDialogSource, />保存<|>取消</);
 });
 
 test('task creation exposes its five-task limit and blocks before opening the name dialog', () => {
-  const addActionSource = taskControllerSource.slice(
-    taskControllerSource.indexOf("if (action === 'add')"),
-    taskControllerSource.indexOf("if (action === 'global-settings')"),
+  const settingsDialogSource = indexSource.slice(
+    indexSource.indexOf('function showMultiTaskSettingsDialog'),
+    indexSource.indexOf('function showGenerationModeSettingsDialog'),
+  );
+  const addActionSource = indexSource.slice(
+    indexSource.indexOf("if (action === 'add')"),
+    indexSource.indexOf("if (action === 'global-settings')"),
   );
 
   assert.match(settingsDialogSource, /添加任务 \$\{state\.tasks\.length\}\/5/);
-  assert.match(settingsDialogSource, /action === 'add'[\s\S]*tasks\.length >= 5[\s\S]*notify\('最多只能添加五个任务。'/);
-  assert.ok(addActionSource.indexOf('tasks.length >= 5') < addActionSource.indexOf('requestTextInput'));
+  assert.match(settingsDialogSource, /action === 'add'[\s\S]*tasks\.length >= 5[\s\S]*notifyStatus\('最多只能添加五个任务。'/);
+  assert.ok(addActionSource.indexOf('tasks.length >= 5') < addActionSource.indexOf('requestTextInputDialog'));
 });

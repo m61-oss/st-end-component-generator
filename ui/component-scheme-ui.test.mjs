@@ -4,7 +4,6 @@ import { readFile } from 'node:fs/promises';
 import { createDefaultSettings } from '../settings/default-settings.js';
 
 const source = await readFile(new URL('../index.js', import.meta.url), 'utf8');
-const settingsDialogSource = await readFile(new URL('./multi-task-settings-dialog.js', import.meta.url), 'utf8');
 
 test('component schemes are persisted and use the existing scheme manager controls', () => {
   const defaults = createDefaultSettings();
@@ -23,5 +22,5 @@ test('component scheme capture and load use selection snapshots without library 
 });
 
 test('multi-task component selector reads the persisted component scheme list', () => {
-  assert.match(settingsDialogSource, /renderMultiTaskSchemeOptions\(settings\.componentSchemes,\s*item\.componentSchemeId\)/);
+  assert.match(source, /renderMultiTaskSchemeOptions\(settings\.componentSchemes,\s*item\.componentSchemeId\)/);
 });
