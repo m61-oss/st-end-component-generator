@@ -78,7 +78,6 @@ import { planMultiTaskFloorActions, scopeMultiTaskFloorPanelSettings } from './g
 import { createMultiTaskController } from './generation/multi-task-controller.js?ver=0.2.2';
 import { createMultiTaskTaskController } from './generation/multi-task-task-controller.js?ver=0.2.2';
 import { renderGenerationModeSwitch, renderMultiTaskWorkspace } from './ui/multi-task-workspace.js?ver=0.2.2';
-import { createMultiTaskWorkspaceController } from './ui/multi-task-workspace-controller.js?ver=0.2.2';
 import { createMultiTaskSettingsDialogController } from './ui/multi-task-settings-dialog.js?ver=0.2.2';
 import {
   THEATER_DEFAULT_GROUP_ID,
@@ -261,9 +260,9 @@ const multiTaskController = createMultiTaskController({
   getAssistantMessageAtIndex,
   getCurrentChatId: getCurrentChatIdSafe,
   callExternalApi,
-  captureActiveView: (...args) => captureActiveMultiTaskView(...args),
-  renderRuntimeState: (...args) => renderMultiTaskRuntimeState(...args),
-  scheduleRender: (...args) => scheduleMultiTaskFrameworkRender(...args),
+  captureActiveView: captureActiveMultiTaskView,
+  renderRuntimeState: renderMultiTaskRuntimeState,
+  scheduleRender: scheduleMultiTaskFrameworkRender,
   updateFloorStream: updateMessageFloorPanelMultiTaskStream,
   updateActiveStream: (taskId, streamed, state) => {
     if (state.activeTaskId !== taskId || settings.generationMode !== 'multi') return;
@@ -292,39 +291,6 @@ const {
   inject: injectMultiTasks,
   undo: undoMultiTaskInjections,
 } = multiTaskController;
-
-const multiTaskWorkspaceController = createMultiTaskWorkspaceController({
-  getSettings: () => settings,
-  setMultiTaskSettings: (next) => { settings.multiTaskSettings = next; },
-  captureWorkspaceView: captureGenerationWorkspaceView,
-  applyWorkspaceView: applyGenerationWorkspaceView,
-  replaceTask: replaceMultiTask,
-  getSettingsStore,
-  saveSettingsDebounced: () => getContext().saveSettingsDebounced(),
-  getDialog,
-  renderWorkspace: renderMultiTaskWorkspace,
-  renderModeSwitch: renderGenerationModeSwitch,
-  getSingleGenerationRunning: () => Boolean(generationAbortController),
-  syncFloorSelection: syncMessageFloorPanelTaskSelection,
-  syncFloorState: syncMessageFloorPanelFromMultiTasks,
-  requestFrame: typeof targetWindow.requestAnimationFrame === 'function'
-    ? (callback) => targetWindow.requestAnimationFrame(callback)
-    : undefined,
-  defer: (callback) => targetWindow.setTimeout(callback, 0),
-  textOf,
-});
-const {
-  captureActiveTaskView: captureActiveMultiTaskView,
-  hydrateActiveTaskView: hydrateActiveMultiTaskView,
-  persistActiveTaskSelection: persistActiveMultiTaskSelection,
-  renderActiveViews: renderActiveMultiTaskViews,
-  selectActiveTask: selectActiveMultiTaskView,
-  updateActionState: updateMultiTaskActionState,
-  renderRuntimeState: renderMultiTaskRuntimeState,
-  isAnyGenerationRunning,
-  renderModeSwitchControl: renderGenerationModeSwitchControl,
-  scheduleRender: scheduleMultiTaskFrameworkRender,
-} = multiTaskWorkspaceController;
 
 const multiTaskSettingsDialogController = createMultiTaskSettingsDialogController({
   getSettings: () => settings,
@@ -6921,6 +6887,30 @@ function applyGenerationWorkspaceView(view = {}) {
 }
 
 
+
+function captureActiveMultiTaskView() {
+  if (settings.generationMode !== 'multi') return;
+  const task = getActiveMultiTask();
+  if (!task) return;
+  replaceMultiTask(task.id, mergeMultiTaskWorkspaceView(task, captureGenerationWorkspaceView()));
+}
+
+function hydrateActiveMultiTaskView() {
+  const task = getActiveMultiTask();
+  applyGenerationWorkspaceView(task || {});
+}
+
+function persistActiveMultiTaskSelection() {
+  const store = getSettingsStore();
+  const persisted = store.multiTaskSettings && typeof store.multiTaskSettings === 'object'
+    ? store.multiTaskSettings
+    : {};
+  store.multiTaskSettings = {
+    ...persisted,
+    activeTaskId: normalizeMultiTaskSettings(settings.multiTaskSettings).activeTaskId,
+  };
+  getContext().saveSettingsDebounced();
+}
 function scheduleSettingsSave() {
   if (settingsSaveTimer !== null) targetWindow.clearTimeout(settingsSaveTimer);
   settingsSaveTimer = targetWindow.setTimeout(() => {
@@ -6930,6 +6920,82 @@ function scheduleSettingsSave() {
 }
 
 
+
+function renderActiveMultiTaskViews() {
+  const multiHost = getDialog()?.querySelector('#st-esg-multi-task-host');
+  if (multiHost) multiHost.innerHTML = renderMultiTaskWorkspace(settings.multiTaskSettings);
+  hydrateActiveMultiTaskView();
+  if (settings.messageFloorPanelEnabled) syncMessageFloorPanelTaskSelection();
+}
+
+function selectActiveMultiTaskView(taskId) {
+  const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  const nextTaskId = textOf(taskId);
+  if (!nextTaskId || nextTaskId === state.activeTaskId || !state.tasks.some((task) => task.id === nextTaskId)) return;
+  captureActiveMultiTaskView();
+  settings.multiTaskSettings = selectMultiTask(settings.multiTaskSettings, nextTaskId);
+  persistActiveMultiTaskSelection();
+  renderActiveMultiTaskViews();
+}
+
+function updateMultiTaskActionState(dialog, multiState = normalizeMultiTaskSettings(settings.multiTaskSettings)) {
+  const hasTasks = multiState.tasks.length > 0;
+  const hasResult = multiState.tasks.some((task) => (
+    [MULTI_TASK_STATUS.READY, MULTI_TASK_STATUS.UNDONE].includes(task.status)
+    && (String(task.output || '').trim() || task.anchorItems?.length)
+  ));
+  const hasUndo = multiState.tasks.some((task) => task.injectionRecord);
+  const running = multiState.tasks.some((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status));
+  const generate = dialog?.querySelector('#st-esg-generate');
+  generate?.toggleAttribute('disabled', !hasTasks);
+  generate?.classList.toggle('disabled', !hasTasks);
+  generate?.classList.toggle('st-esg-action-running', running);
+  generate?.querySelector('i')?.setAttribute('class', running ? 'fa-solid fa-stop' : 'fa-solid fa-wand-magic-sparkles');
+  generate?.querySelector('span')?.replaceChildren(running ? '停止全部' : '生成全部');
+  const inject = dialog?.querySelector('#st-esg-inject');
+  inject?.toggleAttribute('disabled', !hasResult || running);
+  inject?.classList.toggle('disabled', !hasResult || running);
+  const undo = dialog?.querySelector('#st-esg-undo-injection');
+  undo?.toggleAttribute('disabled', !hasUndo);
+  undo?.classList.toggle('disabled', !hasUndo);
+  undo?.classList.toggle('st-esg-hidden', !hasUndo);
+}
+
+function renderMultiTaskRuntimeState() {
+  if (settings.generationMode !== 'multi') return;
+  const dialog = getDialog();
+  const multiState = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  renderGenerationModeSwitchControl(dialog);
+  const multiHost = dialog?.querySelector('#st-esg-multi-task-host');
+  if (multiHost) multiHost.innerHTML = renderMultiTaskWorkspace(multiState);
+  updateMultiTaskActionState(dialog, multiState);
+  hydrateActiveMultiTaskView();
+  if (settings.messageFloorPanelEnabled) syncMessageFloorPanelFromMultiTasks();
+}
+
+function isAnyGenerationRunning() {
+  if (generationAbortController) return true;
+  return normalizeMultiTaskSettings(settings.multiTaskSettings).tasks
+    .some((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status));
+}
+
+function renderGenerationModeSwitchControl(dialog = getDialog()) {
+  const modeHost = dialog?.querySelector('#st-esg-generation-mode-host');
+  if (!modeHost) return;
+  const mode = settings.generationMode === 'multi' ? 'multi' : 'single';
+  modeHost.innerHTML = renderGenerationModeSwitch(mode, { switchingDisabled: isAnyGenerationRunning() });
+}
+
+function scheduleMultiTaskFrameworkRender() {
+  if (multiTaskFrameworkRenderScheduled) return;
+  multiTaskFrameworkRenderScheduled = true;
+  const flush = () => {
+    multiTaskFrameworkRenderScheduled = false;
+    renderMultiTaskRuntimeState();
+  };
+  if (typeof targetWindow.requestAnimationFrame === 'function') targetWindow.requestAnimationFrame(flush);
+  else targetWindow.setTimeout(flush, 0);
+}
 function renderMultiTaskFramework() {
   const dialog = getDialog();
   const mode = settings.generationMode === 'multi' ? 'multi' : 'single';
