@@ -6,8 +6,6 @@ const indexSource = await readFile(new URL('../index.js', import.meta.url), 'utf
 const controllerSource = await readFile(new URL('../generation/multi-task-controller.js', import.meta.url), 'utf8');
 const styleSource = await readFile(new URL('../style.css', import.meta.url), 'utf8');
 const workspaceSource = await readFile(new URL('./multi-task-workspace.js', import.meta.url), 'utf8');
-const settingsDialogSource = await readFile(new URL('./multi-task-settings-dialog.js', import.meta.url), 'utf8');
-const taskControllerSource = await readFile(new URL('../generation/multi-task-task-controller.js', import.meta.url), 'utf8');
 
 test('multi-task generation freezes scheme runtimes and executes through the concurrency queue', () => {
   assert.match(controllerSource, /createMultiTaskRunPlan\(/);
@@ -39,13 +37,13 @@ test('queued and running tasks can be cancelled before another run starts', () =
   assert.match(controllerSource, /function cancelGeneration\(taskIds = null\)/);
   assert.match(controllerSource, /currentTask\?\.runId !== plan\.runId[\s\S]{0,180}AbortError/);
   assert.match(controllerSource, /status\.QUEUED,\s*status\.GENERATING/);
-  assert.match(taskControllerSource, /cancelGeneration\(\[activeTask\.id\]\)/);
+  assert.match(indexSource, /cancelMultiTaskGeneration\(\[activeTask\.id\]\)/);
 });
 
 test('new tasks inherit the currently selected component scheme', () => {
-  assert.match(taskControllerSource, /componentSchemeId:\s*textOf\(settings\.selectedComponentSchemeId\)/);
-  assert.match(taskControllerSource, /defaultSchemeId\(settings\.selectedPresetSchemeId\)/);
-  assert.match(taskControllerSource, /defaultSchemeId\(settings\.selectedWorldbookSchemeId\)/);
+  assert.match(indexSource, /componentSchemeId:\s*textOf\(settings\.selectedComponentSchemeId\)/);
+  assert.match(indexSource, /getMultiTaskDefaultSchemeId\(settings\.selectedPresetSchemeId\)/);
+  assert.match(indexSource, /getMultiTaskDefaultSchemeId\(settings\.selectedWorldbookSchemeId\)/);
 });
 
 test('Tavern-default tasks resolve preset-scoped components from the live Tavern preset', () => {
@@ -116,15 +114,15 @@ test('quick reply injection follows the active generation mode', () => {
 });
 
 test('multi-task settings expose an immediate injection interval from zero to ten seconds', () => {
-  assert.match(settingsDialogSource, /name=\\?"injectionIntervalSeconds\\?"[^>]*min=\\?"0\\?"[^>]*max=\\?"10\\?"[^>]*step=\\?"0\.5/);
-  assert.match(settingsDialogSource, /injectionIntervalSeconds[\s\S]*addEventListener\('change'/);
+  assert.match(indexSource, /name="injectionIntervalSeconds"[^>]*min="0"[^>]*max="10"[^>]*step="0\.5"/);
+  assert.match(indexSource, /\[name="injectionIntervalSeconds"\][\s\S]{0,180}addEventListener\('change'/);
 });
 
 test('multi-task settings expose automatic injection order and save it immediately', () => {
-  assert.match(settingsDialogSource, /name=\\?"injectionOrder/);
-  assert.match(settingsDialogSource, /value=\\?"completion/);
-  assert.match(settingsDialogSource, /value=\\?"task/);
-  assert.match(settingsDialogSource, /injectionOrder[\s\S]*addEventListener\('change'/);
+  assert.match(indexSource, /name="injectionOrder"/);
+  assert.match(indexSource, /value="completion"/);
+  assert.match(indexSource, /value="task"/);
+  assert.match(indexSource, /\[name="injectionOrder"\][\s\S]{0,220}addEventListener\('change'/);
 });
 
 test('active multi-task streaming reuses the single-task incremental thinking renderer', () => {
@@ -136,8 +134,8 @@ test('active multi-task streaming reuses the single-task incremental thinking re
 });
 
 test('concurrency and injection interval share one row and one combined explanation', () => {
-  assert.match(settingsDialogSource, /st-esg-multi-task-runtime-row[\s\S]{0,1600}name=\\?"concurrency[\s\S]{0,1600}name=\\?"injectionIntervalSeconds[\s\S]{0,1600}name=\\?"injectionOrder/);
-  assert.match(settingsDialogSource, /st-esg-multi-task-runtime-help[^>]*>超出并发数的任务会自动排队；自动注入可按完成顺序即时注入，或等待前项后按任务顺序注入；失败或停止的任务会自动跳过；注入间隔范围为 0–10 秒。/);
+  assert.match(indexSource, /class="st-esg-multi-task-runtime-row"[\s\S]{0,1200}name="concurrency"[\s\S]{0,1200}name="injectionIntervalSeconds"[\s\S]{0,1200}name="injectionOrder"[\s\S]{0,300}<\/div>/);
+  assert.match(indexSource, /class="st-esg-multi-task-runtime-help"[^>]*>超出并发数的任务会自动排队；自动注入可按完成顺序即时注入，或等待前项后按任务顺序注入；失败或停止的任务会自动跳过；注入间隔范围为 0–10 秒。/);
 });
 
 test('generation settings distinguish headings by weight without changing their size', () => {
