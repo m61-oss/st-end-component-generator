@@ -76,6 +76,19 @@ test('multi-task floor status keeps remaining results actionable after another t
   assert.equal(failed.error, 'failed');
 });
 
+test('an undone multi-task result remains editable and actionable as ready', () => {
+  const undone = createMultiTaskFloorPanelView({
+    activeTaskId: 'a',
+    tasks: [{ id: 'a', name: 'A', status: 'undone', output: 'retained output' }],
+  });
+
+  assert.equal(undone.status, FLOOR_PANEL_STATUS.READY);
+  assert.equal(undone.resultStatus, FLOOR_PANEL_STATUS.READY);
+  assert.equal(undone.output, 'retained output');
+  assert.equal(canEditFloorPanelResult(undone), true);
+  assert.deepEqual(getFloorPanelActionModels(undone.status).map((item) => item.action), ['generate', 'inject']);
+});
+
 test('楼层面板默认折叠且空闲不显示状态文字', () => {
   const state = createFloorPanelState();
   assert.equal(state.expanded, false);

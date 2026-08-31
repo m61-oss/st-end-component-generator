@@ -155,7 +155,7 @@ function createMultiTaskFloorPanelView(value = {}) {
   const statuses = new Set(tasks.map((task) => String(task.status ?? 'idle')));
   let status = FLOOR_PANEL_STATUS.IDLE;
   if (statuses.has('queued') || statuses.has('generating')) status = FLOOR_PANEL_STATUS.GENERATING;
-  else if (statuses.has('ready') || statuses.has('pending-injection')) status = FLOOR_PANEL_STATUS.READY;
+  else if (statuses.has('ready') || statuses.has('pending-injection') || statuses.has('undone')) status = FLOOR_PANEL_STATUS.READY;
   else if (tasks.some((task) => task.injectionRecord) || statuses.has('injected')) status = FLOOR_PANEL_STATUS.INJECTED;
   else if (statuses.has('error')) status = FLOOR_PANEL_STATUS.ERROR;
   const activeStatus = String(activeTask?.status ?? 'idle');
@@ -164,7 +164,7 @@ function createMultiTaskFloorPanelView(value = {}) {
   const error = activeStatus === 'error'
     ? activeError
     : status === FLOOR_PANEL_STATUS.ERROR ? firstError?.message || firstError : null;
-  const resultStatus = activeStatus === 'ready' || activeStatus === 'pending-injection'
+  const resultStatus = activeStatus === 'ready' || activeStatus === 'pending-injection' || activeStatus === 'undone'
     ? FLOOR_PANEL_STATUS.READY
     : activeStatus === 'queued' || activeStatus === 'generating'
       ? FLOOR_PANEL_STATUS.GENERATING

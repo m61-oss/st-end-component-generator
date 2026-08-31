@@ -18,6 +18,17 @@ test('floor panel routes global and selected actions through multi-task handlers
   assert.match(indexSource, /data-multi-task-action[\s\S]*handleMultiTaskAction/);
 });
 
+test('floor panel retry regenerates only failed multi-task items', () => {
+  const actionSource = indexSource.slice(
+    indexSource.indexOf('async function runMessageFloorPanelAction'),
+    indexSource.indexOf('function bindMessageFloorPanel'),
+  );
+
+  assert.match(actionSource, /MULTI_TASK_STATUS\.ERROR/);
+  assert.match(actionSource, /action === 'retry'[\s\S]*generateMultiTasks\(failedTaskIds\)/);
+  assert.match(actionSource, /action === 'generate'[\s\S]*generateMultiTasks\(\)/);
+});
+
 test('multi-task stream updates the floor panel without replacing its expanded structure', () => {
   assert.match(indexSource, /function updateMessageFloorPanelMultiTaskStream/);
   assert.match(indexSource, /updateMultiTaskStream[\s\S]*updateMessageFloorPanelMultiTaskStream\(taskId/);

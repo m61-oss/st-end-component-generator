@@ -1493,8 +1493,13 @@ async function runMessageFloorPanelAction(action) {
     }
     const latest = getMessageFloorPanelActionTarget();
     if (!latest) return;
-    if (action === 'generate' || action === 'retry') await generateMultiTasks();
-    else if (action === 'inject') await injectMultiTasks();
+    if (action === 'generate') await generateMultiTasks();
+    else if (action === 'retry') {
+      const failedTaskIds = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks
+        .filter((task) => task.status === MULTI_TASK_STATUS.ERROR)
+        .map((task) => task.id);
+      await generateMultiTasks(failedTaskIds);
+    } else if (action === 'inject') await injectMultiTasks();
     else if (action === 'undo') await undoMultiTaskInjections(null, { requireConfirmation: true });
     return;
   }
