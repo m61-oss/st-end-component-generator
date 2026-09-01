@@ -176,6 +176,26 @@ test('automatic multi-task entry logs accepted and blocked triggers', () => {
   assert.match(source, /logAutomaticGenerationStage\('multi-auto-skip'/);
 });
 
+test('assistant receipt schedules a fallback trigger check when render and receipt events arrive out of order', () => {
+  const start = indexSource.indexOf('function handleAssistantMessageReceived');
+  const end = indexSource.indexOf('function handleAssistantMessageRendered', start);
+  const source = indexSource.slice(start, end);
+
+  assert.match(source, /pendingAutomaticTargets\.set\(pendingTarget\.messageIndex/);
+  assert.match(source, /setTimeout\([\s\S]*runDeferredAutomaticGeneration\(pendingTarget, revision\)/);
+});
+
+test('automatic generation event lifecycle remains visible before trigger matching begins', () => {
+  const start = indexSource.indexOf('const VISIBLE_GENERATION_LOG_STAGES');
+  const end = indexSource.indexOf('function logAutomaticGenerationStage', start);
+  const source = indexSource.slice(start, end);
+
+  assert.match(source, /'generation-started'/);
+  assert.match(source, /'generation-ended'/);
+  assert.match(source, /'message-received'/);
+  assert.match(source, /'message-rendered'/);
+});
+
 test('multi-task generation logs batch and per-task lifecycle stages', () => {
   const start = indexSource.indexOf('async function generateMultiTasks');
   const end = indexSource.indexOf('function getRequestedMultiTasks', start);

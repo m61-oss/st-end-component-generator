@@ -405,6 +405,10 @@ const VISIBLE_GENERATION_LOG_STAGES = new Set([
   'undo-skip',
   'undo-finished',
   'undo-save-warning',
+  'generation-started',
+  'generation-ended',
+  'message-received',
+  'message-rendered',
   '等待渲染',
   '等待结束结果',
   '等待触发字符串',
@@ -3090,6 +3094,12 @@ function handleAssistantMessageReceived(messageId, messageType) {
   invalidatePendingAutomaticGeneration();
   const revision = automaticGenerationRevision;
   pendingAutomaticTargets.set(pendingTarget.messageIndex, { pendingTarget, revision });
+  targetWindow.setTimeout(() => {
+    const pending = pendingAutomaticTargets.get(pendingTarget.messageIndex);
+    if (!pending || pending.revision !== revision) return;
+    pendingAutomaticTargets.delete(pendingTarget.messageIndex);
+    void runDeferredAutomaticGeneration(pendingTarget, revision);
+  }, 50);
 }
 
 function handleAssistantMessageRendered(messageId) {
