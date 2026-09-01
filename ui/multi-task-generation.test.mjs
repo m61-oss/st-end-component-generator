@@ -153,3 +153,56 @@ test('generation settings distinguish headings by weight without changing their 
   assert.match(styleSource, /\.st-esg-generation-settings-section-title strong\s*\{[^}]*font-size:\s*13px;[^}]*font-weight:\s*750/);
   assert.match(styleSource, /\.st-esg-multi-task-settings-heading > strong\s*\{[^}]*font-size:\s*13px;[^}]*font-weight:\s*750/);
 });
+
+test('multi-task stages are visible in the shared generation debug log', () => {
+  const start = indexSource.indexOf('function logAutomaticGenerationStage');
+  const end = indexSource.indexOf('function clearAutomaticGenerationLog', start);
+  const source = indexSource.slice(start, end);
+
+  assert.match(source, /stage\.startsWith\('multi-'\)/);
+  assert.match(source, /'multi-auto-entry'/);
+  assert.match(source, /'multi-batch-start'/);
+  assert.match(source, /'multi-task-start'/);
+  assert.match(source, /'multi-inject-start'/);
+  assert.match(source, /'multi-undo-start'/);
+});
+
+test('automatic multi-task entry logs accepted and blocked triggers', () => {
+  const start = indexSource.indexOf('async function generateStatusbar');
+  const end = indexSource.indexOf('function createApiHttpError', start);
+  const source = indexSource.slice(start, end);
+
+  assert.match(source, /logAutomaticGenerationStage\('multi-auto-entry'/);
+  assert.match(source, /logAutomaticGenerationStage\('multi-auto-skip'/);
+});
+
+test('multi-task generation logs batch and per-task lifecycle stages', () => {
+  const start = indexSource.indexOf('async function generateMultiTasks');
+  const end = indexSource.indexOf('function getRequestedMultiTasks', start);
+  const source = indexSource.slice(start, end);
+
+  assert.match(source, /logAutomaticGenerationStage\('multi-batch-start'/);
+  assert.match(source, /logAutomaticGenerationStage\('multi-rollback-start'/);
+  assert.match(source, /logAutomaticGenerationStage\('multi-task-queued'/);
+  assert.match(source, /logAutomaticGenerationStage\('multi-task-start'/);
+  assert.match(source, /logAutomaticGenerationStage\('multi-task-finished'/);
+  assert.match(source, /logAutomaticGenerationStage\('multi-task-error'/);
+  assert.match(source, /logAutomaticGenerationStage\('multi-task-cancelled'/);
+  assert.match(source, /logAutomaticGenerationStage\('multi-batch-finished'/);
+});
+
+test('multi-task injection and undo write success, skip, and error stages', () => {
+  const injectStart = indexSource.indexOf('function enqueueMultiTaskInjection');
+  const undoEnd = indexSource.indexOf('function getNextMultiTaskName', injectStart);
+  const source = indexSource.slice(injectStart, undoEnd);
+
+  assert.match(source, /logAutomaticGenerationStage\('multi-inject-queued'/);
+  assert.match(source, /logAutomaticGenerationStage\('multi-inject-start'/);
+  assert.match(source, /logAutomaticGenerationStage\('multi-inject-finished'/);
+  assert.match(source, /logAutomaticGenerationStage\('multi-inject-error'/);
+  assert.match(source, /logAutomaticGenerationStage\('multi-inject-skip'/);
+  assert.match(source, /logAutomaticGenerationStage\('multi-undo-start'/);
+  assert.match(source, /logAutomaticGenerationStage\('multi-undo-finished'/);
+  assert.match(source, /logAutomaticGenerationStage\('multi-undo-error'/);
+  assert.match(source, /logAutomaticGenerationStage\('multi-undo-skip'/);
+});

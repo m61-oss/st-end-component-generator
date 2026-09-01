@@ -445,6 +445,26 @@ function logAutomaticGenerationStage(stage, details = '') {
     '等待结束结果': '等待最新 assistant',
     '找到 assistant': '检测到 assistant',
     '跳过重复': '跳过重复',
+    'multi-auto-entry': '进入多任务生成',
+    'multi-auto-skip': '跳过多任务生成',
+    'multi-batch-start': '多任务批次开始',
+    'multi-rollback-start': '开始生成前撤回',
+    'multi-rollback-finished': '生成前撤回完成',
+    'multi-task-queued': '任务进入队列',
+    'multi-task-start': '任务开始生成',
+    'multi-task-finished': '任务生成完成',
+    'multi-task-error': '任务生成失败',
+    'multi-task-cancelled': '任务已取消',
+    'multi-batch-finished': '多任务批次结束',
+    'multi-inject-queued': '注入进入队列',
+    'multi-inject-start': '任务开始注入',
+    'multi-inject-finished': '任务注入完成',
+    'multi-inject-error': '任务注入失败',
+    'multi-inject-skip': '跳过任务注入',
+    'multi-undo-start': '多任务撤回开始',
+    'multi-undo-finished': '多任务撤回完成',
+    'multi-undo-error': '多任务撤回失败',
+    'multi-undo-skip': '跳过多任务撤回',
   };
   const detailText = String(details || '')
     .replaceAll('automatic', '自动生成')
@@ -470,7 +490,7 @@ function logAutomaticGenerationStage(stage, details = '') {
   const suffix = detailText ? `：${detailText}` : '';
   const line = `${new Date().toLocaleTimeString()} ${stageLabels[stage] || stage}${suffix}`;
   console.log(`[${EXTENSION_ID}] ${line}`);
-  if (!VISIBLE_GENERATION_LOG_STAGES.has(stage)) return;
+  if (!VISIBLE_GENERATION_LOG_STAGES.has(stage) && !stage.startsWith('multi-')) return;
   automaticGenerationLogEntries.push(line);
   if (automaticGenerationLogEntries.length > 40) automaticGenerationLogEntries.shift();
   const logElement = targetDoc.getElementById('st-esg-generation-log');
@@ -2492,10 +2512,13 @@ function injectStatusbar(message, text, mode = settings.injectMode) {
 
 async function generateStatusbar(entryType = 'manual', targetMessageIndex = null, automaticTarget = null) {
   if (settings.generationMode === 'multi') {
+    if (entryType !== 'automatic' || !automaticGenerationLogActive) clearAutomaticGenerationLog();
+    logAutomaticGenerationStage('multi-auto-entry', `来源=${entryType}`);
     const runningTaskIds = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks
       .filter((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
       .map((task) => task.id);
     if (runningTaskIds.length) {
+      logAutomaticGenerationStage('multi-auto-skip', `已有 ${runningTaskIds.length} 个任务正在运行`);
       if (entryType !== 'automatic') cancelMultiTaskGeneration(runningTaskIds);
       return '';
     }
@@ -7067,15 +7090,19 @@ async function generateMultiTasks(requestedTaskIds = null) {
   const requestedIds = Array.isArray(requestedTaskIds) ? new Set(requestedTaskIds.map(textOf).filter(Boolean)) : null;
   const tasks = multiTaskState.tasks.filter((task) => !requestedIds || requestedIds.has(task.id));
   if (!tasks.length) {
+    logAutomaticGenerationStage('multi-auto-skip', '没有已配置的任务');
     notifyStatus('请先在设置中添加任务。', 'warning');
     return [];
   }
   if (settings.rollbackBeforeGeneration) {
-    await undoMultiTaskInjections(tasks.map((task) => task.id), { requireConfirmation: false, silent: true });
+    logAutomaticGenerationStage('multi-rollback-start', `检查 ${tasks.length} 个任务的最新楼层记录`);
+    const undoneTaskIds = await undoMultiTaskInjections(tasks.map((task) => task.id), { requireConfirmation: false, silent: true });
+    logAutomaticGenerationStage('multi-rollback-finished', `撤回 ${undoneTaskIds.length} 个任务`);
   }
   const context = getContext();
   const latest = getLatestAssistantMessage(context.chat);
   if (!latest) {
+    logAutomaticGenerationStage('multi-auto-skip', '没有可用的助手回复');
     notifyStatus('没有找到可用于生成的助手回复。', 'warning');
     return [];
   }
@@ -7089,11 +7116,13 @@ async function generateMultiTasks(requestedTaskIds = null) {
     try {
       runtimeByTaskId.set(task.id, resolveMultiTaskRuntimeSettings(settings, task, getMultiTaskSchemeLists()));
     } catch (error) {
+      logAutomaticGenerationStage('multi-task-error', `${task.name}；配置解析失败：${error?.message || '未知错误'}`);
       replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.ERROR, error: serializeMultiTaskError(error) });
     }
   }
   const runnableTasks = tasks.filter((task) => runtimeByTaskId.has(task.id));
   if (!runnableTasks.length) {
+    logAutomaticGenerationStage('multi-auto-skip', '所有任务都缺少可用方案');
     renderMultiTaskRuntimeState();
     notifyStatus('任务缺少 API 方案或组件方案，请先在设置中选择。', 'warning');
     return [];
@@ -7107,6 +7136,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
     target,
     resolveTask: (task) => runtimeByTaskId.get(task.id),
   });
+  logAutomaticGenerationStage('multi-batch-start', `楼层 ${target.messageIndex}；任务 ${plan.entries.length} 个；并发 ${plan.concurrency}`);
   activeMultiTaskRunIds.add(plan.runId);
   plan.entries.forEach((entry) => replaceMultiTask(entry.task.id, {
     runId: plan.runId,
@@ -7146,22 +7176,31 @@ async function generateMultiTasks(requestedTaskIds = null) {
     isCurrent: (runId) => activeMultiTaskRunIds.has(runId),
     onTransition: ({ taskId, status, value, error }) => {
       const currentTask = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.find((task) => task.id === taskId);
+      const taskLabel = currentTask?.name || taskId;
       if (!currentTask || currentTask.runId !== plan.runId) {
+        logAutomaticGenerationStage('multi-task-cancelled', `${taskLabel}；运行批次已失效`);
         taskOrderInjectionCoordinator?.skip(taskId);
         return;
       }
-      if (status === 'queued' || status === 'generating') {
-        replaceMultiTask(taskId, { status: status === 'queued' ? MULTI_TASK_STATUS.QUEUED : MULTI_TASK_STATUS.GENERATING });
+      if (status === 'queued') {
+        logAutomaticGenerationStage('multi-task-queued', taskLabel);
+        replaceMultiTask(taskId, { status: MULTI_TASK_STATUS.QUEUED });
+      } else if (status === 'generating') {
+        logAutomaticGenerationStage('multi-task-start', taskLabel);
+        replaceMultiTask(taskId, { status: MULTI_TASK_STATUS.GENERATING });
       } else if (status === 'ready') {
+        logAutomaticGenerationStage('multi-task-finished', taskLabel);
         replaceMultiTask(taskId, { ...value, status: MULTI_TASK_STATUS.READY });
         if (shouldAutoInject) {
           if (taskOrderInjectionCoordinator) taskOrderInjectionCoordinator.ready(taskId);
           else enqueueAutoInjection(taskId);
         }
       } else if (status === 'error') {
+        logAutomaticGenerationStage('multi-task-error', `${taskLabel}；${error?.message || '未知错误'}`);
         replaceMultiTask(taskId, { status: MULTI_TASK_STATUS.ERROR, error: serializeMultiTaskError(error) });
         taskOrderInjectionCoordinator?.skip(taskId);
       } else if (status === 'cancelled') {
+        logAutomaticGenerationStage('multi-task-cancelled', taskLabel);
         replaceMultiTask(taskId, { status: currentTask.output ? MULTI_TASK_STATUS.READY : MULTI_TASK_STATUS.IDLE });
         taskOrderInjectionCoordinator?.skip(taskId);
       }
@@ -7200,6 +7239,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
   const completed = results.filter((item) => item.status === 'fulfilled').length;
   const failed = results.filter((item) => item.status === 'rejected').length;
   if (autoInjectionPromises.length) await Promise.allSettled(autoInjectionPromises);
+  logAutomaticGenerationStage('multi-batch-finished', `完成 ${completed} 个${failed ? `；失败 ${failed} 个` : ''}`);
   notifyStatus(`多任务生成结束：完成 ${completed} 个${failed ? `，失败 ${failed} 个` : ''}。`, failed ? 'warning' : 'info');
   return results;
 }
@@ -7225,6 +7265,8 @@ async function persistMultiTaskMessageUpdates(context, messageIndexes) {
 }
 
 function enqueueMultiTaskInjection(taskId, { intervalMs = 0, silent = false, expectedRunId = '' } = {}) {
+  const task = getRequestedMultiTasks([taskId])[0];
+  logAutomaticGenerationStage('multi-inject-queued', `${task?.name || taskId}${intervalMs ? `；等待 ${intervalMs / 1000} 秒` : ''}`);
   return multiTaskInjectionQueue.enqueue({ taskId, silent, expectedRunId }, { intervalMs });
 }
 
@@ -7234,6 +7276,7 @@ async function injectMultiTasks(requestedTaskIds = null) {
     .filter((task) => [MULTI_TASK_STATUS.READY, MULTI_TASK_STATUS.UNDONE].includes(task.status))
     .filter((task) => String(task.output || '').trim() || task.anchorItems?.length);
   if (!tasks.length) {
+    logAutomaticGenerationStage('multi-inject-skip', '没有可注入的任务结果');
     notifyStatus('没有可注入的多任务结果。', 'warning');
     return [];
   }
@@ -7259,6 +7302,7 @@ async function injectMultiTaskBatchNow(requestedTaskIds = null, { silent = false
     .filter((task) => ![MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
     .filter((task) => String(task.output || '').trim() || task.anchorItems?.length);
   if (!tasks.length) {
+    logAutomaticGenerationStage('multi-inject-skip', '队列中的任务已失效或没有结果');
     if (!silent) notifyStatus('没有可注入的多任务结果。', 'warning');
     return [];
   }
@@ -7268,13 +7312,16 @@ async function injectMultiTaskBatchNow(requestedTaskIds = null, { silent = false
   const mvuIndexes = new Set();
   const injectedTaskIds = [];
   for (const task of tasks) {
+    logAutomaticGenerationStage('multi-inject-start', task.name);
     const targetIndex = Number(task.target?.messageIndex);
     if (textOf(task.target?.chatId) !== currentChatId || !Number.isInteger(targetIndex)) {
+      logAutomaticGenerationStage('multi-inject-error', `${task.name}；目标聊天已经变化`);
       replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.ERROR, error: { message: '任务目标聊天已经变化，无法注入。', code: 'target-changed' } });
       continue;
     }
     const latest = getAssistantMessageAtIndex(context.chat, targetIndex);
     if (!latest) {
+      logAutomaticGenerationStage('multi-inject-error', `${task.name}；目标楼层不存在`);
       replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.ERROR, error: { message: '任务目标楼层已经不存在。', code: 'target-missing' } });
       continue;
     }
@@ -7303,11 +7350,13 @@ async function injectMultiTaskBatchNow(requestedTaskIds = null, { silent = false
         afterText: latest.message.mes,
       };
       replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.INJECTED, injectionRecord: record, error: null });
+      logAutomaticGenerationStage('multi-inject-finished', `${task.name}；楼层 ${targetIndex}`);
       changedIndexes.add(targetIndex);
       injectedTaskIds.push(task.id);
       const insertedText = record.operations.map((operation) => operation.text).join('\n');
       if (settings.mvuReprocessOnInject && containsMvuUpdateVariable(insertedText)) mvuIndexes.add(targetIndex);
     } catch (error) {
+      logAutomaticGenerationStage('multi-inject-error', `${task.name}；${error?.message || '未知错误'}`);
       replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.ERROR, error: serializeMultiTaskError(error) });
     }
   }
@@ -7316,6 +7365,7 @@ async function injectMultiTaskBatchNow(requestedTaskIds = null, { silent = false
       await persistMultiTaskMessageUpdates(context, [...changedIndexes]);
       for (const targetIndex of mvuIndexes) await reprocessMvuVariables(context, targetIndex);
     } catch (error) {
+      logAutomaticGenerationStage('multi-inject-error', `聊天保存失败：${error?.message || '未知错误'}`);
       notifyStatus(`多任务内容已经写入，但聊天保存失败：${error?.message || '未知错误'}`, 'warning');
     }
   }
@@ -7349,11 +7399,16 @@ function getLatestFloorMultiTaskUndoCandidates(tasks, context = getContext()) {
 async function undoMultiTaskInjections(requestedTaskIds = null, { requireConfirmation = false, silent = false } = {}) {
   const context = getContext();
   const tasks = getLatestFloorMultiTaskUndoCandidates(getRequestedMultiTasks(requestedTaskIds), context);
+  logAutomaticGenerationStage('multi-undo-start', `候选任务 ${tasks.length} 个`);
   if (!tasks.length) {
+    logAutomaticGenerationStage('multi-undo-skip', '最新楼层没有可撤回记录');
     if (!silent) notifyStatus('没有可撤回的多任务注入记录。', 'warning');
     return [];
   }
-  if (requireConfirmation && !targetWindow.confirm(`撤回 ${tasks.length} 个任务各自最新的一次注入？\n\n已经单独撤回的任务会自动跳过。`)) return [];
+  if (requireConfirmation && !targetWindow.confirm(`撤回 ${tasks.length} 个任务各自最新的一次注入？\n\n已经单独撤回的任务会自动跳过。`)) {
+    logAutomaticGenerationStage('multi-undo-skip', '用户取消确认');
+    return [];
+  }
   const currentChatId = getCurrentChatIdSafe(context);
   const changedIndexes = new Set();
   const undoneTaskIds = [];
@@ -7361,9 +7416,13 @@ async function undoMultiTaskInjections(requestedTaskIds = null, { requireConfirm
     const record = task.injectionRecord;
     const targetIndex = Number(record?.targetIndex);
     const latest = getAssistantMessageAtIndex(context.chat, targetIndex);
-    if (textOf(record?.chatId) !== currentChatId || !latest) continue;
+    if (textOf(record?.chatId) !== currentChatId || !latest) {
+      logAutomaticGenerationStage('multi-undo-skip', `${task.name}；目标楼层已变化`);
+      continue;
+    }
     const undone = undoMultiTaskInjection(String(latest.message.mes ?? ''), record);
     if (!undone.ok) {
+      logAutomaticGenerationStage('multi-undo-error', `${task.name}；${undone.reason}`);
       replaceMultiTask(task.id, { error: { message: '楼层中的对应注入内容已经变化，无法安全撤回。', code: undone.reason } });
       continue;
     }
@@ -7374,6 +7433,7 @@ async function undoMultiTaskInjections(requestedTaskIds = null, { requireConfirm
       latest.message.swipes[latest.message.swipe_id] = latest.message.mes;
     }
     replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.UNDONE, injectionRecord: null, error: null });
+    logAutomaticGenerationStage('multi-undo-finished', `${task.name}；楼层 ${targetIndex}`);
     changedIndexes.add(targetIndex);
     undoneTaskIds.push(task.id);
   }
@@ -7384,6 +7444,7 @@ async function undoMultiTaskInjections(requestedTaskIds = null, { requireConfirm
         for (const targetIndex of changedIndexes) await reprocessMvuVariables(context, targetIndex);
       }
     } catch (error) {
+      logAutomaticGenerationStage('multi-undo-error', `聊天保存失败：${error?.message || '未知错误'}`);
       notifyStatus(`撤回已经应用，但聊天保存失败：${error?.message || '未知错误'}`, 'warning');
     }
   }
