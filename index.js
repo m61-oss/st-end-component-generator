@@ -7117,6 +7117,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
     anchorItems: [],
     warnings: [],
     target,
+    injectionRecord: null,
     error: null,
   }));
   scheduleMultiTaskFrameworkRender();
@@ -7323,14 +7324,36 @@ async function injectMultiTaskBatchNow(requestedTaskIds = null, { silent = false
   return injectedTaskIds;
 }
 
+function getLatestAssistantUndoTarget(context = getContext()) {
+  const chat = Array.isArray(context?.chat) ? context.chat : [];
+  const latest = getLatestAssistantMessage(chat);
+  if (!latest || latest.index !== chat.length - 1) return null;
+  return {
+    chatId: getCurrentChatIdSafe(context),
+    messageIndex: latest.index,
+    messageText: String(latest.message.mes ?? ''),
+  };
+}
+
+function getLatestFloorMultiTaskUndoCandidates(tasks, context = getContext()) {
+  const target = getLatestAssistantUndoTarget(context);
+  if (!target) return [];
+  const scoped = scopeMultiTaskFloorPanelSettings({ tasks: Array.isArray(tasks) ? tasks : [] }, target);
+  return scoped.tasks.filter((task) => (
+    task.injectionRecord
+    && textOf(task.injectionRecord.chatId) === target.chatId
+    && Number(task.injectionRecord.targetIndex) === target.messageIndex
+  ));
+}
+
 async function undoMultiTaskInjections(requestedTaskIds = null, { requireConfirmation = false, silent = false } = {}) {
-  const tasks = getRequestedMultiTasks(requestedTaskIds).filter((task) => task.injectionRecord);
+  const context = getContext();
+  const tasks = getLatestFloorMultiTaskUndoCandidates(getRequestedMultiTasks(requestedTaskIds), context);
   if (!tasks.length) {
     if (!silent) notifyStatus('没有可撤回的多任务注入记录。', 'warning');
     return [];
   }
   if (requireConfirmation && !targetWindow.confirm(`撤回 ${tasks.length} 个任务各自最新的一次注入？\n\n已经单独撤回的任务会自动跳过。`)) return [];
-  const context = getContext();
   const currentChatId = getCurrentChatIdSafe(context);
   const changedIndexes = new Set();
   const undoneTaskIds = [];
@@ -7482,7 +7505,7 @@ function updateMultiTaskActionState(dialog, multiState = normalizeMultiTaskSetti
     [MULTI_TASK_STATUS.READY, MULTI_TASK_STATUS.UNDONE].includes(task.status)
     && (String(task.output || '').trim() || task.anchorItems?.length)
   ));
-  const hasUndo = multiState.tasks.some((task) => task.injectionRecord);
+  const hasUndo = getLatestFloorMultiTaskUndoCandidates(multiState.tasks).length > 0;
   const running = multiState.tasks.some((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status));
   const generate = dialog?.querySelector('#st-esg-generate');
   generate?.toggleAttribute('disabled', !hasTasks);

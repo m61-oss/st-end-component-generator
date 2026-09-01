@@ -41,6 +41,30 @@ test('floor panel total generation always includes every configured task after a
   assert.doesNotMatch(actionSource, /generationTaskIds = floorTaskIds\.length/);
 });
 
+test('multi-task rollback ignores injection records from earlier floors', () => {
+  const targetSource = indexSource.slice(
+    indexSource.indexOf('function getLatestAssistantUndoTarget'),
+    indexSource.indexOf('function getLatestFloorMultiTaskUndoCandidates'),
+  );
+  const candidateSource = indexSource.slice(
+    indexSource.indexOf('function getLatestFloorMultiTaskUndoCandidates'),
+    indexSource.indexOf('async function undoMultiTaskInjections'),
+  );
+  const undoSource = indexSource.slice(
+    indexSource.indexOf('async function undoMultiTaskInjections'),
+    indexSource.indexOf('function getNextMultiTaskName'),
+  );
+  const generationSource = indexSource.slice(
+    indexSource.indexOf('async function generateMultiTasks'),
+    indexSource.indexOf('function getRequestedMultiTasks'),
+  );
+
+  assert.match(targetSource, /latest\.index !== chat\.length - 1/);
+  assert.match(candidateSource, /scopeMultiTaskFloorPanelSettings/);
+  assert.match(undoSource, /getLatestFloorMultiTaskUndoCandidates\(getRequestedMultiTasks\(requestedTaskIds\), context\)/);
+  assert.match(generationSource, /injectionRecord:\s*null/);
+});
+
 test('multi-task stream updates the floor panel without replacing its expanded structure', () => {
   assert.match(indexSource, /function updateMessageFloorPanelMultiTaskStream/);
   assert.match(indexSource, /updateMultiTaskStream[\s\S]*updateMessageFloorPanelMultiTaskStream\(taskId/);
