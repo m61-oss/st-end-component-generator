@@ -132,6 +132,17 @@ test('active multi-task streaming reuses the single-task incremental thinking re
   assert.doesNotMatch(source, /renderGeneratedThinking\(/);
 });
 
+test('multi-task runtime synchronizes the floating ball from aggregate task status', () => {
+  assert.match(indexSource, /resolveMultiTaskFloatingBallVisualState/);
+  assert.match(indexSource, /function syncFloatingBallFromGenerationMode\(/);
+  const start = indexSource.indexOf('function renderMultiTaskRuntimeState');
+  const end = indexSource.indexOf('function isAnyGenerationRunning', start);
+  const source = indexSource.slice(start, end);
+
+  assert.match(source, /syncFloatingBallFromGenerationMode\(multiState\)/);
+  assert.match(indexSource, /renderMultiTaskFramework[\s\S]*syncFloatingBallFromGenerationMode\(/);
+});
+
 test('concurrency and injection interval share one row and one combined explanation', () => {
   assert.match(indexSource, /class="st-esg-multi-task-runtime-row"[\s\S]{0,1200}name="concurrency"[\s\S]{0,1200}name="injectionIntervalSeconds"[\s\S]{0,1200}name="injectionOrder"[\s\S]{0,300}<\/div>/);
   assert.match(indexSource, /class="st-esg-multi-task-runtime-help"[^>]*>超出并发数的任务会自动排队；自动注入可按完成顺序即时注入，或等待前项后按任务顺序注入；失败或停止的任务会自动跳过；注入间隔范围为 0–10 秒。/);

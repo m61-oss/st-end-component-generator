@@ -112,7 +112,7 @@ import {
 } from './generation/auto-generation-trigger.js?ver=0.2.3';
 import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.2.3';
 import { hasFloatingBallDragStarted, resolveFloatingBallDock } from './ui/floating-ball-gesture.js?ver=0.2.3';
-import { normalizeFloatingBallVisualState, resolveFloatingBallRenderedState } from './ui/floating-ball-state.js?ver=0.2.3';
+import { normalizeFloatingBallVisualState, resolveFloatingBallRenderedState, resolveMultiTaskFloatingBallVisualState } from './ui/floating-ball-state.js?ver=0.2.3';
 import { isFloatingBallExternallyManaged, markFloatingBallCompatible } from './ui/floating-ball-compat.js?ver=0.2.3';
 import { renderBrandMark } from './ui/brand-mark.js?ver=0.2.3';
 import { getGenerationInjectionModeHelp } from './ui/generation-settings.js?ver=0.2.3';
@@ -7499,10 +7499,27 @@ function updateMultiTaskActionState(dialog, multiState = normalizeMultiTaskSetti
   undo?.classList.toggle('st-esg-hidden', !hasUndo);
 }
 
+function syncFloatingBallFromGenerationMode(multiState = null) {
+  if (settings.generationMode === 'multi') {
+    const state = multiState || normalizeMultiTaskSettings(settings.multiTaskSettings);
+    setFloatingBallVisualState(resolveMultiTaskFloatingBallVisualState(state.tasks));
+    return;
+  }
+  const singleState = generationAbortController
+    ? 'generating'
+    : settings.lastGenerationError
+      ? 'error'
+      : (String(settings.lastGenerated || '').trim() || settings.lastGeneratedAnchorItems?.length)
+        ? 'waiting'
+        : 'idle';
+  setFloatingBallVisualState(singleState);
+}
+
 function renderMultiTaskRuntimeState() {
   if (settings.generationMode !== 'multi') return;
   const dialog = getDialog();
   const multiState = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  syncFloatingBallFromGenerationMode(multiState);
   renderGenerationModeSwitchControl(dialog);
   const multiHost = dialog?.querySelector('#st-esg-multi-task-host');
   if (multiHost) multiHost.innerHTML = renderMultiTaskWorkspace(multiState);
@@ -7576,6 +7593,7 @@ function renderMultiTaskFramework() {
       else renderMessageFloorPanel({ force: true });
     }
   }
+  syncFloatingBallFromGenerationMode(mode === 'multi' ? normalizeMultiTaskSettings(settings.multiTaskSettings) : null);
 }
 
 function installMultiTaskFrameworkShell(dialog) {
