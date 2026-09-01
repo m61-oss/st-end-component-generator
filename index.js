@@ -107,7 +107,8 @@ import {
   isAutomaticAssistantTargetAddressable,
   isAutomaticAssistantMessageTypeEligible,
   isAutomaticTargetAfterGenerationStart,
-  matchesAutomaticGenerationTrigger,
+  describeAutomaticGenerationTriggerMismatch,
+  resolveAutomaticGenerationTriggerState,
   resolveReadyAutomaticAssistantTarget,
 } from './generation/auto-generation-trigger.js?ver=0.2.3';
 import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.2.3';
@@ -406,6 +407,7 @@ const VISIBLE_GENERATION_LOG_STAGES = new Set([
   'undo-save-warning',
   '等待渲染',
   '等待结束结果',
+  '等待触发字符串',
   '找到 assistant',
   '跳过重复',
 ]);
@@ -2960,8 +2962,16 @@ async function runDeferredAutomaticGeneration(pendingTarget, revision, attempt =
     return;
   }
   const triggerText = String(settings.automaticGenerationTriggerText ?? '');
-  if (!matchesAutomaticGenerationTrigger(readyTarget.messageText, triggerText)) {
-    logAutomaticGenerationStage('等待触发字符串', `楼层 ${readyTarget.messageIndex}；未检测到“${triggerText}”`);
+  const triggerState = resolveAutomaticGenerationTriggerState(readyTarget.messageText, triggerText, attempt, 400);
+  if (triggerState === 'waiting') {
+    if (attempt === 0) logAutomaticGenerationStage('等待触发字符串', `楼层 ${readyTarget.messageIndex}；正文仍在同步`);
+    targetWindow.setTimeout(() => {
+      void runDeferredAutomaticGeneration(pendingTarget, revision, attempt + 1);
+    }, 25);
+    return;
+  }
+  if (triggerState === 'missing') {
+    logAutomaticGenerationStage('generation-skip', `楼层 ${readyTarget.messageIndex}；${describeAutomaticGenerationTriggerMismatch(readyTarget.messageText, triggerText)}`);
     return;
   }
   lastAutomaticTargetKey = targetKey;
@@ -3012,9 +3022,18 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
     return;
   }
   const triggerText = String(settings.automaticGenerationTriggerText ?? '');
-  if (!matchesAutomaticGenerationTrigger(readyTarget.messageText, triggerText)) {
+  const triggerState = resolveAutomaticGenerationTriggerState(readyTarget.messageText, triggerText, attempt, 20);
+  if (triggerState === 'waiting') {
+    if (attempt === 0) logAutomaticGenerationStage('等待触发字符串', `楼层 ${readyTarget.messageIndex}；正文仍在同步`);
+    automaticGenerationEndTimer = targetWindow.setTimeout(() => {
+      automaticGenerationEndTimer = null;
+      void runGenerationEndedAutomaticGeneration(baseline, revision, attempt + 1);
+    }, 100);
+    return;
+  }
+  if (triggerState === 'missing') {
     const triggerPreview = triggerText.length > 30 ? `${triggerText.slice(0, 30)}…` : triggerText;
-    logAutomaticGenerationStage('generation-skip', `楼层 ${readyTarget.messageIndex}；未检测到触发字符串“${triggerText}”`);
+    logAutomaticGenerationStage('generation-skip', `楼层 ${readyTarget.messageIndex}；${describeAutomaticGenerationTriggerMismatch(readyTarget.messageText, triggerText)}`);
     notifyStatus(`未检测到触发字符串“${triggerPreview}”，已跳过本轮自动生成。`, 'warning');
     return;
   }

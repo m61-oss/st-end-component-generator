@@ -42,6 +42,23 @@ export function matchesAutomaticGenerationTrigger(messageText, triggerText) {
   return String(messageText ?? '').includes(trigger);
 }
 
+export function resolveAutomaticGenerationTriggerState(messageText, triggerText, attempt = 0, maxAttempts = 0) {
+  if (matchesAutomaticGenerationTrigger(messageText, triggerText)) return 'matched';
+  return Number(attempt) < Number(maxAttempts) ? 'waiting' : 'missing';
+}
+
+export function describeAutomaticGenerationTriggerMismatch(messageText, triggerText) {
+  const message = String(messageText ?? '');
+  const trigger = String(triggerText ?? '');
+  const tail = message.slice(-120);
+  return [
+    `触发值=${JSON.stringify(trigger)}`,
+    `触发长度=${trigger.length}`,
+    `正文长度=${message.length}`,
+    `正文末尾=${JSON.stringify(tail)}`,
+  ].join('；');
+}
+
 export function captureAutomaticGenerationBaseline(chat = []) {
   const messages = Array.isArray(chat) ? chat : [];
   let lastAssistantIndex = -1;
