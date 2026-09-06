@@ -6,10 +6,12 @@ import {
   MULTI_TASK_STATUS,
   createMultiTask,
   deleteMultiTask,
+  getMultiTasksForAction,
   mergeMultiTaskWorkspaceView,
   normalizeMultiTaskSettings,
   renameMultiTask,
   selectMultiTask,
+  setMultiTaskBatchEnabled,
 } from './multi-task-state.js';
 
 test('normalizes persisted multi-task settings into a safe serializable state', () => {
@@ -35,8 +37,41 @@ test('normalizes persisted multi-task settings into a safe serializable state', 
   assert.equal(state.tasks[0].injectMode, 'append');
   assert.equal(state.tasks[0].status, MULTI_TASK_STATUS.IDLE);
   assert.equal(state.tasks[0].extraInstruction, '7');
+  assert.equal(state.tasks[0].batchEnabled, true);
   assert.equal(state.tasks[1].injectMode, 'anchor');
   assert.equal(state.tasks[1].status, MULTI_TASK_STATUS.GENERATING);
+});
+
+test('batch actions skip excluded tasks while explicit task actions still address them', () => {
+  const state = normalizeMultiTaskSettings({
+    tasks: [
+      { id: 'a', name: 'A' },
+      { id: 'b', name: 'B', batchEnabled: false },
+      { id: 'c', name: 'C' },
+    ],
+  });
+
+  assert.deepEqual(getMultiTasksForAction(state).map((task) => task.id), ['a', 'c']);
+  assert.deepEqual(getMultiTasksForAction(state, ['b']).map((task) => task.id), ['b']);
+  assert.deepEqual(getMultiTasksForAction(state, ['missing']).map((task) => task.id), []);
+});
+
+test('normalizes and toggles whether a task participates in batch operations', () => {
+  const state = normalizeMultiTaskSettings({
+    activeTaskId: 'a',
+    tasks: [
+      { id: 'a', name: 'A', batchEnabled: false },
+      { id: 'b', name: 'B' },
+    ],
+  });
+
+  assert.equal(state.tasks[0].batchEnabled, false);
+  assert.equal(state.tasks[1].batchEnabled, true);
+
+  const enabled = setMultiTaskBatchEnabled(state, 'a', true);
+  assert.equal(enabled.tasks[0].batchEnabled, true);
+  assert.equal(enabled.tasks[1].batchEnabled, true);
+  assert.deepEqual(setMultiTaskBatchEnabled(enabled, 'missing', false), enabled);
 });
 
 test('ignores legacy per-mode injection switches because generation flow settings are shared', () => {

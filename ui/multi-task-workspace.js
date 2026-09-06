@@ -37,20 +37,24 @@ function renderTaskTabs(state) {
   return `<div class="st-esg-multi-task-tabs" role="tablist" aria-label="多任务列表">${state.tasks.map((task) => {
     const selected = task.id === state.activeTaskId;
     const statusLabel = STATUS_LABELS[task.status] || STATUS_LABELS.idle;
-    return `<button class="st-esg-multi-task-tab${selected ? ' active' : ''}" type="button" role="tab" data-multi-task-id="${escapeHtml(task.id)}" data-task-status="${escapeHtml(task.status)}" aria-selected="${selected}" aria-label="${escapeHtml(`${task.name}，${statusLabel}`)}" title="${escapeHtml(`${task.name} · ${statusLabel}`)}"><span class="st-esg-task-status-lamp" aria-hidden="true"></span><span class="st-esg-multi-task-tab-name">${escapeHtml(task.name)}</span></button>`;
+    return `<button class="st-esg-multi-task-tab${selected ? ' active' : ''}" type="button" role="tab" data-multi-task-id="${escapeHtml(task.id)}" data-task-status="${escapeHtml(task.status)}" data-batch-enabled="${task.batchEnabled !== false}" aria-selected="${selected}" aria-label="${escapeHtml(`${task.name}，${statusLabel}${task.batchEnabled === false ? '，未加入批量操作' : ''}`)}" title="${escapeHtml(`${task.name} · ${statusLabel}${task.batchEnabled === false ? ' · 未加入批量操作' : ''}`)}"><span class="st-esg-task-status-lamp" aria-hidden="true"></span><span class="st-esg-multi-task-tab-name">${escapeHtml(task.name)}</span></button>`;
   }).join('')}</div>`;
 }
 
 function renderTaskTools(state) {
   const task = state.tasks.find((item) => item.id === state.activeTaskId) || state.tasks[0];
   const running = task.status === MULTI_TASK_STATUS.QUEUED || task.status === MULTI_TASK_STATUS.GENERATING;
+  const batchToggleDisabled = state.tasks.some((item) => item.status === MULTI_TASK_STATUS.QUEUED || item.status === MULTI_TASK_STATUS.GENERATING);
   const hasResult = Boolean(String(task.output || '').trim() || task.anchorItems?.length);
   const canInject = hasResult && [MULTI_TASK_STATUS.READY, MULTI_TASK_STATUS.UNDONE].includes(task.status);
   const hasUndo = Boolean(task.injectionRecord);
+  const batchEnabled = task.batchEnabled !== false;
   return `<div class="st-esg-multi-task-tools" data-active-multi-task-id="${escapeHtml(task.id)}" aria-label="当前任务操作">
         <button class="st-esg-icon-btn" type="button" data-multi-task-action="undo" ${hasUndo ? '' : 'disabled'} title="撤回当前任务的最新注入" aria-label="撤回当前任务"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button>
         <button class="st-esg-icon-btn${running ? ' st-esg-action-running' : ''}" type="button" data-multi-task-action="generate" title="${running ? '停止当前任务' : '生成当前任务'}" aria-label="${running ? '停止当前任务' : '生成当前任务'}"><i class="fa-solid ${running ? 'fa-stop' : 'fa-wand-magic-sparkles'}" aria-hidden="true"></i></button>
         <button class="st-esg-icon-btn" type="button" data-multi-task-action="inject" ${canInject && !running ? '' : 'disabled'} title="注入当前任务" aria-label="注入当前任务"><i class="fa-solid fa-file-import" aria-hidden="true"></i></button>
+        <span class="st-esg-multi-task-tools-divider" aria-hidden="true"></span>
+        <label class="st-esg-switch st-esg-switch-sm st-esg-multi-task-batch-switch${batchToggleDisabled ? ' is-disabled' : ''}" title="${batchEnabled ? '移出批量生成与注入' : '加入批量生成与注入'}"><input type="checkbox" data-multi-task-action="toggle-batch" aria-label="${batchEnabled ? '移出批量生成与注入' : '加入批量生成与注入'}" ${batchEnabled ? 'checked' : ''} ${batchToggleDisabled ? 'disabled' : ''}/><span></span></label>
       </div>`;
 }
 

@@ -120,7 +120,6 @@ test('high-frequency text inputs defer expensive full settings persistence', () 
   for (const [start, end] of [
     ["$t('#st-esg-auto-generate-trigger').on('input'", "$t('#st-esg-auto-inject').on('change'"],
     ["$t('#st-esg-output-protocol-text').on('input'", "$t('#st-esg-output-protocol-role').on('change'"],
-    ["$t('#st-esg-temporary-task-instruction').on('input'", "$t('#st-esg-clear-temporary-task-instruction').on('click'"],
     ["$t('#st-esg-api-key').on('input'", "$t('#st-esg-api-model-picker').on('change'"],
     ["$t('#st-esg-ball-size').on('input'", "$t('#st-esg-ball-opacity').on('input'"],
     ["$t('#st-esg-ball-opacity').on('input'", "targetDoc.getElementById('st-esg-ball-animation-enabled')"],
@@ -129,6 +128,11 @@ test('high-frequency text inputs defer expensive full settings persistence', () 
     assert.match(source, /scheduleSettingsSave\(\)|markSchemeDirtyDeferred\('api'\)/);
     assert.doesNotMatch(source, /saveSettings\(\)/);
   }
+  const temporaryInstructionSource = indexSource.slice(
+    indexSource.indexOf("$t('#st-esg-temporary-task-instruction').on('input'"),
+    indexSource.indexOf("$t('#st-esg-clear-temporary-task-instruction').on('click'"),
+  );
+  assert.doesNotMatch(temporaryInstructionSource, /scheduleSettingsSave\(\)|saveSettings\(\)/);
 });
 
 test('large component and theater searches batch DOM filtering to one animation frame', () => {

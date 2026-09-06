@@ -57,6 +57,7 @@ function normalizeTask(value) {
     worldbookSchemeId: textOf(source.worldbookSchemeId),
     componentSchemeId: textOf(source.componentSchemeId),
     injectMode: normalizeInjectMode(source.injectMode),
+    batchEnabled: source.batchEnabled !== false,
     extraInstruction: String(source.extraInstruction ?? ''),
     status: VALID_STATUSES.has(source.status) ? source.status : MULTI_TASK_STATUS.IDLE,
     output: String(source.output ?? ''),
@@ -165,4 +166,23 @@ export function selectMultiTask(value, id) {
   const state = normalizeMultiTaskSettings(value);
   const taskId = textOf(id);
   return state.tasks.some((task) => task.id === taskId) ? { ...state, activeTaskId: taskId } : state;
+}
+
+export function setMultiTaskBatchEnabled(value, id, enabled) {
+  const state = normalizeMultiTaskSettings(value);
+  const taskId = textOf(id);
+  if (!state.tasks.some((task) => task.id === taskId)) return state;
+  return {
+    ...state,
+    tasks: state.tasks.map((task) => task.id === taskId
+      ? { ...task, batchEnabled: enabled !== false }
+      : task),
+  };
+}
+
+export function getMultiTasksForAction(value, requestedTaskIds = null) {
+  const state = normalizeMultiTaskSettings(value);
+  if (!Array.isArray(requestedTaskIds)) return state.tasks.filter((task) => task.batchEnabled !== false);
+  const ids = new Set(requestedTaskIds.map(textOf).filter(Boolean));
+  return state.tasks.filter((task) => ids.has(task.id));
 }

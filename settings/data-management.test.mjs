@@ -24,15 +24,30 @@ test('data management exposes worldbook scheme snapshot diagnostics', () => {
   ]);
 });
 
-test('component schemes participate in scheme totals and scheme clearing', () => {
+test('component and multi-task schemes participate in scheme totals and scheme clearing', () => {
   const settings = {
     apiSchemes: [{ id: 'api' }],
     componentSchemes: [{ id: 'component' }],
+    multiTaskSchemes: [{ id: 'multi' }],
     selectedComponentSchemeId: 'component',
+    selectedMultiTaskSchemeId: 'multi',
   };
 
-  assert.equal(buildDataManagementModel(settings).counts.schemes, 2);
+  assert.equal(buildDataManagementModel(settings).counts.schemes, 3);
   clearSettingsDataCategory(settings, 'schemes');
   assert.deepEqual(settings.componentSchemes, []);
   assert.equal(settings.selectedComponentSchemeId, '');
+  assert.deepEqual(settings.multiTaskSchemes, []);
+  assert.equal(settings.selectedMultiTaskSchemeId, '');
+});
+
+test('clearing bindings cancels worldbook and multi-task chat bindings', () => {
+  const settings = {
+    chatWorldbookBindings: [{ chatId: 'chat-1', schemeId: 'worldbook' }],
+    chatMultiTaskBindings: [{ chatId: 'chat-1', schemeId: 'multi' }],
+  };
+
+  clearSettingsDataCategory(settings, 'bindings', 123);
+  assert.deepEqual(settings.chatWorldbookBindings, [{ chatId: 'chat-1', cancelled: true, updatedAt: 123 }]);
+  assert.deepEqual(settings.chatMultiTaskBindings, [{ chatId: 'chat-1', cancelled: true, updatedAt: 123 }]);
 });

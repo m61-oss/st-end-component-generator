@@ -1,4 +1,4 @@
-export const SCHEME_TYPES = ['api', 'task', 'preset', 'worldbook', 'component'];
+export const SCHEME_TYPES = ['api', 'task', 'preset', 'worldbook', 'component', 'multiTask'];
 
 import {
   getWorldbookEntryKeyPrefix as getStableWorldbookEntryKeyPrefix,

@@ -97,6 +97,24 @@ test('renders named task tabs and the scheme-B icon toolbar without duplicating 
   assert.doesNotMatch(markup, /data-multi-task-action="settings"|data-multi-task-action="rename"|data-multi-task-action="delete"/);
 });
 
+test('renders the preset-style batch participation switch and dims excluded task capsules', () => {
+  const markup = renderMultiTaskWorkspace({
+    activeTaskId: 'excluded',
+    tasks: [
+      { id: 'included', name: '状态栏', batchEnabled: true },
+      { id: 'excluded', name: '小剧场', batchEnabled: false },
+    ],
+  });
+
+  assert.match(markup, /data-multi-task-id="excluded"[^>]*data-batch-enabled="false"/);
+  assert.match(markup, /st-esg-multi-task-tools-divider/);
+  assert.match(markup, /st-esg-switch st-esg-switch-sm/);
+  assert.match(markup, /data-multi-task-action="toggle-batch"/);
+  assert.match(markup, /aria-label="加入批量生成与注入"/);
+  const toggle = markup.match(/<input[^>]*data-multi-task-action="toggle-batch"[^>]*>/)?.[0] || '';
+  assert.doesNotMatch(toggle, /checked/);
+});
+
 test('multi-task workspace styles use compact tabs and icon actions while animating only running lamps', async () => {
   const css = await readFile(new URL('../style.css', import.meta.url), 'utf8');
   assert.match(css, /\.st-esg-generation-mode-switch\s*\{[^}]*display:\s*flex/s);

@@ -76,10 +76,12 @@ import {
   MULTI_TASK_STATUS,
   createMultiTask,
   deleteMultiTask,
+  getMultiTasksForAction,
   mergeMultiTaskWorkspaceView,
   normalizeMultiTaskSettings,
   renameMultiTask,
   selectMultiTask,
+  setMultiTaskBatchEnabled,
 } from './generation/multi-task-state.js?ver=0.2.3';
 import { createMultiTaskRunPlan, runMultiTaskQueue } from './generation/multi-task-runner.js?ver=0.2.3';
 import { createMultiTaskInjectionQueue } from './generation/multi-task-injection-queue.js?ver=0.2.3';
@@ -154,6 +156,8 @@ import {
   setChatWorldbookSchemeId,
   upsertChatBindingIndex,
 } from './settings/chat-worldbook-binding.js?ver=0.2.3';
+import { applyMultiTaskSchemeSnapshot, captureMultiTaskSchemeSnapshot } from './settings/multi-task-schemes.js?ver=0.2.3';
+import { getChatMultiTaskSchemeId, setChatMultiTaskSchemeId } from './settings/chat-multi-task-binding.js?ver=0.2.3';
 import { buildDataManagementModel, clearSettingsDataCategory, formatByteSize } from './settings/data-management.js?ver=0.2.3';
 import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCleanupImport } from './settings/tag-cleanup-transfer.js?ver=0.2.3';
 
@@ -288,12 +292,15 @@ const DEFAULT_SETTINGS = {
   presetSchemes: [],
   worldbookSchemes: [],
   componentSchemes: [],
+  multiTaskSchemes: [],
   chatWorldbookBindings: [],
+  chatMultiTaskBindings: [],
   selectedApiSchemeId: '',
   selectedTaskSchemeId: '',
   selectedPresetSchemeId: '',
   selectedWorldbookSchemeId: '',
   selectedComponentSchemeId: '',
+  selectedMultiTaskSchemeId: '',
   activeSchemeIds: {},
   dirtySchemeTypes: {},
   components: [],
@@ -748,9 +755,14 @@ function loadSettings() {
   settings.presetSchemes = normalizeSchemeList(settings.presetSchemes);
   settings.worldbookSchemes = normalizeSchemeList(settings.worldbookSchemes);
   settings.componentSchemes = normalizeSchemeList(settings.componentSchemes);
+  settings.multiTaskSchemes = normalizeSchemeList(settings.multiTaskSchemes);
   settings.generationMode = settings.generationMode === 'multi' ? 'multi' : 'single';
-  settings.multiTaskSettings = normalizeMultiTaskSettings(settings.multiTaskSettings);
+  settings.multiTaskSettings = normalizeMultiTaskSettings({
+    ...settings.multiTaskSettings,
+    tasks: normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.map((task) => ({ ...task, extraInstruction: '' })),
+  });
   settings.chatWorldbookBindings = normalizeChatBindingIndex(settings.chatWorldbookBindings);
+  settings.chatMultiTaskBindings = normalizeChatBindingIndex(settings.chatMultiTaskBindings);
   if (!settings.promptSelections || typeof settings.promptSelections !== 'object') settings.promptSelections = {};
   if (!settings.importSelections || typeof settings.importSelections !== 'object') settings.importSelections = {};
   if (!settings.sourceContentOverrides || typeof settings.sourceContentOverrides !== 'object') settings.sourceContentOverrides = {};
@@ -785,6 +797,7 @@ function loadSettings() {
       preset: textOf(settings.selectedPresetSchemeId),
       worldbook: textOf(settings.selectedWorldbookSchemeId),
       component: textOf(settings.selectedComponentSchemeId),
+      multiTask: textOf(settings.selectedMultiTaskSchemeId),
     };
   }
   if (!settings.dirtySchemeTypes || typeof settings.dirtySchemeTypes !== 'object') settings.dirtySchemeTypes = {};
@@ -924,7 +937,7 @@ function saveSettings() {
       worldbookSchemeId: task.worldbookSchemeId,
       componentSchemeId: task.componentSchemeId,
       injectMode: task.injectMode,
-      extraInstruction: task.extraInstruction,
+      batchEnabled: task.batchEnabled,
       status: MULTI_TASK_STATUS.IDLE,
     })),
   };
@@ -1513,13 +1526,14 @@ async function runMessageFloorPanelAction(action) {
     const latest = getMessageFloorPanelActionTarget();
     if (!latest) return;
     const allTasks = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks;
-    const allTaskIds = allTasks.map((task) => task.id);
+    const batchTaskIds = allTasks.filter((task) => task.batchEnabled !== false).map((task) => task.id);
     const scoped = scopeMultiTaskFloorPanelSettings({ ...settings.multiTaskSettings, tasks: allTasks }, messageFloorPanelState.target);
     const floorInjectTaskIds = scoped.tasks
+      .filter((task) => task.batchEnabled !== false)
       .filter((task) => [MULTI_TASK_STATUS.READY, MULTI_TASK_STATUS.UNDONE].includes(task.status))
       .filter((task) => String(task.output || '').trim() || task.anchorItems?.length)
       .map((task) => task.id);
-    const floorUndoTaskIds = scoped.tasks.filter((task) => task.injectionRecord).map((task) => task.id);
+    const floorUndoTaskIds = scoped.tasks.filter((task) => task.batchEnabled !== false && task.injectionRecord).map((task) => task.id);
     if (action === 'stop') {
       const runningTaskIds = scoped.tasks
         .filter((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
@@ -1527,9 +1541,10 @@ async function runMessageFloorPanelAction(action) {
       cancelMultiTaskGeneration(runningTaskIds);
       return;
     }
-    if (action === 'generate') await generateMultiTasks(allTaskIds);
+    if (action === 'generate') await generateMultiTasks(batchTaskIds);
     else if (action === 'retry') {
       const failedTaskIds = scoped.tasks
+        .filter((task) => task.batchEnabled !== false)
         .filter((task) => task.status === MULTI_TASK_STATUS.ERROR)
         .map((task) => task.id);
       await generateMultiTasks(failedTaskIds);
@@ -3400,6 +3415,7 @@ const SCHEME_CONFIG = {
   preset: { listKey: 'presetSchemes', selectedKey: 'selectedPresetSchemeId', label: '预设' },
   worldbook: { listKey: 'worldbookSchemes', selectedKey: 'selectedWorldbookSchemeId', label: '世界书' },
   component: { listKey: 'componentSchemes', selectedKey: 'selectedComponentSchemeId', label: '组件库' },
+  multiTask: { listKey: 'multiTaskSchemes', selectedKey: 'selectedMultiTaskSchemeId', label: '多任务' },
 };
 
 function isWorldbookGroup(group) {
@@ -3608,6 +3624,103 @@ async function restoreBoundWorldbookSchemeForCurrentChatNow() {
   }
 }
 
+let chatMultiTaskRestoreQueue = Promise.resolve();
+let restoredMultiTaskBindingChatId = '';
+
+async function applyMultiTaskSchemeToCurrentChat() {
+  const activeId = getActiveSchemeId('multiTask');
+  const selectedId = getSelectedSchemeId('multiTask');
+  if (!activeId || settings.dirtySchemeTypes?.multiTask || selectedId !== activeId) {
+    notifyStatus('请先保存并载入当前多任务方案，再应用到当前聊天。', 'warning');
+    return;
+  }
+  const scheme = findScheme(getSchemeList('multiTask'), activeId);
+  if (!scheme) {
+    notifyStatus('找不到当前多任务方案，请重新保存后再试。', 'error');
+    return;
+  }
+  const context = getContext();
+  if (isCurrentChatGroup(context)) {
+    notifyStatus('当前版本暂不支持为群聊绑定多任务方案。', 'warning');
+    return;
+  }
+  const chatId = getCurrentChatIdSafe(context);
+  const metadata = getCurrentChatMetadata(context);
+  if (!chatId || !metadata) {
+    notifyStatus('当前没有可绑定的聊天。', 'warning');
+    return;
+  }
+  setChatMultiTaskSchemeId(metadata, activeId);
+  settings.chatMultiTaskBindings = upsertChatBindingIndex(settings.chatMultiTaskBindings, {
+    chatId,
+    chatName: chatId,
+    characterName: getCurrentCharacterNameSafe(context),
+    schemeId: activeId,
+    schemeName: scheme.name,
+    updatedAt: Date.now(),
+  });
+  restoredMultiTaskBindingChatId = chatId;
+  await persistCurrentChatMetadata(context);
+  saveSettings();
+  notifyStatus(`已将多任务方案“${scheme.name}”应用到当前聊天。`);
+}
+
+function restoreBoundMultiTaskSchemeForCurrentChat() {
+  chatMultiTaskRestoreQueue = chatMultiTaskRestoreQueue
+    .catch(() => {})
+    .then(() => restoreBoundMultiTaskSchemeForCurrentChatNow());
+  return chatMultiTaskRestoreQueue;
+}
+
+async function restoreBoundMultiTaskSchemeForCurrentChatNow() {
+  const context = getContext();
+  if (isCurrentChatGroup(context)) return;
+  const chatId = getCurrentChatIdSafe(context);
+  if (!chatId) return;
+  const metadata = getCurrentChatMetadata(context);
+  const binding = resolveChatBinding({
+    metadataSchemeId: getChatMultiTaskSchemeId(metadata),
+    index: settings.chatMultiTaskBindings,
+    chatId,
+  });
+  if (binding.status === 'cancelled') {
+    if (metadata && getChatMultiTaskSchemeId(metadata)) {
+      setChatMultiTaskSchemeId(metadata, '');
+      await persistCurrentChatMetadata(context);
+    }
+    return;
+  }
+  if (binding.status !== 'bound') {
+    if (restoredMultiTaskBindingChatId && restoredMultiTaskBindingChatId !== chatId) {
+      settings.multiTaskSettings = normalizeMultiTaskSettings({ concurrency: 1, injectionIntervalSeconds: 1, injectionOrder: 'completion', tasks: [] });
+      setSelectedSchemeId('multiTask', '');
+      markSchemeClean('multiTask', '');
+      restoredMultiTaskBindingChatId = '';
+      saveSettings();
+      if (initialized) renderMultiTaskFramework();
+    }
+    return;
+  }
+  const scheme = findScheme(getSchemeList('multiTask'), binding.schemeId);
+  if (!scheme) {
+    notifyStatus(`当前聊天绑定的多任务方案“${binding.record?.schemeName || binding.schemeId}”已不存在，请重新选择。`, 'warning');
+    return;
+  }
+  if (chatId !== getCurrentChatIdSafe()) return;
+  if (restoredMultiTaskBindingChatId === chatId && getActiveSchemeId('multiTask') === scheme.id && !settings.dirtySchemeTypes?.multiTask) return;
+  try {
+    setSelectedSchemeId('multiTask', scheme.id);
+    await applyScheme('multiTask', scheme.snapshot || {});
+    markSchemeClean('multiTask', scheme.id);
+    restoredMultiTaskBindingChatId = chatId;
+    saveSettings();
+    renderSchemeOptions('multiTask');
+    notifyStatus(`已按当前聊天载入多任务方案：${scheme.name}`);
+  } catch (error) {
+    notifyStatus(`自动载入当前聊天的多任务方案失败：${error?.message || '未知错误'}`, 'error');
+  }
+}
+
 function requestTextInputDialog({ title, label, placeholder = '', value = '', options = null }) {
   return new Promise((resolve) => {
     const dialog = targetDoc.createElement('dialog');
@@ -3765,6 +3878,10 @@ function renderAllSchemeOptions() {
 
 function currentSchemeSnapshot(type) {
   if (type === 'component') return captureComponentSchemeSnapshot(settings);
+  if (type === 'multiTask') {
+    captureActiveMultiTaskView();
+    return captureMultiTaskSchemeSnapshot(settings.multiTaskSettings);
+  }
   return captureSchemeSnapshot(type, settings, importGroups, { isWorldbookGroup });
 }
 
@@ -3999,6 +4116,9 @@ async function applyScheme(type, snapshot) {
   else if (type === 'component') {
     settings = applyComponentSchemeSnapshot(settings, snapshot);
     renderComponentList();
+  } else if (type === 'multiTask') {
+    settings.multiTaskSettings = applyMultiTaskSchemeSnapshot(settings.multiTaskSettings, snapshot);
+    renderMultiTaskFramework();
   }
   saveSettings();
 }
@@ -4012,6 +4132,10 @@ function isSchemeMutationLocked(type, action) {
 async function handleSchemeAction(type, action) {
   const config = SCHEME_CONFIG[type];
   if (!config) return;
+  if (type === 'multiTask' && isAnyGenerationRunning()) {
+    notifyStatus('生成进行中，暂时不能修改或载入多任务方案。', 'warning');
+    return;
+  }
   if (isSchemeMutationLocked(type, action)) {
     notifyStatus('导入到组件时不能修改方案。', 'warning');
     return;
@@ -6709,7 +6833,7 @@ function renderDataManagement() {
     },
   });
   const storageRows = [
-    ['schemes', 'fa-folder-tree', '方案数据', model.counts.schemes, `${model.counts.schemes} 个已保存方案`, 'API、任务指令、预设和世界书方案', model.storage.schemes],
+    ['schemes', 'fa-folder-tree', '方案数据', model.counts.schemes, `${model.counts.schemes} 个已保存方案`, 'API、任务指令、预设、世界书、组件库和多任务方案', model.storage.schemes],
     ['libraries', 'fa-layer-group', '库数据', model.counts.libraries, `${model.counts.libraries} 个条目`, '组件库、小剧场库及其分组', model.storage.libraries],
     ['bindings', 'fa-link', '聊天绑定', model.counts.bindings, `${model.counts.bindings} 个有效绑定`, '聊天窗口与世界书方案的自动切换关系', model.storage.bindings],
     ['runtime', 'fa-clock-rotate-left', '临时记录', model.counts.runtime, `${model.counts.runtime} 类记录`, '生成结果、提示词日志和最近记录', model.storage.caches],
@@ -6839,7 +6963,7 @@ async function clearDataManagementCategory(category) {
   const definitions = {
     schemes: {
       count: model.counts.schemes,
-      message: `确认清空全部 ${model.counts.schemes} 个已保存方案？API、任务指令、预设和世界书方案都会被删除，当前编辑内容不会被清空。此操作无法恢复。`,
+      message: `确认清空全部 ${model.counts.schemes} 个已保存方案？API、任务指令、预设、世界书、组件库和多任务方案都会被删除，当前编辑内容不会被清空。此操作无法恢复。`,
       clear() {
         settings = clearSettingsDataCategory(settings, 'schemes');
       },
@@ -7116,11 +7240,11 @@ function recordMultiTaskHistory(result) {
 async function generateMultiTasks(requestedTaskIds = null) {
   captureActiveMultiTaskView();
   const multiTaskState = normalizeMultiTaskSettings(settings.multiTaskSettings);
-  const requestedIds = Array.isArray(requestedTaskIds) ? new Set(requestedTaskIds.map(textOf).filter(Boolean)) : null;
-  const tasks = multiTaskState.tasks.filter((task) => !requestedIds || requestedIds.has(task.id));
+  const tasks = getMultiTasksForAction(multiTaskState, requestedTaskIds);
   if (!tasks.length) {
-    logAutomaticGenerationStage('multi-auto-skip', '没有已配置的任务');
-    notifyStatus('请先在设置中添加任务。', 'warning');
+    const hasConfiguredTasks = multiTaskState.tasks.length > 0;
+    logAutomaticGenerationStage('multi-auto-skip', hasConfiguredTasks ? '没有加入批量操作的任务' : '没有已配置的任务');
+    notifyStatus(hasConfiguredTasks ? '没有任务加入批量生成。' : '请先在设置中添加任务。', 'warning');
     return [];
   }
   if (settings.rollbackBeforeGeneration) {
@@ -7274,9 +7398,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
 }
 
 function getRequestedMultiTasks(requestedTaskIds = null) {
-  const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
-  const ids = Array.isArray(requestedTaskIds) ? new Set(requestedTaskIds.map(textOf).filter(Boolean)) : null;
-  return state.tasks.filter((task) => !ids || ids.has(task.id));
+  return getMultiTasksForAction(settings.multiTaskSettings, requestedTaskIds);
 }
 
 async function persistMultiTaskMessageUpdates(context, messageIndexes) {
@@ -7590,12 +7712,13 @@ function selectActiveMultiTaskView(taskId) {
 }
 
 function updateMultiTaskActionState(dialog, multiState = normalizeMultiTaskSettings(settings.multiTaskSettings)) {
-  const hasTasks = multiState.tasks.length > 0;
-  const hasResult = multiState.tasks.some((task) => (
+  const batchTasks = getMultiTasksForAction(multiState);
+  const hasTasks = batchTasks.length > 0;
+  const hasResult = batchTasks.some((task) => (
     [MULTI_TASK_STATUS.READY, MULTI_TASK_STATUS.UNDONE].includes(task.status)
     && (String(task.output || '').trim() || task.anchorItems?.length)
   ));
-  const hasUndo = getLatestFloorMultiTaskUndoCandidates(multiState.tasks).length > 0;
+  const hasUndo = getLatestFloorMultiTaskUndoCandidates(batchTasks).length > 0;
   const running = multiState.tasks.some((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status));
   const generate = dialog?.querySelector('#st-esg-generate');
   generate?.toggleAttribute('disabled', !hasTasks);
@@ -7724,8 +7847,12 @@ function installMultiTaskFrameworkShell(dialog) {
 
 function renderMultiTaskSchemeOptions(list, selectedId, emptyLabel = '未选择') {
   const options = [`<option value="">${escapeHtml(emptyLabel)}</option>`];
-  for (const scheme of normalizeSchemeList(list)) {
+  const schemes = normalizeSchemeList(list);
+  for (const scheme of schemes) {
     options.push(`<option value="${escapeHtml(scheme.id)}"${scheme.id === selectedId ? ' selected' : ''}>${escapeHtml(scheme.name)}</option>`);
+  }
+  if (selectedId && !schemes.some((scheme) => scheme.id === selectedId)) {
+    options.push(`<option value="${escapeHtml(selectedId)}" selected>方案已不存在</option>`);
   }
   return options.join('');
 }
@@ -7759,6 +7886,7 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
       <section class="st-esg-generation-settings-panel${activePage === 'tasks' ? '' : ' st-esg-hidden'}" data-generation-settings-panel="tasks">
         <section class="st-esg-multi-task-settings-section"><div class="st-esg-generation-settings-section-title"><strong>单任务</strong></div><div data-single-task-injection-host></div></section>
         <section class="st-esg-multi-task-settings-section"><div class="st-esg-multi-task-settings-heading"><strong>多任务</strong><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>添加任务 ${state.tasks.length}/5</span></button></div>
+          <div class="st-esg-multi-task-scheme-row">${renderSchemeManager('multiTask')}<button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-bind-multi-task-chat><i class="fa-solid fa-link" aria-hidden="true"></i><span>应用到当前聊天</span></button></div>
           <div class="st-esg-multi-task-runtime-settings"><div class="st-esg-multi-task-runtime-row"><label class="st-esg-multi-task-runtime-field"><span>并发任务数</span><select class="text_pole" name="concurrency">${[1, 2, 3, 4, 5].map((value) => `<option value="${value}"${state.concurrency === value ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label class="st-esg-multi-task-runtime-field"><span>注入间隔</span><input class="text_pole" type="number" name="injectionIntervalSeconds" min="0" max="10" step="0.5" value="${state.injectionIntervalSeconds}"></label><label class="st-esg-multi-task-runtime-field"><span>注入顺序</span><select class="text_pole" name="injectionOrder"><option value="completion"${state.injectionOrder === 'completion' ? ' selected' : ''}>完成顺序</option><option value="task"${state.injectionOrder === 'task' ? ' selected' : ''}>任务顺序</option></select></label></div><em class="st-esg-multi-task-runtime-help">超出并发数的任务会自动排队；自动注入可按完成顺序即时注入，或等待前项后按任务顺序注入；失败或停止的任务会自动跳过；注入间隔范围为 0–10 秒。</em></div>
           <div class="st-esg-multi-task-settings-list">${taskFields}</div>
         </section>
@@ -7807,14 +7935,14 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
     const rawValue = textOf(control.value);
     const value = field === 'injectMode' ? (rawValue === 'anchor' ? 'anchor' : 'append') : rawValue;
     replaceMultiTask(taskId, { [field]: value });
-    saveSettings();
+    markSchemeDirty('multiTask');
   }));
   dialog.querySelector('[name="concurrency"]')?.addEventListener('change', (event) => {
     settings.multiTaskSettings = normalizeMultiTaskSettings({
       ...settings.multiTaskSettings,
       concurrency: event.currentTarget.value,
     });
-    saveSettings();
+    markSchemeDirty('multiTask');
   });
   dialog.querySelector('[name="injectionIntervalSeconds"]')?.addEventListener('change', (event) => {
     settings.multiTaskSettings = normalizeMultiTaskSettings({
@@ -7822,13 +7950,33 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
       injectionIntervalSeconds: event.currentTarget.value,
     });
     event.currentTarget.value = String(settings.multiTaskSettings.injectionIntervalSeconds);
-    saveSettings();
+    markSchemeDirty('multiTask');
   });
   dialog.querySelector('[name="injectionOrder"]')?.addEventListener('change', (event) => {
     settings.multiTaskSettings = normalizeMultiTaskSettings({ ...settings.multiTaskSettings, injectionOrder: event.currentTarget.value });
-    saveSettings();
+    markSchemeDirty('multiTask');
   });
   targetDoc.body.appendChild(dialog);
+  renderSchemeOptions('multiTask');
+  dialog.querySelector('#st-esg-multiTask-scheme')?.addEventListener('change', (event) => {
+    setSelectedSchemeId('multiTask', event.currentTarget.value);
+    saveSettings();
+  });
+  dialog.querySelectorAll('.st-esg-scheme-actions button[data-scheme-type="multiTask"]').forEach((button) => button.addEventListener('click', async () => {
+    const action = button.classList.contains('st-esg-load-scheme')
+      ? 'load'
+      : button.classList.contains('st-esg-save-scheme-new')
+        ? 'new'
+        : button.classList.contains('st-esg-overwrite-scheme')
+          ? 'overwrite'
+          : 'delete';
+    await handleSchemeAction('multiTask', action);
+    if (action === 'load' && dialog.isConnected) {
+      finish();
+      showMultiTaskSettingsDialog('tasks');
+    }
+  }));
+  dialog.querySelector('[data-bind-multi-task-chat]')?.addEventListener('click', () => { void applyMultiTaskSchemeToCurrentChat(); });
   if (typeof dialog.showModal === 'function') dialog.showModal();
   else dialog.setAttribute('open', '');
 }
@@ -7855,7 +8003,7 @@ async function handleMultiTaskAction(action, reopenSettings = false, requestedTa
       return;
     }
     settings.multiTaskSettings = result.state;
-    saveSettings();
+    markSchemeDirty('multiTask');
     renderMultiTaskFramework();
     showMultiTaskSettingsDialog('tasks');
     return;
@@ -7863,6 +8011,16 @@ async function handleMultiTaskAction(action, reopenSettings = false, requestedTa
   if (action === 'global-settings') { showMultiTaskSettingsDialog('tasks'); return; }
   if (!activeTask) return;
   if (action === 'settings') { showMultiTaskSettingsDialog('tasks'); return; }
+  if (action === 'toggle-batch') {
+    if (isAnyGenerationRunning()) {
+      notifyStatus('生成进行中，暂时不能调整批量任务。', 'warning');
+      return;
+    }
+    settings.multiTaskSettings = setMultiTaskBatchEnabled(settings.multiTaskSettings, activeTask.id, activeTask.batchEnabled === false);
+    markSchemeDirty('multiTask');
+    renderMultiTaskFramework();
+    return;
+  }
   if (action === 'generate') {
     if ([MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(activeTask.status)) {
       cancelMultiTaskGeneration([activeTask.id]);
@@ -7877,7 +8035,7 @@ async function handleMultiTaskAction(action, reopenSettings = false, requestedTa
     const result = renameMultiTask(settings.multiTaskSettings, activeTask.id, name);
     if (result.error) { notifyStatus('任务名称不能为空或与其他任务重复。', 'warning'); if (reopenSettings) showMultiTaskSettingsDialog('tasks'); return; }
     settings.multiTaskSettings = result.state;
-    saveSettings();
+    markSchemeDirty('multiTask');
     renderMultiTaskFramework();
     if (reopenSettings) showMultiTaskSettingsDialog('tasks');
     return;
@@ -7886,7 +8044,7 @@ async function handleMultiTaskAction(action, reopenSettings = false, requestedTa
     if (!targetWindow.confirm(`删除任务“${activeTask.name}”？\n\n当前框架中的任务配置和未接入的临时结果会一并删除。`)) { if (reopenSettings) showMultiTaskSettingsDialog('tasks'); return; }
     cancelMultiTaskGeneration([activeTask.id]);
     settings.multiTaskSettings = deleteMultiTask(settings.multiTaskSettings, activeTask.id).state;
-    saveSettings();
+    markSchemeDirty('multiTask');
     renderMultiTaskFramework();
     if (reopenSettings) showMultiTaskSettingsDialog('tasks');
   }
@@ -8474,7 +8632,6 @@ function bindPanelEvents() {
     if (settings.generationMode === 'multi') {
       const task = getActiveMultiTask();
       if (task) replaceMultiTask(task.id, { extraInstruction: temporaryTaskInstruction });
-      scheduleSettingsSave();
     }
   });
   $t('#st-esg-clear-temporary-task-instruction').on('click', function (event) {
@@ -8484,7 +8641,6 @@ function bindPanelEvents() {
     if (settings.generationMode === 'multi') {
       const task = getActiveMultiTask();
       if (task) replaceMultiTask(task.id, { extraInstruction: '' });
-      saveSettings();
     }
     event.currentTarget.blur();
   });
@@ -8675,6 +8831,7 @@ function init() {
   void syncQuickReplyShortcuts();
   startTavernDefaultSync();
   void restoreBoundWorldbookSchemeForCurrentChat();
+  void restoreBoundMultiTaskSchemeForCurrentChat();
   const context = getContext();
   registerPromptSourceCacheInvalidation(context);
   registerInjectionUndoInvalidation(context);
@@ -8695,6 +8852,7 @@ function init() {
     seedLastAutomaticTargetFromCurrentChat();
     refreshMessageFloorPanelTarget();
     void restoreBoundWorldbookSchemeForCurrentChat();
+    void restoreBoundMultiTaskSchemeForCurrentChat();
   });
   console.log(`[${EXTENSION_ID}] 已加载，dialog top layer，UI 挂载文档：${targetWindow === window ? 'current' : 'parent'}`);
 }
