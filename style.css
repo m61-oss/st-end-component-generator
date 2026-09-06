@@ -923,10 +923,12 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-empty { color: var(--esg-text-main); text-align: center; }
 .st-esg-empty-small { padding: 10px; font-size: 12px; }
 .st-esg-actions-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.st-esg-scheme-group { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--esg-border); }
+.st-esg-scheme-group { --st-esg-scheme-control-size: 26px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--esg-border); }
 .st-esg-scheme-picker { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--esg-text-main); font-size: 12px; font-weight: 600; white-space: nowrap; }
 .st-esg-scheme-picker .st-esg-scheme-select { flex: 1; min-width: 0; }
 .st-esg-scheme-actions { display: flex; align-items: center; gap: 4px; }
+.st-esg-scheme-picker .st-esg-scheme-select,
+.st-esg-scheme-actions .st-esg-icon-btn { box-sizing: border-box; height: var(--st-esg-scheme-control-size) !important; min-height: var(--st-esg-scheme-control-size) !important; }
 .st-esg-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; min-width: 26px; height: 26px; padding: 0; border: 1px solid var(--esg-border); border-radius: 5px; color: var(--esg-text-main); background: var(--esg-bg-secondary); cursor: pointer; font-size: 10px; transition: background 0.2s, border-color 0.2s; }
 .st-esg-icon-btn:hover { border-color: var(--esg-text-muted); background: var(--esg-bg-hover); }
 .st-esg-icon-danger:hover { color: #FF453A; }
@@ -1728,7 +1730,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   select.text_pole,
   select.st-esg-scheme-select { padding-right: 26px !important; background-position: right 7px center !important; background-size: 13px !important; }
 
-  .st-esg-scheme-group { gap: 3px; margin-bottom: 6px; padding-bottom: 6px; }
+  .st-esg-scheme-group { --st-esg-scheme-control-size: 24px; gap: 3px; margin-bottom: 6px; padding-bottom: 6px; }
   .st-esg-scheme-picker { gap: 4px; font-size: 11px; }
   .st-esg-scheme-actions { gap: 3px; }
   .st-esg-icon-btn { width: 24px; min-width: 24px; height: 24px; border-radius: 4px; font-size: 9px; }
