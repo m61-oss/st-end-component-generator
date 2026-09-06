@@ -74,8 +74,13 @@ export function buildDataManagementModel(settings, { characterNames = [], runtim
   const chatBindings = (Array.isArray(settings?.chatWorldbookBindings) ? settings.chatWorldbookBindings : [])
     .filter((item) => !item?.cancelled)
     .map((item) => ({ ...item, orphan: !worldbookIds.has(textOf(item?.schemeId)) }));
+  const multiTaskIds = new Set((Array.isArray(settings?.multiTaskSchemes) ? settings.multiTaskSchemes : []).map((item) => textOf(item?.id)).filter(Boolean));
+  const chatMultiTaskBindings = (Array.isArray(settings?.chatMultiTaskBindings) ? settings.chatMultiTaskBindings : [])
+    .filter((item) => !item?.cancelled)
+    .map((item) => ({ ...item, orphan: !multiTaskIds.has(textOf(item?.schemeId)) }));
   const orphanComponentIds = [...characterGroups, ...presetGroups].filter((group) => group.orphan).flatMap((group) => group.items.map((item) => textOf(item?.id))).filter(Boolean);
   const orphanBindingChatIds = chatBindings.filter((item) => item.orphan).map((item) => textOf(item?.chatId)).filter(Boolean);
+  const orphanMultiTaskBindingChatIds = chatMultiTaskBindings.filter((item) => item.orphan).map((item) => textOf(item?.chatId)).filter(Boolean);
   const schemes = { api: settings?.apiSchemes, task: settings?.taskSchemes, preset: presetSchemes, worldbook: worldbookSchemes, component: settings?.componentSchemes, multiTask: settings?.multiTaskSchemes };
   const worldbookSchemeDetails = worldbookSchemes.map((scheme) => {
     const snapshot = scheme?.snapshot && typeof scheme.snapshot === 'object' ? scheme.snapshot : {};
@@ -88,7 +93,7 @@ export function buildDataManagementModel(settings, { characterNames = [], runtim
     };
   });
   const libraries = { components, componentGroups: settings?.componentGroups, theaterComponents: settings?.theaterComponents, theaterGroups: settings?.theaterGroups };
-  const bindings = { chatWorldbookBindings: settings?.chatWorldbookBindings };
+  const bindings = { chatWorldbookBindings: settings?.chatWorldbookBindings, chatMultiTaskBindings: settings?.chatMultiTaskBindings };
   const caches = { lastPromptLog: settings?.lastPromptLog, lastGenerated: settings?.lastGenerated, lastGeneratedThinking: settings?.lastGeneratedThinking, ...runtimeData };
   const settingsSize = byteSize(settings);
   const externalRuntimeSize = byteSize(runtimeData);
@@ -97,14 +102,17 @@ export function buildDataManagementModel(settings, { characterNames = [], runtim
     counts: {
       schemes: [settings?.apiSchemes, settings?.taskSchemes, presetSchemes, worldbookSchemes, settings?.componentSchemes, settings?.multiTaskSchemes].reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0),
       libraries: components.length + (Array.isArray(settings?.theaterComponents) ? settings.theaterComponents.length : 0),
-      bindings: chatBindings.length,
+      bindings: chatBindings.length + chatMultiTaskBindings.length,
       runtime: [settings?.lastGenerated, settings?.lastPromptLog, ...(Array.isArray(settings?.lastGeneratedThinking) ? settings.lastGeneratedThinking : []), ...Object.values(runtimeData || {})].filter(hasStoredValue).length,
     },
     characterGroups,
     presetGroups,
     worldbookSchemes: worldbookSchemeDetails,
     chatBindings,
+    chatWorldbookBindings: chatBindings,
+    chatMultiTaskBindings,
     orphanComponentIds,
     orphanBindingChatIds,
+    orphanMultiTaskBindingChatIds,
   };
 }

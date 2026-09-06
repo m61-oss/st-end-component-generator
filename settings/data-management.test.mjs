@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 
 import { buildDataManagementModel, clearSettingsDataCategory } from './data-management.js';
 
@@ -50,4 +51,30 @@ test('clearing bindings cancels worldbook and multi-task chat bindings', () => {
   clearSettingsDataCategory(settings, 'bindings', 123);
   assert.deepEqual(settings.chatWorldbookBindings, [{ chatId: 'chat-1', cancelled: true, updatedAt: 123 }]);
   assert.deepEqual(settings.chatMultiTaskBindings, [{ chatId: 'chat-1', cancelled: true, updatedAt: 123 }]);
+});
+
+test('data management counts and exposes worldbook and multi-task chat bindings separately', () => {
+  const model = buildDataManagementModel({
+    worldbookSchemes: [{ id: 'worldbook' }],
+    multiTaskSchemes: [{ id: 'multi' }],
+    chatWorldbookBindings: [{ chatId: 'chat-1', schemeId: 'worldbook' }],
+    chatMultiTaskBindings: [
+      { chatId: 'chat-1', schemeId: 'multi' },
+      { chatId: 'chat-2', schemeId: 'missing' },
+    ],
+  });
+
+  assert.equal(model.counts.bindings, 3);
+  assert.equal(model.chatWorldbookBindings.length, 1);
+  assert.equal(model.chatMultiTaskBindings.length, 2);
+  assert.deepEqual(model.orphanMultiTaskBindingChatIds, ['chat-2']);
+  assert.ok(model.storage.bindings > 0);
+});
+
+test('data management UI provides separate multi-task binding management', async () => {
+  const source = await readFile(new URL('../index.js', import.meta.url), 'utf8');
+  assert.match(source, /聊天多任务绑定/);
+  assert.match(source, /model\.chatMultiTaskBindings/);
+  assert.match(source, /data-binding-type="multiTask"/);
+  assert.match(source, /setChatMultiTaskSchemeId\(metadata, ''\)/);
 });

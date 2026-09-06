@@ -3668,6 +3668,7 @@ async function applyMultiTaskSchemeToCurrentChat() {
   restoredMultiTaskBindingChatId = chatId;
   await persistCurrentChatMetadata(context);
   saveSettings();
+  renderDataManagement();
   notifyStatus(`已将多任务方案“${scheme.name}”应用到当前聊天。`);
 }
 
@@ -6841,7 +6842,7 @@ function renderDataManagement() {
   const storageRows = [
     ['schemes', 'fa-folder-tree', '方案数据', model.counts.schemes, `${model.counts.schemes} 个已保存方案`, 'API、任务指令、预设、世界书、组件库和多任务方案', model.storage.schemes],
     ['libraries', 'fa-layer-group', '库数据', model.counts.libraries, `${model.counts.libraries} 个条目`, '组件库、小剧场库及其分组', model.storage.libraries],
-    ['bindings', 'fa-link', '聊天绑定', model.counts.bindings, `${model.counts.bindings} 个有效绑定`, '聊天窗口与世界书方案的自动切换关系', model.storage.bindings],
+    ['bindings', 'fa-link', '聊天绑定', model.counts.bindings, `${model.counts.bindings} 个有效绑定`, '聊天窗口与世界书、多任务方案的自动切换关系', model.storage.bindings],
     ['runtime', 'fa-clock-rotate-left', '临时记录', model.counts.runtime, `${model.counts.runtime} 类记录`, '生成结果、提示词日志和最近记录', model.storage.caches],
   ];
   const characterComponentCount = model.characterGroups.reduce((sum, group) => sum + group.items.length, 0);
@@ -6873,10 +6874,14 @@ function renderDataManagement() {
         <div class="st-esg-data-detail-body st-esg-data-binding-list">${worldbookSchemeCount ? model.worldbookSchemes.map((scheme) => `<div class="st-esg-data-binding ${scheme.hasData ? '' : 'st-esg-data-orphan'}"><div><strong>${escapeHtml(scheme.name)}</strong><span>${scheme.sourceCount} 个世界书来源 · ${scheme.entryCount} 条条目记录 · ${formatByteSize(scheme.size)}</span></div><span>${scheme.hasData ? '可恢复' : '空快照'}</span></div>`).join('') : '<div class="st-esg-data-empty">没有保存世界书方案。</div>'}</div>
       </details>
       <details class="st-esg-data-detail-group">
-        <summary><span>聊天世界书绑定</span><b>${model.chatBindings.length}</b></summary>
-        <div class="st-esg-data-detail-body st-esg-data-binding-list">${model.chatBindings.length ? model.chatBindings.map((binding) => `<div class="st-esg-data-binding ${binding.orphan ? 'st-esg-data-orphan' : ''}"><div><strong>${escapeHtml(binding.chatName || binding.chatId)}</strong><span>${escapeHtml(binding.characterName || '未知角色')} · ${escapeHtml(binding.schemeName || '未知方案')}${binding.orphan ? ' · 方案已不存在' : ''}</span></div><button class="menu_button st-esg-data-action-button st-esg-cancel-chat-binding" type="button" data-chat-id="${escapeHtml(binding.chatId)}">取消绑定</button></div>`).join('') : '<div class="st-esg-data-empty">还没有聊天绑定世界书方案。</div>'}</div>
+        <summary><span>聊天世界书绑定</span><b>${model.chatWorldbookBindings.length}</b></summary>
+        <div class="st-esg-data-detail-body st-esg-data-binding-list">${model.chatWorldbookBindings.length ? model.chatWorldbookBindings.map((binding) => `<div class="st-esg-data-binding ${binding.orphan ? 'st-esg-data-orphan' : ''}"><div><strong>${escapeHtml(binding.chatName || binding.chatId)}</strong><span>${escapeHtml(binding.characterName || '未知角色')} · ${escapeHtml(binding.schemeName || '未知方案')}${binding.orphan ? ' · 方案已不存在' : ''}</span></div><button class="menu_button st-esg-data-action-button st-esg-cancel-chat-binding" type="button" data-binding-type="worldbook" data-chat-id="${escapeHtml(binding.chatId)}">取消绑定</button></div>`).join('') : '<div class="st-esg-data-empty">还没有聊天绑定世界书方案。</div>'}</div>
       </details>
-      <div class="st-esg-data-orphan-cleanup"><div><strong>遗留数据</strong><span>${model.orphanComponentIds.length + model.orphanBindingChatIds.length ? `发现 ${model.orphanComponentIds.length + model.orphanBindingChatIds.length} 条归属或方案已不存在的数据。` : '未发现遗留数据。'}</span></div><button id="st-esg-clean-orphan-data" class="menu_button st-esg-data-action-button st-esg-icon-danger" type="button" ${model.orphanComponentIds.length + model.orphanBindingChatIds.length ? '' : 'disabled'}><i class="fa-solid fa-broom"></i><span>清理遗留数据</span></button></div>
+      <details class="st-esg-data-detail-group">
+        <summary><span>聊天多任务绑定</span><b>${model.chatMultiTaskBindings.length}</b></summary>
+        <div class="st-esg-data-detail-body st-esg-data-binding-list">${model.chatMultiTaskBindings.length ? model.chatMultiTaskBindings.map((binding) => `<div class="st-esg-data-binding ${binding.orphan ? 'st-esg-data-orphan' : ''}"><div><strong>${escapeHtml(binding.chatName || binding.chatId)}</strong><span>${escapeHtml(binding.characterName || '未知角色')} · ${escapeHtml(binding.schemeName || '未知方案')}${binding.orphan ? ' · 方案已不存在' : ''}</span></div><button class="menu_button st-esg-data-action-button st-esg-cancel-chat-binding" type="button" data-binding-type="multiTask" data-chat-id="${escapeHtml(binding.chatId)}">取消绑定</button></div>`).join('') : '<div class="st-esg-data-empty">还没有聊天绑定多任务方案。</div>'}</div>
+      </details>
+      <div class="st-esg-data-orphan-cleanup"><div><strong>遗留数据</strong><span>${model.orphanComponentIds.length + model.orphanBindingChatIds.length + model.orphanMultiTaskBindingChatIds.length ? `发现 ${model.orphanComponentIds.length + model.orphanBindingChatIds.length + model.orphanMultiTaskBindingChatIds.length} 条归属或方案已不存在的数据。` : '未发现遗留数据。'}</span></div><button id="st-esg-clean-orphan-data" class="menu_button st-esg-data-action-button st-esg-icon-danger" type="button" ${model.orphanComponentIds.length + model.orphanBindingChatIds.length + model.orphanMultiTaskBindingChatIds.length ? '' : 'disabled'}><i class="fa-solid fa-broom"></i><span>清理遗留数据</span></button></div>
     </section>`;
 }
 
@@ -6915,7 +6920,7 @@ function openDataManagementDialog() {
     }).on('click', '.st-esg-cancel-chat-binding', function (event) {
       event.preventDefault();
       releaseDataManagementButton(event.currentTarget);
-      void cancelChatWorldbookBinding($(this).data('chat-id'));
+      void cancelChatSchemeBinding($(this).data('binding-type'), $(this).data('chat-id'));
     }).on('click', '#st-esg-clean-orphan-data', function (event) {
       event.preventDefault();
       releaseDataManagementButton(event.currentTarget);
@@ -6931,33 +6936,39 @@ function openDataManagementDialog() {
   if (!dialog.open) dialog.showModal();
 }
 
-async function cancelChatWorldbookBinding(chatId) {
+async function cancelChatSchemeBinding(bindingType, chatId) {
+  const type = bindingType === 'multiTask' ? 'multiTask' : 'worldbook';
   const id = textOf(chatId);
   if (!id) return;
-  const binding = normalizeChatBindingIndex(settings.chatWorldbookBindings).find((item) => item.chatId === id && !item.cancelled);
-  if (!binding || !targetWindow.confirm(`确认取消聊天“${binding.chatName || id}”的世界书方案绑定？`)) return;
-  settings.chatWorldbookBindings = cancelChatBindingIndex(settings.chatWorldbookBindings, id);
+  const listKey = type === 'multiTask' ? 'chatMultiTaskBindings' : 'chatWorldbookBindings';
+  const label = type === 'multiTask' ? '多任务' : '世界书';
+  const binding = normalizeChatBindingIndex(settings[listKey]).find((item) => item.chatId === id && !item.cancelled);
+  if (!binding || !targetWindow.confirm(`确认取消聊天“${binding.chatName || id}”的${label}方案绑定？`)) return;
+  settings[listKey] = cancelChatBindingIndex(settings[listKey], id);
   const context = getContext();
   if (getCurrentChatIdSafe(context) === id) {
     const metadata = getCurrentChatMetadata(context);
     if (metadata) {
-      setChatWorldbookSchemeId(metadata, '');
+      if (type === 'multiTask') setChatMultiTaskSchemeId(metadata, '');
+      else setChatWorldbookSchemeId(metadata, '');
       await persistCurrentChatMetadata(context);
     }
   }
   saveSettings();
   renderDataManagement();
-  notifyStatus('已取消聊天的世界书方案绑定。');
+  notifyStatus(`已取消聊天的${label}方案绑定。`);
 }
 
 function cleanOrphanPluginData() {
   const model = buildDataManagementModel(settings, { characterNames: getAvailableCharacterNames() });
   const ids = new Set(model.orphanComponentIds);
-  const chatIds = new Set(model.orphanBindingChatIds);
-  if (!ids.size && !chatIds.size) return;
-  if (!targetWindow.confirm(`确认清理 ${ids.size + chatIds.size} 条遗留数据？此操作无法恢复。`)) return;
+  const worldbookChatIds = new Set(model.orphanBindingChatIds);
+  const multiTaskChatIds = new Set(model.orphanMultiTaskBindingChatIds);
+  if (!ids.size && !worldbookChatIds.size && !multiTaskChatIds.size) return;
+  if (!targetWindow.confirm(`确认清理 ${ids.size + worldbookChatIds.size + multiTaskChatIds.size} 条遗留数据？此操作无法恢复。`)) return;
   settings.components = settings.components.filter((item) => !ids.has(textOf(item?.id)));
-  settings.chatWorldbookBindings = normalizeChatBindingIndex(settings.chatWorldbookBindings).filter((item) => !chatIds.has(item.chatId));
+  settings.chatWorldbookBindings = normalizeChatBindingIndex(settings.chatWorldbookBindings).filter((item) => !worldbookChatIds.has(item.chatId));
+  settings.chatMultiTaskBindings = normalizeChatBindingIndex(settings.chatMultiTaskBindings).filter((item) => !multiTaskChatIds.has(item.chatId));
   saveSettings();
   renderDataManagement();
   renderComponentList();
@@ -6987,11 +6998,14 @@ async function clearDataManagementCategory(category) {
     },
     bindings: {
       count: model.counts.bindings,
-      message: `确认取消全部 ${model.counts.bindings} 个聊天世界书绑定？以后打开这些聊天时不再自动切换方案。`,
+      message: `确认取消全部 ${model.counts.bindings} 个聊天方案绑定？世界书和多任务绑定都会取消，以后打开这些聊天时不再自动切换方案。`,
       clear() {
         settings = clearSettingsDataCategory(settings, 'bindings');
         const metadata = getCurrentChatMetadata();
-        if (metadata) setChatWorldbookSchemeId(metadata, '');
+        if (metadata) {
+          setChatWorldbookSchemeId(metadata, '');
+          setChatMultiTaskSchemeId(metadata, '');
+        }
       },
       async persist() { await persistCurrentChatMetadata(); },
     },
