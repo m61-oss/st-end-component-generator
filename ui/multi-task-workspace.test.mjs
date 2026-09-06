@@ -97,7 +97,7 @@ test('renders named task tabs and the scheme-B icon toolbar without duplicating 
   assert.doesNotMatch(markup, /data-multi-task-action="settings"|data-multi-task-action="rename"|data-multi-task-action="delete"/);
 });
 
-test('renders the preset-style batch participation switch and dims excluded task capsules', () => {
+test('renders the batch participation switch without visually distinguishing excluded capsules', () => {
   const markup = renderMultiTaskWorkspace({
     activeTaskId: 'excluded',
     tasks: [
@@ -128,6 +128,7 @@ test('multi-task workspace styles use compact tabs and icon actions while animat
   assert.match(css, /\.st-esg-multi-task-tabs\s*\{[^}]*flex:\s*1 1 auto/s);
   assert.match(css, /\.st-esg-multi-task-tab\s*\{[^}]*min-height:\s*26px[^}]*font-size:\s*11px[^}]*border:\s*1px solid[^}]*border-radius:\s*999px/s);
   assert.match(css, /\.st-esg-multi-task-tab\.active\s*\{[^}]*border-color:/s);
+  assert.doesNotMatch(css, /\.st-esg-multi-task-tab(?:\.active)?\[data-batch-enabled="false"\]/);
   assert.match(css, /\.st-esg-multi-task-tools \.st-esg-icon-btn:disabled\s*\{[^}]*opacity:/s);
   assert.doesNotMatch(css, /\.st-esg-multi-task-tools \.menu_button\s*\{/);
   assert.match(css, /\.st-esg-generation-settings-pages\s*\{[^}]*display:\s*flex/s);

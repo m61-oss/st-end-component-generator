@@ -1536,6 +1536,7 @@ async function runMessageFloorPanelAction(action) {
     const floorUndoTaskIds = scoped.tasks.filter((task) => task.batchEnabled !== false && task.injectionRecord).map((task) => task.id);
     if (action === 'stop') {
       const runningTaskIds = scoped.tasks
+        .filter((task) => task.batchEnabled !== false)
         .filter((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
         .map((task) => task.id);
       cancelMultiTaskGeneration(runningTaskIds);

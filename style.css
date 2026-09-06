@@ -1839,8 +1839,6 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-multi-task-tabs { display: flex; flex: 1 1 auto; gap: 5px; min-width: 0; padding: 1px 0; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; border-bottom: 0; }
 .st-esg-multi-task-tab { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 52px; max-width: 104px; min-height: 26px; padding: 2px 7px; font: inherit; font-size: 11px; border: 1px solid var(--esg-border); border-radius: 999px; color: var(--esg-text-muted); background: transparent; cursor: pointer; }
 .st-esg-multi-task-tab.active { color: var(--esg-text-main); border-color: var(--esg-primary); background: var(--esg-bg-card); }
-.st-esg-multi-task-tab[data-batch-enabled="false"] { opacity: 0.48; }
-.st-esg-multi-task-tab.active[data-batch-enabled="false"] { opacity: 0.72; border-color: var(--esg-primary); }
 .st-esg-multi-task-tab:focus-visible { outline: 2px solid var(--esg-primary); outline-offset: -2px; }
 .st-esg-multi-task-tab-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-esg-task-status-lamp { width: 6px; height: 6px; flex: 0 0 6px; border: 1px solid currentColor; border-radius: 50%; background: transparent; }

@@ -41,6 +41,15 @@ test('floor panel total generation includes every batch-enabled task after a par
   assert.doesNotMatch(actionSource, /generationTaskIds = floorTaskIds\.length/);
 });
 
+test('floor panel total stop ignores tasks excluded from batch operations', () => {
+  const actionSource = indexSource.slice(
+    indexSource.indexOf('async function runMessageFloorPanelAction'),
+    indexSource.indexOf('function bindMessageFloorPanel'),
+  );
+
+  assert.match(actionSource, /const runningTaskIds = scoped\.tasks[\s\S]*task\.batchEnabled !== false[\s\S]*MULTI_TASK_STATUS\.QUEUED/);
+});
+
 test('multi-task rollback ignores injection records from earlier floors', () => {
   const targetSource = indexSource.slice(
     indexSource.indexOf('function getLatestAssistantUndoTarget'),

@@ -175,17 +175,18 @@ function scopeMultiTaskFloorPanelSettings(value = {}, target = {}) {
 
 function createMultiTaskFloorPanelView(value = {}) {
   const tasks = Array.isArray(value?.tasks) ? value.tasks.filter((task) => task && typeof task === 'object') : [];
+  const batchTasks = tasks.filter((task) => task.batchEnabled !== false);
   const requestedId = String(value?.activeTaskId ?? '');
   const activeTask = tasks.find((task) => String(task.id ?? '') === requestedId) || tasks[0] || null;
-  const statuses = new Set(tasks.map((task) => String(task.status ?? 'idle')));
+  const statuses = new Set(batchTasks.map((task) => String(task.status ?? 'idle')));
   let status = FLOOR_PANEL_STATUS.IDLE;
   if (statuses.has('queued') || statuses.has('generating')) status = FLOOR_PANEL_STATUS.GENERATING;
   else if (statuses.has('ready') || statuses.has('pending-injection') || statuses.has('undone')) status = FLOOR_PANEL_STATUS.READY;
-  else if (tasks.some((task) => task.injectionRecord) || statuses.has('injected')) status = FLOOR_PANEL_STATUS.INJECTED;
+  else if (batchTasks.some((task) => task.injectionRecord) || statuses.has('injected')) status = FLOOR_PANEL_STATUS.INJECTED;
   else if (statuses.has('error')) status = FLOOR_PANEL_STATUS.ERROR;
   const activeStatus = String(activeTask?.status ?? 'idle');
   const activeError = activeTask?.error?.message || activeTask?.error;
-  const firstError = tasks.find((task) => task?.error)?.error;
+  const firstError = batchTasks.find((task) => task?.error)?.error;
   const error = activeStatus === 'error'
     ? activeError
     : status === FLOOR_PANEL_STATUS.ERROR ? firstError?.message || firstError : null;

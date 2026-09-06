@@ -106,6 +106,21 @@ test('an undone multi-task result remains editable and actionable as ready', () 
   assert.deepEqual(getFloorPanelActionModels(undone.status).map((item) => item.action), ['generate', 'inject']);
 });
 
+test('excluded task state never changes the floor batch action state', () => {
+  const view = createMultiTaskFloorPanelView({
+    activeTaskId: 'excluded',
+    tasks: [
+      { id: 'included', name: 'Included', batchEnabled: true, status: 'injected', output: 'A', injectionRecord: { operations: [] } },
+      { id: 'excluded', name: 'Excluded', batchEnabled: false, status: 'undone', output: 'B' },
+    ],
+  });
+
+  assert.equal(view.status, FLOOR_PANEL_STATUS.INJECTED);
+  assert.equal(view.resultStatus, FLOOR_PANEL_STATUS.READY);
+  assert.equal(view.activeTaskId, 'excluded');
+  assert.deepEqual(getFloorPanelActionModels(view.status).map((item) => item.action), ['generate', 'undo']);
+});
+
 test('楼层面板默认折叠且空闲不显示状态文字', () => {
   const state = createFloorPanelState();
   assert.equal(state.expanded, false);
