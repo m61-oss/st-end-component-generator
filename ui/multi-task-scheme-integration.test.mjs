@@ -19,6 +19,15 @@ test('multi-task settings expose scheme management and chat binding', () => {
   assert.match(indexSource, /data-bind-multi-task-chat/);
   assert.match(indexSource, /applyMultiTaskSchemeToCurrentChat/);
   assert.match(indexSource, /restoreBoundMultiTaskSchemeForCurrentChat/);
+  const managerStart = indexSource.indexOf('function renderSchemeManager(type)');
+  const managerEnd = indexSource.indexOf('function renderApiRetrySettings()', managerStart);
+  const managerSource = indexSource.slice(managerStart, managerEnd);
+  assert.match(managerSource, /type === 'worldbook'/);
+  assert.match(managerSource, /type === 'multiTask'/);
+  assert.match(managerSource, /st-esg-icon-btn[^"']*st-esg-bind-chat-scheme/);
+  assert.match(managerSource, /fa-link/);
+  assert.doesNotMatch(indexSource, /st-esg-multi-task-scheme-row/);
+  assert.doesNotMatch(indexSource, /st-esg-chat-worldbook-actions/);
 });
 
 test('batch toggle is handled without disabling manual per-task actions', () => {

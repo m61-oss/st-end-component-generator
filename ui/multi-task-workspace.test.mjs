@@ -145,6 +145,8 @@ test('multi-task workspace styles use compact tabs and icon actions while animat
   assert.match(css, /data-task-status="generating"[^}]*animation:\s*st-esg-task-breathe/s);
   assert.match(css, /prefers-reduced-motion:\s*reduce[^}]*st-esg-task-status-lamp/s);
   assert.doesNotMatch(css, /\.st-esg-multi-task-preview\s*\{/);
+  assert.match(css, /\.st-esg-multi-task-batch-switch\s*>\s*span\s*\{[^}]*width:\s*24px[^}]*height:\s*14px[^}]*opacity:\s*0\.58/s);
+  assert.match(css, /\.st-esg-floor-multi-task \.st-esg-multi-task-batch-switch\s*\{[^}]*opacity:\s*0\.42/s);
 });
 
 test('common settings stay inside their card and generating uses a semantic blue lamp', async () => {

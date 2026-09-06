@@ -211,11 +211,6 @@
   gap: 7px !important;
 }
 
-.st-esg-chat-worldbook-actions {
-  justify-content: flex-start;
-  margin: -2px 0 10px;
-}
-
 .st-esg-data-entry-card {
   display: flex;
   align-items: center;
@@ -1857,9 +1852,17 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-multi-task-tab[data-task-status="generating"] .st-esg-task-status-lamp { color: var(--esg-running-blue); background: currentColor; animation: st-esg-task-breathe 1.6s ease-in-out infinite; }
 @keyframes st-esg-task-breathe { 0%, 100% { opacity: 0.45; transform: scale(0.82); } 50% { opacity: 1; transform: scale(1.18); } }
 .st-esg-multi-task-tools { display: flex; flex: 0 0 auto; align-items: center; gap: 3px; }
-.st-esg-multi-task-tools-divider { align-self: stretch; width: 1px; min-height: 18px; margin: 3px 2px; background: var(--esg-border); }
-.st-esg-multi-task-batch-switch { cursor: pointer; }
+.st-esg-multi-task-tools-divider { align-self: stretch; width: 1px; min-height: 18px; margin: 3px 2px; background: var(--esg-border); opacity: 0.55; }
+.st-esg-multi-task-batch-switch { margin: -4px -1px; padding: 4px 1px; color: var(--esg-text-muted); cursor: pointer; }
+.st-esg-multi-task-batch-switch > span { width: 24px; height: 14px; border-color: currentColor; background: transparent; opacity: 0.58; }
+.st-esg-multi-task-batch-switch > span::after { top: 2px; left: 2px; width: 8px; height: 8px; background: currentColor; }
+.st-esg-multi-task-batch-switch > input:checked + span { border-color: currentColor; background: color-mix(in srgb, currentColor 22%, transparent); }
+.st-esg-multi-task-batch-switch > input:checked + span::after { transform: translateX(10px); background: currentColor; }
 .st-esg-multi-task-batch-switch.is-disabled { opacity: 0.48; cursor: not-allowed; }
+.st-esg-floor-multi-task .st-esg-multi-task-tools-divider { opacity: 0.32; }
+.st-esg-floor-multi-task .st-esg-multi-task-batch-switch { color: var(--floor-muted); opacity: 0.42; }
+.st-esg-floor-multi-task .st-esg-multi-task-batch-switch:hover,
+.st-esg-floor-multi-task .st-esg-multi-task-batch-switch:focus-within { opacity: 0.68; }
 .st-esg-multi-task-tools .st-esg-icon-btn:disabled { color: var(--esg-text-muted); opacity: 0.62; cursor: not-allowed; }
 .st-esg-multi-task-empty { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 6px 8px; color: var(--esg-text-muted); text-align: center; }
 .st-esg-multi-task-empty > i { font-size: 13px; }
@@ -1901,9 +1904,6 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-multi-task-compact-field > span { color: var(--esg-text-main); white-space: nowrap; }
 .st-esg-multi-task-compact-field .text_pole { height: 34px !important; min-height: 34px !important; padding-block: 4px !important; }
 .st-esg-multi-task-runtime-settings { display: grid; gap: 4px; }
-.st-esg-multi-task-scheme-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 6px; }
-.st-esg-multi-task-scheme-row .st-esg-scheme-group { min-width: 0; margin: 0; }
-.st-esg-multi-task-scheme-row > .menu_button { min-height: 30px; padding-inline: 9px !important; white-space: nowrap; }
 .st-esg-multi-task-runtime-row { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1.2fr); gap: 6px; }
 .st-esg-multi-task-runtime-field { display: grid !important; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px !important; min-width: 0; }
 .st-esg-multi-task-runtime-field > span { color: var(--esg-text-main); white-space: nowrap; }
@@ -1920,8 +1920,6 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   .st-esg-generation-mode { min-height: 24px; padding-inline: 6px; font-size: 10px; }
   .st-esg-multi-task-tab { min-width: 48px; min-height: 25px; padding-inline: 6px; font-size: 10px; }
   .st-esg-multi-task-tools { gap: 2px; }
-  .st-esg-multi-task-scheme-row { grid-template-columns: 1fr; }
-  .st-esg-multi-task-scheme-row > .menu_button { justify-self: end; }
   .st-esg-multi-task-settings-dialog { width: min(560px, calc(100vw - 28px)); max-width: calc(100vw - 28px); max-height: calc(100dvh - 28px); margin: auto; border-radius: 14px; }
   .st-esg-all-mode-settings-body { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
   .st-esg-generation-mode-settings-shell .st-esg-generation-settings-body { padding: 0 8px 8px; }

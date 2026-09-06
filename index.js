@@ -3424,7 +3424,13 @@ function isWorldbookGroup(group) {
 
 function renderSchemeManager(type) {
   const label = SCHEME_CONFIG[type]?.label || '方案';
-  return `<div class="st-esg-scheme-group" data-scheme-type="${type}"><label class="st-esg-scheme-picker"><span>方案：</span><select id="st-esg-${type}-scheme" class="text_pole st-esg-scheme-select" data-scheme-type="${type}"></select></label><div class="st-esg-scheme-actions"><button class="st-esg-icon-btn st-esg-load-scheme" type="button" title="载入方案" aria-label="载入方案" data-scheme-type="${type}"><i class="fa-solid fa-download"></i></button><button class="st-esg-icon-btn st-esg-save-scheme-new" type="button" title="另存方案" aria-label="另存方案" data-scheme-type="${type}"><i class="fa-solid fa-plus"></i></button><button class="st-esg-icon-btn st-esg-overwrite-scheme" type="button" title="覆盖方案" aria-label="覆盖方案" data-scheme-type="${type}"><i class="fa-solid fa-file-pen"></i></button><button class="st-esg-icon-btn st-esg-delete-scheme st-esg-icon-danger" type="button" title="删除方案" aria-label="删除方案" data-scheme-type="${type}"><i class="fa-solid fa-trash"></i></button></div></div>`;
+  let chatBindingAction = '';
+  if (type === 'worldbook') {
+    chatBindingAction = '<button id="st-esg-bind-worldbook-chat" class="st-esg-icon-btn st-esg-bind-chat-scheme" type="button" title="应用到当前聊天" aria-label="应用到当前聊天"><i class="fa-solid fa-link"></i></button>';
+  } else if (type === 'multiTask') {
+    chatBindingAction = '<button class="st-esg-icon-btn st-esg-bind-chat-scheme" type="button" title="应用到当前聊天" aria-label="应用到当前聊天" data-bind-multi-task-chat><i class="fa-solid fa-link" aria-hidden="true"></i></button>';
+  }
+  return `<div class="st-esg-scheme-group" data-scheme-type="${type}"><label class="st-esg-scheme-picker"><span>方案：</span><select id="st-esg-${type}-scheme" class="text_pole st-esg-scheme-select" data-scheme-type="${type}"></select></label><div class="st-esg-scheme-actions"><button class="st-esg-icon-btn st-esg-load-scheme" type="button" title="载入方案" aria-label="载入方案" data-scheme-type="${type}"><i class="fa-solid fa-download"></i></button><button class="st-esg-icon-btn st-esg-save-scheme-new" type="button" title="另存方案" aria-label="另存方案" data-scheme-type="${type}"><i class="fa-solid fa-plus"></i></button><button class="st-esg-icon-btn st-esg-overwrite-scheme" type="button" title="覆盖方案" aria-label="覆盖方案" data-scheme-type="${type}"><i class="fa-solid fa-file-pen"></i></button>${chatBindingAction}<button class="st-esg-icon-btn st-esg-delete-scheme st-esg-icon-danger" type="button" title="删除方案" aria-label="删除方案" data-scheme-type="${type}"><i class="fa-solid fa-trash"></i></button></div></div>`;
 }
 
 function renderApiRetrySettings() {
@@ -7886,7 +7892,7 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
       <section class="st-esg-generation-settings-panel${activePage === 'tasks' ? '' : ' st-esg-hidden'}" data-generation-settings-panel="tasks">
         <section class="st-esg-multi-task-settings-section"><div class="st-esg-generation-settings-section-title"><strong>单任务</strong></div><div data-single-task-injection-host></div></section>
         <section class="st-esg-multi-task-settings-section"><div class="st-esg-multi-task-settings-heading"><strong>多任务</strong><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="add"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>添加任务 ${state.tasks.length}/5</span></button></div>
-          <div class="st-esg-multi-task-scheme-row">${renderSchemeManager('multiTask')}<button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-bind-multi-task-chat><i class="fa-solid fa-link" aria-hidden="true"></i><span>应用到当前聊天</span></button></div>
+          ${renderSchemeManager('multiTask')}
           <div class="st-esg-multi-task-runtime-settings"><div class="st-esg-multi-task-runtime-row"><label class="st-esg-multi-task-runtime-field"><span>并发任务数</span><select class="text_pole" name="concurrency">${[1, 2, 3, 4, 5].map((value) => `<option value="${value}"${state.concurrency === value ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label class="st-esg-multi-task-runtime-field"><span>注入间隔</span><input class="text_pole" type="number" name="injectionIntervalSeconds" min="0" max="10" step="0.5" value="${state.injectionIntervalSeconds}"></label><label class="st-esg-multi-task-runtime-field"><span>注入顺序</span><select class="text_pole" name="injectionOrder"><option value="completion"${state.injectionOrder === 'completion' ? ' selected' : ''}>完成顺序</option><option value="task"${state.injectionOrder === 'task' ? ' selected' : ''}>任务顺序</option></select></label></div><em class="st-esg-multi-task-runtime-help">超出并发数的任务会自动排队；自动注入可按完成顺序即时注入，或等待前项后按任务顺序注入；失败或停止的任务会自动跳过；注入间隔范围为 0–10 秒。</em></div>
           <div class="st-esg-multi-task-settings-list">${taskFields}</div>
         </section>
@@ -8112,7 +8118,6 @@ function renderPluginPanel() {
   dialog.querySelector('[data-tab-panel="debug"] .st-esg-card-title')?.replaceChildren('提示词查看器');
   dialog.querySelector('[data-tab-panel="preset"] .st-esg-import-tools')?.replaceWith(...$(renderSourceModeControl('preset')).toArray());
   dialog.querySelector('[data-tab-panel="worldbook"] .st-esg-import-tools')?.replaceWith(...$(renderSourceModeControl('worldbook')).toArray());
-  dialog.querySelector('.st-esg-scheme-group[data-scheme-type="worldbook"]')?.insertAdjacentHTML('afterend', '<div class="st-esg-actions-row st-esg-chat-worldbook-actions"><button id="st-esg-bind-worldbook-chat" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-link"></i><span>应用到当前聊天</span></button></div>');
   const presetPlacement = dialog.querySelector('#st-esg-preset-placement-slot');
   if (presetPlacement) {
     const extraOptions = targetDoc.createElement('details');
