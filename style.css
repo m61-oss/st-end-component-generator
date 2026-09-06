@@ -1853,11 +1853,10 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 @keyframes st-esg-task-breathe { 0%, 100% { opacity: 0.45; transform: scale(0.82); } 50% { opacity: 1; transform: scale(1.18); } }
 .st-esg-multi-task-tools { display: flex; flex: 0 0 auto; align-items: center; gap: 3px; }
 .st-esg-multi-task-tools-divider { align-self: stretch; width: 1px; min-height: 18px; margin: 3px 2px; background: var(--esg-border); opacity: 0.55; }
-.st-esg-multi-task-batch-switch { margin: -4px -1px; padding: 4px 1px; color: var(--esg-text-muted); cursor: pointer; }
-.st-esg-multi-task-batch-switch > span { width: 24px; height: 14px; border-color: currentColor; background: transparent; opacity: 0.58; }
-.st-esg-multi-task-batch-switch > span::after { top: 2px; left: 2px; width: 8px; height: 8px; background: currentColor; }
-.st-esg-multi-task-batch-switch > input:checked + span { border-color: currentColor; background: color-mix(in srgb, currentColor 22%, transparent); }
-.st-esg-multi-task-batch-switch > input:checked + span::after { transform: translateX(10px); background: currentColor; }
+.st-esg-multi-task-batch-switch { margin: -4px -1px; padding: 4px 1px; cursor: pointer; }
+.st-esg-multi-task-batch-switch > span { width: 24px; height: 14px; }
+.st-esg-multi-task-batch-switch > span::after { top: 2px; left: 2px; width: 8px; height: 8px; }
+.st-esg-multi-task-batch-switch > input:checked + span::after { transform: translateX(10px); }
 .st-esg-multi-task-batch-switch.is-disabled { opacity: 0.48; cursor: not-allowed; }
 .st-esg-floor-multi-task .st-esg-multi-task-tools-divider { opacity: 0.32; }
 .st-esg-floor-multi-task .st-esg-multi-task-batch-switch { color: var(--floor-muted); opacity: 0.42; }
