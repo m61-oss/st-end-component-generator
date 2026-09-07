@@ -52,6 +52,8 @@
   --esg-shadow: 0 4px 14px var(--SmartThemeShadowColor, rgba(0, 0, 0, 0.2));
   --esg-tavern-glass-guard: color-mix(in srgb, var(--SmartThemeBodyColor, #E0E0E0) 12%, transparent);
   --esg-tavern-backdrop-filter: blur(16px) saturate(1.05);
+  --esg-tavern-bg-main-opaque: rgb(from var(--esg-bg-main) r g b / 1);
+  --esg-tavern-bg-card-opaque: rgb(from var(--esg-bg-card) r g b / 1);
 }
 
 .st-esg-theme-tavern .st-esg-shell,
@@ -71,6 +73,23 @@
     var(--esg-bg-card);
   backdrop-filter: var(--esg-tavern-backdrop-filter);
   -webkit-backdrop-filter: var(--esg-tavern-backdrop-filter);
+}
+
+@supports (color: rgb(from #000 r g b / 1)) {
+  .st-esg-theme-tavern .st-esg-shell,
+  .st-esg-data-management-dialog.st-esg-theme-tavern .st-esg-data-dialog-shell {
+    background:
+      linear-gradient(var(--esg-tavern-glass-guard), var(--esg-tavern-glass-guard)),
+      var(--esg-tavern-bg-main-opaque) !important;
+  }
+
+  .st-esg-theme-tavern.st-esg-anchor-preview-dialog,
+  .st-esg-theme-tavern.st-esg-scheme-name-dialog,
+  .st-esg-theme-tavern.st-esg-api-additional-dialog {
+    background:
+      linear-gradient(var(--esg-tavern-glass-guard), var(--esg-tavern-glass-guard)),
+      var(--esg-tavern-bg-card-opaque) !important;
+  }
 }
 
 #st-esg-menu-button.selected {

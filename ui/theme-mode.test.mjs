@@ -55,3 +55,13 @@ test('integrates tavern theme tokens with every extension surface', async () => 
   assert.match(styleSource, /\.st-esg-theme-glyph-badge/);
   assert.match(indexSource, /presentation\.badgeIcon/);
 });
+
+test('tavern-following dialogs force inherited translucent colors to opaque surfaces', async () => {
+  const styleSource = await readFile(new URL('../style.css', import.meta.url), 'utf8');
+
+  assert.match(styleSource, /@supports \(color:\s*rgb\(from #000 r g b \/ 1\)\)/);
+  assert.match(styleSource, /--esg-tavern-bg-main-opaque:\s*rgb\(from var\(--esg-bg-main\) r g b \/ 1\)/);
+  assert.match(styleSource, /--esg-tavern-bg-card-opaque:\s*rgb\(from var\(--esg-bg-card\) r g b \/ 1\)/);
+  assert.match(styleSource, /\.st-esg-theme-tavern \.st-esg-shell,[\s\S]*?\.st-esg-data-management-dialog\.st-esg-theme-tavern \.st-esg-data-dialog-shell[\s\S]*?var\(--esg-tavern-bg-main-opaque\)\s*!important;/);
+  assert.match(styleSource, /\.st-esg-theme-tavern\.st-esg-anchor-preview-dialog,[\s\S]*?\.st-esg-theme-tavern\.st-esg-api-additional-dialog[\s\S]*?var\(--esg-tavern-bg-card-opaque\)\s*!important;/);
+});
