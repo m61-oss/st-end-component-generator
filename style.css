@@ -1561,11 +1561,6 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-tag-cleanup-transfer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--esg-border); color: var(--esg-text-muted); font-size: 11px; }
 .st-esg-tag-cleanup-transfer-actions { display: flex; align-items: center; gap: 6px; }
 .st-esg-tag-cleanup-transfer-actions .menu_button { min-height: 28px !important; }
-.st-esg-tag-cleanup-summary { gap: 8px; }
-.st-esg-tag-cleanup-summary > .st-esg-help-text-button { margin-left: auto; }
-.st-esg-help-text-button { padding: 2px 4px; border: 0; color: var(--esg-text-muted); background: transparent; cursor: pointer; font: inherit; font-size: 10px; font-weight: 650; }
-.st-esg-help-text-button:hover { color: var(--esg-text-main); }
-.st-esg-help-text-button:focus-visible { outline: 2px solid var(--esg-primary); outline-offset: 1px; border-radius: 3px; }
 .st-esg-tag-cleanup-settings .st-esg-grid { align-items: start; }
 .st-esg-tag-cleanup-settings .st-esg-tag-rule-manager { min-width: 0; }
 .st-esg-tag-cleanup-settings .st-esg-tag-rule-manager + .st-esg-tag-rule-manager {
@@ -1868,34 +1863,60 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-help-shell > header .st-esg-card-title { margin: 0; font-weight: 800; }
 .st-esg-help-subtitle { margin-top: 2px; color: var(--esg-text-muted); font-size: 10px; line-height: 1.35; }
 .st-esg-help-shell > header .menu_button { width: 32px !important; min-width: 32px !important; min-height: 32px !important; padding: 0 !important; justify-content: center; }
-.st-esg-help-body { min-height: 0; padding: 8px; overflow: auto; overscroll-behavior: contain; }
-.st-esg-help-accordion { border: 1px solid var(--esg-border); border-radius: 10px; background: var(--esg-bg-card); overflow: hidden; }
-.st-esg-help-section { border-bottom: 1px solid var(--esg-border); }
-.st-esg-help-section:last-child { border-bottom: 0; }
-.st-esg-help-section > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 8px 11px; color: var(--esg-text-main); cursor: pointer; list-style: none; }
-.st-esg-help-section > summary::-webkit-details-marker { display: none; }
-.st-esg-help-section > summary > span { display: grid; gap: 2px; min-width: 0; }
-.st-esg-help-section > summary strong { font-size: 12px; font-weight: 760; }
-.st-esg-help-section > summary small { color: var(--esg-text-muted); font-size: 10px; font-weight: 400; line-height: 1.35; }
-.st-esg-help-section > summary > i { flex: 0 0 auto; color: var(--esg-text-muted); font-size: 9px; transition: transform 140ms ease; }
-.st-esg-help-section[open] > summary > i { transform: rotate(180deg); }
-.st-esg-help-section > summary:hover { background: var(--esg-bg-hover); }
-.st-esg-help-section > summary:focus-visible { outline: 2px solid var(--esg-primary); outline-offset: -2px; }
-.st-esg-help-section-body { display: grid; gap: 10px; padding: 2px 11px 12px; }
-.st-esg-help-lead { color: var(--esg-text-main); font-size: 11px; line-height: 1.55; }
-.st-esg-help-steps { display: grid; gap: 7px; margin: 0; padding-left: 22px; }
-.st-esg-help-steps li { padding-left: 2px; color: var(--esg-text-main); font-size: 11px; line-height: 1.45; }
-.st-esg-help-steps li strong,
-.st-esg-help-steps li span { display: block; }
-.st-esg-help-steps li strong { margin-bottom: 1px; font-weight: 720; }
-.st-esg-help-steps li span { color: var(--esg-text-muted); }
-.st-esg-help-section code { padding: 1px 3px; border-radius: 3px; color: var(--esg-text-main); background: var(--esg-bg-secondary); font-size: 0.94em; overflow-wrap: anywhere; }
-.st-esg-help-item { display: grid; gap: 3px; }
-.st-esg-help-item strong { color: var(--esg-text-main); font-size: 11px; font-weight: 720; }
-.st-esg-help-item p { margin: 0; color: var(--esg-text-muted); font-size: 11px; line-height: 1.5; }
-.st-esg-help-note { display: grid; gap: 2px; padding: 8px 9px; border: 1px solid var(--esg-border); border-radius: 7px; background: var(--esg-bg-secondary); font-size: 10px; line-height: 1.45; }
-.st-esg-help-note strong { color: var(--esg-text-main); font-weight: 720; }
-.st-esg-help-note span { color: var(--esg-text-muted); }
+.st-esg-help-body { min-height: 0; padding: 0; overflow: auto; overscroll-behavior: contain; }
+.st-esg-help-quick-start { display: grid; grid-template-rows: auto minmax(150px, auto) auto; gap: 14px; padding: 18px; border-bottom: 1px solid var(--esg-border); background: color-mix(in srgb, var(--esg-primary) 5%, var(--esg-bg-card)); }
+.st-esg-help-quick-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.st-esg-help-quick-head h1,
+.st-esg-help-reference-head h2,
+.st-esg-help-reference-section h3,
+.st-esg-help-step-copy h2 { margin: 0; color: var(--esg-text-main); }
+.st-esg-help-quick-head h1 { font-size: 15px; font-weight: 800; }
+.st-esg-help-quick-head [data-help-step-progress] { display: block; margin-top: 3px; color: var(--esg-text-muted); font-size: 10px; }
+.st-esg-help-step-dots { display: flex; align-items: center; gap: 5px; padding-top: 5px; }
+.st-esg-help-step-dots span { width: 5px; height: 5px; border-radius: 50%; background: var(--esg-border); }
+.st-esg-help-step-dots span.active { width: 15px; border-radius: 999px; background: var(--esg-primary); }
+.st-esg-help-step-stage { display: grid; align-items: center; min-height: 150px; }
+.st-esg-help-step { display: grid; grid-template-columns: 50px minmax(0, 1fr) 34px; align-items: center; gap: 12px; }
+.st-esg-help-step-number { align-self: start; color: var(--esg-primary); font-size: 22px; font-weight: 820; line-height: 1; }
+.st-esg-help-step-copy { display: grid; gap: 5px; min-width: 0; }
+.st-esg-help-step-copy > span { color: var(--esg-text-muted); font-size: 10px; font-weight: 650; }
+.st-esg-help-step-copy h2 { font-size: 18px; font-weight: 820; line-height: 1.2; }
+.st-esg-help-step-copy p { max-width: 44ch; margin: 0; color: var(--esg-text-muted); font-size: 12px; line-height: 1.55; }
+.st-esg-help-step-copy code { justify-self: start; margin-top: 2px; padding: 3px 6px; border-radius: 4px; color: var(--esg-text-main); background: var(--esg-bg-secondary); font-size: 11px; overflow-wrap: anywhere; }
+.st-esg-help-step > i { color: var(--esg-text-muted); font-size: 22px; text-align: center; opacity: 0.65; }
+.st-esg-help-step-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
+.st-esg-help-step-actions .menu_button { min-width: 74px; min-height: 30px; }
+.st-esg-help-step-actions .menu_button:disabled { opacity: 0.42; cursor: not-allowed; }
+.st-esg-help-reference { display: grid; gap: 0; padding: 16px 18px 20px; }
+.st-esg-help-reference-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 9px; }
+.st-esg-help-reference-head h2 { font-size: 15px; font-weight: 800; }
+.st-esg-help-reference-head span { color: var(--esg-text-muted); font-size: 10px; }
+.st-esg-help-reference-section { padding: 13px 0; border-top: 1px solid var(--esg-border); }
+.st-esg-help-reference-section h3 { margin-bottom: 10px; font-size: 12px; font-weight: 760; }
+.st-esg-help-scheme-legend { display: grid; grid-template-columns: repeat(5, minmax(48px, 1fr)); gap: 6px; }
+.st-esg-help-scheme-legend > div { display: grid; justify-items: center; gap: 5px; min-width: 0; }
+.st-esg-help-scheme-icon { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--esg-border); border-radius: 6px; color: var(--esg-text-main); background: var(--esg-bg-secondary); }
+.st-esg-help-scheme-icon i { font-size: 10px; }
+.st-esg-help-scheme-legend strong { color: var(--esg-text-muted); font-size: 9px; font-weight: 650; text-align: center; white-space: nowrap; }
+.st-esg-help-emphasis { display: flex; align-items: flex-start; gap: 6px; margin: 11px 0 0; padding-top: 9px; border-top: 1px dashed var(--esg-border); color: var(--esg-text-main); font-size: 10px; line-height: 1.45; }
+.st-esg-help-emphasis i { margin-top: 2px; color: var(--esg-primary); }
+.st-esg-help-comparisons { display: grid; }
+.st-esg-help-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px 0; border-top: 1px solid var(--esg-border); }
+.st-esg-help-comparison:first-child { padding-top: 0; border-top: 0; }
+.st-esg-help-comparison:last-child { padding-bottom: 0; }
+.st-esg-help-comparison > span { display: grid; gap: 2px; min-width: 0; padding: 0 10px; }
+.st-esg-help-comparison > span:first-child { padding-left: 0; }
+.st-esg-help-comparison > span + span { border-left: 1px solid var(--esg-border); }
+.st-esg-help-comparison strong { color: var(--esg-text-main); font-size: 11px; font-weight: 720; }
+.st-esg-help-comparison small { color: var(--esg-text-muted); font-size: 10px; line-height: 1.35; }
+.st-esg-help-topics { border-top: 1px solid var(--esg-border); }
+.st-esg-help-topics details { border-bottom: 1px solid var(--esg-border); }
+.st-esg-help-topics summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 34px; color: var(--esg-text-main); cursor: pointer; font-size: 11px; font-weight: 650; list-style: none; }
+.st-esg-help-topics summary::-webkit-details-marker { display: none; }
+.st-esg-help-topics summary i { color: var(--esg-text-muted); font-size: 8px; transition: transform 140ms ease; }
+.st-esg-help-topics details[open] summary i { transform: rotate(180deg); }
+.st-esg-help-topics summary:focus-visible { outline: 2px solid var(--esg-primary); outline-offset: -2px; }
+.st-esg-help-topics p { margin: -1px 20px 9px 0; color: var(--esg-text-muted); font-size: 10px; line-height: 1.5; }
 .st-esg-generation-mode-settings-shell { display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; max-height: inherit; }
 .st-esg-generation-mode-settings-shell > header,
 .st-esg-multi-task-settings-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -1950,9 +1971,15 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   .st-esg-multi-task-tools { gap: 2px; }
   .st-esg-multi-task-settings-dialog { width: min(560px, calc(100vw - 28px)); max-width: calc(100vw - 28px); max-height: calc(100dvh - 28px); margin: auto; border-radius: 14px; }
   .st-esg-help-dialog { width: calc(100vw - 20px); max-width: calc(100vw - 20px); max-height: calc(100dvh - 24px); margin: auto; border-radius: 14px; }
-  .st-esg-help-body { padding: 6px; padding-bottom: max(6px, env(safe-area-inset-bottom)); }
-  .st-esg-help-section > summary { min-height: 48px; padding: 7px 9px; }
-  .st-esg-help-section-body { padding: 2px 9px 10px; }
+  .st-esg-help-quick-start { gap: 11px; padding: 14px 12px; }
+  .st-esg-help-step { grid-template-columns: 38px minmax(0, 1fr) 26px; gap: 8px; }
+  .st-esg-help-step-copy h2 { font-size: 16px; }
+  .st-esg-help-step > i { font-size: 18px; }
+  .st-esg-help-reference { padding: 14px 12px max(18px, env(safe-area-inset-bottom)); }
+  .st-esg-help-reference-head span { display: none; }
+  .st-esg-help-scheme-legend { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; }
+  .st-esg-help-scheme-icon { width: 28px; height: 28px; }
+  .st-esg-help-comparison > span { padding-inline: 8px; }
   .st-esg-all-mode-settings-body { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
   .st-esg-generation-mode-settings-shell .st-esg-generation-settings-body { padding: 0 8px 8px; }
 }

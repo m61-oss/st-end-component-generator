@@ -136,7 +136,7 @@ import {
 import { TASK_PLACEMENT_AFTER_CHAT_HISTORY, resolveTaskPlacementSelection } from './settings/task-placement.js?ver=0.2.3';
 import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.2.3';
 import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.2.3';
-import { renderHelpGuide } from './ui/help-guide.js?ver=0.2.3';
+import { HELP_STEP_COUNT, renderHelpGuide, renderHelpStep } from './ui/help-guide.js?ver=0.2.3';
 import {
   WORLDBOOK_RUNTIME_DRAFT,
   WORLDBOOK_RUNTIME_NATIVE,
@@ -7183,7 +7183,7 @@ function showGenerationHistoryDialog() {
   renderGenerationHistory();
 }
 
-function showHelpGuideDialog(initialSection = 'quick-start') {
+function showHelpGuideDialog() {
   targetDoc.getElementById('st-esg-help-dialog')?.remove();
   const returnFocus = targetDoc.activeElement;
   const dialog = targetDoc.createElement('dialog');
@@ -7193,8 +7193,9 @@ function showHelpGuideDialog(initialSection = 'quick-start') {
   dialog.setAttribute('aria-labelledby', 'st-esg-help-title');
   dialog.innerHTML = `<div class="st-esg-help-shell">
     <header><div><div id="st-esg-help-title" class="st-esg-card-title">使用帮助</div><div class="st-esg-help-subtitle">只说明容易混淆的功能和操作范围</div></div><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-help-guide-close aria-label="关闭使用帮助" title="关闭"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header>
-    <div class="st-esg-help-body">${renderHelpGuide(initialSection)}</div>
+    <div class="st-esg-help-body">${renderHelpGuide()}</div>
   </div>`;
+  let currentStep = 0;
   const finish = () => {
     if (dialog.open) dialog.close();
     dialog.remove();
@@ -7203,18 +7204,32 @@ function showHelpGuideDialog(initialSection = 'quick-start') {
   dialog.querySelector('[data-help-guide-close]')?.addEventListener('click', finish);
   dialog.addEventListener('cancel', (event) => { event.preventDefault(); finish(); });
   dialog.addEventListener('click', (event) => { if (event.target === dialog) finish(); });
-  dialog.querySelectorAll('[data-help-section]').forEach((section) => {
-    section.addEventListener('toggle', () => {
-      if (!section.open) return;
-      dialog.querySelectorAll('[data-help-section]').forEach((item) => {
-        if (item !== section) item.open = false;
-      });
-    });
+  const updateStep = () => {
+    const stepHost = dialog.querySelector('[data-help-step-content]');
+    if (stepHost) stepHost.innerHTML = renderHelpStep(currentStep);
+    const progress = dialog.querySelector('[data-help-step-progress]');
+    if (progress) progress.textContent = `第 ${currentStep + 1} 步 / 共 ${HELP_STEP_COUNT} 步`;
+    const previous = dialog.querySelector('[data-help-step-previous]');
+    if (previous) previous.disabled = currentStep <= 0;
+    const next = dialog.querySelector('[data-help-step-next]');
+    if (next) next.textContent = currentStep >= HELP_STEP_COUNT - 1 ? '完成' : '下一步';
+    dialog.querySelectorAll('[data-help-step-dot]').forEach((dot, index) => dot.classList.toggle('active', index === currentStep));
+  };
+  dialog.querySelector('[data-help-step-previous]')?.addEventListener('click', () => {
+    if (currentStep <= 0) return;
+    currentStep -= 1;
+    updateStep();
+  });
+  dialog.querySelector('[data-help-step-next]')?.addEventListener('click', () => {
+    if (currentStep >= HELP_STEP_COUNT - 1) finish();
+    else {
+      currentStep += 1;
+      updateStep();
+    }
   });
   targetDoc.body.appendChild(dialog);
   dialog.showModal();
   dialog.focus({ preventScroll: true });
-  dialog.querySelector('[data-help-section][open] > summary')?.focus({ preventScroll: true });
 }
 
 function replaceMultiTask(taskId, patch) {
@@ -8268,7 +8283,7 @@ function renderPluginPanel() {
   if (tagCard && tagGrid) {
     const tagDetails = targetDoc.createElement('details');
     tagDetails.className = 'st-esg-card st-esg-collapsible st-esg-tag-cleanup-settings';
-    tagDetails.innerHTML = `<summary class="st-esg-collapsible-summary st-esg-tag-cleanup-summary"><span>标签清理</span><button class="st-esg-help-text-button" type="button" data-help-guide-rules>规则说明</button></summary><div class="st-esg-collapsible-body"><div class="st-esg-tag-cleanup-transfer"><span>规则文件</span><span class="st-esg-tag-cleanup-transfer-actions"><button id="st-esg-tag-cleanup-import-trigger" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-file-import"></i><span>导入</span></button><button id="st-esg-tag-cleanup-export" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-file-export"></i><span>导出</span></button></span></div><input id="st-esg-tag-cleanup-import-file" class="st-esg-hidden" type="file" accept="application/json,.json" />${tagGrid.outerHTML}</div>`;
+    tagDetails.innerHTML = `<summary class="st-esg-collapsible-summary">标签清理</summary><div class="st-esg-collapsible-body"><div class="st-esg-tag-cleanup-transfer"><span>规则文件</span><span class="st-esg-tag-cleanup-transfer-actions"><button id="st-esg-tag-cleanup-import-trigger" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-file-import"></i><span>导入</span></button><button id="st-esg-tag-cleanup-export" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-file-export"></i><span>导出</span></button></span></div><input id="st-esg-tag-cleanup-import-file" class="st-esg-hidden" type="file" accept="application/json,.json" />${tagGrid.outerHTML}</div>`;
     tagCard.replaceWith(tagDetails);
   }
   ['history', 'output'].forEach((type) => {
@@ -8415,11 +8430,6 @@ function bindPanelEvents() {
   refreshHelpText();
   applyTheme();
   $t('[data-help-guide-open]').on('click.stEsgHelpGuide', () => showHelpGuideDialog());
-  $t('[data-help-guide-rules]').on('click.stEsgHelpGuide', function (event) {
-    event.preventDefault();
-    event.stopPropagation();
-    showHelpGuideDialog('memory-cleanup');
-  });
   settings.enabled = true;
   $t('#st-esg-ball-visible').prop('checked', settings.ballVisible);
   $t('#st-esg-ball-size').val(getFloatingBallSize());
