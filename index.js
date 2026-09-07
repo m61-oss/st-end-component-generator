@@ -136,6 +136,7 @@ import {
 import { TASK_PLACEMENT_AFTER_CHAT_HISTORY, resolveTaskPlacementSelection } from './settings/task-placement.js?ver=0.2.3';
 import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.2.3';
 import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.2.3';
+import { renderHelpGuide } from './ui/help-guide.js?ver=0.2.3';
 import {
   WORLDBOOK_RUNTIME_DRAFT,
   WORLDBOOK_RUNTIME_NATIVE,
@@ -3270,8 +3271,8 @@ function renderModelOptions() {
 }
 
 const TAG_RULE_CONFIG = {
-  history: { setting: 'historyCleanupTags', title: '聊天记录清理', description: '拼接提示词前，从聊天历史中移除匹配标签包裹的内容。' },
-  output: { setting: 'outputCleanupTags', title: '生成内容剥离', description: '生成结果中的匹配区块会单独显示为思维链，并从注入正文中剥离。' },
+  history: { setting: 'historyCleanupTags', title: '聊天记录清理' },
+  output: { setting: 'outputCleanupTags', title: '生成内容剥离' },
 };
 
 function getTagRuleEntries(type) {
@@ -3296,10 +3297,7 @@ function saveTagRuleEntries(type, entries) {
 
 function buildTagRuleManager(type) {
   const config = TAG_RULE_CONFIG[type];
-  const help = type === 'history'
-    ? `${config.description} 普通标签匹配成对标签；正则匹配完整内容。\n“保留”只作用于当前规则，表示最近保留多少条角色回复不执行清理；填 0 表示不保留。\n仅计数角色回复（assistant），用户和 system 消息不计数。`
-    : `${config.description} 普通标签匹配成对标签；正则匹配完整内容。`;
-  return `<div class="st-esg-tag-rule-manager" data-tag-rule-type="${type}"><div class="st-esg-tag-rule-head"><span>${config.title}</span><i class="fa-solid fa-circle-question" title="${help}"></i></div><div class="st-esg-tag-rule-add"><select id="st-esg-${type}-rule-mode" class="text_pole"><option value="tag">标签</option><option value="regex">正则</option></select><input id="st-esg-${type}-rule-input" class="text_pole" type="text" placeholder="thinking" /><button id="st-esg-${type}-rule-add" class="menu_button st-esg-secondary-action st-esg-tag-rule-add-button" type="button" title="添加规则"><i class="fa-solid fa-plus"></i></button></div><div id="st-esg-${type}-rule-list" class="st-esg-tag-rule-list"></div></div>`;
+  return `<div class="st-esg-tag-rule-manager" data-tag-rule-type="${type}"><div class="st-esg-tag-rule-head"><span>${config.title}</span></div><div class="st-esg-tag-rule-add"><select id="st-esg-${type}-rule-mode" class="text_pole"><option value="tag">标签</option><option value="regex">正则</option></select><input id="st-esg-${type}-rule-input" class="text_pole" type="text" placeholder="thinking" /><button id="st-esg-${type}-rule-add" class="menu_button st-esg-secondary-action st-esg-tag-rule-add-button" type="button" title="添加规则"><i class="fa-solid fa-plus"></i></button></div><div id="st-esg-${type}-rule-list" class="st-esg-tag-rule-list"></div></div>`;
 }
 
 function renderTagRuleManager(type) {
@@ -4765,9 +4763,8 @@ function renderComponentList() {
     const sectionContent = groupHtml;
     const createGroupButton = componentMoveActive ? '' : componentEditMode ? `<button class="st-esg-icon-btn st-esg-component-group-create" type="button" data-scope="${escapeHtml(section.scope)}" title="新建分组" aria-label="新建分组"><i class="fa-solid fa-folder-plus"></i></button>` : '';
     const unavailableClass = componentMoveActive && normalizeComponentScope(section.scope) !== moveSourceScope ? ' is-position-unavailable' : '';
-    return `<details class="st-esg-component-section${unavailableClass}" open><summary class="st-esg-component-section-head"><div><span class="st-esg-import-group-title">${section.title}</span><i class="fa-solid fa-circle-question st-esg-component-section-info" title="${escapeHtml(section.desc)}"></i>${createGroupButton}</div><em>${count} 个</em></summary><div class="st-esg-component-section-body">${sectionContent}</div></details>`;
+    return `<details class="st-esg-component-section${unavailableClass}" open><summary class="st-esg-component-section-head"><div><span class="st-esg-import-group-title">${section.title}</span>${createGroupButton}</div><em>${count} 个</em></summary><div class="st-esg-component-section-body">${sectionContent}</div></details>`;
   }).join('')));
-  list.find('.st-esg-component-section-info').remove();
   const currentPresetSchemeName = getPresetSchemeById(getActiveSchemeId('preset'))?.name || '未保存方案';
   list.find('.st-esg-component-section').eq(1).find('.st-esg-import-group-title').after(`<small class="st-esg-component-section-context">当前预设：${escapeHtml(currentPresetSchemeName)}</small>`);
   const currentCharacterName = getCurrentCharacterNameSafe(getContext()) || '未选择角色';
@@ -7186,6 +7183,40 @@ function showGenerationHistoryDialog() {
   renderGenerationHistory();
 }
 
+function showHelpGuideDialog(initialSection = 'quick-start') {
+  targetDoc.getElementById('st-esg-help-dialog')?.remove();
+  const returnFocus = targetDoc.activeElement;
+  const dialog = targetDoc.createElement('dialog');
+  dialog.id = 'st-esg-help-dialog';
+  dialog.className = `st-esg-scheme-name-dialog st-esg-help-dialog ${getThemeClassName(settings.theme)}`;
+  dialog.tabIndex = -1;
+  dialog.setAttribute('aria-labelledby', 'st-esg-help-title');
+  dialog.innerHTML = `<div class="st-esg-help-shell">
+    <header><div><div id="st-esg-help-title" class="st-esg-card-title">使用帮助</div><div class="st-esg-help-subtitle">只说明容易混淆的功能和操作范围</div></div><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-help-guide-close aria-label="关闭使用帮助" title="关闭"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header>
+    <div class="st-esg-help-body">${renderHelpGuide(initialSection)}</div>
+  </div>`;
+  const finish = () => {
+    if (dialog.open) dialog.close();
+    dialog.remove();
+    returnFocus?.focus?.({ preventScroll: true });
+  };
+  dialog.querySelector('[data-help-guide-close]')?.addEventListener('click', finish);
+  dialog.addEventListener('cancel', (event) => { event.preventDefault(); finish(); });
+  dialog.addEventListener('click', (event) => { if (event.target === dialog) finish(); });
+  dialog.querySelectorAll('[data-help-section]').forEach((section) => {
+    section.addEventListener('toggle', () => {
+      if (!section.open) return;
+      dialog.querySelectorAll('[data-help-section]').forEach((item) => {
+        if (item !== section) item.open = false;
+      });
+    });
+  });
+  targetDoc.body.appendChild(dialog);
+  dialog.showModal();
+  dialog.focus({ preventScroll: true });
+  dialog.querySelector('[data-help-section][open] > summary')?.focus({ preventScroll: true });
+}
+
 function replaceMultiTask(taskId, patch) {
   const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
   settings.multiTaskSettings = {
@@ -8237,7 +8268,7 @@ function renderPluginPanel() {
   if (tagCard && tagGrid) {
     const tagDetails = targetDoc.createElement('details');
     tagDetails.className = 'st-esg-card st-esg-collapsible st-esg-tag-cleanup-settings';
-    tagDetails.innerHTML = `<summary class="st-esg-collapsible-summary">标签清理</summary><div class="st-esg-collapsible-body"><div class="st-esg-tag-cleanup-transfer"><span>规则文件</span><span class="st-esg-tag-cleanup-transfer-actions"><button id="st-esg-tag-cleanup-import-trigger" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-file-import"></i><span>导入</span></button><button id="st-esg-tag-cleanup-export" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-file-export"></i><span>导出</span></button></span></div><input id="st-esg-tag-cleanup-import-file" class="st-esg-hidden" type="file" accept="application/json,.json" />${tagGrid.outerHTML}</div>`;
+    tagDetails.innerHTML = `<summary class="st-esg-collapsible-summary st-esg-tag-cleanup-summary"><span>标签清理</span><button class="st-esg-help-text-button" type="button" data-help-guide-rules>规则说明</button></summary><div class="st-esg-collapsible-body"><div class="st-esg-tag-cleanup-transfer"><span>规则文件</span><span class="st-esg-tag-cleanup-transfer-actions"><button id="st-esg-tag-cleanup-import-trigger" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-file-import"></i><span>导入</span></button><button id="st-esg-tag-cleanup-export" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-file-export"></i><span>导出</span></button></span></div><input id="st-esg-tag-cleanup-import-file" class="st-esg-hidden" type="file" accept="application/json,.json" />${tagGrid.outerHTML}</div>`;
     tagCard.replaceWith(tagDetails);
   }
   ['history', 'output'].forEach((type) => {
@@ -8300,7 +8331,14 @@ function renderPluginPanel() {
     const title = scheme?.parentElement?.querySelector('.st-esg-card-head');
     title?.insertAdjacentElement('afterend', scheme);
   });
-  dialog.querySelector('#st-esg-close')?.insertAdjacentHTML('beforebegin', '<div id="st-esg-theme-toggle" class="st-esg-header-btn" role="button" tabindex="0" title="切换主题"><span class="st-esg-theme-glyph" aria-hidden="true"><i class="fa-solid fa-moon"></i></span></div>');
+  const closeButton = dialog.querySelector('#st-esg-close');
+  if (closeButton) {
+    const headerActions = targetDoc.createElement('div');
+    headerActions.className = 'st-esg-panel-header-actions';
+    headerActions.innerHTML = '<button id="st-esg-help-open" class="st-esg-header-btn" type="button" data-help-guide-open title="使用帮助" aria-label="打开使用帮助"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></button><div id="st-esg-theme-toggle" class="st-esg-header-btn" role="button" tabindex="0" title="切换主题"><span class="st-esg-theme-glyph" aria-hidden="true"><i class="fa-solid fa-moon"></i></span></div>';
+    closeButton.before(headerActions);
+    headerActions.appendChild(closeButton);
+  }
   targetDoc.body.appendChild(dialog);
   renderMultiTaskFramework();
   dialog.addEventListener('cancel', (event) => { event.preventDefault(); togglePanel(false); });
@@ -8376,41 +8414,11 @@ function bindPanelEvents() {
   });
   refreshHelpText();
   applyTheme();
-  $t('.st-esg-card-title').each(function () {
-    const title = $(this);
-    const desc = title.siblings('.st-esg-card-desc');
-    if (!desc.length || title.find('.st-esg-info-toggle').length) return;
-    const icon = $('<i class="fa-solid fa-circle-question st-esg-info-toggle" title="显示/隐藏说明"></i>');
-    icon.on('click', function (event) {
-      event.preventDefault();
-      event.stopPropagation();
-      desc.toggleClass('st-esg-show-desc');
-    });
-    title.append(icon);
-  });
-  $t('.st-esg-tag-rule-head .fa-circle-question').each(function () {
-    const icon = $(this);
-    if (icon.data('stEsgHelpBound')) return;
-    const help = $(`<div class="st-esg-tag-rule-help">${escapeHtml(icon.attr('title') || '')}</div>`);
-    icon.closest('.st-esg-tag-rule-head').after(help);
-    icon.data('stEsgHelpBound', true).on('click.stEsgHelp', function (event) {
-      event.preventDefault();
-      event.stopPropagation();
-      help.toggleClass('st-esg-show-desc');
-    });
-  });
-  $t('#st-esg-preset-placement-slot .st-esg-log-option').add($t('#st-esg-compress-system').closest('.st-esg-log-option')).each(function () {
-    const option = $(this);
-    const desc = option.children('em');
-    if (!desc.length || option.find('.st-esg-option-info-toggle').length) return;
-    option.addClass('st-esg-option-with-info');
-    const icon = $('<i class="fa-solid fa-circle-question st-esg-option-info-toggle" title="显示/隐藏说明"></i>');
-    icon.on('click', function (event) {
-      event.preventDefault();
-      event.stopPropagation();
-      option.toggleClass('st-esg-show-option-desc');
-    });
-    option.append(icon);
+  $t('[data-help-guide-open]').on('click.stEsgHelpGuide', () => showHelpGuideDialog());
+  $t('[data-help-guide-rules]').on('click.stEsgHelpGuide', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    showHelpGuideDialog('memory-cleanup');
   });
   settings.enabled = true;
   $t('#st-esg-ball-visible').prop('checked', settings.ballVisible);
