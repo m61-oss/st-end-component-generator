@@ -20,6 +20,16 @@ test('request building accepts task-owned settings and stream callbacks', () => 
   assert.match(indexSource, /onPreview:\s*\(text\)\s*=>\s*updateMultiTaskStream/);
 });
 
+test('multi-task requests publish the latest request to the shared prompt viewer', () => {
+  const start = indexSource.indexOf('async function generateMultiTasks');
+  const end = indexSource.indexOf('function getRequestedMultiTasks', start);
+  const source = indexSource.slice(start, end);
+
+  assert.match(source, /callExternalApi\(latest\.message,\s*controller\.signal,\s*entry\.runtime/);
+  assert.doesNotMatch(source, /onPromptLog:\s*\(\)\s*=>\s*\{\}/);
+  assert.match(indexSource, /lastPromptLogText = value;[\s\S]{0,160}renderPromptLogIfVisible\(\)/);
+});
+
 test('task and footer actions are enabled and route by generation mode', () => {
   assert.doesNotMatch(workspaceSource, /data-multi-task-action="generate" disabled/);
   assert.doesNotMatch(workspaceSource, /data-multi-task-action="inject" disabled/);

@@ -7575,7 +7575,6 @@ async function generateMultiTasks(requestedTaskIds = null) {
         try {
           rawText = await callExternalApi(latest.message, controller.signal, entry.runtime, {
             onPreview: (text) => updateMultiTaskStream(entry.task.id, text, plan.runId),
-            onPromptLog: () => {},
           });
         } catch (error) {
           const partial = String(error?.streamedText ?? '');
