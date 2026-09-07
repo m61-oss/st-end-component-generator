@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const indexSource = await readFile(new URL('../index.js', import.meta.url), 'utf8');
+const styleSource = await readFile(new URL('../style.css', import.meta.url), 'utf8');
 
 function functionSource(name, nextName) {
   const start = indexSource.indexOf(`function ${name}`);
@@ -17,6 +18,18 @@ test('source import uses the edited content shown in the source preview', () => 
   assert.match(source, /importedComponent = \{[^}]*content/s);
   assert.match(source, /theaterComponents\.push\(\{[^}]*content/s);
   assert.doesNotMatch(source, /content:\s*item\.content/);
+});
+
+test('source import chooses a valid target group for both component libraries', () => {
+  assert.match(indexSource, /st-esg-import-target-group/);
+  assert.match(indexSource, /st-esg-worldbook-import-target-group/);
+  assert.match(indexSource, /function renderImportTargetGroupOptions/);
+  assert.match(indexSource, /#st-esg-import-target-library, #st-esg-worldbook-import-target-library[\s\S]*#st-esg-import-target-scope, #st-esg-worldbook-import-target-scope/);
+  const targetSource = functionSource('getImportTarget', 'resetComponentEditMode');
+  assert.match(targetSource, /groupId/);
+  const importSource = functionSource('importCheckedCandidates', 'buildPluginPanelMarkup');
+  assert.match(importSource, /groupId:\s*targetGroupId/);
+  assert.match(styleSource, /\.st-esg-import-target-container\s*\{[^}]*flex-wrap:\s*wrap;/s);
 });
 
 test('preset deletion confirmation warns that bound components are removed too', () => {

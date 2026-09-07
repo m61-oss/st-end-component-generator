@@ -940,10 +940,10 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-segmented-control input[type="radio"] { position: absolute; opacity: 0; }
 .st-esg-segmented-control span { display: block; padding: 3px 7px; border-radius: 4px; color: var(--esg-text-muted); font-size: 11px; font-weight: 500; line-height: 14px; transition: all 0.2s ease; }
 .st-esg-segmented-control input[type="radio"]:checked + span { color: var(--esg-text-main); background: var(--esg-bg-card); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
-.st-esg-import-target-container { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; padding: 4px; border-radius: 6px; background: var(--esg-bg-secondary); }
+.st-esg-import-target-container { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 6px; margin-bottom: 6px; padding: 4px; border-radius: 6px; background: var(--esg-bg-secondary); }
 .st-esg-import-target-container label { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; }
 #st-esg-dialog .st-esg-import-target-container select { width: 88px; }
-.st-esg-import-target-container .st-esg-actions-row { margin: 0; }
+.st-esg-import-target-container .st-esg-actions-row { margin: 0 0 0 auto; }
 #st-esg-dialog .menu_button { min-height: 28px; font-size: 12px; }
 .st-esg-switch,
 .st-esg-checkbox { display: inline-flex; align-items: center; gap: 6px; color: var(--esg-text-main); user-select: none; }

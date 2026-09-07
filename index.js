@@ -146,6 +146,7 @@ import {
   resolveWorldbookSourceDisplayCategory,
 } from './sources/worldbook-runtime-state.js?ver=0.2.3';
 import { buildLibraryExportFilename, createLibraryExportPackage, importLibraryPackage, toggleLibraryExportSelection } from './sources/library-transfer.js?ver=0.2.3';
+import { listImportTargetGroups, resolveImportTargetGroupId } from './sources/import-target-groups.js?ver=0.2.3';
 import { buildEditedPresetExport, buildPresetExportFilename, getNativeTavernPreset } from './sources/preset-export.js?ver=0.2.3';
 import { resolveTavernProfile } from './generation/tavern-profile.js?ver=0.2.3';
 import {
@@ -5083,14 +5084,27 @@ function ensureComponentLibraryEnhancements() {
     scopeLabel.before('<label>添加到<select id="st-esg-component-target-library" class="text_pole"><option value="components">组件库</option><option value="theater">小剧场库</option></select></label>');
   }
   [
-    ['#st-esg-import-target-scope', 'st-esg-import-target-library'],
-    ['#st-esg-worldbook-import-target-scope', 'st-esg-worldbook-import-target-library'],
-  ].forEach(([scopeSelector, libraryId]) => {
+    ['#st-esg-import-target-scope', 'st-esg-import-target-library', 'st-esg-import-target-group'],
+    ['#st-esg-worldbook-import-target-scope', 'st-esg-worldbook-import-target-library', 'st-esg-worldbook-import-target-group'],
+  ].forEach(([scopeSelector, libraryId, groupId]) => {
     const scope = $t(scopeSelector);
-    if (!scope.length || $t(`#${libraryId}`).length) return;
-    scope.closest('label').before(`<label>导入到<select id="${libraryId}" class="text_pole"><option value="components">组件库</option><option value="theater">小剧场库</option></select></label>`);
+    if (!scope.length) return;
+    if (!$t(`#${libraryId}`).length) scope.closest('label').before(`<label>导入到<select id="${libraryId}" class="text_pole"><option value="components">组件库</option><option value="theater">小剧场库</option></select></label>`);
+    if (!$t(`#${groupId}`).length) scope.closest('label').after(`<label class="st-esg-import-target-group-label">目标分组<select id="${groupId}" class="text_pole"></select></label>`);
   });
   renderComponentLibraryTargetVisibility();
+}
+
+function renderImportTargetGroupOptions(sourceType = 'preset') {
+  const worldbook = sourceType === 'worldbook';
+  const library = textOf($t(worldbook ? '#st-esg-worldbook-import-target-library' : '#st-esg-import-target-library').val()) || 'components';
+  const scope = textOf($t(worldbook ? '#st-esg-worldbook-import-target-scope' : '#st-esg-import-target-scope').val()) || COMPONENT_SCOPE_GLOBAL;
+  const select = $t(worldbook ? '#st-esg-worldbook-import-target-group' : '#st-esg-import-target-group');
+  if (!select.length) return;
+  const selectedId = textOf(select.val());
+  const groups = listImportTargetGroups({ library, scope, componentGroups: settings.componentGroups, theaterGroups: settings.theaterGroups });
+  select.html(`<option value="">默认分组</option>${groups.map((group) => `<option value="${escapeHtml(group.id)}">${escapeHtml(group.name)}</option>`).join('')}`);
+  select.val(groups.some((group) => group.id === selectedId) ? selectedId : '');
 }
 
 function renderComponentLibraryTargetVisibility() {
@@ -5100,13 +5114,14 @@ function renderComponentLibraryTargetVisibility() {
   $t('#st-esg-component-preset-scheme').closest('label').toggle(!manualTheater && manualScope.val() === COMPONENT_SCOPE_PRESET);
   $t('#st-esg-add-component span').text(manualTheater ? '添加到小剧场库' : '添加到组件库');
   [
-    ['#st-esg-import-target-library', '#st-esg-import-target-scope', '#st-esg-import-preset-scheme'],
-    ['#st-esg-worldbook-import-target-library', '#st-esg-worldbook-import-target-scope', '#st-esg-worldbook-import-preset-scheme'],
-  ].forEach(([librarySelector, scopeSelector, bindingSelector]) => {
+    ['preset', '#st-esg-import-target-library', '#st-esg-import-target-scope', '#st-esg-import-preset-scheme'],
+    ['worldbook', '#st-esg-worldbook-import-target-library', '#st-esg-worldbook-import-target-scope', '#st-esg-worldbook-import-preset-scheme'],
+  ].forEach(([sourceType, librarySelector, scopeSelector, bindingSelector]) => {
     const theater = textOf($t(librarySelector).val()) === 'theater';
     const scope = $t(scopeSelector);
     scope.closest('label').toggle(!theater);
     $t(bindingSelector).closest('label').toggle(!theater && scope.val() === COMPONENT_SCOPE_PRESET);
+    renderImportTargetGroupOptions(sourceType);
   });
 }
 
@@ -5487,7 +5502,15 @@ function getImportTarget(sourceType = 'preset') {
   const library = textOf($t(librarySelect).val()) || 'components';
   const scopeSelect = sourceType === 'worldbook' ? '#st-esg-worldbook-import-target-scope' : '#st-esg-import-target-scope';
   const scope = textOf($t(scopeSelect).val()) || COMPONENT_SCOPE_GLOBAL;
-  if (library === 'theater') return { library, scope: '', presetSchemeId: '', bindName: '' };
+  const groupSelect = sourceType === 'worldbook' ? '#st-esg-worldbook-import-target-group' : '#st-esg-import-target-group';
+  const groupId = resolveImportTargetGroupId({
+    library,
+    scope,
+    groupId: $t(groupSelect).val(),
+    componentGroups: settings.componentGroups,
+    theaterGroups: settings.theaterGroups,
+  });
+  if (library === 'theater') return { library, scope: '', presetSchemeId: '', bindName: '', groupId };
   const presetSchemeId = scope === COMPONENT_SCOPE_PRESET
     ? textOf($t(sourceType === 'worldbook' ? '#st-esg-worldbook-import-preset-scheme' : '#st-esg-import-preset-scheme').val())
     : '';
@@ -5496,7 +5519,7 @@ function getImportTarget(sourceType = 'preset') {
     return null;
   }
   const presetScheme = getPresetSchemeById(presetSchemeId);
-  return { library, scope, presetSchemeId, bindName: scope === COMPONENT_SCOPE_PRESET ? presetScheme.name : getComponentBindingName(scope, targetWindow, getContext()) };
+  return { library, scope, presetSchemeId, bindName: scope === COMPONENT_SCOPE_PRESET ? presetScheme.name : getComponentBindingName(scope, targetWindow, getContext()), groupId };
 }
 
 function resetComponentEditMode() {
@@ -6741,7 +6764,7 @@ function importCheckedCandidates(sourceType) {
   if (!checked.length) { notifyStatus('请先勾选要导入的候选组件。', 'warning'); return; }
   const target = getImportTarget(sourceType);
   if (!target) { notifyStatus('请先选择导入目标。', 'warning'); return; }
-  const { library, scope: targetScope, presetSchemeId, bindName } = target;
+  const { library, scope: targetScope, presetSchemeId, bindName, groupId: targetGroupId } = target;
   let added = 0;
   for (const checkbox of checked) {
     const row = $(checkbox).closest('.st-esg-import-item');
@@ -6749,8 +6772,8 @@ function importCheckedCandidates(sourceType) {
     const item = group?.items?.[Number(row.data('item-index'))];
     if (!item || getSourceType(item) !== getSourceType(sourceType)) continue;
     const content = getSourceContentValue(item);
-    const importedComponent = { name: item.name, scope: targetScope, presetSchemeId, bindName, content, enabled: true, source: item.source, sourceType: item.scope, sourceOrder: item.sourceOrder, sourceUid: item.sourceUid, groupId: '' };
-    if (library === 'theater') settings.theaterComponents.push({ id: createNewTheaterId(), name: item.name, content, enabled: true, source: item.source, sourceType: item.scope, sourceOrder: item.sourceOrder, sourceUid: item.sourceUid, groupId: '' });
+    const importedComponent = { name: item.name, scope: targetScope, presetSchemeId, bindName, content, enabled: true, source: item.source, sourceType: item.scope, sourceOrder: item.sourceOrder, sourceUid: item.sourceUid, groupId: targetGroupId };
+    if (library === 'theater') settings.theaterComponents.push({ id: createNewTheaterId(), name: item.name, content, enabled: true, source: item.source, sourceType: item.scope, sourceOrder: item.sourceOrder, sourceUid: item.sourceUid, groupId: targetGroupId });
     else settings.components.push({ id: createNewComponentId(), ...importedComponent });
     added += 1;
   }
