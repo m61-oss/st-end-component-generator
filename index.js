@@ -136,8 +136,8 @@ import {
 import { TASK_PLACEMENT_AFTER_CHAT_HISTORY, resolveTaskPlacementSelection } from './settings/task-placement.js?ver=0.2.3';
 import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.2.3';
 import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.2.3';
-import { renderHelpGuide } from './ui/help-guide.js?ver=0.2.3-help-tour-2026090803';
-import { HELP_TOUR_STEPS, renderHelpTour } from './ui/help-tour.js?ver=0.2.3-help-tour-2026090803';
+import { renderHelpGuide } from './ui/help-guide.js?ver=0.2.3-help-tour-2026090804';
+import { HELP_TOUR_STEPS, renderHelpTour } from './ui/help-tour.js?ver=0.2.3-help-tour-2026090804';
 import {
   WORLDBOOK_RUNTIME_DRAFT,
   WORLDBOOK_RUNTIME_NATIVE,
@@ -166,7 +166,7 @@ import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCl
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.2.3';
-const UI_ASSET_REVISION = 'help-tour-2026090803';
+const UI_ASSET_REVISION = 'help-tour-2026090804';
 const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置组件生成器';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
@@ -8362,7 +8362,7 @@ function renderPluginPanel() {
     outputProtocolDetails.innerHTML = `
       <summary class="st-esg-collapsible-summary">尾部格式约束</summary>
       <div class="st-esg-collapsible-body">
-        <div class="st-esg-card-desc st-esg-output-protocol-help">按所选身份原样作为提示词最后一条消息发送；留空则不插入。普通与锚点模式分别保存，不随任务方案保存。</div>
+        <div class="st-esg-card-desc st-esg-output-protocol-help">按所选身份原样作为提示词最后一条消息发送；留空则不插入。若接口提示 assistant 预填充错误，可改用 system 或 user。普通与锚点模式分别保存，不随任务方案保存。</div>
       <div class="st-esg-output-protocol-toolbar">
         <div id="st-esg-output-protocol-mode" class="st-esg-output-protocol-mode" role="group" aria-label="输出协议模式">
           <button type="button" class="st-esg-output-protocol-mode-button" data-output-protocol-mode="standard">普通模式</button>

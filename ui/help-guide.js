@@ -2,7 +2,7 @@ export function renderHelpGuide() {
   return `<section class="st-esg-help-quick-start" aria-labelledby="st-esg-help-quick-title">
     <div>
       <h1 id="st-esg-help-quick-title">跟着页面快速上手</h1>
-      <p>指引会切换到对应页面并标出需要关注的位置，不会替你修改任何设置。</p>
+      <p>指引会沿着“连接 API → 组织提示词 → 生成预览 → 注入正文”的实际流程切换页面，不会替你修改任何设置。</p>
     </div>
     <button class="menu_button st-esg-primary-action" type="button" data-help-tour-start><i class="fa-solid fa-route" aria-hidden="true"></i><span>开始指引</span></button>
   </section>
@@ -25,9 +25,9 @@ export function renderHelpGuide() {
     <section class="st-esg-help-reference-section">
       <h3>容易混淆</h3>
       <div class="st-esg-help-comparisons">
-        <div class="st-esg-help-comparison"><span><strong>生成</strong><small>结果进入预览</small></span><span><strong>注入</strong><small>写入聊天正文</small></span></div>
-        <div class="st-esg-help-comparison"><span><strong>提示词模式</strong><small>本次直接发送</small></span><span><strong>导入组件</strong><small>复制进组件库管理</small></span></div>
-        <div class="st-esg-help-comparison"><span><strong>单任务</strong><small>使用当前页面设置</small></span><span><strong>多任务</strong><small>每项使用自己的方案</small></span></div>
+        <div class="st-esg-help-comparison"><span><strong>生成</strong><small>模型返回内容进入预览</small></span><span><strong>注入</strong><small>处理后写入目标楼层正文</small></span></div>
+        <div class="st-esg-help-comparison"><span><strong>提示词模式</strong><small>勾选内容参与本次请求</small></span><span><strong>导入组件</strong><small>将条目复制进组件库管理</small></span></div>
+        <div class="st-esg-help-comparison"><span><strong>单任务</strong><small>直接使用当前页面配置</small></span><span><strong>多任务</strong><small>每项载入各自保存的方案</small></span></div>
       </div>
     </section>
 
@@ -36,8 +36,8 @@ export function renderHelpGuide() {
       <div class="st-esg-help-topics">
         <details data-help-topic="batch"><summary>多任务批量开关<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><p>只决定任务是否参加“全部”操作；关闭后仍然可以单独生成、注入和撤回。</p></details>
         <details data-help-topic="scheme-binding"><summary>方案与当前聊天绑定<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><p>绑定后，这个聊天窗口会继续使用对应方案，不影响其他聊天；仅在选择框中选中并不会建立绑定。</p></details>
-        <details data-help-topic="component-scheme"><summary>组件方案与导入导出<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><p>组件方案只保存启用状态和随机设置；导入导出传递组件分组与正文，两者互不替代。</p></details>
-        <details data-help-topic="cleanup"><summary>标签清理<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><p>聊天记录清理发生在发送前；生成内容剥离发生在注入前，预览仍会保留模型的原始返回内容。</p></details>
+        <details data-help-topic="output-protocol"><summary>尾部格式约束<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><p>它会作为整组提示词的最后一条消息约束返回格式。若 Gemini 等接口提示 assistant 预填充错误，可将消息角色改为 system 或 user；普通与锚点模式分别保存。</p></details>
+        <details data-help-topic="cleanup"><summary>标签清理<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><p>聊天记录清理发生在发送前；生成内容剥离只发生在注入前，因此预览会保留模型的原始返回内容。</p></details>
       </div>
     </section>
   </section>`;
