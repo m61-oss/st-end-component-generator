@@ -57,3 +57,10 @@ test('guided tour uses a compact coachmark and visible target highlight', () => 
   assert.match(styleSource, /\.st-esg-help-comparison\s*\{[^}]*grid-template-columns:\s*repeat\(2,/s);
   assert.match(styleSource, /@media \(max-width:\s*520px\)[\s\S]*?\.st-esg-help-tour/s);
 });
+
+test('guided-tour assets use a cache revision independent from the package version', () => {
+  assert.match(indexSource, /const UI_ASSET_REVISION = 'help-tour-\d+'/);
+  assert.match(indexSource, /style\.css\?ver=\$\{EXTENSION_VERSION\}&rev=\$\{UI_ASSET_REVISION\}/);
+  assert.match(indexSource, /help-guide\.js\?ver=0\.2\.3-help-tour-\d+/);
+  assert.match(indexSource, /help-tour\.js\?ver=0\.2\.3-help-tour-\d+/);
+});
