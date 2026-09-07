@@ -136,8 +136,8 @@ import {
 import { TASK_PLACEMENT_AFTER_CHAT_HISTORY, resolveTaskPlacementSelection } from './settings/task-placement.js?ver=0.2.3';
 import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.2.3';
 import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.2.3';
-import { renderHelpGuide } from './ui/help-guide.js?ver=0.2.3-help-tour-2026090802';
-import { HELP_TOUR_STEPS, renderHelpTour } from './ui/help-tour.js?ver=0.2.3-help-tour-2026090802';
+import { renderHelpGuide } from './ui/help-guide.js?ver=0.2.3-help-tour-2026090803';
+import { HELP_TOUR_STEPS, renderHelpTour } from './ui/help-tour.js?ver=0.2.3-help-tour-2026090803';
 import {
   WORLDBOOK_RUNTIME_DRAFT,
   WORLDBOOK_RUNTIME_NATIVE,
@@ -166,7 +166,7 @@ import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCl
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.2.3';
-const UI_ASSET_REVISION = 'help-tour-2026090802';
+const UI_ASSET_REVISION = 'help-tour-2026090803';
 const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置组件生成器';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
@@ -7189,6 +7189,7 @@ function showGenerationHistoryDialog() {
 
 function clearHelpTourTargets() {
   targetDoc.querySelectorAll('.st-esg-help-tour-target').forEach((element) => element.classList.remove('st-esg-help-tour-target'));
+  targetDoc.querySelectorAll('.st-esg-help-tour-focus').forEach((element) => element.remove());
 }
 
 function moveHelpTourHostToMainPanel() {
@@ -7213,6 +7214,35 @@ function getHelpTourTargets(step) {
     });
   }
   return targets;
+}
+
+function renderHelpTourFocus(host, targets, groupTargets = false) {
+  host?.querySelectorAll('.st-esg-help-tour-focus').forEach((element) => element.remove());
+  if (!host || !targets.length) return;
+  const hostRect = host.getBoundingClientRect();
+  const rects = targets
+    .map((target) => target.getBoundingClientRect())
+    .filter((rect) => rect.width > 0 && rect.height > 0);
+  if (!rects.length) return;
+  const focusRects = groupTargets
+    ? [{
+        left: Math.min(...rects.map((rect) => rect.left)),
+        top: Math.min(...rects.map((rect) => rect.top)),
+        right: Math.max(...rects.map((rect) => rect.right)),
+        bottom: Math.max(...rects.map((rect) => rect.bottom)),
+      }]
+    : rects;
+  const padding = 6;
+  focusRects.forEach((rect) => {
+    const focus = targetDoc.createElement('div');
+    focus.className = 'st-esg-help-tour-focus';
+    focus.setAttribute('aria-hidden', 'true');
+    focus.style.left = `${rect.left - hostRect.left - padding}px`;
+    focus.style.top = `${rect.top - hostRect.top - padding}px`;
+    focus.style.width = `${rect.right - rect.left + padding * 2}px`;
+    focus.style.height = `${rect.bottom - rect.top + padding * 2}px`;
+    host.appendChild(focus);
+  });
 }
 
 function bindHelpTourControls() {
@@ -7259,8 +7289,8 @@ function applyHelpTourStep() {
   bindHelpTourControls();
   const targets = getHelpTourTargets(step);
   if (step.openClosestDetails) targets[0]?.closest('details')?.setAttribute('open', '');
-  targets.forEach((target) => target.classList.add('st-esg-help-tour-target'));
-  targets[0]?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+  targets[0]?.scrollIntoView?.({ block: 'center', behavior: 'auto' });
+  renderHelpTourFocus(host, targets, step.groupTargets);
 }
 
 function stopHelpTour({ restoreTab = false } = {}) {

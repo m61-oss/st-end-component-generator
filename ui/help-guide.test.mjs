@@ -51,11 +51,20 @@ test('persistent help keeps useful references without memory-source or automatio
 
 test('guided tour uses a compact coachmark and visible target highlight', () => {
   assert.match(styleSource, /\.st-esg-help-tour\s*\{[^}]*position:\s*absolute;/s);
-  assert.match(styleSource, /\.st-esg-help-tour-target\s*\{[^}]*outline:[^;]+!important;/s);
+  assert.match(styleSource, /\.st-esg-help-tour-focus\s*\{[^}]*position:\s*absolute;/s);
   assert.match(styleSource, /\.st-esg-help-tour-actions\s*\{[^}]*display:\s*flex;/s);
   assert.match(styleSource, /\.st-esg-help-scheme-legend\s*\{[^}]*grid-template-columns:\s*repeat\(5,/s);
   assert.match(styleSource, /\.st-esg-help-comparison\s*\{[^}]*grid-template-columns:\s*repeat\(2,/s);
   assert.match(styleSource, /@media \(max-width:\s*520px\)[\s\S]*?\.st-esg-help-tour/s);
+});
+
+test('guided tour frames functional regions without tracing individual controls', () => {
+  assert.match(tourSource, /targetSelectors:\s*\['\.st-esg-api-fields'\]/);
+  assert.match(tourSource, /targetSelectors:\s*\['\[data-tab-panel="task"\] > \.st-esg-card:not\(\.st-esg-output-protocol-details\)'\]/);
+  assert.match(tourSource, /openGenerationSettings:\s*true,[\s\S]*?groupTargets:\s*true/s);
+  assert.match(indexSource, /function renderHelpTourFocus\([^)]*\)/);
+  assert.match(indexSource, /step\.groupTargets/);
+  assert.doesNotMatch(styleSource, /\.st-esg-help-tour-target\s*\{/);
 });
 
 test('guided-tour assets use a cache revision independent from the package version', () => {
