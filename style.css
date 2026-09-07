@@ -216,11 +216,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   margin-top: 0;
 }
-.st-esg-data-entry-card > div { display: grid; gap: 3px; min-width: 0; }
-.st-esg-data-entry-card > div > span { color: var(--esg-text-muted); font-size: 11px; }
+.st-esg-data-entry-card > strong { min-width: 0; }
+.st-esg-data-entry-card .menu_button { flex: 0 0 auto; width: auto !important; white-space: nowrap; }
 
 .st-esg-data-management-dialog {
   position: fixed;
@@ -344,7 +344,6 @@
   .st-esg-data-dialog-shell { width: 100%; height: min(88dvh, calc(100dvh - max(22px, env(safe-area-inset-top)) - max(14px, env(safe-area-inset-bottom)))); min-height: 0; max-height: min(88dvh, calc(100dvh - max(22px, env(safe-area-inset-top)) - max(14px, env(safe-area-inset-bottom)))); border-radius: 18px 18px 12px 12px; }
   .st-esg-data-dialog-shell > header { padding: 10px; }
   .st-esg-data-dialog-body { padding: 10px; }
-  .st-esg-data-entry-card { align-items: stretch; flex-direction: column; }
   .st-esg-data-summary { margin-bottom: 10px; padding: 13px; }
   .st-esg-data-details { margin-top: 12px; padding: 10px; }
   .st-esg-data-summary strong { font-size: 22px; }
@@ -1600,8 +1599,11 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-task-components-help { margin-top: 6px; color: var(--esg-text-muted); font-size: 11px; line-height: 1.35; }
 .st-esg-task-components-help code { color: var(--esg-text-main); font-family: var(--mainFontFamily, monospace); }
 .st-esg-output-protocol-details { margin-top: 0; }
-.st-esg-output-protocol-help { margin: 0; line-height: 1.45; }
 .st-esg-output-protocol-toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.st-esg-preset-select-row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; }
+.st-esg-preset-select-field { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px; min-width: 0; }
+.st-esg-preset-select-field > select { width: 100%; min-width: 0; }
+.st-esg-preset-select-row > .menu_button { width: auto !important; min-height: 30px; white-space: nowrap; }
 .st-esg-output-protocol-mode { display: inline-flex; gap: 3px; padding: 3px; border-radius: 8px; background: var(--esg-bg-secondary); }
 .st-esg-output-protocol-mode-button { min-height: 30px; padding: 4px 11px; border: 0; border-radius: 6px; color: var(--esg-text-muted); background: transparent; font: inherit; cursor: pointer; }
 .st-esg-output-protocol-mode-button.active { color: var(--esg-text-main); background: var(--esg-bg-card); }

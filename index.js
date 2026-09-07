@@ -166,7 +166,7 @@ import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCl
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.2.3';
-const UI_ASSET_REVISION = 'help-tour-2026090805';
+const UI_ASSET_REVISION = 'help-tour-2026090806';
 const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置组件生成器';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
@@ -8323,7 +8323,10 @@ function renderPluginPanel() {
     presetPlacement.replaceWith(extraOptions);
   }
   const presetSourceSelect = dialog.querySelector('#st-esg-source-preset');
-  presetSourceSelect?.closest('.st-esg-grid')?.insertAdjacentHTML('afterend', '<div class="st-esg-actions-row st-esg-preset-export-actions"><button id="st-esg-export-current-preset" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-file-export"></i><span>导出当前预设</span></button></div>');
+  const presetSourceRow = presetSourceSelect?.closest('.st-esg-grid');
+  presetSourceRow?.classList.add('st-esg-preset-select-row');
+  presetSourceSelect?.closest('label')?.classList.add('st-esg-preset-select-field');
+  presetSourceRow?.insertAdjacentHTML('beforeend', '<button id="st-esg-export-current-preset" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-file-export"></i><span>导出预设</span></button>');
   const debugPanel = dialog.querySelector('[data-tab-panel="debug"]');
   debugPanel?.insertAdjacentHTML('afterbegin', '<div class="st-esg-card st-esg-generation-log-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">本次生成日志</div><div class="st-esg-card-desc">每次开始生成时清空，只保留本次生成流程。</div></div></div><pre id="st-esg-generation-log" class="st-esg-generation-log">尚未开始生成</pre></div>');
   const apiFields = dialog.querySelector('#st-esg-api-url')?.closest('.st-esg-grid');
@@ -8362,7 +8365,6 @@ function renderPluginPanel() {
     outputProtocolDetails.innerHTML = `
       <summary class="st-esg-collapsible-summary">尾部格式约束</summary>
       <div class="st-esg-collapsible-body">
-        <div class="st-esg-card-desc st-esg-output-protocol-help">按所选身份原样作为提示词最后一条消息发送；留空则不插入。若接口提示 assistant 预填充错误，可改用 system 或 user。普通与锚点模式分别保存，不随任务方案保存。</div>
       <div class="st-esg-output-protocol-toolbar">
         <div id="st-esg-output-protocol-mode" class="st-esg-output-protocol-mode" role="group" aria-label="输出协议模式">
           <button type="button" class="st-esg-output-protocol-mode-button" data-output-protocol-mode="standard">普通模式</button>
@@ -8403,7 +8405,7 @@ function renderPluginPanel() {
     textarea?.closest('label')?.replaceWith(...$(buildTagRuleManager(type)).toArray());
   });
   const runtimePanel = dialog.querySelector('[data-tab-panel="runtime"]');
-  runtimePanel?.insertAdjacentHTML('afterbegin', '<div class="st-esg-card st-esg-data-entry-card"><div><strong>数据管理</strong><span>查看插件占用，清空整类数据，或处理隐藏归属记录。</span></div><button id="st-esg-open-data-management" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-database"></i><span>打开数据管理</span></button></div>');
+  runtimePanel?.insertAdjacentHTML('afterbegin', '<div class="st-esg-card st-esg-data-entry-card"><strong>数据管理</strong><button id="st-esg-open-data-management" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-database"></i><span>打开数据管理</span></button></div>');
   if (runtimePanel) {
     const shortcutDetails = targetDoc.createElement('details');
     shortcutDetails.className = 'st-esg-card st-esg-collapsible st-esg-shortcut-settings';

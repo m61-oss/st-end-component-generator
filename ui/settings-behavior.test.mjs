@@ -49,3 +49,17 @@ test('component editor delegation is cleared before each list rebind', () => {
 test('markSchemeDirty callers do not immediately save the same settings twice', () => {
   assert.doesNotMatch(indexSource, /markSchemeDirty\([^\n]+\);\s*\r?\n\s*saveSettings\(\);/);
 });
+
+test('preset selection and export controls share one compact row', () => {
+  assert.match(indexSource, /st-esg-preset-select-row/);
+  assert.match(indexSource, /st-esg-preset-select-field/);
+  assert.match(indexSource, /insertAdjacentHTML\('beforeend',[^\n]+id="st-esg-export-current-preset"/);
+  assert.match(styleSource, /\.st-esg-preset-select-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto;/s);
+  assert.match(styleSource, /\.st-esg-preset-select-field\s*\{[^}]*grid-template-columns:\s*auto\s+minmax\(0,\s*1fr\);/s);
+});
+
+test('runtime data management entry is a single row without duplicate description', () => {
+  assert.match(indexSource, /st-esg-data-entry-card"><strong>数据管理<\/strong><button/);
+  assert.doesNotMatch(indexSource, /查看插件占用，清空整类数据，或处理隐藏归属记录。/);
+  assert.doesNotMatch(styleSource, /\.st-esg-data-entry-card\s*\{[^}]*flex-direction:\s*column;/s);
+});

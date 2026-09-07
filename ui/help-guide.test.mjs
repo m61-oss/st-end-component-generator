@@ -91,7 +91,8 @@ test('tour keeps one coachmark position and teaches task and tail-message flow',
   assert.doesNotMatch(guideSource, /data-help-topic="component-scheme"/);
   assert.match(styleSource, /\.st-esg-generation-mode-settings-dialog\[data-help-tour-owned\]\s*\{[^}]*height:\s*calc\(100dvh - 28px\)/s);
   assert.match(styleSource, /\[data-tab-panel="task"\] #st-esg-task\s*\{[^}]*height:\s*clamp\(180px, 36dvh, 360px\)/s);
-  assert.match(indexSource, /assistant 预填充错误/);
+  assert.match(guideSource, /assistant 预填充错误/);
+  assert.doesNotMatch(indexSource, /assistant 预填充错误/);
 });
 
 test('guided-tour assets use a cache revision independent from the package version', () => {
