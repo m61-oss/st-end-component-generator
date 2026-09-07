@@ -34,7 +34,20 @@ export function renderHelpGuide() {
     <section class="st-esg-help-reference-section">
       <h3>进阶功能</h3>
       <div class="st-esg-help-topics">
-        <details data-help-topic="batch"><summary>多任务批量开关<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><p>只决定任务是否参加“全部”操作；关闭后仍然可以单独生成、注入和撤回。</p></details>
+        <details data-help-topic="task-actions"><summary>多任务操作按钮<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary>
+          <div class="st-esg-help-task-action-legend" aria-label="多任务操作按钮说明">
+            <div><span class="st-esg-help-scheme-icon"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></span><strong>撤回</strong></div>
+            <div><span class="st-esg-help-scheme-icon"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></span><strong>生成</strong></div>
+            <div><span class="st-esg-help-scheme-icon"><i class="fa-solid fa-file-import" aria-hidden="true"></i></span><strong>注入</strong></div>
+            <div><span class="st-esg-help-scheme-icon st-esg-help-batch-switch" aria-hidden="true"><span></span></span><strong>参加全部</strong></div>
+          </div>
+          <div class="st-esg-help-task-action-notes">
+            <p><strong>撤回</strong><span>撤回当前任务在当前楼层的最新一次注入。</span></p>
+            <p><strong>生成</strong><span>只生成当前任务；生成中再次点击可停止它。</span></p>
+            <p><strong>注入</strong><span>只把当前任务的预览结果写入目标楼层。</span></p>
+            <p><strong>参加全部</strong><span>开启时参加“生成全部、注入全部、撤回全部”；关闭后，“全部”操作会跳过它，旁边三个按钮仍可单独使用。</span></p>
+          </div>
+        </details>
         <details data-help-topic="scheme-binding"><summary>方案与当前聊天绑定<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><p>绑定后，这个聊天窗口会继续使用对应方案，不影响其他聊天；仅在选择框中选中并不会建立绑定。</p></details>
         <details data-help-topic="output-protocol"><summary>尾部格式约束<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><p>它会作为整组提示词的最后一条消息约束返回格式。若 Gemini 等接口提示 assistant 预填充错误，可将消息角色改为 system 或 user；普通与锚点模式分别保存。</p></details>
         <details data-help-topic="cleanup"><summary>标签清理<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><p>聊天记录清理发生在发送前；生成内容剥离只发生在注入前，因此预览会保留模型的原始返回内容。</p></details>

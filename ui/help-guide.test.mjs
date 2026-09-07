@@ -41,12 +41,26 @@ test('automation is taught in context and opens the general generation settings 
 test('persistent help keeps useful references without memory-source or automation articles', () => {
   for (const label of ['载入', '另存', '覆盖', '绑定聊天', '删除']) assert.match(guideSource, new RegExp(`>${label}<`));
   for (const label of ['生成', '注入', '提示词模式', '导入组件', '单任务', '多任务']) assert.match(guideSource, new RegExp(label));
-  assert.match(guideSource, /data-help-topic="batch"/);
+  assert.match(guideSource, /data-help-topic="task-actions"/);
   assert.match(guideSource, /data-help-topic="scheme-binding"/);
   assert.match(guideSource, /data-help-topic="output-protocol"/);
   assert.match(guideSource, /data-help-topic="cleanup"/);
   assert.doesNotMatch(guideSource, /data-help-topic="memory"|data-help-topic="automation"|记忆来源/);
   assert.doesNotMatch(guideSource, /HELP_SECTIONS|st-esg-help-accordion|data-help-section/);
+});
+
+test('multi-task action help identifies all four controls before explaining them', () => {
+  for (const icon of ['fa-rotate-left', 'fa-wand-magic-sparkles', 'fa-file-import']) {
+    assert.match(guideSource, new RegExp(icon));
+  }
+  for (const label of ['撤回', '生成', '注入', '参加全部']) {
+    assert.match(guideSource, new RegExp(`<strong>${label}</strong>`));
+  }
+  assert.match(guideSource, /st-esg-help-task-action-legend/);
+  assert.match(guideSource, /st-esg-help-task-action-notes/);
+  assert.match(guideSource, /关闭后，“全部”操作会跳过它/);
+  assert.match(styleSource, /\.st-esg-help-task-action-legend\s*\{[^}]*grid-template-columns:\s*repeat\(4,/s);
+  assert.match(styleSource, /\.st-esg-help-task-action-notes\s*\{[^}]*grid-template-columns:\s*repeat\(2,/s);
 });
 
 test('guided tour uses a compact coachmark and visible target highlight', () => {
