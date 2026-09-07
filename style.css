@@ -1872,7 +1872,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-help-quick-start h1 { font-size: 16px; font-weight: 800; }
 .st-esg-help-quick-start p { max-width: 42ch; margin: 0; color: var(--esg-text-muted); font-size: 11px; line-height: 1.45; }
 .st-esg-help-quick-start .menu_button { flex: 0 0 auto; min-height: 32px; gap: 6px; padding-inline: 12px !important; }
-.st-esg-help-tour { position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 14px; width: min(540px, calc(100vw - 24px)); padding: 12px 14px; border: 1px solid var(--esg-border); border-radius: 12px; color: var(--esg-text-main); background: var(--esg-bg-card); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.24); transform: translateX(-50%); z-index: 2147483647; }
+.st-esg-help-tour { position: absolute; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 14px; width: min(540px, calc(100vw - 24px)); padding: 12px 14px; border: 1px solid var(--esg-border); border-radius: 12px; color: var(--esg-text-main); background: var(--esg-bg-card); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.24); transform: translateX(-50%); z-index: 2147483647; }
 .st-esg-help-tour.is-top { top: max(18px, env(safe-area-inset-top)); bottom: auto; }
 .st-esg-help-tour-copy { display: grid; gap: 3px; min-width: 0; }
 .st-esg-help-tour-copy > span { color: var(--esg-running-blue); font-size: 10px; font-weight: 750; }
@@ -1881,7 +1881,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-help-tour-actions { display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
 .st-esg-help-tour-actions .menu_button { width: auto !important; min-width: 56px; min-height: 28px; padding-inline: 8px !important; }
 .st-esg-help-tour-actions .menu_button:disabled { opacity: 0.38; cursor: not-allowed; }
-.st-esg-help-tour-target { position: relative; z-index: 2; outline: 3px solid var(--esg-running-blue); outline-offset: 3px; border-radius: 7px; }
+.st-esg-help-tour-target { position: relative; z-index: 2; outline: 3px solid var(--esg-running-blue) !important; outline-offset: 3px !important; border-radius: 7px; }
 .st-esg-help-reference { display: grid; gap: 0; padding: 16px 18px 20px; }
 .st-esg-help-reference-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 9px; }
 .st-esg-help-reference-head h2 { font-size: 15px; font-weight: 800; }

@@ -136,8 +136,8 @@ import {
 import { TASK_PLACEMENT_AFTER_CHAT_HISTORY, resolveTaskPlacementSelection } from './settings/task-placement.js?ver=0.2.3';
 import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.2.3';
 import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.2.3';
-import { renderHelpGuide } from './ui/help-guide.js?ver=0.2.3-help-tour-20260908';
-import { HELP_TOUR_STEPS, renderHelpTour } from './ui/help-tour.js?ver=0.2.3-help-tour-20260908';
+import { renderHelpGuide } from './ui/help-guide.js?ver=0.2.3-help-tour-2026090802';
+import { HELP_TOUR_STEPS, renderHelpTour } from './ui/help-tour.js?ver=0.2.3-help-tour-2026090802';
 import {
   WORLDBOOK_RUNTIME_DRAFT,
   WORLDBOOK_RUNTIME_NATIVE,
@@ -166,7 +166,7 @@ import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCl
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.2.3';
-const UI_ASSET_REVISION = 'help-tour-20260908';
+const UI_ASSET_REVISION = 'help-tour-2026090802';
 const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置组件生成器';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;

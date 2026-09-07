@@ -50,8 +50,8 @@ test('persistent help keeps useful references without memory-source or automatio
 });
 
 test('guided tour uses a compact coachmark and visible target highlight', () => {
-  assert.match(styleSource, /\.st-esg-help-tour\s*\{[^}]*position:\s*fixed;/s);
-  assert.match(styleSource, /\.st-esg-help-tour-target\s*\{[^}]*outline:/s);
+  assert.match(styleSource, /\.st-esg-help-tour\s*\{[^}]*position:\s*absolute;/s);
+  assert.match(styleSource, /\.st-esg-help-tour-target\s*\{[^}]*outline:[^;]+!important;/s);
   assert.match(styleSource, /\.st-esg-help-tour-actions\s*\{[^}]*display:\s*flex;/s);
   assert.match(styleSource, /\.st-esg-help-scheme-legend\s*\{[^}]*grid-template-columns:\s*repeat\(5,/s);
   assert.match(styleSource, /\.st-esg-help-comparison\s*\{[^}]*grid-template-columns:\s*repeat\(2,/s);
