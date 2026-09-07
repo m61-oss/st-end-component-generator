@@ -139,6 +139,7 @@
 .st-esg-scheme-name-dialog::backdrop { background: rgba(0, 0, 0, 0.42); }
 .st-esg-scheme-name-dialog form { display: grid; gap: 14px; padding: 18px; }
 .st-esg-scheme-name-dialog label { display: grid; gap: 7px; color: var(--esg-text-main); }
+.st-esg-scheme-name-dialog .st-esg-scheme-picker { display: flex; align-items: center; }
 .st-esg-scheme-name-dialog .text_pole { width: 100%; border: 1px solid var(--esg-border) !important; border-radius: 11px !important; color: var(--esg-text-main) !important; background: var(--esg-bg-input) !important; font-size: var(--st-esg-input-font-size) !important; }
 .st-esg-scheme-name-dialog .st-esg-actions-row { display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 0; }
 .st-esg-scheme-name-dialog .menu_button { display: inline-flex !important; width: auto !important; min-width: 72px; min-height: 36px; padding: 0 14px !important; white-space: nowrap !important; writing-mode: horizontal-tb !important; text-orientation: mixed !important; }

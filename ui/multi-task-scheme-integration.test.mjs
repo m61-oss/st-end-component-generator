@@ -45,3 +45,10 @@ test('multi-task scheme picker aligns its select with the adjacent scheme button
   );
   assert.match(styleSource, /@media \(max-width:\s*640px\)[\s\S]*?\.st-esg-scheme-group\s*\{[^}]*--st-esg-scheme-control-size:\s*24px;/);
 });
+
+test('multi-task scheme label, select, and actions stay in one row inside the settings dialog', () => {
+  assert.match(
+    styleSource,
+    /\.st-esg-scheme-name-dialog \.st-esg-scheme-picker\s*\{[^}]*display:\s*flex;[^}]*align-items:\s*center;/s,
+  );
+});
