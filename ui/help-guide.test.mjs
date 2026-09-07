@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const [indexSource, styleSource, guideSource] = await Promise.all([
+const [indexSource, styleSource, guideSource, tourSource] = await Promise.all([
   readFile(new URL('../index.js', import.meta.url), 'utf8'),
   readFile(new URL('../style.css', import.meta.url), 'utf8'),
   readFile(new URL('./help-guide.js', import.meta.url), 'utf8'),
+  readFile(new URL('./help-tour.js', import.meta.url), 'utf8').catch(() => ''),
 ]);
 
 test('the plugin keeps one global help entry and no contextual help entry', () => {
@@ -15,34 +16,44 @@ test('the plugin keeps one global help entry and no contextual help entry', () =
   assert.equal((indexSource.match(/fa-circle-question/g) || []).length, 1);
 });
 
-test('quick start presents one of five steps at a time with previous and next actions', () => {
-  assert.match(guideSource, /export const HELP_STEP_COUNT = 5/);
-  assert.match(guideSource, /export function renderHelpStep/);
-  assert.match(guideSource, /data-help-step-content/);
-  assert.match(guideSource, /data-help-step-progress/);
-  assert.match(guideSource, /data-help-step-previous/);
-  assert.match(guideSource, /data-help-step-next/);
-  assert.match(indexSource, /renderHelpStep\(currentStep\)/);
-  assert.match(indexSource, /currentStep -= 1/);
-  assert.match(indexSource, /currentStep \+= 1/);
-  assert.match(indexSource, /if \(currentStep >= HELP_STEP_COUNT - 1\) finish\(\)/);
+test('quick start launches a guided tour of the real plugin pages', () => {
+  assert.match(guideSource, /data-help-tour-start/);
+  assert.doesNotMatch(guideSource, /data-help-step-content|data-help-step-previous|data-help-step-next/);
+  assert.match(tourSource, /export const HELP_TOUR_STEPS/);
+  assert.match(tourSource, /export function renderHelpTour/);
+  for (const tab of ['runtime', 'task', 'preset', 'workspace']) {
+    assert.match(tourSource, new RegExp(`tab: '${tab}'`));
+  }
+  assert.match(indexSource, /function startHelpTour/);
+  assert.match(indexSource, /function applyHelpTourStep/);
+  assert.match(indexSource, /switchTab\(step\.tab\)/);
 });
 
-test('persistent help emphasizes scheme icons, core comparisons, and optional advanced topics', () => {
+test('automation is taught in context and opens the general generation settings page', () => {
+  assert.match(tourSource, /openGenerationSettings: true/);
+  assert.match(tourSource, /#st-esg-auto-generate/);
+  assert.match(tourSource, /#st-esg-auto-inject/);
+  assert.match(tourSource, /#st-esg-rollback-before-generation/);
+  assert.match(indexSource, /showMultiTaskSettingsDialog\('general'\)/);
+  assert.match(indexSource, /closeHelpTourGenerationSettings/);
+});
+
+test('persistent help keeps useful references without memory-source or automation articles', () => {
   for (const label of ['载入', '另存', '覆盖', '绑定聊天', '删除']) assert.match(guideSource, new RegExp(`>${label}<`));
   for (const label of ['生成', '注入', '提示词模式', '导入组件', '单任务', '多任务']) assert.match(guideSource, new RegExp(label));
   assert.match(guideSource, /data-help-topic="batch"/);
-  assert.match(guideSource, /data-help-topic="automation"/);
+  assert.match(guideSource, /data-help-topic="scheme-binding"/);
   assert.match(guideSource, /data-help-topic="component-scheme"/);
-  assert.match(guideSource, /data-help-topic="memory"/);
   assert.match(guideSource, /data-help-topic="cleanup"/);
+  assert.doesNotMatch(guideSource, /data-help-topic="memory"|data-help-topic="automation"|记忆来源/);
   assert.doesNotMatch(guideSource, /HELP_SECTIONS|st-esg-help-accordion|data-help-section/);
 });
 
-test('help layout gives the step guide clear hierarchy without card-like text walls', () => {
-  assert.match(styleSource, /\.st-esg-help-quick-start\s*\{[^}]*display:\s*grid;[^}]*grid-template-rows:/s);
-  assert.match(styleSource, /\.st-esg-help-step-number\s*\{[^}]*font-size:\s*22px;/s);
+test('guided tour uses a compact coachmark and visible target highlight', () => {
+  assert.match(styleSource, /\.st-esg-help-tour\s*\{[^}]*position:\s*fixed;/s);
+  assert.match(styleSource, /\.st-esg-help-tour-target\s*\{[^}]*outline:/s);
+  assert.match(styleSource, /\.st-esg-help-tour-actions\s*\{[^}]*display:\s*flex;/s);
   assert.match(styleSource, /\.st-esg-help-scheme-legend\s*\{[^}]*grid-template-columns:\s*repeat\(5,/s);
   assert.match(styleSource, /\.st-esg-help-comparison\s*\{[^}]*grid-template-columns:\s*repeat\(2,/s);
-  assert.match(styleSource, /@media \(max-width:\s*520px\)[\s\S]*?\.st-esg-help-scheme-legend/s);
+  assert.match(styleSource, /@media \(max-width:\s*520px\)[\s\S]*?\.st-esg-help-tour/s);
 });

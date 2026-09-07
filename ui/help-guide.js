@@ -1,74 +1,10 @@
-export const HELP_STEP_COUNT = 5;
-
-const HELP_STEPS = Object.freeze([
-  {
-    phase: '准备生成服务',
-    title: '配置外置 API',
-    description: '前往“运行设置 → API 配置”，填写 API 地址、模型和密钥。没有可用的 API，插件无法开始生成。',
-    icon: 'fa-plug',
-  },
-  {
-    phase: '告诉模型任务',
-    title: '确认任务指令',
-    description: '任务指令决定模型要生成什么。需要发送组件库内容时，指令中必须包含组件占位符。',
-    code: '{{external_components}}',
-    icon: 'fa-pen-to-square',
-  },
-  {
-    phase: '准备生成素材',
-    title: '选择需要的内容',
-    description: '在预设、世界书和组件库中启用这次真正需要的内容；不需要的来源可以不选。',
-    icon: 'fa-layer-group',
-  },
-  {
-    phase: '先检查结果',
-    title: '生成并查看预览',
-    description: '点击生成后，结果只会进入预览框。你可以先检查或修改，不会立刻改变聊天正文。',
-    icon: 'fa-wand-magic-sparkles',
-  },
-  {
-    phase: '写入当前回复',
-    title: '确认后再注入',
-    description: '内容确认无误后再点击注入。插件会把结果写入当前聊天的最新 assistant 回复。',
-    icon: 'fa-file-import',
-  },
-]);
-
-function normalizeStep(step) {
-  const value = Number.parseInt(step, 10);
-  return Number.isFinite(value) ? Math.max(0, Math.min(HELP_STEP_COUNT - 1, value)) : 0;
-}
-
-export function renderHelpStep(step = 0) {
-  const index = normalizeStep(step);
-  const item = HELP_STEPS[index];
-  return `<article class="st-esg-help-step" data-help-step="${index}">
-    <div class="st-esg-help-step-number" aria-hidden="true">${String(index + 1).padStart(2, '0')}</div>
-    <div class="st-esg-help-step-copy">
-      <span>${item.phase}</span>
-      <h2>${item.title}</h2>
-      <p>${item.description}</p>
-      ${item.code ? `<code>${item.code}</code>` : ''}
-    </div>
-    <i class="fa-solid ${item.icon}" aria-hidden="true"></i>
-  </article>`;
-}
-
-function renderStepDots() {
-  return `<div class="st-esg-help-step-dots" aria-hidden="true">${HELP_STEPS.map((_, index) => `<span${index === 0 ? ' class="active"' : ''} data-help-step-dot="${index}"></span>`).join('')}</div>`;
-}
-
 export function renderHelpGuide() {
   return `<section class="st-esg-help-quick-start" aria-labelledby="st-esg-help-quick-title">
-    <header class="st-esg-help-quick-head">
-      <div><h1 id="st-esg-help-quick-title">快速上手</h1><span data-help-step-progress>第 1 步 / 共 ${HELP_STEP_COUNT} 步</span></div>
-      ${renderStepDots()}
-    </header>
-    <div class="st-esg-help-step-stage" data-help-step-content>${renderHelpStep(0)}</div>
-    <nav class="st-esg-help-step-actions" aria-label="快速上手步骤">
-      <button class="menu_button st-esg-secondary-action" type="button" data-help-step-previous disabled>上一步</button>
-      <button class="menu_button st-esg-primary-action" type="button" data-help-step-next>下一步</button>
-    </nav>
+    <div>
+      <h1 id="st-esg-help-quick-title">跟着页面快速上手</h1>
+      <p>指引会切换到对应页面并标出需要关注的位置，不会替你修改任何设置。</p>
+    </div>
+    <button class="menu_button st-esg-primary-action" type="button" data-help-tour-start><i class="fa-solid fa-route" aria-hidden="true"></i><span>开始指引</span></button>
   </section>
 
   <section class="st-esg-help-reference" aria-labelledby="st-esg-help-reference-title">
@@ -99,9 +35,8 @@ export function renderHelpGuide() {
       <h3>进阶功能</h3>
       <div class="st-esg-help-topics">
         <details data-help-topic="batch"><summary>多任务批量开关<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><p>只决定任务是否参加“全部”操作；关闭后仍然可以单独生成、注入和撤回。</p></details>
-        <details data-help-topic="automation"><summary>自动生成与自动撤回<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><p>自动生成监听最新回复；生成前撤回只处理同一目标楼层上对应任务的最新注入。</p></details>
-        <details data-help-topic="component-scheme"><summary>组件方案保存什么<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><p>保存组件和小剧场的启用状态及随机设置，不复制组件正文；组件内容始终使用库中的最新版本。</p></details>
-        <details data-help-topic="memory"><summary>记忆来源<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><p>聊天记录提供原始对话；柏宝书提供剧情与现状；Anima 可提供世界书召回内容和状态变量，勾选哪个就读取哪个。</p></details>
+        <details data-help-topic="scheme-binding"><summary>方案与当前聊天绑定<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><p>绑定后，这个聊天窗口会继续使用对应方案，不影响其他聊天；仅在选择框中选中并不会建立绑定。</p></details>
+        <details data-help-topic="component-scheme"><summary>组件方案与导入导出<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><p>组件方案只保存启用状态和随机设置；导入导出传递组件分组与正文，两者互不替代。</p></details>
         <details data-help-topic="cleanup"><summary>标签清理<i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary><p>聊天记录清理发生在发送前；生成内容剥离发生在注入前，预览仍会保留模型的原始返回内容。</p></details>
       </div>
     </section>

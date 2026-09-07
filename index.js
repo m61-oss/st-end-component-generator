@@ -136,7 +136,8 @@ import {
 import { TASK_PLACEMENT_AFTER_CHAT_HISTORY, resolveTaskPlacementSelection } from './settings/task-placement.js?ver=0.2.3';
 import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.2.3';
 import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.2.3';
-import { HELP_STEP_COUNT, renderHelpGuide, renderHelpStep } from './ui/help-guide.js?ver=0.2.3';
+import { renderHelpGuide } from './ui/help-guide.js?ver=0.2.3';
+import { HELP_TOUR_STEPS, renderHelpTour } from './ui/help-tour.js?ver=0.2.3';
 import {
   WORLDBOOK_RUNTIME_DRAFT,
   WORLDBOOK_RUNTIME_NATIVE,
@@ -357,6 +358,7 @@ let multiTaskFrameworkRenderScheduled = false;
 let activeGenerationHistoryId = null;
 let anchorEditSaveTimer = null;
 let settingsSaveTimer = null;
+let activeHelpTour = null;
 let latestInjectionUndoSnapshot = null;
 let animaWorldbookSnapshotPromise = null;
 let animaWorldbookSnapshot = [];
@@ -4284,6 +4286,7 @@ function togglePanel(forceOpen) {
   const dialog = getDialog();
   if (!dialog) return;
   const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !dialog.open;
+  if (!shouldOpen) stopHelpTour({ restoreTab: false });
   const shouldRefreshComponentList = Boolean(
     componentEditMode || componentMoveState || theaterMoveState || componentSearchQuery || componentFilterMode !== 'all',
   );
@@ -7183,7 +7186,105 @@ function showGenerationHistoryDialog() {
   renderGenerationHistory();
 }
 
+function clearHelpTourTargets() {
+  targetDoc.querySelectorAll('.st-esg-help-tour-target').forEach((element) => element.classList.remove('st-esg-help-tour-target'));
+}
+
+function moveHelpTourHostToMainPanel() {
+  const host = targetDoc.getElementById('st-esg-help-tour-host');
+  const panel = getDialog();
+  if (host && panel) panel.appendChild(host);
+}
+
+function closeHelpTourGenerationSettings() {
+  const dialog = targetDoc.getElementById('st-esg-generation-mode-settings-dialog');
+  if (!dialog?.hasAttribute('data-help-tour-owned')) return;
+  moveHelpTourHostToMainPanel();
+  dialog.querySelector('[data-generation-settings-close]')?.click();
+}
+
+function getHelpTourTargets(step) {
+  const targets = [];
+  for (const selector of step.targetSelectors || []) {
+    targetDoc.querySelectorAll(selector).forEach((element) => {
+      const target = element.matches('input, select, textarea') ? (element.closest('label') || element) : element;
+      if (!targets.includes(target)) targets.push(target);
+    });
+  }
+  return targets;
+}
+
+function bindHelpTourControls() {
+  const host = targetDoc.getElementById('st-esg-help-tour-host');
+  if (!host || !activeHelpTour) return;
+  host.querySelector('[data-help-tour-exit]')?.addEventListener('click', () => stopHelpTour({ restoreTab: true }));
+  host.querySelector('[data-help-tour-previous]')?.addEventListener('click', () => {
+    if (!activeHelpTour || activeHelpTour.stepIndex <= 0) return;
+    activeHelpTour.stepIndex -= 1;
+    applyHelpTourStep();
+  });
+  host.querySelector('[data-help-tour-next]')?.addEventListener('click', () => {
+    if (!activeHelpTour) return;
+    if (activeHelpTour.stepIndex >= HELP_TOUR_STEPS.length - 1) {
+      stopHelpTour({ restoreTab: false });
+      return;
+    }
+    activeHelpTour.stepIndex += 1;
+    applyHelpTourStep();
+  });
+}
+
+function applyHelpTourStep() {
+  if (!activeHelpTour) return;
+  const step = HELP_TOUR_STEPS[activeHelpTour.stepIndex];
+  if (!step) return;
+  clearHelpTourTargets();
+  if (!step.openGenerationSettings) closeHelpTourGenerationSettings();
+  switchTab(step.tab);
+  if (step.openGenerationSettings) {
+    showMultiTaskSettingsDialog('general');
+    const settingsDialog = targetDoc.getElementById('st-esg-generation-mode-settings-dialog');
+    const host = targetDoc.getElementById('st-esg-help-tour-host');
+    if (settingsDialog && host) {
+      settingsDialog.setAttribute('data-help-tour-owned', '');
+      const preserveTour = () => moveHelpTourHostToMainPanel();
+      settingsDialog.querySelectorAll('[data-generation-settings-close]').forEach((button) => button.addEventListener('click', preserveTour, { capture: true }));
+      settingsDialog.addEventListener('cancel', preserveTour, { capture: true });
+      settingsDialog.appendChild(host);
+    }
+  }
+  const host = targetDoc.getElementById('st-esg-help-tour-host');
+  if (host) host.innerHTML = renderHelpTour(activeHelpTour.stepIndex);
+  bindHelpTourControls();
+  const targets = getHelpTourTargets(step);
+  if (step.openClosestDetails) targets[0]?.closest('details')?.setAttribute('open', '');
+  targets.forEach((target) => target.classList.add('st-esg-help-tour-target'));
+  targets[0]?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+}
+
+function stopHelpTour({ restoreTab = false } = {}) {
+  if (!activeHelpTour) return;
+  const originalTab = activeHelpTour.originalTab;
+  clearHelpTourTargets();
+  closeHelpTourGenerationSettings();
+  targetDoc.getElementById('st-esg-help-tour-host')?.remove();
+  activeHelpTour = null;
+  if (restoreTab && originalTab) switchTab(originalTab);
+}
+
+function startHelpTour() {
+  stopHelpTour({ restoreTab: false });
+  const panel = getDialog();
+  if (!panel) return;
+  const host = targetDoc.createElement('div');
+  host.id = 'st-esg-help-tour-host';
+  activeHelpTour = { stepIndex: 0, originalTab: settings.activeTab || 'workspace' };
+  panel.appendChild(host);
+  applyHelpTourStep();
+}
+
 function showHelpGuideDialog() {
+  stopHelpTour({ restoreTab: false });
   targetDoc.getElementById('st-esg-help-dialog')?.remove();
   const returnFocus = targetDoc.activeElement;
   const dialog = targetDoc.createElement('dialog');
@@ -7195,37 +7296,17 @@ function showHelpGuideDialog() {
     <header><div><div id="st-esg-help-title" class="st-esg-card-title">使用帮助</div><div class="st-esg-help-subtitle">只说明容易混淆的功能和操作范围</div></div><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-help-guide-close aria-label="关闭使用帮助" title="关闭"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header>
     <div class="st-esg-help-body">${renderHelpGuide()}</div>
   </div>`;
-  let currentStep = 0;
-  const finish = () => {
+  const finish = ({ restoreFocus = true } = {}) => {
     if (dialog.open) dialog.close();
     dialog.remove();
-    returnFocus?.focus?.({ preventScroll: true });
+    if (restoreFocus) returnFocus?.focus?.({ preventScroll: true });
   };
   dialog.querySelector('[data-help-guide-close]')?.addEventListener('click', finish);
   dialog.addEventListener('cancel', (event) => { event.preventDefault(); finish(); });
   dialog.addEventListener('click', (event) => { if (event.target === dialog) finish(); });
-  const updateStep = () => {
-    const stepHost = dialog.querySelector('[data-help-step-content]');
-    if (stepHost) stepHost.innerHTML = renderHelpStep(currentStep);
-    const progress = dialog.querySelector('[data-help-step-progress]');
-    if (progress) progress.textContent = `第 ${currentStep + 1} 步 / 共 ${HELP_STEP_COUNT} 步`;
-    const previous = dialog.querySelector('[data-help-step-previous]');
-    if (previous) previous.disabled = currentStep <= 0;
-    const next = dialog.querySelector('[data-help-step-next]');
-    if (next) next.textContent = currentStep >= HELP_STEP_COUNT - 1 ? '完成' : '下一步';
-    dialog.querySelectorAll('[data-help-step-dot]').forEach((dot, index) => dot.classList.toggle('active', index === currentStep));
-  };
-  dialog.querySelector('[data-help-step-previous]')?.addEventListener('click', () => {
-    if (currentStep <= 0) return;
-    currentStep -= 1;
-    updateStep();
-  });
-  dialog.querySelector('[data-help-step-next]')?.addEventListener('click', () => {
-    if (currentStep >= HELP_STEP_COUNT - 1) finish();
-    else {
-      currentStep += 1;
-      updateStep();
-    }
+  dialog.querySelector('[data-help-tour-start]')?.addEventListener('click', () => {
+    finish({ restoreFocus: false });
+    startHelpTour();
   });
   targetDoc.body.appendChild(dialog);
   dialog.showModal();
