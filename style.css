@@ -300,7 +300,7 @@
 .st-esg-data-action-button:active { transform: none !important; box-shadow: none !important; }
 .st-esg-data-action-button:focus:not(:focus-visible) { outline: none !important; box-shadow: none !important; }
 
-.st-esg-data-details { margin-top: 22px; padding: 14px; overflow: hidden; border: 1px solid var(--esg-border); border-radius: 12px; background: var(--esg-bg-card); }
+.st-esg-data-details { margin-top: 22px; padding: 14px; overflow: hidden; border: 1px solid var(--esg-border); border-radius: 12px; background: var(--esg-bg-card); font-size: 12px; line-height: 1.35; }
 .st-esg-data-section-heading { display: grid; gap: 3px; margin: 0 2px 9px; }
 .st-esg-data-section-heading strong { font-size: 13px; }
 .st-esg-data-section-heading span { color: var(--esg-text-muted); font-size: 10px; line-height: 1.4; }
@@ -338,6 +338,7 @@
 .st-esg-data-orphan-cleanup > div { display: grid; gap: 2px; min-width: 0; }
 .st-esg-data-orphan-cleanup span { color: var(--esg-text-muted); font-size: 10px; }
 .st-esg-data-orphan-cleanup .menu_button { display: inline-flex !important; flex-direction: row !important; width: auto !important; min-width: 110px; white-space: nowrap !important; writing-mode: horizontal-tb !important; }
+.st-esg-data-details .menu_button { font-size: 11px !important; }
 
 @media (max-width: 520px) {
   .st-esg-data-management-dialog { padding: max(10px, env(safe-area-inset-top)) 8px max(10px, env(safe-area-inset-bottom)); }
@@ -1599,6 +1600,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-task-components-help { margin-top: 6px; color: var(--esg-text-muted); font-size: 11px; line-height: 1.35; }
 .st-esg-task-components-help code { color: var(--esg-text-main); font-family: var(--mainFontFamily, monospace); }
 .st-esg-output-protocol-details { margin-top: 0; }
+.st-esg-output-protocol-help { margin: 0; line-height: 1.4; }
 .st-esg-output-protocol-toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .st-esg-preset-select-row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; }
 .st-esg-preset-select-field { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px; min-width: 0; }

@@ -63,3 +63,7 @@ test('runtime data management entry is a single row without duplicate descriptio
   assert.doesNotMatch(indexSource, /查看插件占用，清空整类数据，或处理隐藏归属记录。/);
   assert.doesNotMatch(styleSource, /\.st-esg-data-entry-card\s*\{[^}]*flex-direction:\s*column;/s);
 });
+
+test('detailed data management content uses compact typography', () => {
+  assert.match(styleSource, /\.st-esg-data-details\s*\{[^}]*font-size:\s*12px;/s);
+});

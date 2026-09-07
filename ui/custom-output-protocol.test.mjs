@@ -35,14 +35,15 @@ test('protocol controls use scoped task-page styling', () => {
   assert.match(styleSource, /#st-esg-output-protocol-text/);
 });
 
-test('renders tail constraints as the final task-page disclosure without duplicating help copy', () => {
+test('renders tail constraints as the final task-page disclosure with only non-duplicated notes', () => {
   assert.match(indexSource, /className = 'st-esg-card st-esg-collapsible st-esg-output-protocol-details'/);
   assert.match(indexSource, /<summary class="st-esg-collapsible-summary">尾部格式约束<\/summary>/);
-  assert.doesNotMatch(indexSource, /st-esg-output-protocol-help/);
+  assert.match(indexSource, /st-esg-output-protocol-help">留空则不插入；此处设置不随任务方案保存。/);
+  assert.doesNotMatch(indexSource, /assistant 预填充错误/);
   assert.match(indexSource, /taskPanel\.appendChild\(outputProtocolDetails\)/);
 });
 
-test('keeps other task-page descriptions scoped when duplicate tail help is absent', () => {
+test('keeps other task-page descriptions scoped while retaining the concise tail note', () => {
   assert.match(indexSource, /\[data-tab-panel="task"\] > \.st-esg-card:not\(\.st-esg-output-protocol-details\) \.st-esg-card-desc/);
   assert.doesNotMatch(
     indexSource,

@@ -166,7 +166,7 @@ import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCl
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.2.3';
-const UI_ASSET_REVISION = 'help-tour-2026090806';
+const UI_ASSET_REVISION = 'help-tour-2026090807';
 const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置组件生成器';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
@@ -8365,6 +8365,7 @@ function renderPluginPanel() {
     outputProtocolDetails.innerHTML = `
       <summary class="st-esg-collapsible-summary">尾部格式约束</summary>
       <div class="st-esg-collapsible-body">
+        <div class="st-esg-card-desc st-esg-output-protocol-help">留空则不插入；此处设置不随任务方案保存。</div>
       <div class="st-esg-output-protocol-toolbar">
         <div id="st-esg-output-protocol-mode" class="st-esg-output-protocol-mode" role="group" aria-label="输出协议模式">
           <button type="button" class="st-esg-output-protocol-mode-button" data-output-protocol-mode="standard">普通模式</button>
