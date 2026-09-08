@@ -140,8 +140,8 @@
   font-family: inherit !important;
 }
 
-/* Keep Tavern beautifications from decorating extension-owned buttons. */
-:is(#st-esg-dialog, .st-esg-scheme-name-dialog, .st-esg-anchor-preview-dialog, .st-esg-api-additional-dialog, .st-esg-data-management-dialog, .st-esg-message-floor-panel) :where(button) {
+/* Keep Tavern beautifications from decorating extension-owned controls. */
+:is(#st-esg-dialog, .st-esg-scheme-name-dialog, .st-esg-anchor-preview-dialog, .st-esg-api-additional-dialog, .st-esg-data-management-dialog, .st-esg-message-floor-panel) :where(button, .menu_button, [role="button"]) {
   appearance: none !important;
   -webkit-appearance: none !important;
   background-image: none !important;
@@ -154,6 +154,50 @@
   text-transform: none !important;
   letter-spacing: normal !important;
   -webkit-text-fill-color: currentColor !important;
+}
+
+:is(#st-esg-dialog, .st-esg-scheme-name-dialog, .st-esg-anchor-preview-dialog, .st-esg-api-additional-dialog, .st-esg-data-management-dialog, .st-esg-message-floor-panel) :where(button, .menu_button, [role="button"]) > :where(i, .fa-solid, .fa-regular) {
+  color: currentColor !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+:is(#st-esg-dialog, .st-esg-scheme-name-dialog, .st-esg-anchor-preview-dialog, .st-esg-api-additional-dialog, .st-esg-data-management-dialog, .st-esg-message-floor-panel) .menu_button::before,
+:is(#st-esg-dialog, .st-esg-scheme-name-dialog, .st-esg-anchor-preview-dialog, .st-esg-api-additional-dialog, .st-esg-data-management-dialog, .st-esg-message-floor-panel) .menu_button::after,
+:is(#st-esg-dialog, .st-esg-scheme-name-dialog, .st-esg-anchor-preview-dialog, .st-esg-api-additional-dialog, .st-esg-data-management-dialog, .st-esg-message-floor-panel) .menu_button > :where(i, .fa-solid, .fa-regular)::before,
+:is(#st-esg-dialog, .st-esg-scheme-name-dialog, .st-esg-anchor-preview-dialog, .st-esg-api-additional-dialog, .st-esg-data-management-dialog, .st-esg-message-floor-panel) .menu_button > :where(i, .fa-solid, .fa-regular)::after {
+  color: currentColor !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+:is(#st-esg-dialog, .st-esg-scheme-name-dialog, .st-esg-anchor-preview-dialog, .st-esg-api-additional-dialog, .st-esg-data-management-dialog, .st-esg-message-floor-panel) .menu_button > span:not(.st-esg-worldbook-switch-thumb) {
+  color: inherit !important;
+  text-shadow: none !important;
+  filter: none !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+#st-esg-dialog :where(input, textarea)::placeholder {
+  color: var(--esg-text-muted) !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+  -webkit-text-fill-color: var(--esg-text-muted) !important;
+}
+
+#st-esg-dialog :where(input:not([type="checkbox"]):not([type="radio"]), textarea, select) {
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+  -webkit-text-fill-color: var(--esg-text-main) !important;
 }
 
 .st-esg-dialog .menu_button,
@@ -462,6 +506,15 @@
   border-radius: 10px !important;
   color: var(--esg-text-main);
   cursor: pointer;
+}
+
+#st-esg-close {
+  padding: 0 !important;
+  border: 0 !important;
+  color: var(--esg-text-main) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
 }
 
 .st-esg-header-btn { margin-left: auto; }
@@ -1611,7 +1664,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 .st-esg-history-tag-rule-item { grid-template-columns: auto minmax(0, 1fr) auto auto; }
 .st-esg-history-rule-keep { display: inline-flex !important; flex-direction: row !important; align-items: center; gap: 3px; white-space: nowrap; color: var(--esg-text-muted); font-size: 10px; }
 .st-esg-history-rule-keep input.text_pole { box-sizing: border-box; width: 42px !important; min-width: 42px; max-width: 42px; height: 26px !important; min-height: 26px !important; padding: 1px 3px !important; text-align: center; }
-.st-esg-tag-rule-item code { overflow: hidden; color: var(--esg-text-muted); font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.st-esg-tag-rule-item code { overflow: hidden; padding: 0 !important; border: 0 !important; color: var(--esg-text-muted) !important; background: transparent !important; box-shadow: none !important; text-shadow: none !important; font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace); font-size: 10px !important; font-style: normal !important; font-weight: 400 !important; text-overflow: ellipsis; white-space: nowrap; -webkit-text-fill-color: var(--esg-text-muted) !important; }
 .st-esg-tag-rule-kind { color: var(--esg-text-main); font-size: 9px; font-weight: 650; }
 .st-esg-tag-rule-delete { width: 22px !important; min-width: 22px !important; min-height: 22px !important; padding: 0 !important; border-radius: 4px !important; color: var(--esg-text-muted); background: transparent !important; }
 .st-esg-tag-rule-delete:hover { color: #FF453A; background: var(--esg-bg-hover) !important; }
@@ -1632,8 +1685,8 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   overflow-y: auto;
   resize: vertical;
 }
-.st-esg-task-components-help { margin-top: 6px; color: var(--esg-text-muted); font-size: 11px; line-height: 1.35; }
-.st-esg-task-components-help code { color: var(--esg-text-main); font-family: var(--mainFontFamily, monospace); }
+.st-esg-task-components-help { margin-top: 6px; color: var(--esg-text-muted) !important; font-size: 11px; line-height: 1.35; text-shadow: none !important; -webkit-text-fill-color: var(--esg-text-muted) !important; }
+.st-esg-task-components-help code { padding: 0 !important; border: 0 !important; color: var(--esg-text-main) !important; background: transparent !important; box-shadow: none !important; text-shadow: none !important; font-family: var(--mainFontFamily, monospace); font-size: inherit !important; font-style: normal !important; font-weight: inherit !important; -webkit-text-fill-color: var(--esg-text-main) !important; }
 .st-esg-output-protocol-details { margin-top: 0; }
 .st-esg-output-protocol-help { margin: 0; line-height: 1.4; }
 .st-esg-output-protocol-toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
@@ -1805,7 +1858,7 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
   }
   .st-esg-tag-rule-head { font-size: 11px; }
   .st-esg-tag-rule-item { min-height: 23px; padding: 2px 4px; }
-  .st-esg-tag-rule-item code { font-size: 9px; }
+  .st-esg-tag-rule-item code { font-size: 9px !important; }
   .st-esg-tag-rule-kind { font-size: 8px; }
   .st-esg-tag-rule-delete { width: 20px !important; min-width: 20px !important; min-height: 20px !important; }
   .st-esg-tag-rule-add { grid-template-columns: 54px minmax(0, 1fr) auto; gap: 3px; }

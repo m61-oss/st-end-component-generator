@@ -69,7 +69,7 @@ test('tavern-following dialogs force inherited translucent colors to opaque surf
 test('extension-owned buttons isolate decorative styles from tavern beautifications', async () => {
   const styleSource = await readFile(new URL('../style.css', import.meta.url), 'utf8');
 
-  assert.match(styleSource, /:is\(#st-esg-dialog,\s*\.st-esg-scheme-name-dialog,\s*\.st-esg-anchor-preview-dialog,\s*\.st-esg-api-additional-dialog,\s*\.st-esg-data-management-dialog,\s*\.st-esg-message-floor-panel\)\s*:where\(button\)/);
+  assert.match(styleSource, /:is\(#st-esg-dialog,\s*\.st-esg-scheme-name-dialog,\s*\.st-esg-anchor-preview-dialog,\s*\.st-esg-api-additional-dialog,\s*\.st-esg-data-management-dialog,\s*\.st-esg-message-floor-panel\)\s*:where\(button,\s*\.menu_button,\s*\[role="button"\]\)/);
   assert.match(styleSource, /appearance:\s*none\s*!important;/);
   assert.match(styleSource, /background-image:\s*none\s*!important;/);
   assert.match(styleSource, /border-image:\s*none\s*!important;/);
@@ -79,4 +79,18 @@ test('extension-owned buttons isolate decorative styles from tavern beautificati
   assert.match(styleSource, /filter:\s*none\s*!important;/);
   assert.match(styleSource, /text-transform:\s*none\s*!important;/);
   assert.match(styleSource, /letter-spacing:\s*normal\s*!important;/);
+});
+
+test('non-button actions, icons, code hints, and placeholders keep plugin styling', async () => {
+  const styleSource = await readFile(new URL('../style.css', import.meta.url), 'utf8');
+
+  assert.match(styleSource, /:where\(button,\s*\.menu_button,\s*\[role="button"\]\)/);
+  assert.match(styleSource, /:where\(button,\s*\.menu_button,\s*\[role="button"\]\)\s*>\s*:where\(i,\s*\.fa-solid,\s*\.fa-regular\)/);
+  assert.match(styleSource, /\.menu_button::before,[\s\S]*?\.menu_button\s*>\s*:where\(i,\s*\.fa-solid,\s*\.fa-regular\)::before[\s\S]*?background:\s*transparent\s*!important;[\s\S]*?text-shadow:\s*none\s*!important;/);
+  assert.match(styleSource, /\.menu_button\s*>\s*span:not\(\.st-esg-worldbook-switch-thumb\)\s*\{[\s\S]*?color:\s*inherit\s*!important;/);
+  assert.match(styleSource, /#st-esg-close\s*\{[\s\S]*?color:\s*var\(--esg-text-main\)\s*!important;[\s\S]*?background:\s*transparent\s*!important;/);
+  assert.match(styleSource, /#st-esg-dialog\s*:where\(input,\s*textarea\)::placeholder\s*\{[\s\S]*?color:\s*var\(--esg-text-muted\)\s*!important;[\s\S]*?opacity:\s*1\s*!important;/);
+  assert.match(styleSource, /\.st-esg-task-components-help\s*\{[\s\S]*?color:\s*var\(--esg-text-muted\)\s*!important;/);
+  assert.match(styleSource, /\.st-esg-task-components-help code\s*\{[\s\S]*?color:\s*var\(--esg-text-main\)\s*!important;[\s\S]*?background:\s*transparent\s*!important;[\s\S]*?font-size:\s*inherit\s*!important;/);
+  assert.match(styleSource, /\.st-esg-tag-rule-item code\s*\{[\s\S]*?color:\s*var\(--esg-text-muted\)\s*!important;[\s\S]*?background:\s*transparent\s*!important;[\s\S]*?font-size:\s*10px\s*!important;/);
 });
