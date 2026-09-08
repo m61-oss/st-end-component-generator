@@ -140,6 +140,22 @@
   font-family: inherit !important;
 }
 
+/* Keep Tavern beautifications from decorating extension-owned buttons. */
+:is(#st-esg-dialog, .st-esg-scheme-name-dialog, .st-esg-anchor-preview-dialog, .st-esg-api-additional-dialog, .st-esg-data-management-dialog, .st-esg-message-floor-panel) :where(button) {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background-image: none !important;
+  border-image: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
 .st-esg-dialog .menu_button,
 .st-esg-scheme-name-dialog .menu_button {
   font-size: var(--st-esg-control-font-size) !important;
