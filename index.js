@@ -5083,6 +5083,7 @@ function ensureComponentLibraryEnhancements() {
   if (manualCard.length && !$t('#st-esg-component-target-library').length) {
     const scopeLabel = $t('#st-esg-component-scope').closest('label');
     scopeLabel.before('<label>添加到<select id="st-esg-component-target-library" class="text_pole"><option value="components">组件库</option><option value="theater">小剧场库</option></select></label>');
+    scopeLabel.after('<label class="st-esg-import-target-group-label">目标分组<select id="st-esg-component-target-group" class="text_pole"></select></label>');
   }
   [
     ['#st-esg-import-target-scope', 'st-esg-import-target-library', 'st-esg-import-target-group'],
@@ -5108,12 +5109,24 @@ function renderImportTargetGroupOptions(sourceType = 'preset') {
   select.val(groups.some((group) => group.id === selectedId) ? selectedId : '');
 }
 
+function renderManualTargetGroupOptions() {
+  const select = $t('#st-esg-component-target-group');
+  if (!select.length) return;
+  const library = textOf($t('#st-esg-component-target-library').val()) || 'components';
+  const scope = textOf($t('#st-esg-component-scope').val()) || COMPONENT_SCOPE_GLOBAL;
+  const selectedId = textOf(select.val());
+  const groups = listImportTargetGroups({ library, scope, componentGroups: settings.componentGroups, theaterGroups: settings.theaterGroups });
+  select.html(`<option value="">默认分组</option>${groups.map((group) => `<option value="${escapeHtml(group.id)}">${escapeHtml(group.name)}</option>`).join('')}`);
+  select.val(groups.some((group) => group.id === selectedId) ? selectedId : '');
+}
+
 function renderComponentLibraryTargetVisibility() {
   const manualTheater = textOf($t('#st-esg-component-target-library').val()) === 'theater';
   const manualScope = $t('#st-esg-component-scope');
   manualScope.closest('label').toggle(!manualTheater);
   $t('#st-esg-component-preset-scheme').closest('label').toggle(!manualTheater && manualScope.val() === COMPONENT_SCOPE_PRESET);
   $t('#st-esg-add-component span').text(manualTheater ? '添加到小剧场库' : '添加到组件库');
+  renderManualTargetGroupOptions();
   [
     ['preset', '#st-esg-import-target-library', '#st-esg-import-target-scope', '#st-esg-import-preset-scheme'],
     ['worldbook', '#st-esg-worldbook-import-target-library', '#st-esg-worldbook-import-target-scope', '#st-esg-worldbook-import-preset-scheme'],
@@ -5479,21 +5492,28 @@ function renderTheaterLibrary() {
 function addComponent() {
   const name = textOf($t('#st-esg-component-name').val());
   const targetLibrary = textOf($t('#st-esg-component-target-library').val()) || 'components';
+  const scope = textOf($t('#st-esg-component-scope').val()) || COMPONENT_SCOPE_GLOBAL;
+  const targetGroupId = resolveImportTargetGroupId({
+    library: targetLibrary,
+    scope,
+    groupId: $t('#st-esg-component-target-group').val(),
+    componentGroups: settings.componentGroups,
+    theaterGroups: settings.theaterGroups,
+  });
   if (targetLibrary === 'theater') {
     const content = textOf($t('#st-esg-component-content').val());
     if (!content) { setStatus('小剧场内容不能为空。'); return; }
-    settings.theaterComponents.push({ id: createNewTheaterId(), name: name || '未命名小剧场', content, enabled: true, groupId: '', sourceType: '手动' });
+    settings.theaterComponents.push({ id: createNewTheaterId(), name: name || '未命名小剧场', content, enabled: true, groupId: targetGroupId, sourceType: '手动' });
     $t('#st-esg-component-name').val(''); $t('#st-esg-component-content').val('');
     saveSettings(); renderComponentList(); setStatus('已添加到小剧场库。');
     return;
   }
-  const scope = textOf($t('#st-esg-component-scope').val()) || COMPONENT_SCOPE_GLOBAL;
   const presetSchemeId = scope === COMPONENT_SCOPE_PRESET ? textOf($t('#st-esg-component-preset-scheme').val()) : '';
   const content = textOf($t('#st-esg-component-content').val());
   if (!content) { setStatus('组件内容不能为空。'); return; }
   if (scope === COMPONENT_SCOPE_PRESET && !getPresetSchemeById(presetSchemeId)) { notifyStatus('请先选择要绑定的预设方案。', 'warning'); return; }
   const presetScheme = getPresetSchemeById(presetSchemeId);
-  settings.components.push({ id: createNewComponentId(), name: name || '未命名组件', scope, presetSchemeId, bindName: scope === COMPONENT_SCOPE_PRESET ? presetScheme.name : getComponentBindingName(scope, targetWindow, getContext()), content, enabled: true, sourceType: '手动', groupId: '' });
+  settings.components.push({ id: createNewComponentId(), name: name || '未命名组件', scope, presetSchemeId, bindName: scope === COMPONENT_SCOPE_PRESET ? presetScheme.name : getComponentBindingName(scope, targetWindow, getContext()), content, enabled: true, sourceType: '手动', groupId: targetGroupId });
   $t('#st-esg-component-name').val(''); $t('#st-esg-component-content').val('');
   saveSettings(); renderComponentList(); setStatus('已添加组件。');
 }

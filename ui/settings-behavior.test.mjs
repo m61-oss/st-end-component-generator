@@ -32,6 +32,17 @@ test('source import chooses a valid target group for both component libraries', 
   assert.match(styleSource, /\.st-esg-import-target-container\s*\{[^}]*flex-wrap:\s*wrap;/s);
 });
 
+test('manual component creation chooses a valid target group for both libraries', () => {
+  assert.match(indexSource, /id="st-esg-component-target-group"/);
+  assert.match(indexSource, /function renderManualTargetGroupOptions/);
+  assert.match(indexSource, /#st-esg-component-target-library[^\n]+renderComponentLibraryTargetVisibility/);
+  assert.match(indexSource, /#st-esg-component-scope[^\n]+renderPresetBindingControls/);
+  const addSource = functionSource('addComponent', 'getImportTarget');
+  assert.match(addSource, /resolveImportTargetGroupId\(\{/);
+  assert.match(addSource, /groupId:\s*targetGroupId/);
+  assert.doesNotMatch(addSource, /groupId:\s*''/);
+});
+
 test('preset deletion confirmation warns that bound components are removed too', () => {
   const source = functionSource('handleSchemeAction', 'loadGenerationHistoryEntry');
   assert.match(source, /boundComponentCount/);
