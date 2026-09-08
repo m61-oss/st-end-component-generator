@@ -98,6 +98,6 @@ test('tour keeps one coachmark position and teaches task and tail-message flow',
 test('guided-tour assets use a cache revision independent from the package version', () => {
   assert.match(indexSource, /const UI_ASSET_REVISION = 'help-tour-\d+'/);
   assert.match(indexSource, /style\.css\?ver=\$\{EXTENSION_VERSION\}&rev=\$\{UI_ASSET_REVISION\}/);
-  assert.match(indexSource, /help-guide\.js\?ver=0\.2\.3-help-tour-\d+/);
-  assert.match(indexSource, /help-tour\.js\?ver=0\.2\.3-help-tour-\d+/);
+  assert.match(indexSource, /help-guide\.js\?ver=0\.2\.4-help-tour-\d+/);
+  assert.match(indexSource, /help-tour\.js\?ver=0\.2\.4-help-tour-\d+/);
 });

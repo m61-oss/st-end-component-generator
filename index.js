@@ -19,41 +19,41 @@ import {
   normalizeComponent,
   normalizeComponentIds,
   normalizeComponentScope,
-} from './sources/component-sources.js?ver=0.2.3';
-import { applyComponentPositionMove } from './sources/component-order.js?ver=0.2.3';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.2.3';
-import { containsStatusPlaceholder, injectStatusbarText, normalizeStatusPlaceholder, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.2.3';
-import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.2.3';
-import { applyMultiTaskInjection, undoMultiTaskInjection } from './injection/multi-task-injection.js?ver=0.2.3';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics, stripInternalMessageFields } from './generation/prompt-builder.js?ver=0.2.3';
-import { ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, OUTPUT_PROTOCOL_SYSTEM_PROMPT } from './generation/output-protocol.js?ver=0.2.3';
-import { normalizeGeneratedResult } from './generation/output-result.js?ver=0.2.3';
-import { applyAnchorInsertions, buildAnchorPreviewSegments, isAnchorInsertionEnabled, locateAnchorInsertions } from './injection/anchor-insertion.js?ver=0.2.3';
-import { normalizeStreamOutputPreview } from './generation/stream-output-preview.js?ver=0.2.3';
-import { composeTaskInstruction } from './generation/task-instruction.js?ver=0.2.3';
-import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.2.3';
-import { renderPromptTemplate } from './generation/template-compat.js?ver=0.2.3';
-import { replaceTavernHelperMacrosInMessages } from './generation/tavern-helper-macros.js?ver=0.2.3';
-import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.2.3';
-import { applyAnimaWorldbookOverrides, captureAnimaWorldbookEntries, captureAnimaWorldbookUntil, filterAnimaWorldbookEntries, getAnimaChatId, mergeAnimaWorldbookSnapshots, readLatestAnimaStatus, shouldClearAnimaSnapshotForChat } from './sources/anima-memory.js?ver=0.2.3';
-import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './generation/prompt-log.js?ver=0.2.3';
+} from './sources/component-sources.js?ver=0.2.4';
+import { applyComponentPositionMove } from './sources/component-order.js?ver=0.2.4';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.2.4';
+import { containsStatusPlaceholder, injectStatusbarText, normalizeStatusPlaceholder, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.2.4';
+import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.2.4';
+import { applyMultiTaskInjection, undoMultiTaskInjection } from './injection/multi-task-injection.js?ver=0.2.4';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics, stripInternalMessageFields } from './generation/prompt-builder.js?ver=0.2.4';
+import { ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, OUTPUT_PROTOCOL_SYSTEM_PROMPT } from './generation/output-protocol.js?ver=0.2.4';
+import { normalizeGeneratedResult } from './generation/output-result.js?ver=0.2.4';
+import { applyAnchorInsertions, buildAnchorPreviewSegments, isAnchorInsertionEnabled, locateAnchorInsertions } from './injection/anchor-insertion.js?ver=0.2.4';
+import { normalizeStreamOutputPreview } from './generation/stream-output-preview.js?ver=0.2.4';
+import { composeTaskInstruction } from './generation/task-instruction.js?ver=0.2.4';
+import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.2.4';
+import { renderPromptTemplate } from './generation/template-compat.js?ver=0.2.4';
+import { replaceTavernHelperMacrosInMessages } from './generation/tavern-helper-macros.js?ver=0.2.4';
+import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.2.4';
+import { applyAnimaWorldbookOverrides, captureAnimaWorldbookEntries, captureAnimaWorldbookUntil, filterAnimaWorldbookEntries, getAnimaChatId, mergeAnimaWorldbookSnapshots, readLatestAnimaStatus, shouldClearAnimaSnapshotForChat } from './sources/anima-memory.js?ver=0.2.4';
+import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './generation/prompt-log.js?ver=0.2.4';
 import {
   clearImportSelectionsForScope,
   collectSelectedPromptSourceItems,
   normalizePromptSourceType,
   syncPromptSelectionsFromGroups,
-} from './sources/source-selection.js?ver=0.2.3';
-import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hydrateTavernWorldbookSelections, isWorldbookSchemeSnapshotUsable, normalizeSchemeList, resolveWorldbookPromptSelectionsForLoad, saveScheme } from './settings/scheme-utils.js?ver=0.2.3';
-import { applyComponentSchemeSnapshot, captureComponentSchemeSnapshot } from './settings/component-schemes.js?ver=0.2.3';
-import { readOpenAiStream } from './api/stream-utils.js?ver=0.2.3';
-import { normalizeApiRetryCount, withApiRetries } from './api/api-retry.js?ver=0.2.3';
-import { stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.2.3';
-import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.2.3';
-import { getWorldbookGenerationIssue, getWorldbookRawName, reconcileWorldbookEntryRecords, removeWorldbookEntryRecord, removeWorldbookSourceRecords } from './sources/worldbook-identity.js?ver=0.2.3';
-import { reconcilePresetEntryRecords, reconcilePresetSchemeRecords } from './sources/preset-identity.js?ver=0.2.3';
-import { getWorldInfoSettings } from '../../../world-info.js?ver=0.2.3';
-import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.2.3';
-import { getNotificationMethod } from './ui/notification-utils.js?ver=0.2.3';
+} from './sources/source-selection.js?ver=0.2.4';
+import { captureSchemeSnapshot, deleteScheme, findScheme, getWorldbookSchemeSourceNames, hydrateTavernWorldbookSelections, isWorldbookSchemeSnapshotUsable, normalizeSchemeList, resolveWorldbookPromptSelectionsForLoad, saveScheme } from './settings/scheme-utils.js?ver=0.2.4';
+import { applyComponentSchemeSnapshot, captureComponentSchemeSnapshot } from './settings/component-schemes.js?ver=0.2.4';
+import { readOpenAiStream } from './api/stream-utils.js?ver=0.2.4';
+import { normalizeApiRetryCount, withApiRetries } from './api/api-retry.js?ver=0.2.4';
+import { stripConfiguredBlocks } from './injection/tag-rules.js?ver=0.2.4';
+import { filterWorldbookPromptItems, normalizeWorldbookActivationMode, splitWorldbookKeywords } from './sources/worldbook-scan.js?ver=0.2.4';
+import { getWorldbookGenerationIssue, getWorldbookRawName, reconcileWorldbookEntryRecords, removeWorldbookEntryRecord, removeWorldbookSourceRecords } from './sources/worldbook-identity.js?ver=0.2.4';
+import { reconcilePresetEntryRecords, reconcilePresetSchemeRecords } from './sources/preset-identity.js?ver=0.2.4';
+import { getWorldInfoSettings } from '../../../world-info.js?ver=0.2.4';
+import { createGenerationErrorRecord, markGenerationResponseError } from './generation/generation-error.js?ver=0.2.4';
+import { getNotificationMethod } from './ui/notification-utils.js?ver=0.2.4';
 import {
   FLOOR_PANEL_STATUS,
   canEditFloorPanelResult,
@@ -68,9 +68,9 @@ import {
   isFloorPanelTargetAddressable,
   nextFloorPanelGeneration,
   scopeMultiTaskFloorPanelSettings,
-} from './ui/message-floor-panel.js?ver=0.2.3';
-import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.2.3';
-import { loadGenerationHistory, recordGenerationResult, updateGenerationHistoryEntry } from './generation/generation-history.js?ver=0.2.3';
+} from './ui/message-floor-panel.js?ver=0.2.4';
+import { getGenerationConflictAction } from './generation/generation-entry.js?ver=0.2.4';
+import { loadGenerationHistory, recordGenerationResult, updateGenerationHistoryEntry } from './generation/generation-history.js?ver=0.2.4';
 import {
   MULTI_TASK_INJECTION_ORDER_TASK,
   MULTI_TASK_STATUS,
@@ -82,12 +82,12 @@ import {
   renameMultiTask,
   selectMultiTask,
   setMultiTaskBatchEnabled,
-} from './generation/multi-task-state.js?ver=0.2.3';
-import { createMultiTaskRunPlan, runMultiTaskQueue } from './generation/multi-task-runner.js?ver=0.2.3';
-import { createMultiTaskInjectionQueue } from './generation/multi-task-injection-queue.js?ver=0.2.3';
-import { canEnqueueTaskAutoInjection, createTaskOrderInjectionCoordinator } from './generation/multi-task-auto-injection.js?ver=0.2.3';
-import { resolveMultiTaskRuntimeSettings } from './generation/multi-task-runtime.js?ver=0.2.3';
-import { renderGenerationModeSwitch, renderMultiTaskWorkspace } from './ui/multi-task-workspace.js?ver=0.2.3';
+} from './generation/multi-task-state.js?ver=0.2.4';
+import { createMultiTaskRunPlan, runMultiTaskQueue } from './generation/multi-task-runner.js?ver=0.2.4';
+import { createMultiTaskInjectionQueue } from './generation/multi-task-injection-queue.js?ver=0.2.4';
+import { canEnqueueTaskAutoInjection, createTaskOrderInjectionCoordinator } from './generation/multi-task-auto-injection.js?ver=0.2.4';
+import { resolveMultiTaskRuntimeSettings } from './generation/multi-task-runtime.js?ver=0.2.4';
+import { renderGenerationModeSwitch, renderMultiTaskWorkspace } from './ui/multi-task-workspace.js?ver=0.2.4';
 import {
   THEATER_DEFAULT_GROUP_ID,
   THEATER_RANDOM_MODE_ALL,
@@ -101,7 +101,7 @@ import {
   normalizeTheaterRandomMode,
   normalizeTheaterRandomScope,
   selectTheaterComponents,
-} from './sources/theater-library.js?ver=0.2.3';
+} from './sources/theater-library.js?ver=0.2.4';
 import {
   captureAutomaticAssistantTarget,
   captureAutomaticGenerationBaseline,
@@ -112,32 +112,32 @@ import {
   describeAutomaticGenerationTriggerMismatch,
   resolveAutomaticGenerationTriggerState,
   resolveReadyAutomaticAssistantTarget,
-} from './generation/auto-generation-trigger.js?ver=0.2.3';
-import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.2.3';
-import { hasFloatingBallDragStarted, resolveFloatingBallDock } from './ui/floating-ball-gesture.js?ver=0.2.3';
-import { normalizeFloatingBallVisualState, resolveFloatingBallRenderedState, resolveMultiTaskFloatingBallVisualState } from './ui/floating-ball-state.js?ver=0.2.3';
-import { isFloatingBallExternallyManaged, markFloatingBallCompatible } from './ui/floating-ball-compat.js?ver=0.2.3';
-import { renderBrandMark } from './ui/brand-mark.js?ver=0.2.3';
-import { getGenerationInjectionModeHelp } from './ui/generation-settings.js?ver=0.2.3';
-import { getThemeClassName, getThemePresentation, nextThemeMode, normalizeThemeMode } from './ui/theme-mode.js?ver=0.2.3';
+} from './generation/auto-generation-trigger.js?ver=0.2.4';
+import { resolveFloatingBallPosition } from './ui/floating-ball-position.js?ver=0.2.4';
+import { hasFloatingBallDragStarted, resolveFloatingBallDock } from './ui/floating-ball-gesture.js?ver=0.2.4';
+import { normalizeFloatingBallVisualState, resolveFloatingBallRenderedState, resolveMultiTaskFloatingBallVisualState } from './ui/floating-ball-state.js?ver=0.2.4';
+import { isFloatingBallExternallyManaged, markFloatingBallCompatible } from './ui/floating-ball-compat.js?ver=0.2.4';
+import { renderBrandMark } from './ui/brand-mark.js?ver=0.2.4';
+import { getGenerationInjectionModeHelp } from './ui/generation-settings.js?ver=0.2.4';
+import { getThemeClassName, getThemePresentation, nextThemeMode, normalizeThemeMode } from './ui/theme-mode.js?ver=0.2.4';
 import {
   buildApiRequestParts,
   parseApiAdditionalParameters,
   parseApiNumericSettings,
   serializeRequestHeadersYaml,
-} from './api/api-request-parameters.js?ver=0.2.3';
+} from './api/api-request-parameters.js?ver=0.2.4';
 import {
   createPromptSourceCacheState,
   loadWorldbookSourceGroups,
   markPromptSourceStructureDirty,
   markWorldbookSourceDirty,
   takeDirtyWorldbookSources,
-} from './sources/prompt-source-cache.js?ver=0.2.3';
-import { TASK_PLACEMENT_AFTER_CHAT_HISTORY, resolveTaskPlacementSelection } from './settings/task-placement.js?ver=0.2.3';
-import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.2.3';
-import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.2.3';
-import { renderHelpGuide } from './ui/help-guide.js?ver=0.2.3-help-tour-2026090805';
-import { HELP_TOUR_STEPS, renderHelpTour } from './ui/help-tour.js?ver=0.2.3-help-tour-2026090805';
+} from './sources/prompt-source-cache.js?ver=0.2.4';
+import { TASK_PLACEMENT_AFTER_CHAT_HISTORY, resolveTaskPlacementSelection } from './settings/task-placement.js?ver=0.2.4';
+import { createStreamPreviewController } from './ui/stream-preview.js?ver=0.2.4';
+import { getPreviewLayout, isPreviewNearBottom } from './ui/preview-sizing.js?ver=0.2.4';
+import { renderHelpGuide } from './ui/help-guide.js?ver=0.2.4-help-tour-2026090805';
+import { HELP_TOUR_STEPS, renderHelpTour } from './ui/help-tour.js?ver=0.2.4-help-tour-2026090805';
 import {
   WORLDBOOK_RUNTIME_DRAFT,
   WORLDBOOK_RUNTIME_NATIVE,
@@ -146,11 +146,11 @@ import {
   isWorldbookSourceEnabled,
   resolveWorldbookEntryRuntimeState,
   resolveWorldbookSourceDisplayCategory,
-} from './sources/worldbook-runtime-state.js?ver=0.2.3';
-import { buildLibraryExportFilename, createLibraryExportPackage, importLibraryPackage, toggleLibraryExportSelection } from './sources/library-transfer.js?ver=0.2.3';
-import { listImportTargetGroups, resolveImportTargetGroupId } from './sources/import-target-groups.js?ver=0.2.3';
-import { buildEditedPresetExport, buildPresetExportFilename, getNativeTavernPreset } from './sources/preset-export.js?ver=0.2.3';
-import { resolveTavernProfile } from './generation/tavern-profile.js?ver=0.2.3';
+} from './sources/worldbook-runtime-state.js?ver=0.2.4';
+import { buildLibraryExportFilename, createLibraryExportPackage, importLibraryPackage, toggleLibraryExportSelection } from './sources/library-transfer.js?ver=0.2.4';
+import { listImportTargetGroups, resolveImportTargetGroupId } from './sources/import-target-groups.js?ver=0.2.4';
+import { buildEditedPresetExport, buildPresetExportFilename, getNativeTavernPreset } from './sources/preset-export.js?ver=0.2.4';
+import { resolveTavernProfile } from './generation/tavern-profile.js?ver=0.2.4';
 import {
   cancelChatBindingIndex,
   getChatWorldbookSchemeId,
@@ -158,14 +158,14 @@ import {
   resolveChatBinding,
   setChatWorldbookSchemeId,
   upsertChatBindingIndex,
-} from './settings/chat-worldbook-binding.js?ver=0.2.3';
-import { applyMultiTaskSchemeSnapshot, captureMultiTaskSchemeSnapshot } from './settings/multi-task-schemes.js?ver=0.2.3';
-import { getChatMultiTaskSchemeId, setChatMultiTaskSchemeId } from './settings/chat-multi-task-binding.js?ver=0.2.3';
-import { buildDataManagementModel, clearSettingsDataCategory, formatByteSize } from './settings/data-management.js?ver=0.2.3';
-import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCleanupImport } from './settings/tag-cleanup-transfer.js?ver=0.2.3';
+} from './settings/chat-worldbook-binding.js?ver=0.2.4';
+import { applyMultiTaskSchemeSnapshot, captureMultiTaskSchemeSnapshot } from './settings/multi-task-schemes.js?ver=0.2.4';
+import { getChatMultiTaskSchemeId, setChatMultiTaskSchemeId } from './settings/chat-multi-task-binding.js?ver=0.2.4';
+import { buildDataManagementModel, clearSettingsDataCategory, formatByteSize } from './settings/data-management.js?ver=0.2.4';
+import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCleanupImport } from './settings/tag-cleanup-transfer.js?ver=0.2.4';
 
 const EXTENSION_ID = 'st-end-component-generator';
-const EXTENSION_VERSION = '0.2.3';
+const EXTENSION_VERSION = '0.2.4';
 const UI_ASSET_REVISION = 'help-tour-2026090810';
 const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置组件生成器';
