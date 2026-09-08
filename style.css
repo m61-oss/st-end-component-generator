@@ -286,7 +286,7 @@
 }
 
 #st-esg-menu-button {
-  display: flex !important;
+  display: flex;
   align-items: center !important;
   gap: 7px !important;
 }

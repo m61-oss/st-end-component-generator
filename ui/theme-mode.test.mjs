@@ -81,6 +81,15 @@ test('extension-owned buttons isolate decorative styles from tavern beautificati
   assert.match(styleSource, /letter-spacing:\s*normal\s*!important;/);
 });
 
+test('magic-wand entry allows external menu cleaners to hide it', async () => {
+  const styleSource = await readFile(new URL('../style.css', import.meta.url), 'utf8');
+  const menuButtonRule = styleSource.match(/#st-esg-menu-button\s*\{([^}]*)\}/);
+
+  assert.ok(menuButtonRule, 'expected a style rule for the magic-wand entry');
+  assert.match(menuButtonRule[1], /display:\s*flex\s*;/);
+  assert.doesNotMatch(menuButtonRule[1], /display:\s*flex\s*!important/);
+});
+
 test('non-button actions, icons, code hints, and placeholders keep plugin styling', async () => {
   const styleSource = await readFile(new URL('../style.css', import.meta.url), 'utf8');
 
