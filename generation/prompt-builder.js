@@ -813,6 +813,11 @@ function insertTaskMessage(messages, taskMessage, taskPlacement, outputMode = 's
 
 export function stripInternalMessageFields(messages) {
   messages.forEach((message) => {
+    if (typeof message?.content === 'string') {
+      message.content = message.content
+        .replace(/^[ \t]*<StatusPlaceHolderImpl\/>[ \t]*(?:\r?\n|$)/g, '')
+        .replace(/\r?\n[ \t]*<StatusPlaceHolderImpl\/>[ \t]*(?=\r?\n|$)/g, '');
+    }
     delete message.runtimeMarkerType;
     delete message.sourceItemId;
     delete message.sourceMarkerType;

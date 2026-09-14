@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildExternalStatusbarMessages } from './prompt-builder.js';
+import { buildExternalStatusbarMessages, stripInternalMessageFields } from './prompt-builder.js';
 import { buildOutputProtocolMessage } from './output-protocol.js';
 import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from '../settings/task-placement.js';
 
@@ -173,6 +173,19 @@ test('preserves source message ids until the final outgoing-message compatibilit
   const assistantMessage = messages.find((message) => message.content === context.chat[1].mes);
 
   assert.equal(assistantMessage?.sourceMessageIndex, 1);
+});
+
+test('final outgoing-message pass removes MVU status placeholders without changing stored chat text', () => {
+  const messages = [
+    { role: 'assistant', content: '正文\n\n<StatusPlaceHolderImpl/>', sourceMessageIndex: 1 },
+    { role: 'system', content: '说明里提到 <StatusPlaceHolderImpl/>，不应作为独立占位行删除' },
+  ];
+
+  stripInternalMessageFields(messages);
+
+  assert.equal(messages[0].content, '正文\n');
+  assert.equal(messages[1].content, '说明里提到 <StatusPlaceHolderImpl/>，不应作为独立占位行删除');
+  assert.equal('sourceMessageIndex' in messages[0], false);
 });
 
 test('inserts the floor-variable snapshot immediately after its source assistant', async () => {
