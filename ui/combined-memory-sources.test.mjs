@@ -7,12 +7,14 @@ const [indexSource, styleSource] = await Promise.all([
   readFile(new URL('../style.css', import.meta.url), 'utf8'),
 ]);
 
-test('memory settings present BaiBai Book and Anima as independent grouped checkboxes', () => {
+test('memory settings present BaiBai Book, Anima, and QianQianJie as independent grouped checkboxes', () => {
   const memoryMarkup = indexSource.match(/memorySettings\.innerHTML = ([\s\S]*?);\r?\n/)?.[0] || '';
 
   assert.match(memoryMarkup, /st-esg-memory-source-group/);
   assert.match(memoryMarkup, />柏宝书</);
   assert.match(memoryMarkup, />Anima</);
+  assert.match(memoryMarkup, />千千结</);
+  assert.match(memoryMarkup, /id="st-esg-qqj-memory-enabled"/);
   assert.doesNotMatch(memoryMarkup, /type="radio"|st-esg-memory-source-none|name="st-esg-memory-source"/);
   assert.match(styleSource, /\.st-esg-memory-source-group\s*\{/);
 });
@@ -31,7 +33,24 @@ test('generation includes every checked memory capability without a source-mode 
   assert.match(indexSource, /function isAnimaWorldbookEnabled\(\)\s*\{\s*return settings\.animaWorldbookEnabled === true;/);
   assert.match(indexSource, /function isAnimaStatusVariableEnabled\(\)\s*\{\s*return settings\.animaStatusVariableEnabled === true;/);
   assert.match(indexSource, /baiBaiBook:\s*sourceSettings\.baiBaiBookHistoryEnabled \|\| sourceSettings\.baiBaiBookStateEnabled \?\s*\{/);
+  assert.match(indexSource, /qqjMemoryEnabled:\s*false/);
+  assert.match(indexSource, /sourceSettings\.qqjMemoryEnabled/);
+  assert.match(indexSource, /runtimeDiagnostics\.qqjMemory\s*=\s*\{/);
   assert.doesNotMatch(indexSource, /settings\.memorySource === 'baibai' \?/);
+});
+
+test('QianQianJie memory setting renders and saves through the existing memory panel', () => {
+  assert.match(indexSource, /#st-esg-qqj-memory-enabled[^\n]*prop\('checked',\s*settings\.qqjMemoryEnabled/);
+  assert.match(indexSource, /#st-esg-qqj-memory-enabled'\)\.on\('change'[^\n]*settings\.qqjMemoryEnabled/);
+});
+
+test('multi-task generation freezes one QianQianJie prompt snapshot for the whole batch', () => {
+  const start = indexSource.indexOf('async function generateMultiTasks');
+  const end = indexSource.indexOf('function getRequestedMultiTasks', start);
+  const source = indexSource.slice(start, end);
+
+  assert.match(source, /readQqjPromptSnapshot\(targetWindow\)/);
+  assert.match(source, /runtime\.qqjPromptSnapshot\s*=\s*qqjPromptSnapshot/);
 });
 
 test('disabling Anima worldbook capture immediately clears its snapshot', () => {

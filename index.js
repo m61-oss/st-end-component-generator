@@ -36,6 +36,7 @@ import { renderPromptTemplate } from './generation/template-compat.js?ver=0.2.4'
 import { replaceTavernHelperMacrosInMessages } from './generation/tavern-helper-macros.js?ver=0.2.4';
 import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.2.4';
 import { applyAnimaWorldbookOverrides, captureAnimaWorldbookEntries, captureAnimaWorldbookUntil, filterAnimaWorldbookEntries, getAnimaChatId, mergeAnimaWorldbookSnapshots, readLatestAnimaStatus, shouldClearAnimaSnapshotForChat } from './sources/anima-memory.js?ver=0.2.4';
+import { readQqjPromptSnapshot } from './sources/qqj-memory.js?ver=0.2.4';
 import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './generation/prompt-log.js?ver=0.2.4';
 import {
   clearImportSelectionsForScope,
@@ -269,6 +270,7 @@ const DEFAULT_SETTINGS = {
   animaWorldbookEnabled: false,
   animaStatusVariableEnabled: false,
   animaStatusAfterMessageEnabled: false,
+  qqjMemoryEnabled: false,
   ballX: null,
   ballY: null,
   ballPositionVersion: 2,
@@ -838,6 +840,7 @@ function loadSettings() {
   if (!Object.prototype.hasOwnProperty.call(storedSettings, 'animaStatusVariableEnabled')) settings.animaStatusVariableEnabled = legacyAnimaEnabled;
   settings.animaWorldbookEnabled = Boolean(settings.animaWorldbookEnabled);
   settings.animaStatusVariableEnabled = Boolean(settings.animaStatusVariableEnabled);
+  settings.qqjMemoryEnabled = Boolean(settings.qqjMemoryEnabled);
   const shouldMigrateCombinedMemorySources = settings.combinedMemorySourcesMigrated !== true;
   if (settings.combinedMemorySourcesMigrated !== true) {
     if (settings.memorySource !== 'baibai') {
@@ -2226,6 +2229,9 @@ async function buildMessages(latestMessage, sourceSettings = settings, { onDiagn
   const animaStatusMessageIndex = sourceSettings.animaStatusAfterMessageEnabled
     ? animaStatusSnapshot?.messageIndex ?? null
     : null;
+  const qqjPromptSnapshot = sourceSettings.qqjMemoryEnabled
+    ? (sourceSettings.qqjPromptSnapshot || readQqjPromptSnapshot(targetWindow))
+    : { status: 'disabled', sourceStatus: '', text: '' };
   const isTaskRuntime = sourceSettings !== settings;
   const promptSourceItems = isTaskRuntime
     ? await ensureRuntimePromptSourceItemsForGeneration(sourceSettings, { animaWorldbookEntries })
@@ -2262,6 +2268,7 @@ async function buildMessages(latestMessage, sourceSettings = settings, { onDiagn
       includeHistory: sourceSettings.baiBaiBookHistoryEnabled,
       includeState: sourceSettings.baiBaiBookStateEnabled,
       } : null,
+    qqjPromptText: qqjPromptSnapshot.text,
     outputMode,
     outputProtocol: getActiveOutputProtocolSettings(outputMode, sourceSettings),
    });
@@ -2305,6 +2312,11 @@ async function buildMessages(latestMessage, sourceSettings = settings, { onDiagn
       ? 'disabled'
       : (templateStats.changedCount > 0 ? 'rendered' : 'rendered-unchanged'),
     scope: 'allMessages',
+  };
+  runtimeDiagnostics.qqjMemory = {
+    enabled: Boolean(sourceSettings.qqjMemoryEnabled),
+    status: qqjPromptSnapshot.status,
+    sourceStatus: qqjPromptSnapshot.sourceStatus,
   };
   if (typeof onDiagnostics === 'function') onDiagnostics(runtimeDiagnostics);
   else lastRuntimeDiagnostics = runtimeDiagnostics;
@@ -3966,6 +3978,7 @@ function renderMemorySettingsUi() {
   $t('#st-esg-baibai-state-enabled').prop('checked', settings.baiBaiBookStateEnabled === true);
   $t('#st-esg-anima-worldbook-enabled').prop('checked', settings.animaWorldbookEnabled === true);
   $t('#st-esg-anima-status-enabled').prop('checked', settings.animaStatusVariableEnabled === true);
+  $t('#st-esg-qqj-memory-enabled').prop('checked', settings.qqjMemoryEnabled === true);
   $t('#st-esg-anima-status-after-message-option').toggleClass('st-esg-hidden', settings.animaStatusVariableEnabled !== true);
   $t('#st-esg-anima-status-after-message-enabled').prop('checked', settings.animaStatusAfterMessageEnabled === true);
 }
@@ -7491,10 +7504,15 @@ async function generateMultiTasks(requestedTaskIds = null) {
     messageIndex: latest.index,
     messageText: String(latest.message.mes ?? ''),
   };
+  const qqjPromptSnapshot = settings.qqjMemoryEnabled
+    ? readQqjPromptSnapshot(targetWindow)
+    : { status: 'disabled', sourceStatus: '', text: '' };
   const runtimeByTaskId = new Map();
   for (const task of tasks) {
     try {
-      runtimeByTaskId.set(task.id, resolveMultiTaskRuntimeSettings(settings, task, getMultiTaskSchemeLists()));
+      const runtime = resolveMultiTaskRuntimeSettings(settings, task, getMultiTaskSchemeLists());
+      runtime.qqjPromptSnapshot = qqjPromptSnapshot;
+      runtimeByTaskId.set(task.id, runtime);
     } catch (error) {
       logAutomaticGenerationStage('multi-task-error', `${task.name}；配置解析失败：${error?.message || '未知错误'}`);
       replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.ERROR, error: serializeMultiTaskError(error) });
@@ -8464,7 +8482,7 @@ function renderPluginPanel() {
     const legacyMemorySection = promptSettings.querySelector('.st-esg-prompt-settings-section');
     const memorySettings = targetDoc.createElement('details');
     memorySettings.className = 'st-esg-card st-esg-collapsible st-esg-memory-settings';
-    memorySettings.innerHTML = '<summary class="st-esg-collapsible-summary">记忆设置</summary><div class="st-esg-collapsible-body st-esg-memory-source-groups"><section class="st-esg-memory-source-group"><div class="st-esg-memory-source-heading">柏宝书</div><div id="st-esg-baibai-memory-options" class="st-esg-memory-source-panel"></div></section><section class="st-esg-memory-source-group"><div class="st-esg-memory-source-heading">Anima</div><div id="st-esg-anima-memory-options" class="st-esg-memory-source-panel"><div class="st-esg-card-desc">使用 Anima 记忆前，请先在插件当前的世界书方案中启用 Anima 聊天世界书。</div><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-anima-worldbook-enabled" type="checkbox" /><span>读取 Anima 世界书</span><em>只在勾选时抓取 Anima 最新召回切片并覆盖快照。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-anima-status-enabled" type="checkbox" /><span>读取 Anima 状态变量</span><em>实时读取最近可用的 anima_data；当前楼层没有时会向前回溯。</em></label></div></section></div>';
+    memorySettings.innerHTML = '<summary class="st-esg-collapsible-summary">记忆设置</summary><div class="st-esg-collapsible-body st-esg-memory-source-groups"><section class="st-esg-memory-source-group"><div class="st-esg-memory-source-heading">柏宝书</div><div id="st-esg-baibai-memory-options" class="st-esg-memory-source-panel"></div></section><section class="st-esg-memory-source-group"><div class="st-esg-memory-source-heading">Anima</div><div id="st-esg-anima-memory-options" class="st-esg-memory-source-panel"><div class="st-esg-card-desc">使用 Anima 记忆前，请先在插件当前的世界书方案中启用 Anima 聊天世界书。</div><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-anima-worldbook-enabled" type="checkbox" /><span>读取 Anima 世界书</span><em>只在勾选时抓取 Anima 最新召回切片并覆盖快照。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-anima-status-enabled" type="checkbox" /><span>读取 Anima 状态变量</span><em>实时读取最近可用的 anima_data；当前楼层没有时会向前回溯。</em></label></div></section><section class="st-esg-memory-source-group"><div class="st-esg-memory-source-heading">千千结</div><div class="st-esg-memory-source-panel"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-qqj-memory-enabled" type="checkbox" /><span>读取千千结记忆</span><em>读取千千结为正文模型整理的前情与召回内容。</em></label></div></section></div>';
     const animaStatusLabel = memorySettings.querySelector('#st-esg-anima-status-enabled')?.closest('label');
     if (animaStatusLabel && !memorySettings.querySelector('#st-esg-anima-status-after-message-option')) {
       const afterMessageLabel = targetDoc.createElement('label');
@@ -8594,6 +8612,7 @@ function bindPanelEvents() {
   $t('#st-esg-baibai-state-enabled').prop('checked', settings.baiBaiBookStateEnabled);
   $t('#st-esg-anima-worldbook-enabled').prop('checked', settings.animaWorldbookEnabled);
   $t('#st-esg-anima-status-enabled').prop('checked', settings.animaStatusVariableEnabled);
+  $t('#st-esg-qqj-memory-enabled').prop('checked', settings.qqjMemoryEnabled);
   $t('#st-esg-preview').val(settings.lastGenerated);
   $t('#st-esg-temporary-task-instruction').val(temporaryTaskInstruction);
   renderGenerationHistory();
@@ -8875,6 +8894,7 @@ function bindPanelEvents() {
     renderMemorySettingsUi();
     saveSettings();
   });
+  $t('#st-esg-qqj-memory-enabled').on('change', function () { settings.qqjMemoryEnabled = Boolean($(this).prop('checked')); saveSettings(); });
   $t('#st-esg-anima-status-after-message-enabled').on('change', function () {
     settings.animaStatusAfterMessageEnabled = Boolean($(this).prop('checked'));
     saveSettings();

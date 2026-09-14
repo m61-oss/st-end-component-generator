@@ -43,6 +43,16 @@ test('places task before the final protocol when placement is disabled', async (
   assert.equal(taskIndex, messages.length - 2);
 });
 
+test('inserts the formatted QianQianJie memory as exactly one system message', async () => {
+  const content = '<qqj_prequel>前情</qqj_prequel>\n\n<qqj_recalled_context>召回</qqj_recalled_context>';
+  const messages = await build({ qqjPromptText: content });
+  const matches = messages.filter((message) => message.role === 'system' && message.content === content);
+  const taskIndex = messages.findIndex((message) => message.role === 'user' && message.content === 'TASK');
+
+  assert.equal(matches.length, 1);
+  assert.ok(messages.indexOf(matches[0]) < taskIndex);
+});
+
 test('places task after chat history and protocol at the end', async () => {
   const messages = await build({
     taskPlacement: { enabled: true, afterSourceId: TASK_PLACEMENT_AFTER_CHAT_HISTORY },
