@@ -144,6 +144,33 @@ test('body snapshot is inserted as a system message after the outgoing latest as
   assert.equal(Object.keys(messages[2]).includes('stEsgFloorVariableSnapshot'), false);
 });
 
+test('body snapshot is inserted after the body assistant instead of the assistant prefill', () => {
+  const messages = [
+    { role: 'system', content: 'system' },
+    { role: 'assistant', content: 'body assistant' },
+    { role: 'user', content: 'latest user' },
+    { role: 'assistant', content: 'assistant prefill' },
+  ];
+  assert.equal(insertBodyFloorVariableSnapshot(messages, '<snow>state</snow>'), true);
+  assert.deepEqual(messages.map(({ role, content }) => ({ role, content })), [
+    { role: 'system', content: 'system' },
+    { role: 'assistant', content: 'body assistant' },
+    { role: 'system', content: '<snow>state</snow>' },
+    { role: 'user', content: 'latest user' },
+    { role: 'assistant', content: 'assistant prefill' },
+  ]);
+});
+
+test('body snapshot is not inserted after a prefill when no body assistant exists', () => {
+  const messages = [
+    { role: 'system', content: 'system' },
+    { role: 'user', content: 'latest user' },
+    { role: 'assistant', content: 'assistant prefill' },
+  ];
+  assert.equal(insertBodyFloorVariableSnapshot(messages, '<snow>state</snow>'), false);
+  assert.equal(messages.length, 3);
+});
+
 test('body prompt insertion preserves snapshot whitespace verbatim', () => {
   const messages = [{ role: 'assistant', content: 'assistant' }];
   insertBodyFloorVariableSnapshot(messages, '\n<box>value</box>\n');

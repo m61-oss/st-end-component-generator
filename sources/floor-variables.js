@@ -173,8 +173,16 @@ export function resolveBodySnapshotSourceIndex(chat, generationType = '') {
 export function insertBodyFloorVariableSnapshot(promptMessages, content) {
   const text = textOf(content);
   if (!text.trim() || !Array.isArray(promptMessages)) return false;
-  let sourceIndex = -1;
+  let latestUserIndex = -1;
   for (let index = promptMessages.length - 1; index >= 0; index -= 1) {
+    if (String(promptMessages[index]?.role || '').toLowerCase() === 'user') {
+      latestUserIndex = index;
+      break;
+    }
+  }
+  let sourceIndex = -1;
+  const searchStart = latestUserIndex >= 0 ? latestUserIndex - 1 : promptMessages.length - 1;
+  for (let index = searchStart; index >= 0; index -= 1) {
     if (String(promptMessages[index]?.role || '').toLowerCase() === 'assistant') {
       sourceIndex = index;
       break;
