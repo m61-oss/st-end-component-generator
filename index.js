@@ -1,4 +1,5 @@
 import { getContext } from '../../../st-context.js';
+import { promptManager } from '../../../openai.js';
 import {
   COMPONENT_SCOPE_CHARACTER,
   COMPONENT_SCOPE_GLOBAL,
@@ -1133,7 +1134,7 @@ function handleChatCompletionPromptReady(eventData) {
   const sourceIndex = resolveBodySnapshotSourceIndex(context?.chat, currentTavernGenerationType);
   if (sourceIndex === null) return;
   const snapshot = getFloorVariableSnapshotForMessage(sourceIndex, context);
-  insertBodyFloorVariableSnapshot(eventData.chat, snapshot);
+  insertBodyFloorVariableSnapshot(eventData.chat, snapshot, promptManager?.messages);
 }
 
 function getAssistantMessageAtIndex(chat, messageIndex) {
@@ -7829,7 +7830,7 @@ async function injectMultiTaskBatchNow(requestedTaskIds = null, { silent = false
       };
       const injected = applyMultiTaskInjection(String(latest.message.mes ?? ''), prepared);
       latest.message.mes = settings.statusPlaceholderEnabled
-        ? normalizeStatusPlaceholder(injected.text, true)
+        ? normalizeStatusPlaceholder(injected.text)
         : injected.text;
       if (Array.isArray(latest.message.swipes) && Number.isInteger(latest.message.swipe_id)) {
         latest.message.swipes[latest.message.swipe_id] = latest.message.mes;

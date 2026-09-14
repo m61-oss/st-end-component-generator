@@ -243,3 +243,12 @@ test('multi-task injection and undo write success, skip, and error stages', () =
   assert.match(source, /logAutomaticGenerationStage\('multi-undo-error'/);
   assert.match(source, /logAutomaticGenerationStage\('multi-undo-skip'/);
 });
+
+test('multi-task injection preserves an existing MVU placeholder without creating an absent one', () => {
+  const start = indexSource.indexOf('async function injectMultiTaskBatchNow');
+  const end = indexSource.indexOf('async function undoMultiTaskInjections', start);
+  const source = indexSource.slice(start, end);
+
+  assert.match(source, /normalizeStatusPlaceholder\(injected\.text\)/);
+  assert.doesNotMatch(source, /normalizeStatusPlaceholder\(injected\.text,\s*true\)/);
+});

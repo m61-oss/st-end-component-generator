@@ -21,6 +21,8 @@ test('floor variables listen for saved edits and inject into body prompts', () =
   assert.match(indexSource, /MESSAGE_UPDATED.*syncLatestAssistantFloorVariable/s);
   assert.match(indexSource, /CHAT_COMPLETION_PROMPT_READY/);
   assert.match(indexSource, /insertBodyFloorVariableSnapshot/);
+  assert.match(indexSource, /import\s*\{\s*promptManager\s*\}\s*from\s*['"]\.\.\/\.\.\/\.\.\/openai\.js['"]/);
+  assert.match(indexSource, /insertBodyFloorVariableSnapshot\(eventData\.chat,\s*snapshot,\s*promptManager\?\.messages\)/);
 });
 
 test('component prompts resolve the floor snapshot inside each request build', () => {

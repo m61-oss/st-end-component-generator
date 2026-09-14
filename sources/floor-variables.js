@@ -170,22 +170,51 @@ export function resolveBodySnapshotSourceIndex(chat, generationType = '') {
   return findLatestAssistantMessageIndex(chat, latestAssistant);
 }
 
-export function insertBodyFloorVariableSnapshot(promptMessages, content) {
+function findChatHistoryAssistantIndex(promptMessages, promptManagerMessages) {
+  if (typeof promptManagerMessages?.flatten !== 'function') return -1;
+  let flattened;
+  try {
+    flattened = promptManagerMessages.flatten();
+  } catch (_) {
+    return -1;
+  }
+  const outgoing = (Array.isArray(flattened) ? flattened : [])
+    .filter((message) => message?.content || message?.tool_calls);
+  if (outgoing.length !== promptMessages.length) return -1;
+  const matchesCurrentPrompt = outgoing.every((message, index) => (
+    String(message?.role || '').toLowerCase() === String(promptMessages[index]?.role || '').toLowerCase()
+    && message?.content === promptMessages[index]?.content
+  ));
+  if (!matchesCurrentPrompt) return -1;
+  for (let index = outgoing.length - 1; index >= 0; index -= 1) {
+    const message = outgoing[index];
+    if (String(message?.role || '').toLowerCase() !== 'assistant') continue;
+    if (/^chatHistory-\d+$/.test(String(message?.identifier || ''))) return index;
+  }
+  return -1;
+}
+
+export function insertBodyFloorVariableSnapshot(promptMessages, content, promptManagerMessages = null) {
   const text = textOf(content);
   if (!text.trim() || !Array.isArray(promptMessages)) return false;
+  const chatHistoryIndex = findChatHistoryAssistantIndex(promptMessages, promptManagerMessages);
   let latestUserIndex = -1;
-  for (let index = promptMessages.length - 1; index >= 0; index -= 1) {
-    if (String(promptMessages[index]?.role || '').toLowerCase() === 'user') {
-      latestUserIndex = index;
-      break;
+  if (chatHistoryIndex < 0) {
+    for (let index = promptMessages.length - 1; index >= 0; index -= 1) {
+      if (String(promptMessages[index]?.role || '').toLowerCase() === 'user') {
+        latestUserIndex = index;
+        break;
+      }
     }
   }
-  let sourceIndex = -1;
+  let sourceIndex = chatHistoryIndex;
   const searchStart = latestUserIndex >= 0 ? latestUserIndex - 1 : promptMessages.length - 1;
-  for (let index = searchStart; index >= 0; index -= 1) {
-    if (String(promptMessages[index]?.role || '').toLowerCase() === 'assistant') {
-      sourceIndex = index;
-      break;
+  if (sourceIndex < 0) {
+    for (let index = searchStart; index >= 0; index -= 1) {
+      if (String(promptMessages[index]?.role || '').toLowerCase() === 'assistant') {
+        sourceIndex = index;
+        break;
+      }
     }
   }
   if (sourceIndex < 0) return false;

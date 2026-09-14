@@ -161,6 +161,61 @@ test('body snapshot is inserted after the body assistant instead of the assistan
   ]);
 });
 
+test('body snapshot uses the final assistant owned by Chat History instead of an assistant injection', () => {
+  const messages = [
+    { role: 'system', content: 'system' },
+    { role: 'assistant', content: 'body assistant' },
+    { role: 'assistant', content: 'depth assistant injection' },
+    { role: 'user', content: 'latest user' },
+    { role: 'assistant', content: 'assistant prefill' },
+  ];
+  const promptManagerMessages = {
+    flatten: () => [
+      { identifier: 'main', role: 'system', content: 'system' },
+      { identifier: 'chatHistory-2', role: 'assistant', content: 'body assistant' },
+      { identifier: 'extension-depth-prompt', role: 'assistant', content: 'depth assistant injection' },
+      { identifier: 'chatHistory-1', role: 'user', content: 'latest user' },
+      { identifier: 'controlPrompts', role: 'assistant', content: 'assistant prefill' },
+    ],
+  };
+
+  assert.equal(insertBodyFloorVariableSnapshot(messages, '<snow>state</snow>', promptManagerMessages), true);
+  assert.deepEqual(messages.map(({ role, content }) => ({ role, content })), [
+    { role: 'system', content: 'system' },
+    { role: 'assistant', content: 'body assistant' },
+    { role: 'system', content: '<snow>state</snow>' },
+    { role: 'assistant', content: 'depth assistant injection' },
+    { role: 'user', content: 'latest user' },
+    { role: 'assistant', content: 'assistant prefill' },
+  ]);
+});
+
+test('body snapshot ignores a stale Prompt Manager collection from another request', () => {
+  const messages = [
+    { role: 'system', content: 'current system' },
+    { role: 'assistant', content: 'current body assistant' },
+    { role: 'user', content: 'current user' },
+    { role: 'assistant', content: 'current prefill' },
+  ];
+  const stalePromptManagerMessages = {
+    flatten: () => [
+      { identifier: 'main', role: 'system', content: 'old system' },
+      { identifier: 'chatHistory-2', role: 'user', content: 'old user' },
+      { identifier: 'control', role: 'system', content: 'old control' },
+      { identifier: 'chatHistory-1', role: 'assistant', content: 'old assistant' },
+    ],
+  };
+
+  insertBodyFloorVariableSnapshot(messages, '<snow>state</snow>', stalePromptManagerMessages);
+  assert.deepEqual(messages.map(({ role, content }) => ({ role, content })), [
+    { role: 'system', content: 'current system' },
+    { role: 'assistant', content: 'current body assistant' },
+    { role: 'system', content: '<snow>state</snow>' },
+    { role: 'user', content: 'current user' },
+    { role: 'assistant', content: 'current prefill' },
+  ]);
+});
+
 test('body snapshot is not inserted after a prefill when no body assistant exists', () => {
   const messages = [
     { role: 'system', content: 'system' },
