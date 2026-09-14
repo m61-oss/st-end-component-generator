@@ -800,7 +800,14 @@ function insertTaskMessage(messages, taskMessage, taskPlacement, outputMode = 's
   const index = afterSourceId === TASK_PLACEMENT_AFTER_CHAT_HISTORY
     ? messages.findLastIndex((message) => textOf(message?.sourceMarkerType) === 'chatHistory')
     : messages.findLastIndex((message) => textOf(message?.sourceItemId) === afterSourceId);
-  messages.splice(index >= 0 ? index + 1 : messages.length, 0, taskMessage);
+  let insertionIndex = index >= 0 ? index + 1 : messages.length;
+  if (afterSourceId === TASK_PLACEMENT_AFTER_CHAT_HISTORY) {
+    while (
+      messages[insertionIndex]?.floorVariableSnapshot
+      || messages[insertionIndex]?.content === ANCHOR_TARGET_CLOSE
+    ) insertionIndex += 1;
+  }
+  messages.splice(insertionIndex, 0, taskMessage);
   if (protocolMessage) messages.push(protocolMessage);
 }
 
@@ -814,11 +821,12 @@ export function stripInternalMessageFields(messages) {
     delete message.sourceMessageIndex;
     delete message.animaStatusInjection;
     delete message.anchorTargetMessage;
+    delete message.floorVariableSnapshot;
   });
   return messages;
 }
 
-export async function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, theaterComponents, promptSourceItems, worldbookSourceControlled = false, historyCleanupTags = '', historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE, recentMessageCount = 10, substituteParams, taskPlacement, replaceLastUserMessageWithTask = false, omitOriginalUserMessages = false, baiBaiBook = null, qqjPromptText = '', animaStatus = null, animaStatusMessageIndex = null, animaWorldbookEntries = [], animaYaml = null, renderTemplate = null, outputMode = 'standard', outputProtocol = {} }) {
+export async function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, theaterComponents, promptSourceItems, worldbookSourceControlled = false, historyCleanupTags = '', historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE, recentMessageCount = 10, substituteParams, taskPlacement, replaceLastUserMessageWithTask = false, omitOriginalUserMessages = false, baiBaiBook = null, qqjPromptText = '', floorVariableSnapshot = null, animaStatus = null, animaStatusMessageIndex = null, animaWorldbookEntries = [], animaYaml = null, renderTemplate = null, outputMode = 'standard', outputProtocol = {} }) {
   const hasSelectedPromptSources = Array.isArray(promptSourceItems) && promptSourceItems.length > 0;
   const preset = getCurrentPreset(targetWindow, context);
   const worldbooks = worldbookSourceControlled
@@ -867,6 +875,15 @@ export async function buildExternalStatusbarMessages({ targetWindow, context, la
   messages.promptSourceItems = promptSourceItemsForBuild;
   messages.runtimeInsertions = applyRuntimeTemplateInsertions(messages, { context, worldbooks });
   markLatestAssistantTarget(messages, context, latestMessage, outputMode);
+  const floorVariableContent = String(floorVariableSnapshot?.content ?? '');
+  const floorVariableSourceIndex = normalizeMessageIndex(floorVariableSnapshot?.sourceMessageIndex);
+  if (floorVariableContent.trim() && floorVariableSourceIndex !== null) {
+    const sourceIndex = messages.findLastIndex((message) => message?.role === 'assistant' && normalizeMessageIndex(message?.sourceMessageIndex) === floorVariableSourceIndex);
+    if (sourceIndex >= 0) {
+      const boundaryOffset = messages[sourceIndex + 1]?.content === '</latest_assistant_target>' ? 1 : 0;
+      messages.splice(sourceIndex + 1 + boundaryOffset, 0, { role: 'system', content: floorVariableContent, floorVariableSnapshot: true });
+    }
+  }
   const taskMessage = { role: 'user', content: taskContent };
   insertTaskMessage(messages, taskMessage, taskPlacement, outputMode, outputProtocol);
   if (String(qqjPromptText ?? '').trim()) {

@@ -2059,6 +2059,23 @@ details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180
 [data-single-task-injection-host] .st-esg-generation-injection-section .text_pole { height: 34px !important; min-height: 34px !important; padding-block: 4px !important; }
 [data-single-task-injection-host] .st-esg-generation-injection-section > .st-esg-generation-settings-help { grid-column: 1 / -1; }
 .st-esg-multi-task-settings-empty { padding: 10px 0; color: var(--esg-text-muted); font-size: 11px; }
+.st-esg-floor-variable-settings { display: grid; gap: 8px; }
+.st-esg-floor-variable-enable-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px; border: 1px solid var(--esg-border); border-radius: 12px; background: var(--esg-bg-card); }
+.st-esg-floor-variable-enable-row > div { display: grid; gap: 3px; min-width: 0; }
+.st-esg-floor-variable-enable-row strong { color: var(--esg-text-main); font-size: 13px; font-weight: 750; }
+.st-esg-floor-variable-enable-row > div > span,
+.st-esg-floor-variable-note,
+.st-esg-floor-variable-unavailable { color: var(--esg-text-muted); font-size: 10px; line-height: 1.45; }
+.st-esg-floor-variable-note { padding: 0 2px; }
+.st-esg-floor-variable-unavailable { padding: 8px 10px; border: 1px solid var(--esg-border); border-radius: 9px; color: var(--esg-danger); background: var(--esg-bg-card); }
+.st-esg-floor-variable-scope { display: grid; gap: 7px; padding: 10px; border: 1px solid var(--esg-border); border-radius: 12px; background: var(--esg-bg-card); }
+.st-esg-floor-variable-scope > header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.st-esg-floor-variable-scope > header strong { color: var(--esg-text-main); font-size: 12px; font-weight: 750; }
+.st-esg-floor-variable-scope > header span { min-width: 0; overflow: hidden; color: var(--esg-text-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.st-esg-floor-variable-scope > label { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: center; gap: 7px; color: var(--esg-text-main); font-size: 11px; }
+.st-esg-floor-variable-scope .text_pole { width: 100%; min-width: 0; }
+.st-esg-floor-variable-scope input.text_pole { height: 32px !important; min-height: 32px !important; }
+.st-esg-floor-variable-scope textarea.text_pole { min-height: 72px !important; resize: vertical; }
 @media (prefers-reduced-motion: reduce) { .st-esg-task-status-lamp { animation: none !important; } }
 
 @media (max-width: 520px) {

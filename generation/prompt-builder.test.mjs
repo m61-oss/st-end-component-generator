@@ -174,3 +174,37 @@ test('preserves source message ids until the final outgoing-message compatibilit
 
   assert.equal(assistantMessage?.sourceMessageIndex, 1);
 });
+
+test('inserts the floor-variable snapshot immediately after its source assistant', async () => {
+  const messages = await build({
+    floorVariableSnapshot: { content: '<snow>state</snow>', sourceMessageIndex: 1 },
+  });
+  const assistantIndex = messages.findIndex((message) => message.content === context.chat[1].mes);
+  const taskIndex = messages.findIndex((message) => message.role === 'user' && message.content === 'TASK');
+
+  assert.deepEqual(messages[assistantIndex + 1], {
+    role: 'system',
+    content: '<snow>state</snow>',
+    floorVariableSnapshot: true,
+  });
+  assert.ok(assistantIndex + 1 < taskIndex);
+});
+
+test('does not trim the extracted floor-variable snapshot', async () => {
+  const content = '\n<snow>state</snow>\n';
+  const messages = await build({
+    floorVariableSnapshot: { content, sourceMessageIndex: 1 },
+  });
+  assert.equal(messages.find((message) => message.floorVariableSnapshot)?.content, content);
+});
+
+test('keeps the floor snapshot before a task placed after chat history', async () => {
+  const messages = await build({
+    floorVariableSnapshot: { content: '<snow>state</snow>', sourceMessageIndex: 1 },
+    taskPlacement: { enabled: true, afterSourceId: TASK_PLACEMENT_AFTER_CHAT_HISTORY },
+  });
+  const snapshotIndex = messages.findIndex((message) => message.floorVariableSnapshot);
+  const taskIndex = messages.findIndex((message) => message.role === 'user' && message.content === 'TASK');
+  assert.ok(snapshotIndex >= 0);
+  assert.equal(taskIndex, snapshotIndex + 1);
+});

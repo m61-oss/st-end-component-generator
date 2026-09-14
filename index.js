@@ -37,6 +37,17 @@ import { replaceTavernHelperMacrosInMessages } from './generation/tavern-helper-
 import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.2.5';
 import { applyAnimaWorldbookOverrides, captureAnimaWorldbookEntries, captureAnimaWorldbookUntil, filterAnimaWorldbookEntries, getAnimaChatId, mergeAnimaWorldbookSnapshots, readLatestAnimaStatus, shouldClearAnimaSnapshotForChat } from './sources/anima-memory.js?ver=0.2.5';
 import { readQqjPromptSnapshot } from './sources/qqj-memory.js?ver=0.2.5';
+import {
+  extractFloorVariableSnapshot,
+  findLatestAssistantMessageIndex,
+  insertBodyFloorVariableSnapshot,
+  readAllFloorVariableRules,
+  readFloorVariableRules,
+  readFloorVariableSnapshot,
+  resolveBodySnapshotSourceIndex,
+  writeFloorVariableRules,
+  writeFloorVariableSnapshot,
+} from './sources/floor-variables.js?ver=0.2.5';
 import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './generation/prompt-log.js?ver=0.2.5';
 import {
   clearImportSelectionsForScope,
@@ -168,7 +179,7 @@ import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCl
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.2.5';
-const UI_ASSET_REVISION = 'help-tour-2026090810';
+const UI_ASSET_REVISION = 'help-tour-2026091501';
 const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置组件生成器';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
@@ -271,6 +282,7 @@ const DEFAULT_SETTINGS = {
   animaStatusVariableEnabled: false,
   animaStatusAfterMessageEnabled: false,
   qqjMemoryEnabled: false,
+  floorVariablesEnabled: false,
   ballX: null,
   ballY: null,
   ballPositionVersion: 2,
@@ -338,6 +350,8 @@ let importGroups = [];
 const promptSourceCache = createPromptSourceCacheState();
 let activeWorldbookGroupIndex = null;
 let generationAbortController = null;
+let currentTavernGenerationType = '';
+const floorVariableRulesSaveTimers = new Map();
 const multiTaskAbortControllers = new Map();
 const activeMultiTaskRunIds = new Set();
 const multiTaskInjectionQueue = createMultiTaskInjectionQueue({
@@ -722,6 +736,7 @@ function loadSettings() {
   if (typeof settings.automaticGenerationTriggerText !== 'string') settings.automaticGenerationTriggerText = '';
   if (typeof settings.promptTemplateCompatEnabled !== 'boolean') settings.promptTemplateCompatEnabled = false;
   if (typeof settings.autoInject !== 'boolean') settings.autoInject = settings.mode === 'autoInject';
+  if (typeof settings.floorVariablesEnabled !== 'boolean') settings.floorVariablesEnabled = false;
   settings.apiMode = ['custom', 'tavern'].includes(settings.apiMode) ? settings.apiMode : 'custom';
   settings.useMainApi = false;
   if (typeof settings.tavernProfile !== 'string') settings.tavernProfile = '';
@@ -1050,6 +1065,75 @@ function getLatestAssistantMessage(chat) {
     if (!item?.is_user && item?.mes) return { index: i, message: item };
   }
   return null;
+}
+
+function getTavernHelperVariableApi() {
+  const helper = targetWindow?.TavernHelper;
+  return typeof helper?.getVariables === 'function' && typeof helper?.insertOrAssignVariables === 'function'
+    ? helper
+    : null;
+}
+
+function getFloorVariableRulesForUi(scope) {
+  const helper = getTavernHelperVariableApi();
+  if (!helper) return { tagNames: '', regexText: '' };
+  try {
+    return readFloorVariableRules(helper, scope);
+  } catch (_) {
+    return { tagNames: '', regexText: '' };
+  }
+}
+
+function refreshFloorVariableSnapshotForMessage(messageIndex, context = getContext()) {
+  if (!settings.floorVariablesEnabled) return '';
+  const helper = getTavernHelperVariableApi();
+  if (!helper) return '';
+  const latestIndex = findLatestAssistantMessageIndex(context?.chat);
+  const targetIndex = Number(messageIndex);
+  if (!Number.isInteger(targetIndex) || targetIndex !== latestIndex) return '';
+  const message = context.chat[targetIndex];
+  try {
+    const rules = readAllFloorVariableRules(helper);
+    const result = extractFloorVariableSnapshot(message?.mes, rules);
+    const previous = readFloorVariableSnapshot(helper, targetIndex);
+    if (previous !== result.text) writeFloorVariableSnapshot(helper, targetIndex, result.text);
+    if (result.errors.length) console.warn(`[${EXTENSION_ID}] 楼层变量中有 ${result.errors.length} 条无效正则，已跳过。`, result.errors);
+    return result.text;
+  } catch (error) {
+    console.warn(`[${EXTENSION_ID}] 同步楼层变量失败。`, error);
+    return '';
+  }
+}
+
+function syncLatestAssistantFloorVariable(messageIndex = null) {
+  if (!settings.floorVariablesEnabled) return;
+  const context = getContext();
+  const latestIndex = findLatestAssistantMessageIndex(context?.chat);
+  const hasEventIndex = messageIndex !== null && messageIndex !== undefined && messageIndex !== '';
+  const eventIndex = Number(messageIndex);
+  if (hasEventIndex && Number.isInteger(eventIndex) && eventIndex !== latestIndex) return;
+  if (latestIndex !== null) refreshFloorVariableSnapshotForMessage(latestIndex, context);
+}
+
+function getFloorVariableSnapshotForMessage(messageIndex, context = getContext()) {
+  if (!settings.floorVariablesEnabled) return '';
+  const helper = getTavernHelperVariableApi();
+  if (!helper || !Number.isInteger(Number(messageIndex))) return '';
+  refreshFloorVariableSnapshotForMessage(Number(messageIndex), context);
+  try {
+    return readFloorVariableSnapshot(helper, Number(messageIndex));
+  } catch (_) {
+    return '';
+  }
+}
+
+function handleChatCompletionPromptReady(eventData) {
+  if (!settings.floorVariablesEnabled || !Array.isArray(eventData?.chat)) return;
+  const context = getContext();
+  const sourceIndex = resolveBodySnapshotSourceIndex(context?.chat, currentTavernGenerationType);
+  if (sourceIndex === null) return;
+  const snapshot = getFloorVariableSnapshotForMessage(sourceIndex, context);
+  insertBodyFloorVariableSnapshot(eventData.chat, snapshot);
 }
 
 function getAssistantMessageAtIndex(chat, messageIndex) {
@@ -2220,6 +2304,10 @@ function applyGeneratedResult(rawText) {
 
 async function buildMessages(latestMessage, sourceSettings = settings, { onDiagnostics = null } = {}) {
   const context = getContext();
+  const latestMessageIndex = context?.chat?.lastIndexOf?.(latestMessage) ?? -1;
+  const floorVariableText = latestMessageIndex >= 0
+    ? getFloorVariableSnapshotForMessage(latestMessageIndex, context)
+    : '';
   const components = getEnabledComponents(sourceSettings);
   const theaterComponents = getEnabledTheaterComponents(sourceSettings);
   const animaEnabled = sourceSettings.animaWorldbookEnabled || sourceSettings.animaStatusVariableEnabled;
@@ -2269,6 +2357,7 @@ async function buildMessages(latestMessage, sourceSettings = settings, { onDiagn
       includeState: sourceSettings.baiBaiBookStateEnabled,
       } : null,
     qqjPromptText: qqjPromptSnapshot.text,
+    floorVariableSnapshot: floorVariableText ? { content: floorVariableText, sourceMessageIndex: latestMessageIndex } : null,
     outputMode,
     outputProtocol: getActiveOutputProtocolSettings(outputMode, sourceSettings),
    });
@@ -2317,6 +2406,12 @@ async function buildMessages(latestMessage, sourceSettings = settings, { onDiagn
     enabled: Boolean(sourceSettings.qqjMemoryEnabled),
     status: qqjPromptSnapshot.status,
     sourceStatus: qqjPromptSnapshot.sourceStatus,
+  };
+  runtimeDiagnostics.floorVariables = {
+    enabled: Boolean(settings.floorVariablesEnabled),
+    sourceMessageIndex: latestMessageIndex >= 0 ? latestMessageIndex : null,
+    snapshotLength: floorVariableText.length,
+    status: !settings.floorVariablesEnabled ? 'disabled' : (floorVariableText ? 'injected' : 'empty'),
   };
   if (typeof onDiagnostics === 'function') onDiagnostics(runtimeDiagnostics);
   else lastRuntimeDiagnostics = runtimeDiagnostics;
@@ -3083,7 +3178,8 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
   await generateStatusbar('automatic', readyTarget.messageIndex, readyTarget);
 }
 
-function handleGenerationStarted() {
+function handleGenerationStarted(type) {
+  currentTavernGenerationType = String(type || '');
   if (generationAbortController) {
     stopAnimaWorldbookCapture();
     return;
@@ -8123,9 +8219,19 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
     <label class="st-esg-multi-task-compact-field"><span>组件方案</span><select class="text_pole" data-multi-task-task-field="componentSchemeId">${renderMultiTaskSchemeOptions(settings.componentSchemes, item.componentSchemeId)}</select></label>
     <label class="st-esg-multi-task-compact-field"><span>注入方式</span><select class="text_pole" data-multi-task-task-field="injectMode"><option value="append"${item.injectMode === 'append' ? ' selected' : ''}>追加</option><option value="anchor"${item.injectMode === 'anchor' ? ' selected' : ''}>锚点插入</option></select></label>
   </section>`).join('') || '<div class="st-esg-multi-task-settings-empty">还没有任务，请点击“添加任务”。</div>';
-  const activePage = initialPage === 'tasks' ? 'tasks' : 'general';
+  const activePage = ['general', 'tasks', 'floorVariables'].includes(initialPage) ? initialPage : 'general';
+  const helperAvailable = Boolean(getTavernHelperVariableApi());
+  const floorVariableScopes = [
+    { scope: 'global', title: '全局规则', context: '所有角色与聊天' },
+    { scope: 'character', title: '角色规则', context: getCurrentCharacterNameSafe(getContext()) || '未选择角色' },
+    { scope: 'chat', title: '聊天规则', context: getCurrentChatIdSafe(getContext()) || '未打开聊天' },
+  ];
+  const floorVariableFields = floorVariableScopes.map(({ scope, title, context }) => {
+    const rules = getFloorVariableRulesForUi(scope);
+    return `<section class="st-esg-floor-variable-scope" data-floor-variable-scope="${scope}"><header><strong>${title}</strong><span>${escapeHtml(context)}</span></header><label><span>标签名</span><input class="text_pole" type="text" data-floor-variable-field="tagNames" value="${escapeHtml(rules.tagNames)}" placeholder="例如 branches,snow" ${helperAvailable ? '' : 'disabled'} /></label><label><span>正则表达式</span><textarea class="text_pole textarea_compact" rows="4" data-floor-variable-field="regexText" placeholder="每行一条，提取完整匹配" ${helperAvailable ? '' : 'disabled'}>${escapeHtml(rules.regexText)}</textarea></label></section>`;
+  }).join('');
   dialog.innerHTML = `<div class="st-esg-generation-mode-settings-shell"><header><div class="st-esg-card-title">生成设置</div><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-generation-settings-close aria-label="关闭设置" title="关闭设置"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header>
-    <div class="st-esg-generation-settings-pages" role="tablist" aria-label="生成设置分页"><button class="${activePage === 'general' ? 'active' : ''}" type="button" role="tab" aria-selected="${activePage === 'general'}" data-generation-settings-page="general">通用设置</button><button class="${activePage === 'tasks' ? 'active' : ''}" type="button" role="tab" aria-selected="${activePage === 'tasks'}" data-generation-settings-page="tasks">任务配置</button></div>
+    <div class="st-esg-generation-settings-pages" role="tablist" aria-label="生成设置分页"><button class="${activePage === 'general' ? 'active' : ''}" type="button" role="tab" aria-selected="${activePage === 'general'}" data-generation-settings-page="general">通用设置</button><button class="${activePage === 'tasks' ? 'active' : ''}" type="button" role="tab" aria-selected="${activePage === 'tasks'}" data-generation-settings-page="tasks">任务配置</button><button class="${activePage === 'floorVariables' ? 'active' : ''}" type="button" role="tab" aria-selected="${activePage === 'floorVariables'}" data-generation-settings-page="floorVariables">楼层变量</button></div>
     <div class="st-esg-all-mode-settings-body">
       <section class="st-esg-generation-settings-panel${activePage === 'general' ? '' : ' st-esg-hidden'}" data-generation-settings-panel="general"><div data-generation-settings-card-host></div></section>
       <section class="st-esg-generation-settings-panel${activePage === 'tasks' ? '' : ' st-esg-hidden'}" data-generation-settings-panel="tasks">
@@ -8135,6 +8241,9 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
           <div class="st-esg-multi-task-runtime-settings"><div class="st-esg-multi-task-runtime-row"><label class="st-esg-multi-task-runtime-field"><span>并发任务数</span><select class="text_pole" name="concurrency">${[1, 2, 3, 4, 5].map((value) => `<option value="${value}"${state.concurrency === value ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label class="st-esg-multi-task-runtime-field"><span>注入间隔</span><input class="text_pole" type="number" name="injectionIntervalSeconds" min="0" max="10" step="0.5" value="${state.injectionIntervalSeconds}"></label><label class="st-esg-multi-task-runtime-field"><span>注入顺序</span><select class="text_pole" name="injectionOrder"><option value="completion"${state.injectionOrder === 'completion' ? ' selected' : ''}>完成顺序</option><option value="task"${state.injectionOrder === 'task' ? ' selected' : ''}>任务顺序</option></select></label></div><em class="st-esg-multi-task-runtime-help">超出并发数的任务会自动排队；自动注入可按完成顺序即时注入，或等待前项后按任务顺序注入；失败或停止的任务会自动跳过；注入间隔范围为 0–10 秒。</em></div>
           <div class="st-esg-multi-task-settings-list">${taskFields}</div>
         </section>
+      </section>
+      <section class="st-esg-generation-settings-panel${activePage === 'floorVariables' ? '' : ' st-esg-hidden'}" data-generation-settings-panel="floorVariables">
+        <section class="st-esg-floor-variable-settings"><div class="st-esg-floor-variable-enable-row"><div><strong>启用楼层变量</strong><span>提取最新 assistant 楼层中的指定内容，保存到当前 swipe 的消息变量，并作为 system 快照提供给后续生成。</span></div><label class="st-esg-switch"><input type="checkbox" data-floor-variable-enabled ${settings.floorVariablesEnabled ? 'checked' : ''} ${helperAvailable ? '' : 'disabled'} /><span></span></label></div><div class="st-esg-floor-variable-note">全局、角色和聊天规则会同时生效；标签名区分大小写，多个标签用英文逗号分隔，正则表达式每行一条。只处理最新楼层，不批量回填旧楼层。</div>${helperAvailable ? '' : '<div class="st-esg-floor-variable-unavailable">需要先安装并启用酒馆助手。</div>'}${floorVariableFields}</section>
       </section>
     </div>
   </div>`;
@@ -8171,6 +8280,34 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
     }
     finish();
     void handleMultiTaskAction(action, true, taskId);
+  }));
+  dialog.querySelector('[data-floor-variable-enabled]')?.addEventListener('change', (event) => {
+    settings.floorVariablesEnabled = Boolean(event.currentTarget.checked);
+    saveSettings();
+    if (settings.floorVariablesEnabled) syncLatestAssistantFloorVariable();
+  });
+  dialog.querySelectorAll('[data-floor-variable-field]').forEach((control) => control.addEventListener('input', () => {
+    const section = control.closest('[data-floor-variable-scope]');
+    const scope = String(section?.getAttribute('data-floor-variable-scope') || '');
+    if (!['global', 'character', 'chat'].includes(scope)) return;
+    const pendingTimer = floorVariableRulesSaveTimers.get(scope);
+    if (pendingTimer !== undefined) targetWindow.clearTimeout(pendingTimer);
+    const timer = targetWindow.setTimeout(() => {
+      floorVariableRulesSaveTimers.delete(scope);
+      const rules = {
+        tagNames: section.querySelector('[data-floor-variable-field="tagNames"]')?.value || '',
+        regexText: section.querySelector('[data-floor-variable-field="regexText"]')?.value || '',
+      };
+      try {
+        writeFloorVariableRules(getTavernHelperVariableApi(), scope, rules);
+        const invalidRules = extractFloorVariableSnapshot('', rules).errors;
+        if (invalidRules.length) notifyStatus(`有 ${invalidRules.length} 条正则表达式无效，已保存但提取时会跳过。`, 'warning');
+        syncLatestAssistantFloorVariable();
+      } catch (error) {
+        notifyStatus(`楼层变量规则保存失败：${error?.message || error}`, 'error');
+      }
+    }, 250);
+    floorVariableRulesSaveTimers.set(scope, timer);
   }));
   dialog.querySelectorAll('[data-multi-task-task-field]').forEach((control) => control.addEventListener('change', () => {
     const taskPanel = control.closest('[data-multi-task-settings-task-id]');
@@ -9062,6 +9199,12 @@ function init() {
   registerPromptSourceCacheInvalidation(context);
   registerInjectionUndoInvalidation(context);
   registerMessageFloorPanelEvents(context);
+  const messageEditedEvent = context.eventTypes?.MESSAGE_EDITED;
+  if (messageEditedEvent) context.eventSource.on(messageEditedEvent, (messageIndex) => syncLatestAssistantFloorVariable(messageIndex));
+  const messageUpdatedEvent = context.eventTypes?.MESSAGE_UPDATED;
+  if (messageUpdatedEvent) context.eventSource.on(messageUpdatedEvent, (messageIndex) => syncLatestAssistantFloorVariable(messageIndex));
+  const chatCompletionPromptReadyEvent = context.eventTypes?.CHAT_COMPLETION_PROMPT_READY;
+  if (chatCompletionPromptReadyEvent) context.eventSource.on(chatCompletionPromptReadyEvent, handleChatCompletionPromptReady);
   if (context.eventTypes.GENERATION_STARTED) context.eventSource.on(context.eventTypes.GENERATION_STARTED, handleGenerationStarted);
   if (context.eventTypes.GENERATION_ENDED) context.eventSource.on(context.eventTypes.GENERATION_ENDED, handleGenerationEnded);
   if (context.eventTypes.GENERATION_STOPPED) context.eventSource.on(context.eventTypes.GENERATION_STOPPED, handleGenerationStopped);
