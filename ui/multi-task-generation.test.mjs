@@ -51,8 +51,15 @@ test('queued and running tasks can be cancelled before another run starts', () =
 
 test('new tasks inherit the currently selected component scheme', () => {
   assert.match(indexSource, /componentSchemeId:\s*textOf\(settings\.selectedComponentSchemeId\)/);
+  assert.match(indexSource, /taskSchemeId:\s*textOf\(settings\.selectedTaskSchemeId\)/);
   assert.match(indexSource, /getMultiTaskDefaultSchemeId\(settings\.selectedPresetSchemeId\)/);
   assert.match(indexSource, /getMultiTaskDefaultSchemeId\(settings\.selectedWorldbookSchemeId\)/);
+});
+
+test('multi-task settings expose a task instruction scheme for every task', () => {
+  assert.match(indexSource, /<span>任务指令方案<\/span><select[^>]*data-multi-task-task-field="taskSchemeId"/);
+  assert.match(indexSource, /taskSchemes:\s*settings\.taskSchemes/);
+  assert.match(indexSource, /\['componentSchemeId',[^\]]*'taskSchemeId'/);
 });
 
 test('Tavern-default tasks resolve preset-scoped components from the live Tavern preset', () => {

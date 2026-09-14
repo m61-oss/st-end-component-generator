@@ -20,6 +20,34 @@ const cloneObject = (value) => {
   try { return JSON.parse(JSON.stringify(value)); } catch (_) { return null; }
 };
 
+export function migrateLegacyMultiTaskTaskSchemes(settings = {}) {
+  if (!settings || typeof settings !== 'object' || settings.multiTaskTaskSchemeMigrated === true) return false;
+  const fallbackId = textOf(settings.selectedTaskSchemeId);
+  const migrateTasks = (tasks) => (Array.isArray(tasks) ? tasks : []).map((task) => {
+    if (!task || typeof task !== 'object' || textOf(task.taskSchemeId)) return task;
+    return { ...task, taskSchemeId: fallbackId };
+  });
+  const multiTaskSettings = settings.multiTaskSettings && typeof settings.multiTaskSettings === 'object'
+    ? settings.multiTaskSettings
+    : {};
+  settings.multiTaskSettings = {
+    ...multiTaskSettings,
+    tasks: migrateTasks(multiTaskSettings.tasks),
+  };
+  settings.multiTaskSchemes = (Array.isArray(settings.multiTaskSchemes) ? settings.multiTaskSchemes : []).map((scheme) => {
+    if (!scheme || typeof scheme !== 'object' || !scheme.snapshot || typeof scheme.snapshot !== 'object') return scheme;
+    return {
+      ...scheme,
+      snapshot: {
+        ...scheme.snapshot,
+        tasks: migrateTasks(scheme.snapshot.tasks),
+      },
+    };
+  });
+  settings.multiTaskTaskSchemeMigrated = true;
+  return true;
+}
+
 function clampConcurrency(value) {
   const parsed = Math.floor(Number(value));
   if (!Number.isFinite(parsed)) return 1;

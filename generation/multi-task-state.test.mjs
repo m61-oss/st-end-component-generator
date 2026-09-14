@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import * as multiTaskStateModule from './multi-task-state.js';
 import {
   MULTI_TASK_MAX_COUNT,
   MULTI_TASK_STATUS,
@@ -13,6 +14,34 @@ import {
   selectMultiTask,
   setMultiTaskBatchEnabled,
 } from './multi-task-state.js';
+
+test('legacy multi-task tasks inherit the previously selected task instruction scheme once', () => {
+  const migrate = multiTaskStateModule.migrateLegacyMultiTaskTaskSchemes;
+  assert.equal(typeof migrate, 'function');
+
+  const settings = {
+    selectedTaskSchemeId: 'task-scheme-old',
+    multiTaskSchemes: [{
+      id: 'multi-scheme',
+      snapshot: { tasks: [{ name: 'Saved A', taskSchemeId: '' }] },
+    }],
+    multiTaskSettings: {
+      tasks: [
+        { id: 'a', name: 'A', taskSchemeId: '' },
+        { id: 'b', name: 'B', taskSchemeId: 'task-scheme-own' },
+      ],
+    },
+  };
+  assert.equal(migrate(settings), true);
+  assert.equal(settings.multiTaskSettings.tasks[0].taskSchemeId, 'task-scheme-old');
+  assert.equal(settings.multiTaskSettings.tasks[1].taskSchemeId, 'task-scheme-own');
+  assert.equal(settings.multiTaskSchemes[0].snapshot.tasks[0].taskSchemeId, 'task-scheme-old');
+  assert.equal(settings.multiTaskTaskSchemeMigrated, true);
+
+  settings.multiTaskSettings.tasks[0].taskSchemeId = '';
+  assert.equal(migrate(settings), false);
+  assert.equal(settings.multiTaskSettings.tasks[0].taskSchemeId, '');
+});
 
 test('normalizes persisted multi-task settings into a safe serializable state', () => {
   const state = normalizeMultiTaskSettings({

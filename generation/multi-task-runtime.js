@@ -69,8 +69,17 @@ function applyWorldbook(runtime, scheme) {
   };
 }
 
+function applyTaskPrompt(runtime, scheme) {
+  return {
+    ...runtime,
+    taskPrompt: String(scheme.snapshot?.taskPrompt ?? ''),
+    taskSchemeId: scheme.id,
+  };
+}
+
 export function resolveMultiTaskRuntimeSettings(baseSettings = {}, task = {}, schemeLists = {}) {
   const apiScheme = requireScheme(schemeLists.apiSchemes, task.apiSchemeId, 'api');
+  const taskScheme = requireScheme(schemeLists.taskSchemes, task.taskSchemeId, 'task');
   const componentScheme = requireScheme(schemeLists.componentSchemes, task.componentSchemeId, 'component');
   const presetScheme = requireScheme(schemeLists.presetSchemes, task.presetSchemeId, 'preset', { optional: true });
   const worldbookScheme = requireScheme(schemeLists.worldbookSchemes, task.worldbookSchemeId, 'worldbook', { optional: true });
@@ -87,6 +96,7 @@ export function resolveMultiTaskRuntimeSettings(baseSettings = {}, task = {}, sc
     extraInstruction: String(task.extraInstruction ?? ''),
     injectMode: task.injectMode === 'anchor' ? 'anchor' : 'append',
   };
+  runtime = applyTaskPrompt(runtime, taskScheme);
   runtime = applyPreset(runtime, presetScheme);
   runtime = applyWorldbook(runtime, worldbookScheme);
   runtime = applyComponentSchemeSnapshot(runtime, componentScheme.snapshot || {});

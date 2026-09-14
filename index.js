@@ -78,6 +78,7 @@ import {
   deleteMultiTask,
   getMultiTasksForAction,
   mergeMultiTaskWorkspaceView,
+  migrateLegacyMultiTaskTaskSchemes,
   normalizeMultiTaskSettings,
   renameMultiTask,
   selectMultiTask,
@@ -212,6 +213,7 @@ const DEFAULT_SETTINGS = {
   activeTab: 'workspace',
   generationMode: 'single',
   multiTaskSettings: { concurrency: 1, injectionIntervalSeconds: 1, injectionOrder: 'completion', activeTaskId: '', tasks: [] },
+  multiTaskTaskSchemeMigrated: false,
   taskPrompt: [
     '现在停止生成正文，为最新的正文补充下面这些内容。',
     '{{external_components}}',
@@ -761,6 +763,7 @@ function loadSettings() {
   settings.worldbookSchemes = normalizeSchemeList(settings.worldbookSchemes);
   settings.componentSchemes = normalizeSchemeList(settings.componentSchemes);
   settings.multiTaskSchemes = normalizeSchemeList(settings.multiTaskSchemes);
+  const didMigrateMultiTaskTaskSchemes = migrateLegacyMultiTaskTaskSchemes(settings);
   settings.generationMode = settings.generationMode === 'multi' ? 'multi' : 'single';
   settings.multiTaskSettings = normalizeMultiTaskSettings({
     ...settings.multiTaskSettings,
@@ -906,6 +909,7 @@ function loadSettings() {
     || shouldApplyMessageFloorPanelDefault
     || shouldApplyOutputProtocolAssistantDefault
     || shouldMigrateCombinedMemorySources
+    || didMigrateMultiTaskTaskSchemes
   ) getContext().saveSettingsDebounced();
 }
 
@@ -7398,6 +7402,7 @@ function cancelMultiTaskGeneration(taskIds = null) {
 function getMultiTaskSchemeLists() {
   return {
     apiSchemes: settings.apiSchemes,
+    taskSchemes: settings.taskSchemes,
     presetSchemes: settings.presetSchemes,
     worldbookSchemes: settings.worldbookSchemes,
     componentSchemes: settings.componentSchemes,
@@ -7499,7 +7504,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
   if (!runnableTasks.length) {
     logAutomaticGenerationStage('multi-auto-skip', '所有任务都缺少可用方案');
     renderMultiTaskRuntimeState();
-    notifyStatus('任务缺少 API 方案或组件方案，请先在设置中选择。', 'warning');
+    notifyStatus('任务缺少 API、任务指令或组件方案，请先在设置中选择。', 'warning');
     return [];
   }
   runnableTasks.forEach((task) => {
@@ -8093,6 +8098,7 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
   dialog.className = `st-esg-scheme-name-dialog st-esg-generation-mode-settings-dialog st-esg-multi-task-settings-dialog ${getThemeClassName(settings.theme)}`;
   const taskFields = state.tasks.map((item) => `<section class="st-esg-multi-task-settings-task" data-multi-task-settings-task-id="${escapeHtml(item.id)}">
     <header class="st-esg-multi-task-settings-task-head"><strong>${escapeHtml(item.name)}</strong><div><button class="menu_button menu_button_icon st-esg-secondary-action" type="button" data-multi-task-settings-action="rename" data-multi-task-task-id="${escapeHtml(item.id)}" aria-label="重命名 ${escapeHtml(item.name)}" title="改名"><i class="fa-solid fa-pen" aria-hidden="true"></i></button><button class="menu_button menu_button_icon st-esg-secondary-action st-esg-icon-danger" type="button" data-multi-task-settings-action="delete" data-multi-task-task-id="${escapeHtml(item.id)}" aria-label="删除 ${escapeHtml(item.name)}" title="删除"><i class="fa-solid fa-trash" aria-hidden="true"></i></button></div></header>
+    <label class="st-esg-multi-task-compact-field"><span>任务指令方案</span><select class="text_pole" data-multi-task-task-field="taskSchemeId">${renderMultiTaskSchemeOptions(settings.taskSchemes, item.taskSchemeId)}</select></label>
     <label class="st-esg-multi-task-compact-field"><span>预设方案</span><select class="text_pole" data-multi-task-task-field="presetSchemeId">${renderMultiTaskSchemeOptions(settings.presetSchemes, item.presetSchemeId, '酒馆默认')}</select></label>
     <label class="st-esg-multi-task-compact-field"><span>世界书方案</span><select class="text_pole" data-multi-task-task-field="worldbookSchemeId">${renderMultiTaskSchemeOptions(settings.worldbookSchemes, item.worldbookSchemeId, '酒馆默认')}</select></label>
     <label class="st-esg-multi-task-compact-field"><span>API 方案</span><select class="text_pole" data-multi-task-task-field="apiSchemeId">${renderMultiTaskSchemeOptions(settings.apiSchemes, item.apiSchemeId)}</select></label>
@@ -8152,7 +8158,7 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
     const taskPanel = control.closest('[data-multi-task-settings-task-id]');
     const taskId = String(taskPanel?.getAttribute('data-multi-task-settings-task-id') || '');
     const field = String(control.getAttribute('data-multi-task-task-field') || '');
-    if (!taskId || !['componentSchemeId', 'apiSchemeId', 'presetSchemeId', 'worldbookSchemeId', 'injectMode'].includes(field)) return;
+    if (!taskId || !['componentSchemeId', 'taskSchemeId', 'apiSchemeId', 'presetSchemeId', 'worldbookSchemeId', 'injectMode'].includes(field)) return;
     const rawValue = textOf(control.value);
     const value = field === 'injectMode' ? (rawValue === 'anchor' ? 'anchor' : 'append') : rawValue;
     replaceMultiTask(taskId, { [field]: value });
