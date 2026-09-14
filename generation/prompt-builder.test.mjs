@@ -53,6 +53,19 @@ test('inserts the formatted QianQianJie memory as exactly one system message', a
   assert.ok(messages.indexOf(matches[0]) < taskIndex);
 });
 
+test('keeps QianQianJie memory immediately before the task when custom task placement is enabled', async () => {
+  const content = '<qqj_recalled_context>召回</qqj_recalled_context>';
+  const messages = await build({
+    qqjPromptText: content,
+    taskPlacement: { enabled: true, afterSourceId: TASK_PLACEMENT_AFTER_CHAT_HISTORY },
+  });
+  const taskIndex = messages.findIndex((message) => message.role === 'user' && message.content === 'TASK');
+
+  assert.ok(taskIndex >= 1);
+  assert.deepEqual(messages[taskIndex - 1], { role: 'system', content });
+  assert.deepEqual(messages.at(-1), buildOutputProtocolMessage());
+});
+
 test('places task after chat history and protocol at the end', async () => {
   const messages = await build({
     taskPlacement: { enabled: true, afterSourceId: TASK_PLACEMENT_AFTER_CHAT_HISTORY },

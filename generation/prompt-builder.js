@@ -867,8 +867,12 @@ export async function buildExternalStatusbarMessages({ targetWindow, context, la
   messages.promptSourceItems = promptSourceItemsForBuild;
   messages.runtimeInsertions = applyRuntimeTemplateInsertions(messages, { context, worldbooks });
   markLatestAssistantTarget(messages, context, latestMessage, outputMode);
-  if (String(qqjPromptText ?? '').trim()) messages.push({ role: 'system', content: String(qqjPromptText) });
-  insertTaskMessage(messages, { role: 'user', content: taskContent }, taskPlacement, outputMode, outputProtocol);
+  const taskMessage = { role: 'user', content: taskContent };
+  insertTaskMessage(messages, taskMessage, taskPlacement, outputMode, outputProtocol);
+  if (String(qqjPromptText ?? '').trim()) {
+    const taskIndex = messages.indexOf(taskMessage);
+    messages.splice(taskIndex >= 0 ? taskIndex : messages.length, 0, { role: 'system', content: String(qqjPromptText) });
+  }
   return messages;
 }
 import { TASK_PLACEMENT_AFTER_CHAT_HISTORY } from '../settings/task-placement.js';
