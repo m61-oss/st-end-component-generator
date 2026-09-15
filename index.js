@@ -39,6 +39,7 @@ import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.2.5';
 import { applyAnimaWorldbookOverrides, captureAnimaWorldbookEntries, captureAnimaWorldbookUntil, filterAnimaWorldbookEntries, getAnimaChatId, mergeAnimaWorldbookSnapshots, readLatestAnimaStatus, shouldClearAnimaSnapshotForChat } from './sources/anima-memory.js?ver=0.2.5';
 import { readQqjPromptSnapshot } from './sources/qqj-memory.js?ver=0.2.5';
 import {
+  clearFloorVariableSnapshot,
   extractFloorVariableSnapshot,
   findLatestAssistantMessageIndex,
   insertBodyFloorVariableSnapshot,
@@ -1114,6 +1115,21 @@ function syncLatestAssistantFloorVariable(messageIndex = null) {
   const eventIndex = Number(messageIndex);
   if (hasEventIndex && Number.isInteger(eventIndex) && eventIndex !== latestIndex) return;
   if (latestIndex !== null) refreshFloorVariableSnapshotForMessage(latestIndex, context);
+}
+
+function clearInheritedFloorVariableFromUserMessage(messageIndex) {
+  if (!settings.floorVariablesEnabled) return;
+  const context = getContext();
+  const targetIndex = Number(messageIndex);
+  const message = context?.chat?.[targetIndex];
+  if (!Number.isInteger(targetIndex) || message?.is_user !== true) return;
+  const helper = getTavernHelperVariableApi();
+  if (!helper || typeof helper.replaceVariables !== 'function') return;
+  try {
+    clearFloorVariableSnapshot(helper, targetIndex);
+  } catch (error) {
+    console.warn(`[${EXTENSION_ID}] 清理 user 楼层继承的楼层变量失败。`, error);
+  }
 }
 
 function getFloorVariableSnapshotForMessage(messageIndex, context = getContext()) {
@@ -9204,6 +9220,8 @@ function init() {
   if (messageEditedEvent) context.eventSource.on(messageEditedEvent, (messageIndex) => syncLatestAssistantFloorVariable(messageIndex));
   const messageUpdatedEvent = context.eventTypes?.MESSAGE_UPDATED;
   if (messageUpdatedEvent) context.eventSource.on(messageUpdatedEvent, (messageIndex) => syncLatestAssistantFloorVariable(messageIndex));
+  const messageSentEvent = context.eventTypes?.MESSAGE_SENT;
+  if (messageSentEvent) context.eventSource.on(messageSentEvent, (messageIndex) => clearInheritedFloorVariableFromUserMessage(messageIndex));
   const chatCompletionPromptReadyEvent = context.eventTypes?.CHAT_COMPLETION_PROMPT_READY;
   if (chatCompletionPromptReadyEvent) context.eventSource.on(chatCompletionPromptReadyEvent, handleChatCompletionPromptReady);
   if (context.eventTypes.GENERATION_STARTED) context.eventSource.on(context.eventTypes.GENERATION_STARTED, handleGenerationStarted);
