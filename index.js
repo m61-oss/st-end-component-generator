@@ -9274,7 +9274,12 @@ function init() {
   const messageUpdatedEvent = context.eventTypes?.MESSAGE_UPDATED;
   if (messageUpdatedEvent) context.eventSource.on(messageUpdatedEvent, (messageIndex) => syncLatestAssistantFloorVariable(messageIndex));
   const messageSentEvent = context.eventTypes?.MESSAGE_SENT;
-  if (messageSentEvent) context.eventSource.on(messageSentEvent, (messageIndex) => recordFloorVariableMessageLifecycle('message-sent', messageIndex));
+  if (messageSentEvent) {
+    const firstMessageSentProbe = (messageIndex) => recordFloorVariableDiagnosticEvent('message-sent:first-listener', messageIndex);
+    context.eventSource.on(messageSentEvent, firstMessageSentProbe);
+    if (typeof context.eventSource.makeFirst === 'function') context.eventSource.makeFirst(messageSentEvent, firstMessageSentProbe);
+    context.eventSource.on(messageSentEvent, (messageIndex) => recordFloorVariableMessageLifecycle('message-sent', messageIndex));
+  }
   const userMessageRenderedEvent = context.eventTypes?.USER_MESSAGE_RENDERED;
   if (userMessageRenderedEvent) context.eventSource.on(userMessageRenderedEvent, (messageIndex) => recordFloorVariableMessageLifecycle('user-message-rendered', messageIndex));
   const chatCompletionPromptReadyEvent = context.eventTypes?.CHAT_COMPLETION_PROMPT_READY;
