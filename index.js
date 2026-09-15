@@ -40,6 +40,7 @@ import { applyAnimaWorldbookOverrides, captureAnimaWorldbookEntries, captureAnim
 import { readQqjPromptSnapshot } from './sources/qqj-memory.js?ver=0.2.5';
 import {
   FLOOR_VARIABLE_NAMESPACE,
+  clearFloorVariableSnapshot,
   extractFloorVariableSnapshot,
   findLatestAssistantMessageIndex,
   insertBodyFloorVariableSnapshot,
@@ -372,6 +373,7 @@ const automaticGenerationLogEntries = [];
 let lastRuntimeDiagnostics = {};
 let lastPromptLogText = '';
 const floorVariableDiagnosticEvents = [];
+const userMessagesWithoutFloorSnapshotAtEventStart = new Set();
 let promptLogBuilding = false;
 let lastGeneratedThinking = [];
 let recentGenerationHistory = [];
@@ -1142,6 +1144,31 @@ function recordFloorVariableMessageLifecycle(event, messageIndex) {
   recordFloorVariableDiagnosticEvent(event, messageIndex);
   const schedule = typeof targetWindow?.setTimeout === 'function' ? targetWindow.setTimeout.bind(targetWindow) : setTimeout;
   schedule(() => recordFloorVariableDiagnosticEvent(`${event}:settled`, messageIndex), 1000);
+}
+
+function recordUserMessageStateAtEventStart(messageIndex) {
+  const state = inspectFloorVariableMessage(messageIndex);
+  recordFloorVariableDiagnosticEvent('message-sent:first-listener', messageIndex);
+  if (state.available && state.role === 'user' && !state.hasSnapshot) {
+    userMessagesWithoutFloorSnapshotAtEventStart.add(Number(messageIndex));
+  }
+}
+
+function removeSnapshotCopiedDuringMessageSent(messageIndex) {
+  const index = Number(messageIndex);
+  recordFloorVariableMessageLifecycle('message-sent', index);
+  if (!userMessagesWithoutFloorSnapshotAtEventStart.delete(index)) return;
+  const state = inspectFloorVariableMessage(index);
+  if (!state.available || state.role !== 'user' || !state.hasSnapshot) return;
+  const helper = getTavernHelperVariableApi();
+  if (!helper || typeof helper.replaceVariables !== 'function') return;
+  try {
+    if (clearFloorVariableSnapshot(helper, index)) {
+      recordFloorVariableDiagnosticEvent('message-sent:removed-copied-snapshot', index);
+    }
+  } catch (error) {
+    recordFloorVariableDiagnosticEvent('message-sent:remove-failed', index, { error: String(error?.message || error) });
+  }
 }
 
 function refreshFloorVariableSnapshotForMessage(messageIndex, context = getContext()) {
@@ -9275,10 +9302,10 @@ function init() {
   if (messageUpdatedEvent) context.eventSource.on(messageUpdatedEvent, (messageIndex) => syncLatestAssistantFloorVariable(messageIndex));
   const messageSentEvent = context.eventTypes?.MESSAGE_SENT;
   if (messageSentEvent) {
-    const firstMessageSentProbe = (messageIndex) => recordFloorVariableDiagnosticEvent('message-sent:first-listener', messageIndex);
+    const firstMessageSentProbe = (messageIndex) => recordUserMessageStateAtEventStart(messageIndex);
     context.eventSource.on(messageSentEvent, firstMessageSentProbe);
     if (typeof context.eventSource.makeFirst === 'function') context.eventSource.makeFirst(messageSentEvent, firstMessageSentProbe);
-    context.eventSource.on(messageSentEvent, (messageIndex) => recordFloorVariableMessageLifecycle('message-sent', messageIndex));
+    context.eventSource.on(messageSentEvent, (messageIndex) => removeSnapshotCopiedDuringMessageSent(messageIndex));
   }
   const userMessageRenderedEvent = context.eventTypes?.USER_MESSAGE_RENDERED;
   if (userMessageRenderedEvent) context.eventSource.on(userMessageRenderedEvent, (messageIndex) => recordFloorVariableMessageLifecycle('user-message-rendered', messageIndex));

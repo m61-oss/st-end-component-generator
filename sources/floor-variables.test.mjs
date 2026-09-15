@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   FLOOR_VARIABLE_NAMESPACE,
+  clearFloorVariableSnapshot,
   extractFloorVariableSnapshot,
   findLatestAssistantMessageIndex,
   readFloorVariableRules,
@@ -101,6 +102,26 @@ test('message snapshots update only their namespace and exact message swipe', ()
   assert.equal(readFloorVariableSnapshot(helper, 3), 'snapshot text');
   assert.equal(stores.get(3).unrelated, 7);
   assert.equal(stores.get(3)[FLOOR_VARIABLE_NAMESPACE].floorVariableSnapshot, 'snapshot text');
+});
+
+test('removes only the copied floor snapshot from an exact message', () => {
+  const stores = new Map([[4, {
+    unrelated: 7,
+    [FLOOR_VARIABLE_NAMESPACE]: {
+      floorVariableSnapshot: '<snow>copied</snow>',
+      retained: 'value',
+    },
+  }]]);
+  const helper = {
+    getVariables: ({ message_id }) => structuredClone(stores.get(message_id) || {}),
+    replaceVariables: (value, { message_id }) => stores.set(message_id, structuredClone(value)),
+  };
+
+  assert.equal(clearFloorVariableSnapshot(helper, 4), true);
+  assert.deepEqual(stores.get(4), {
+    unrelated: 7,
+    [FLOOR_VARIABLE_NAMESPACE]: { retained: 'value' },
+  });
 });
 
 test('finds only ordinary assistant messages, including an empty latest assistant', () => {
