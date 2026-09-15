@@ -442,6 +442,7 @@ const VISIBLE_GENERATION_LOG_STAGES = new Set([
   'generation-ended',
   'message-received',
   'message-rendered',
+  'floor-variable',
   '等待渲染',
   '等待结束结果',
   '等待触发字符串',
@@ -480,6 +481,7 @@ function logAutomaticGenerationStage(stage, details = '') {
     'generation-ended': '收到生成结束事件',
     'message-received': '收到 assistant 消息',
     'message-rendered': 'assistant 消息已渲染',
+    'floor-variable': '楼层变量诊断',
     '等待渲染': '等待生成条件',
     '等待结束结果': '等待最新 assistant',
     '找到 assistant': '检测到 assistant',
@@ -541,6 +543,9 @@ function logAutomaticGenerationStage(stage, details = '') {
 
 function clearAutomaticGenerationLog() {
   automaticGenerationLogEntries.length = 0;
+  floorVariableDiagnosticEvents.slice(-8).forEach((entry) => {
+    automaticGenerationLogEntries.push(formatFloorVariableDiagnosticEntry(entry));
+  });
   automaticGenerationLogActive = true;
   const logElement = targetDoc.getElementById('st-esg-generation-log');
   if (logElement) logElement.textContent = '';
@@ -1110,6 +1115,16 @@ function inspectFloorVariableMessage(messageIndex, context = getContext()) {
   }
 }
 
+function formatFloorVariableDiagnosticEntry(entry) {
+  const state = entry.available
+    ? `${entry.role || 'unknown'}；快照=${entry.hasSnapshot ? '有' : '无'}；长度=${entry.snapshotLength || 0}`
+    : `不可读取${entry.error ? `；${entry.error}` : ''}`;
+  const write = entry.event === 'snapshot-sync'
+    ? `；最新 assistant=${entry.latestAssistantIndex}；准备写入=${entry.wrote ? '是' : '否'}；新长度=${entry.nextLength || 0}`
+    : '';
+  return `${new Date(entry.time).toLocaleTimeString()} 楼层变量诊断：${entry.event}；楼层=${entry.messageIndex ?? '未知'}；${state}${write}`;
+}
+
 function recordFloorVariableDiagnosticEvent(event, messageIndex, details = {}) {
   const entry = {
     time: new Date().toISOString(),
@@ -1120,6 +1135,7 @@ function recordFloorVariableDiagnosticEvent(event, messageIndex, details = {}) {
   floorVariableDiagnosticEvents.push(entry);
   if (floorVariableDiagnosticEvents.length > 30) floorVariableDiagnosticEvents.splice(0, floorVariableDiagnosticEvents.length - 30);
   console.debug(`[${EXTENSION_ID}] floor variable event`, entry);
+  logAutomaticGenerationStage('floor-variable', formatFloorVariableDiagnosticEntry(entry).replace(/^[^ ]+ 楼层变量诊断：/, ''));
 }
 
 function recordFloorVariableMessageLifecycle(event, messageIndex) {
