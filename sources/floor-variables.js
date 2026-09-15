@@ -139,23 +139,6 @@ export function writeFloorVariableSnapshot(helper, messageIndex, snapshot) {
   return text;
 }
 
-export function clearFloorVariableSnapshot(helper, messageIndex) {
-  const getVariables = requireHelperMethod(helper, 'getVariables');
-  const replaceVariables = requireHelperMethod(helper, 'replaceVariables');
-  const option = { type: 'message', message_id: Number(messageIndex) };
-  const variables = getVariables(option);
-  const namespace = getNamespace(variables);
-  if (!Object.prototype.hasOwnProperty.call(namespace, 'floorVariableSnapshot')) return false;
-
-  const nextVariables = { ...variables };
-  const nextNamespace = { ...namespace };
-  delete nextNamespace.floorVariableSnapshot;
-  if (Object.keys(nextNamespace).length) nextVariables[FLOOR_VARIABLE_NAMESPACE] = nextNamespace;
-  else delete nextVariables[FLOOR_VARIABLE_NAMESPACE];
-  replaceVariables(nextVariables, option);
-  return true;
-}
-
 function isOrdinaryAssistant(message) {
   if (!message || message.is_user === true || message.is_system === true) return false;
   return String(message.role || '').toLowerCase() !== 'user'

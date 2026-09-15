@@ -39,7 +39,7 @@ import { getBaiBaiBookApi } from './sources/baibai-book.js?ver=0.2.5';
 import { applyAnimaWorldbookOverrides, captureAnimaWorldbookEntries, captureAnimaWorldbookUntil, filterAnimaWorldbookEntries, getAnimaChatId, mergeAnimaWorldbookSnapshots, readLatestAnimaStatus, shouldClearAnimaSnapshotForChat } from './sources/anima-memory.js?ver=0.2.5';
 import { readQqjPromptSnapshot } from './sources/qqj-memory.js?ver=0.2.5';
 import {
-  clearFloorVariableSnapshot,
+  FLOOR_VARIABLE_NAMESPACE,
   extractFloorVariableSnapshot,
   findLatestAssistantMessageIndex,
   insertBodyFloorVariableSnapshot,
@@ -371,6 +371,7 @@ let automaticGenerationLogActive = false;
 const automaticGenerationLogEntries = [];
 let lastRuntimeDiagnostics = {};
 let lastPromptLogText = '';
+const floorVariableDiagnosticEvents = [];
 let promptLogBuilding = false;
 let lastGeneratedThinking = [];
 let recentGenerationHistory = [];
@@ -1086,6 +1087,47 @@ function getFloorVariableRulesForUi(scope) {
   }
 }
 
+function inspectFloorVariableMessage(messageIndex, context = getContext()) {
+  const index = Number(messageIndex);
+  const message = context?.chat?.[index];
+  const helper = getTavernHelperVariableApi();
+  if (!Number.isInteger(index) || !message || !helper) return { messageIndex: Number.isInteger(index) ? index : null, available: false };
+  try {
+    const variables = helper.getVariables({ type: 'message', message_id: index });
+    const namespace = variables?.[FLOOR_VARIABLE_NAMESPACE];
+    const hasSnapshot = Boolean(namespace && typeof namespace === 'object'
+      && Object.prototype.hasOwnProperty.call(namespace, 'floorVariableSnapshot'));
+    return {
+      messageIndex: index,
+      available: true,
+      role: message.is_user === true ? 'user' : (message.is_system === true ? 'system' : 'assistant'),
+      hasSnapshot,
+      snapshotLength: hasSnapshot ? String(namespace.floorVariableSnapshot ?? '').length : 0,
+      namespaceKeys: namespace && typeof namespace === 'object' ? Object.keys(namespace) : [],
+    };
+  } catch (error) {
+    return { messageIndex: index, available: false, error: String(error?.message || error) };
+  }
+}
+
+function recordFloorVariableDiagnosticEvent(event, messageIndex, details = {}) {
+  const entry = {
+    time: new Date().toISOString(),
+    event,
+    ...inspectFloorVariableMessage(messageIndex),
+    ...details,
+  };
+  floorVariableDiagnosticEvents.push(entry);
+  if (floorVariableDiagnosticEvents.length > 30) floorVariableDiagnosticEvents.splice(0, floorVariableDiagnosticEvents.length - 30);
+  console.debug(`[${EXTENSION_ID}] floor variable event`, entry);
+}
+
+function recordFloorVariableMessageLifecycle(event, messageIndex) {
+  recordFloorVariableDiagnosticEvent(event, messageIndex);
+  const schedule = typeof targetWindow?.setTimeout === 'function' ? targetWindow.setTimeout.bind(targetWindow) : setTimeout;
+  schedule(() => recordFloorVariableDiagnosticEvent(`${event}:settled`, messageIndex), 1000);
+}
+
 function refreshFloorVariableSnapshotForMessage(messageIndex, context = getContext()) {
   if (!settings.floorVariablesEnabled) return '';
   const helper = getTavernHelperVariableApi();
@@ -1098,6 +1140,12 @@ function refreshFloorVariableSnapshotForMessage(messageIndex, context = getConte
     const rules = readAllFloorVariableRules(helper);
     const result = extractFloorVariableSnapshot(message?.mes, rules);
     const previous = readFloorVariableSnapshot(helper, targetIndex);
+    recordFloorVariableDiagnosticEvent('snapshot-sync', targetIndex, {
+      latestAssistantIndex: latestIndex,
+      previousLength: previous.length,
+      nextLength: result.text.length,
+      wrote: previous !== result.text,
+    });
     if (previous !== result.text) writeFloorVariableSnapshot(helper, targetIndex, result.text);
     if (result.errors.length) console.warn(`[${EXTENSION_ID}] 楼层变量中有 ${result.errors.length} 条无效正则，已跳过。`, result.errors);
     return result.text;
@@ -1115,28 +1163,6 @@ function syncLatestAssistantFloorVariable(messageIndex = null) {
   const eventIndex = Number(messageIndex);
   if (hasEventIndex && Number.isInteger(eventIndex) && eventIndex !== latestIndex) return;
   if (latestIndex !== null) refreshFloorVariableSnapshotForMessage(latestIndex, context);
-}
-
-function clearInheritedFloorVariableFromUserMessage(messageIndex) {
-  if (!settings.floorVariablesEnabled) return;
-  const context = getContext();
-  const targetIndex = Number(messageIndex);
-  const message = context?.chat?.[targetIndex];
-  if (!Number.isInteger(targetIndex) || message?.is_user !== true) return;
-  const helper = getTavernHelperVariableApi();
-  if (!helper || typeof helper.replaceVariables !== 'function') return;
-  try {
-    clearFloorVariableSnapshot(helper, targetIndex);
-  } catch (error) {
-    console.warn(`[${EXTENSION_ID}] 清理 user 楼层继承的楼层变量失败。`, error);
-  }
-}
-
-function scheduleInheritedFloorVariableCleanup(messageIndex) {
-  const schedule = typeof targetWindow?.setTimeout === 'function'
-    ? targetWindow.setTimeout.bind(targetWindow)
-    : setTimeout;
-  schedule(() => clearInheritedFloorVariableFromUserMessage(messageIndex), 0);
 }
 
 function getFloorVariableSnapshotForMessage(messageIndex, context = getContext()) {
@@ -2436,6 +2462,10 @@ async function buildMessages(latestMessage, sourceSettings = settings, { onDiagn
     sourceMessageIndex: latestMessageIndex >= 0 ? latestMessageIndex : null,
     snapshotLength: floorVariableText.length,
     status: !settings.floorVariablesEnabled ? 'disabled' : (floorVariableText ? 'injected' : 'empty'),
+    recentEvents: floorVariableDiagnosticEvents.slice(-20),
+    recentMessageStorage: Array.from({ length: Math.min(3, context?.chat?.length || 0) }, (_, offset) => (
+      inspectFloorVariableMessage((context.chat.length - 1) - offset, context)
+    )),
   };
   if (typeof onDiagnostics === 'function') onDiagnostics(runtimeDiagnostics);
   else lastRuntimeDiagnostics = runtimeDiagnostics;
@@ -9228,9 +9258,9 @@ function init() {
   const messageUpdatedEvent = context.eventTypes?.MESSAGE_UPDATED;
   if (messageUpdatedEvent) context.eventSource.on(messageUpdatedEvent, (messageIndex) => syncLatestAssistantFloorVariable(messageIndex));
   const messageSentEvent = context.eventTypes?.MESSAGE_SENT;
-  if (messageSentEvent) context.eventSource.on(messageSentEvent, (messageIndex) => scheduleInheritedFloorVariableCleanup(messageIndex));
+  if (messageSentEvent) context.eventSource.on(messageSentEvent, (messageIndex) => recordFloorVariableMessageLifecycle('message-sent', messageIndex));
   const userMessageRenderedEvent = context.eventTypes?.USER_MESSAGE_RENDERED;
-  if (userMessageRenderedEvent) context.eventSource.on(userMessageRenderedEvent, (messageIndex) => scheduleInheritedFloorVariableCleanup(messageIndex));
+  if (userMessageRenderedEvent) context.eventSource.on(userMessageRenderedEvent, (messageIndex) => recordFloorVariableMessageLifecycle('user-message-rendered', messageIndex));
   const chatCompletionPromptReadyEvent = context.eventTypes?.CHAT_COMPLETION_PROMPT_READY;
   if (chatCompletionPromptReadyEvent) context.eventSource.on(chatCompletionPromptReadyEvent, handleChatCompletionPromptReady);
   if (context.eventTypes.GENERATION_STARTED) context.eventSource.on(context.eventTypes.GENERATION_STARTED, handleGenerationStarted);
