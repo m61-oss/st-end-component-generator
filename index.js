@@ -1132,6 +1132,13 @@ function clearInheritedFloorVariableFromUserMessage(messageIndex) {
   }
 }
 
+function scheduleInheritedFloorVariableCleanup(messageIndex) {
+  const schedule = typeof targetWindow?.setTimeout === 'function'
+    ? targetWindow.setTimeout.bind(targetWindow)
+    : setTimeout;
+  schedule(() => clearInheritedFloorVariableFromUserMessage(messageIndex), 0);
+}
+
 function getFloorVariableSnapshotForMessage(messageIndex, context = getContext()) {
   if (!settings.floorVariablesEnabled) return '';
   const helper = getTavernHelperVariableApi();
@@ -9221,7 +9228,9 @@ function init() {
   const messageUpdatedEvent = context.eventTypes?.MESSAGE_UPDATED;
   if (messageUpdatedEvent) context.eventSource.on(messageUpdatedEvent, (messageIndex) => syncLatestAssistantFloorVariable(messageIndex));
   const messageSentEvent = context.eventTypes?.MESSAGE_SENT;
-  if (messageSentEvent) context.eventSource.on(messageSentEvent, (messageIndex) => clearInheritedFloorVariableFromUserMessage(messageIndex));
+  if (messageSentEvent) context.eventSource.on(messageSentEvent, (messageIndex) => scheduleInheritedFloorVariableCleanup(messageIndex));
+  const userMessageRenderedEvent = context.eventTypes?.USER_MESSAGE_RENDERED;
+  if (userMessageRenderedEvent) context.eventSource.on(userMessageRenderedEvent, (messageIndex) => scheduleInheritedFloorVariableCleanup(messageIndex));
   const chatCompletionPromptReadyEvent = context.eventTypes?.CHAT_COMPLETION_PROMPT_READY;
   if (chatCompletionPromptReadyEvent) context.eventSource.on(chatCompletionPromptReadyEvent, handleChatCompletionPromptReady);
   if (context.eventTypes.GENERATION_STARTED) context.eventSource.on(context.eventTypes.GENERATION_STARTED, handleGenerationStarted);
