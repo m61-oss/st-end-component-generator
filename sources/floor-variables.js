@@ -127,10 +127,12 @@ export function readFloorVariableSnapshot(helper, messageIndex) {
   return textOf(getNamespace(variables).floorVariableSnapshot);
 }
 
-export function writeFloorVariableSnapshot(helper, messageIndex, snapshot) {
+export function writeFloorVariableSnapshot(helper, messageIndex, snapshot, { chat = null } = {}) {
+  const index = Number(messageIndex);
+  if (Array.isArray(chat) && !isOrdinaryAssistant(chat[index])) return '';
   const getVariables = requireHelperMethod(helper, 'getVariables');
   const insertOrAssignVariables = requireHelperMethod(helper, 'insertOrAssignVariables');
-  const option = { type: 'message', message_id: Number(messageIndex) };
+  const option = { type: 'message', message_id: index };
   const namespace = getNamespace(getVariables(option));
   const text = textOf(snapshot);
   insertOrAssignVariables({
@@ -167,6 +169,20 @@ export function findLatestAssistantMessageIndex(chat, beforeIndex = null) {
   const upperBound = Number.isInteger(beforeIndex) ? Math.min(beforeIndex - 1, messages.length - 1) : messages.length - 1;
   for (let index = upperBound; index >= 0; index -= 1) {
     if (isOrdinaryAssistant(messages[index])) return index;
+  }
+  return null;
+}
+
+export function findLatestEffectiveFloorVariableSnapshot(helper, chat, startIndex = null) {
+  const messages = Array.isArray(chat) ? chat : [];
+  const numericStart = Number(startIndex);
+  const upperBound = Number.isInteger(numericStart)
+    ? Math.min(numericStart, messages.length - 1)
+    : messages.length - 1;
+  for (let index = upperBound; index >= 0; index -= 1) {
+    if (!isOrdinaryAssistant(messages[index])) continue;
+    const snapshot = readFloorVariableSnapshot(helper, index);
+    if (snapshot.trim()) return { messageIndex: index, snapshot };
   }
   return null;
 }

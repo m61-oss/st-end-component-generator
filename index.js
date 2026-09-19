@@ -23,7 +23,7 @@ import {
 } from './sources/component-sources.js?ver=0.2.5';
 import { applyComponentPositionMove } from './sources/component-order.js?ver=0.2.5';
 import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api/api-utils.js?ver=0.2.5';
-import { containsStatusPlaceholder, injectStatusbarText, normalizeStatusPlaceholder, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.2.5';
+import { containsStatusPlaceholder, injectStatusbarText, normalizeStatusPlaceholder, restoreStatusPlaceholderState, STATUS_PLACEHOLDER_TAG } from './injection/inject-utils.js?ver=0.2.5';
 import { createInjectionUndoSnapshot, validateInjectionUndoSnapshot } from './injection/injection-undo.js?ver=0.2.5';
 import { applyMultiTaskInjection, undoMultiTaskInjection } from './injection/multi-task-injection.js?ver=0.2.5';
 import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics, stripInternalMessageFields } from './generation/prompt-builder.js?ver=0.2.5';
@@ -42,6 +42,7 @@ import {
   FLOOR_VARIABLE_NAMESPACE,
   clearFloorVariableSnapshot,
   extractFloorVariableSnapshot,
+  findLatestEffectiveFloorVariableSnapshot,
   findLatestAssistantMessageIndex,
   insertBodyFloorVariableSnapshot,
   readAllFloorVariableRules,
@@ -1189,7 +1190,7 @@ function refreshFloorVariableSnapshotForMessage(messageIndex, context = getConte
       nextLength: result.text.length,
       wrote: previous !== result.text,
     });
-    if (previous !== result.text) writeFloorVariableSnapshot(helper, targetIndex, result.text);
+    if (previous !== result.text) writeFloorVariableSnapshot(helper, targetIndex, result.text, { chat: context.chat });
     if (result.errors.length) console.warn(`[${EXTENSION_ID}] 楼层变量中有 ${result.errors.length} 条无效正则，已跳过。`, result.errors);
     return result.text;
   } catch (error) {
@@ -1214,7 +1215,7 @@ function getFloorVariableSnapshotForMessage(messageIndex, context = getContext()
   if (!helper || !Number.isInteger(Number(messageIndex))) return '';
   refreshFloorVariableSnapshotForMessage(Number(messageIndex), context);
   try {
-    return readFloorVariableSnapshot(helper, Number(messageIndex));
+    return findLatestEffectiveFloorVariableSnapshot(helper, context?.chat, Number(messageIndex))?.snapshot || '';
   } catch (_) {
     return '';
   }
@@ -8014,9 +8015,11 @@ async function undoMultiTaskInjections(requestedTaskIds = null, { requireConfirm
       replaceMultiTask(task.id, { error: { message: '楼层中的对应注入内容已经变化，无法安全撤回。', code: undone.reason } });
       continue;
     }
-    latest.message.mes = settings.statusPlaceholderEnabled
-      ? normalizeStatusPlaceholder(undone.text, true)
-      : undone.text;
+    latest.message.mes = restoreStatusPlaceholderState(
+      undone.text,
+      record.beforeText,
+      settings.statusPlaceholderEnabled,
+    );
     if (Array.isArray(latest.message.swipes) && Number.isInteger(latest.message.swipe_id)) {
       latest.message.swipes[latest.message.swipe_id] = latest.message.mes;
     }

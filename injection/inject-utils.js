@@ -8,14 +8,25 @@ export function containsStatusPlaceholder(value) {
   return String(value || '').includes(STATUS_PLACEHOLDER_TAG);
 }
 
-export function normalizeStatusPlaceholder(value, force = false) {
-  const source = String(value || '');
-  if (!force && !containsStatusPlaceholder(source)) return source;
-  const withoutPlaceholders = source
+function stripStatusPlaceholders(value) {
+  return String(value || '')
     .replace(/[ \t]*<StatusPlaceHolderImpl\/>[ \t]*(?:\r?\n|$)/g, '')
     .replace(/<StatusPlaceHolderImpl\/>/g, '')
     .trim();
+}
+
+export function normalizeStatusPlaceholder(value, force = false) {
+  const source = String(value || '');
+  if (!force && !containsStatusPlaceholder(source)) return source;
+  const withoutPlaceholders = stripStatusPlaceholders(source);
   return withoutPlaceholders ? `${withoutPlaceholders}\n${STATUS_PLACEHOLDER_TAG}` : STATUS_PLACEHOLDER_TAG;
+}
+
+export function restoreStatusPlaceholderState(value, originalValue, enabled = false) {
+  const source = String(value || '');
+  if (!enabled) return source;
+  if (containsStatusPlaceholder(originalValue)) return normalizeStatusPlaceholder(source, true);
+  return containsStatusPlaceholder(source) ? stripStatusPlaceholders(source) : source;
 }
 
 function replaceMatchingTagBlocks(messageText, statusbarText) {

@@ -5,6 +5,7 @@ import {
   FLOOR_VARIABLE_NAMESPACE,
   clearFloorVariableSnapshot,
   extractFloorVariableSnapshot,
+  findLatestEffectiveFloorVariableSnapshot,
   findLatestAssistantMessageIndex,
   readFloorVariableRules,
   readAllFloorVariableRules,
@@ -102,6 +103,66 @@ test('message snapshots update only their namespace and exact message swipe', ()
   assert.equal(readFloorVariableSnapshot(helper, 3), 'snapshot text');
   assert.equal(stores.get(3).unrelated, 7);
   assert.equal(stores.get(3)[FLOOR_VARIABLE_NAMESPACE].floorVariableSnapshot, 'snapshot text');
+});
+
+test('finds the newest non-empty assistant snapshot by walking backward', () => {
+  const chat = [
+    { is_user: false, mes: 'older assistant' },
+    { is_user: true, mes: 'user' },
+    { is_user: false, mes: 'latest assistant without a snapshot' },
+  ];
+  const stores = new Map([
+    [0, { [FLOOR_VARIABLE_NAMESPACE]: { floorVariableSnapshot: '<snow>old</snow>' } }],
+    [1, { [FLOOR_VARIABLE_NAMESPACE]: { floorVariableSnapshot: '<snow>copied to user</snow>' } }],
+    [2, { [FLOOR_VARIABLE_NAMESPACE]: { floorVariableSnapshot: '' } }],
+  ]);
+  const helper = {
+    getVariables: ({ message_id }) => structuredClone(stores.get(message_id) || {}),
+  };
+
+  assert.deepEqual(findLatestEffectiveFloorVariableSnapshot(helper, chat, 2), {
+    messageIndex: 0,
+    snapshot: '<snow>old</snow>',
+  });
+});
+
+test('prefers a non-empty snapshot on the current assistant floor', () => {
+  const chat = [
+    { is_user: false, mes: 'older assistant' },
+    { is_user: false, mes: 'current assistant' },
+  ];
+  const stores = new Map([
+    [0, { [FLOOR_VARIABLE_NAMESPACE]: { floorVariableSnapshot: '<snow>old</snow>' } }],
+    [1, { [FLOOR_VARIABLE_NAMESPACE]: { floorVariableSnapshot: '<snow>current</snow>' } }],
+  ]);
+  const helper = {
+    getVariables: ({ message_id }) => structuredClone(stores.get(message_id) || {}),
+  };
+
+  assert.deepEqual(findLatestEffectiveFloorVariableSnapshot(helper, chat, 1), {
+    messageIndex: 1,
+    snapshot: '<snow>current</snow>',
+  });
+});
+
+test('refuses to write a floor snapshot to user and system messages when chat ownership is supplied', () => {
+  const stores = new Map();
+  const helper = {
+    getVariables: ({ message_id }) => structuredClone(stores.get(message_id) || {}),
+    insertOrAssignVariables: (value, { message_id }) => stores.set(message_id, structuredClone(value)),
+  };
+  const chat = [
+    { is_user: true, mes: 'user' },
+    { is_system: true, mes: 'system' },
+    { is_user: false, mes: 'assistant' },
+  ];
+
+  assert.equal(writeFloorVariableSnapshot(helper, 0, 'user snapshot', { chat }), '');
+  assert.equal(writeFloorVariableSnapshot(helper, 1, 'system snapshot', { chat }), '');
+  assert.equal(writeFloorVariableSnapshot(helper, 2, 'assistant snapshot', { chat }), 'assistant snapshot');
+  assert.equal(stores.has(0), false);
+  assert.equal(stores.has(1), false);
+  assert.equal(readFloorVariableSnapshot(helper, 2), 'assistant snapshot');
 });
 
 test('removes only the copied floor snapshot from an exact message', () => {
