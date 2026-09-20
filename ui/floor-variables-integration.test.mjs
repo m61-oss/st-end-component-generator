@@ -16,13 +16,13 @@ test('generation settings expose a dedicated floor-variable page with vertical s
   assert.match(indexSource, /data-floor-variable-field="regexText"/);
 });
 
-test('floor variables listen for saved edits and inject into body prompts', () => {
+test('floor variables listen for saved edits and use native depth-zero body injection', () => {
   assert.match(indexSource, /MESSAGE_EDITED.*syncLatestAssistantFloorVariable/s);
   assert.match(indexSource, /MESSAGE_UPDATED.*syncLatestAssistantFloorVariable/s);
-  assert.match(indexSource, /CHAT_COMPLETION_PROMPT_READY/);
-  assert.match(indexSource, /insertBodyFloorVariableSnapshot/);
-  assert.match(indexSource, /import\s*\{\s*promptManager\s*\}\s*from\s*['"]\.\.\/\.\.\/\.\.\/openai\.js['"]/);
-  assert.match(indexSource, /insertBodyFloorVariableSnapshot\(eventData\.chat,\s*snapshot,\s*promptManager\?\.messages\)/);
+  assert.match(indexSource, /GENERATION_STARTED.*handleGenerationStarted/s);
+  assert.match(indexSource, /setFloorVariableDepthZeroPrompt/);
+  assert.doesNotMatch(indexSource, /CHAT_COMPLETION_PROMPT_READY/);
+  assert.doesNotMatch(indexSource, /insertBodyFloorVariableSnapshot/);
 });
 
 test('component prompts resolve the floor snapshot inside each request build', () => {

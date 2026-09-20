@@ -188,19 +188,27 @@ test('final outgoing-message pass removes MVU status placeholders without changi
   assert.equal('sourceMessageIndex' in messages[0], false);
 });
 
-test('inserts the floor-variable snapshot immediately after its source assistant', async () => {
+test('places the floor-variable snapshot at depth zero after chat history and before control messages', async () => {
   const messages = await build({
     floorVariableSnapshot: { content: '<snow>state</snow>', sourceMessageIndex: 1 },
+    promptSourceItems: [
+      { id: 'history-entry', markerType: 'chatHistory', role: 'system', content: '' },
+      { id: 'later-assistant-injection', role: 'assistant', content: 'OTHER PLUGIN ASSISTANT' },
+    ],
   });
-  const assistantIndex = messages.findIndex((message) => message.content === context.chat[1].mes);
+  const assistantIndex = messages.findLastIndex((message) => message.content === context.chat[1].mes);
+  const pluginAssistantIndex = messages.findIndex((message) => message.content === 'OTHER PLUGIN ASSISTANT');
+  const snapshotIndex = messages.findIndex((message) => message.floorVariableSnapshot);
   const taskIndex = messages.findIndex((message) => message.role === 'user' && message.content === 'TASK');
 
-  assert.deepEqual(messages[assistantIndex + 1], {
+  assert.deepEqual(messages[snapshotIndex], {
     role: 'system',
     content: '<snow>state</snow>',
     floorVariableSnapshot: true,
   });
-  assert.ok(assistantIndex + 1 < taskIndex);
+  assert.ok(assistantIndex < snapshotIndex);
+  assert.ok(pluginAssistantIndex < snapshotIndex);
+  assert.equal(taskIndex, snapshotIndex + 1);
 });
 
 test('does not trim the extracted floor-variable snapshot', async () => {

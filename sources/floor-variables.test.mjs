@@ -11,7 +11,7 @@ import {
   readAllFloorVariableRules,
   readFloorVariableSnapshot,
   resolveBodySnapshotSourceIndex,
-  insertBodyFloorVariableSnapshot,
+  setFloorVariableDepthZeroPrompt,
   writeFloorVariableRules,
   writeFloorVariableSnapshot,
 } from './floor-variables.js';
@@ -210,106 +210,26 @@ test('body rerolls use the previous assistant but normal and continue use the la
   assert.equal(resolveBodySnapshotSourceIndex(endedWithUser, 'normal'), 2);
 });
 
-test('body snapshot is inserted as a system message after the outgoing latest assistant', () => {
-  const messages = [
-    { role: 'system', content: 'system' },
-    { role: 'assistant', content: 'assistant' },
-    { role: 'user', content: 'user' },
-  ];
-  assert.equal(insertBodyFloorVariableSnapshot(messages, '<snow>state</snow>'), true);
-  assert.deepEqual(messages.map(({ role, content }) => ({ role, content })), [
-    { role: 'system', content: 'system' },
-    { role: 'assistant', content: 'assistant' },
-    { role: 'system', content: '<snow>state</snow>' },
-    { role: 'user', content: 'user' },
-  ]);
-  assert.equal(Object.keys(messages[2]).includes('stEsgFloorVariableSnapshot'), false);
+test('body snapshot uses SillyTavern native system depth-zero injection', () => {
+  const calls = [];
+  const context = { setExtensionPrompt: (...args) => calls.push(args) };
+
+  assert.equal(setFloorVariableDepthZeroPrompt(context, '\n<snow>state</snow>\n'), true);
+  assert.deepEqual(calls, [[
+    'st-end-component-generator-floor-variables',
+    '\n<snow>state</snow>\n',
+    1,
+    0,
+    false,
+    0,
+  ]]);
 });
 
-test('body snapshot is inserted after the body assistant instead of the assistant prefill', () => {
-  const messages = [
-    { role: 'system', content: 'system' },
-    { role: 'assistant', content: 'body assistant' },
-    { role: 'user', content: 'latest user' },
-    { role: 'assistant', content: 'assistant prefill' },
-  ];
-  assert.equal(insertBodyFloorVariableSnapshot(messages, '<snow>state</snow>'), true);
-  assert.deepEqual(messages.map(({ role, content }) => ({ role, content })), [
-    { role: 'system', content: 'system' },
-    { role: 'assistant', content: 'body assistant' },
-    { role: 'system', content: '<snow>state</snow>' },
-    { role: 'user', content: 'latest user' },
-    { role: 'assistant', content: 'assistant prefill' },
-  ]);
-});
+test('body snapshot clears the native depth-zero injection when no content is available', () => {
+  const calls = [];
+  const context = { setExtensionPrompt: (...args) => calls.push(args) };
 
-test('body snapshot uses the final assistant owned by Chat History instead of an assistant injection', () => {
-  const messages = [
-    { role: 'system', content: 'system' },
-    { role: 'assistant', content: 'body assistant' },
-    { role: 'assistant', content: 'depth assistant injection' },
-    { role: 'user', content: 'latest user' },
-    { role: 'assistant', content: 'assistant prefill' },
-  ];
-  const promptManagerMessages = {
-    flatten: () => [
-      { identifier: 'main', role: 'system', content: 'system' },
-      { identifier: 'chatHistory-2', role: 'assistant', content: 'body assistant' },
-      { identifier: 'extension-depth-prompt', role: 'assistant', content: 'depth assistant injection' },
-      { identifier: 'chatHistory-1', role: 'user', content: 'latest user' },
-      { identifier: 'controlPrompts', role: 'assistant', content: 'assistant prefill' },
-    ],
-  };
-
-  assert.equal(insertBodyFloorVariableSnapshot(messages, '<snow>state</snow>', promptManagerMessages), true);
-  assert.deepEqual(messages.map(({ role, content }) => ({ role, content })), [
-    { role: 'system', content: 'system' },
-    { role: 'assistant', content: 'body assistant' },
-    { role: 'system', content: '<snow>state</snow>' },
-    { role: 'assistant', content: 'depth assistant injection' },
-    { role: 'user', content: 'latest user' },
-    { role: 'assistant', content: 'assistant prefill' },
-  ]);
-});
-
-test('body snapshot ignores a stale Prompt Manager collection from another request', () => {
-  const messages = [
-    { role: 'system', content: 'current system' },
-    { role: 'assistant', content: 'current body assistant' },
-    { role: 'user', content: 'current user' },
-    { role: 'assistant', content: 'current prefill' },
-  ];
-  const stalePromptManagerMessages = {
-    flatten: () => [
-      { identifier: 'main', role: 'system', content: 'old system' },
-      { identifier: 'chatHistory-2', role: 'user', content: 'old user' },
-      { identifier: 'control', role: 'system', content: 'old control' },
-      { identifier: 'chatHistory-1', role: 'assistant', content: 'old assistant' },
-    ],
-  };
-
-  insertBodyFloorVariableSnapshot(messages, '<snow>state</snow>', stalePromptManagerMessages);
-  assert.deepEqual(messages.map(({ role, content }) => ({ role, content })), [
-    { role: 'system', content: 'current system' },
-    { role: 'assistant', content: 'current body assistant' },
-    { role: 'system', content: '<snow>state</snow>' },
-    { role: 'user', content: 'current user' },
-    { role: 'assistant', content: 'current prefill' },
-  ]);
-});
-
-test('body snapshot is not inserted after a prefill when no body assistant exists', () => {
-  const messages = [
-    { role: 'system', content: 'system' },
-    { role: 'user', content: 'latest user' },
-    { role: 'assistant', content: 'assistant prefill' },
-  ];
-  assert.equal(insertBodyFloorVariableSnapshot(messages, '<snow>state</snow>'), false);
-  assert.equal(messages.length, 3);
-});
-
-test('body prompt insertion preserves snapshot whitespace verbatim', () => {
-  const messages = [{ role: 'assistant', content: 'assistant' }];
-  insertBodyFloorVariableSnapshot(messages, '\n<box>value</box>\n');
-  assert.equal(messages[1].content, '\n<box>value</box>\n');
+  assert.equal(setFloorVariableDepthZeroPrompt(context, ''), true);
+  assert.equal(calls[0][1], '');
+  assert.equal(calls[0][3], 0);
 });

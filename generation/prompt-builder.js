@@ -881,13 +881,8 @@ export async function buildExternalStatusbarMessages({ targetWindow, context, la
   messages.runtimeInsertions = applyRuntimeTemplateInsertions(messages, { context, worldbooks });
   markLatestAssistantTarget(messages, context, latestMessage, outputMode);
   const floorVariableContent = String(floorVariableSnapshot?.content ?? '');
-  const floorVariableSourceIndex = normalizeMessageIndex(floorVariableSnapshot?.sourceMessageIndex);
-  if (floorVariableContent.trim() && floorVariableSourceIndex !== null) {
-    const sourceIndex = messages.findLastIndex((message) => message?.role === 'assistant' && normalizeMessageIndex(message?.sourceMessageIndex) === floorVariableSourceIndex);
-    if (sourceIndex >= 0) {
-      const boundaryOffset = messages[sourceIndex + 1]?.content === '</latest_assistant_target>' ? 1 : 0;
-      messages.splice(sourceIndex + 1 + boundaryOffset, 0, { role: 'system', content: floorVariableContent, floorVariableSnapshot: true });
-    }
+  if (floorVariableContent.trim()) {
+    messages.push({ role: 'system', content: floorVariableContent, floorVariableSnapshot: true });
   }
   const taskMessage = { role: 'user', content: taskContent };
   insertTaskMessage(messages, taskMessage, taskPlacement, outputMode, outputProtocol);

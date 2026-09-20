@@ -1,5 +1,4 @@
 import { getContext } from '../../../st-context.js';
-import { promptManager } from '../../../openai.js';
 import {
   COMPONENT_SCOPE_CHARACTER,
   COMPONENT_SCOPE_GLOBAL,
@@ -44,11 +43,11 @@ import {
   extractFloorVariableSnapshot,
   findLatestEffectiveFloorVariableSnapshot,
   findLatestAssistantMessageIndex,
-  insertBodyFloorVariableSnapshot,
   readAllFloorVariableRules,
   readFloorVariableRules,
   readFloorVariableSnapshot,
   resolveBodySnapshotSourceIndex,
+  setFloorVariableDepthZeroPrompt,
   writeFloorVariableRules,
   writeFloorVariableSnapshot,
 } from './sources/floor-variables.js?ver=0.2.5';
@@ -354,7 +353,6 @@ let importGroups = [];
 const promptSourceCache = createPromptSourceCacheState();
 let activeWorldbookGroupIndex = null;
 let generationAbortController = null;
-let currentTavernGenerationType = '';
 const floorVariableRulesSaveTimers = new Map();
 const multiTaskAbortControllers = new Map();
 const activeMultiTaskRunIds = new Set();
@@ -1221,13 +1219,12 @@ function getFloorVariableSnapshotForMessage(messageIndex, context = getContext()
   }
 }
 
-function handleChatCompletionPromptReady(eventData) {
-  if (!settings.floorVariablesEnabled || !Array.isArray(eventData?.chat)) return;
-  const context = getContext();
-  const sourceIndex = resolveBodySnapshotSourceIndex(context?.chat, currentTavernGenerationType);
-  if (sourceIndex === null) return;
-  const snapshot = getFloorVariableSnapshotForMessage(sourceIndex, context);
-  insertBodyFloorVariableSnapshot(eventData.chat, snapshot, promptManager?.messages);
+function syncFloorVariableDepthZeroPrompt(generationType, context = getContext()) {
+  const sourceIndex = settings.floorVariablesEnabled
+    ? resolveBodySnapshotSourceIndex(context?.chat, generationType)
+    : null;
+  const snapshot = sourceIndex === null ? '' : getFloorVariableSnapshotForMessage(sourceIndex, context);
+  setFloorVariableDepthZeroPrompt(context, snapshot);
 }
 
 function getAssistantMessageAtIndex(chat, messageIndex) {
@@ -2451,7 +2448,7 @@ async function buildMessages(latestMessage, sourceSettings = settings, { onDiagn
       includeState: sourceSettings.baiBaiBookStateEnabled,
       } : null,
     qqjPromptText: qqjPromptSnapshot.text,
-    floorVariableSnapshot: floorVariableText ? { content: floorVariableText, sourceMessageIndex: latestMessageIndex } : null,
+    floorVariableSnapshot: floorVariableText ? { content: floorVariableText } : null,
     outputMode,
     outputProtocol: getActiveOutputProtocolSettings(outputMode, sourceSettings),
    });
@@ -3277,7 +3274,7 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
 }
 
 function handleGenerationStarted(type) {
-  currentTavernGenerationType = String(type || '');
+  syncFloorVariableDepthZeroPrompt(String(type || ''));
   if (generationAbortController) {
     stopAnimaWorldbookCapture();
     return;
@@ -8343,7 +8340,7 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
         </section>
       </section>
       <section class="st-esg-generation-settings-panel${activePage === 'floorVariables' ? '' : ' st-esg-hidden'}" data-generation-settings-panel="floorVariables">
-        <section class="st-esg-floor-variable-settings"><div class="st-esg-floor-variable-enable-row"><div><strong>启用楼层变量</strong><span>提取最新 assistant 楼层中的指定内容，保存到当前 swipe 的消息变量，并作为 system 快照提供给后续生成。</span></div><label class="st-esg-switch"><input type="checkbox" data-floor-variable-enabled ${settings.floorVariablesEnabled ? 'checked' : ''} ${helperAvailable ? '' : 'disabled'} /><span></span></label></div><div class="st-esg-floor-variable-note">全局、角色和聊天规则会同时生效；标签名区分大小写，多个标签用英文逗号分隔，正则表达式每行一条。只处理最新楼层，不批量回填旧楼层。</div>${helperAvailable ? '' : '<div class="st-esg-floor-variable-unavailable">需要先安装并启用酒馆助手。</div>'}${floorVariableFields}</section>
+        <section class="st-esg-floor-variable-settings"><div class="st-esg-floor-variable-enable-row"><div><strong>启用楼层变量</strong><span>提取最新 assistant 楼层中的指定内容，保存到当前 swipe 的消息变量，并通过 d0 system 快照提供给后续生成。</span></div><label class="st-esg-switch"><input type="checkbox" data-floor-variable-enabled ${settings.floorVariablesEnabled ? 'checked' : ''} ${helperAvailable ? '' : 'disabled'} /><span></span></label></div><div class="st-esg-floor-variable-note">全局、角色和聊天规则会同时生效；标签名区分大小写，多个标签用英文逗号分隔，正则表达式每行一条。只处理最新楼层，不批量回填旧楼层。</div>${helperAvailable ? '' : '<div class="st-esg-floor-variable-unavailable">需要先安装并启用酒馆助手。</div>'}${floorVariableFields}</section>
       </section>
     </div>
   </div>`;
@@ -9312,8 +9309,6 @@ function init() {
   }
   const userMessageRenderedEvent = context.eventTypes?.USER_MESSAGE_RENDERED;
   if (userMessageRenderedEvent) context.eventSource.on(userMessageRenderedEvent, (messageIndex) => recordFloorVariableMessageLifecycle('user-message-rendered', messageIndex));
-  const chatCompletionPromptReadyEvent = context.eventTypes?.CHAT_COMPLETION_PROMPT_READY;
-  if (chatCompletionPromptReadyEvent) context.eventSource.on(chatCompletionPromptReadyEvent, handleChatCompletionPromptReady);
   if (context.eventTypes.GENERATION_STARTED) context.eventSource.on(context.eventTypes.GENERATION_STARTED, handleGenerationStarted);
   if (context.eventTypes.GENERATION_ENDED) context.eventSource.on(context.eventTypes.GENERATION_ENDED, handleGenerationEnded);
   if (context.eventTypes.GENERATION_STOPPED) context.eventSource.on(context.eventTypes.GENERATION_STOPPED, handleGenerationStopped);
