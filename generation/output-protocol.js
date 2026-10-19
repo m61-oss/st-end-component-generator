@@ -38,6 +38,10 @@ function normalizeText(value) {
   return value === null || value === undefined ? '' : String(value);
 }
 
+export function decodeDoubleEscapedNewlines(value) {
+  return value.replace(/\\n/g, '\n');
+}
+
 const ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT = `【固定输出协议｜锚点插入模式｜最高优先级】
 
 本协议只规定完整回复的外层 JSON 封装与锚点插入计划，不改变任务要求的内容、步骤或内部格式。"output" 只承载本次任务明确要求的实际交付；忽略续写正文要求，不得在 JSON 外生成正文。
@@ -114,7 +118,7 @@ function parseStrictEnvelope(candidate) {
     return {
       mode: 'json',
       thinking: normalizeField(value.thinking),
-      content: normalizeField(value.output),
+      content: decodeDoubleEscapedNewlines(normalizeField(value.output)),
       complete: true,
     };
   } catch {
@@ -288,7 +292,7 @@ function parseLooseEnvelope(candidate) {
   return {
     mode: fields.ambiguous ? 'ambiguous-json' : 'loose-json',
     thinking,
-    content: content.value,
+    content: decodeDoubleEscapedNewlines(content.value),
     complete: content.complete,
     ...(fields.ambiguous ? { ambiguous: true } : {}),
   };
@@ -301,7 +305,7 @@ function parsePartialEnvelope(candidate) {
     return {
       mode: fields.ambiguous ? 'ambiguous-json' : 'loose-json',
       thinking: normalizeField(fields.thinkingValue),
-      content: content.value,
+      content: decodeDoubleEscapedNewlines(content.value),
       complete: false,
       ...(fields.ambiguous ? { ambiguous: true } : {}),
     };

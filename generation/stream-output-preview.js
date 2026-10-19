@@ -1,4 +1,4 @@
-import { parseOutputProtocolStreamPreview } from './output-protocol.js';
+import { decodeDoubleEscapedNewlines, parseOutputProtocolStreamPreview } from './output-protocol.js';
 import { parseAnchorOutput } from './anchor-output-protocol.js';
 
 const PROTOCOL_MODES = new Set(['json', 'loose-json', 'anchor-json']);
@@ -8,7 +8,7 @@ export function normalizeStreamOutputPreview(rawText) {
   const anchor = parseAnchorOutput(raw);
   if (anchor) {
     return {
-      text: anchor.items.map((item) => item.content).join('\n\n'),
+      text: anchor.items.map((item) => decodeDoubleEscapedNewlines(item.content)).join('\n\n'),
       thinking: anchor.thinking,
       mode: anchor.mode,
       protocol: true,

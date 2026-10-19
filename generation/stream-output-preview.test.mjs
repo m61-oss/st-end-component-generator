@@ -23,6 +23,14 @@ test('keeps legacy streamed text unchanged', () => {
   });
 });
 
+test('shows double-escaped JSON output newlines as real line breaks', () => {
+  const preview = normalizeStreamOutputPreview(JSON.stringify({
+    thinking: '',
+    output: String.raw`first\nsecond`,
+  }));
+  assert.equal(preview.text, 'first\nsecond');
+});
+
 test('shows anchor contents as the live preview once the plan is complete', () => {
   const preview = normalizeStreamOutputPreview(JSON.stringify({
     thinking: '先定位',
@@ -47,4 +55,12 @@ test('shows a partial anchor content while the JSON plan is still streaming', ()
   assert.equal(preview.protocol, true);
   assert.equal(preview.text, '正在生成');
   assert.equal(preview.thinking, '先判断');
+});
+
+test('shows double-escaped anchor content newlines as real line breaks', () => {
+  const preview = normalizeStreamOutputPreview(JSON.stringify({
+    thinking: '',
+    output: [{ position: 'end', content: String.raw`first\nsecond` }],
+  }));
+  assert.equal(preview.text, 'first\nsecond');
 });

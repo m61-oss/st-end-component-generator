@@ -1,5 +1,5 @@
 import { parseAnchorOutput } from './anchor-output-protocol.js';
-import { parseOutputProtocolResponse } from './output-protocol.js';
+import { decodeDoubleEscapedNewlines, parseOutputProtocolResponse } from './output-protocol.js';
 
 function isProtocolLikeLegacyText(value) {
   const text = String(value ?? '').trim();
@@ -20,7 +20,7 @@ export function normalizeGeneratedResult(rawText) {
   if (anchor) {
     return {
       content: '',
-      anchorItems: anchor.items,
+      anchorItems: anchor.items.map((item) => ({ ...item, content: decodeDoubleEscapedNewlines(item.content) })),
       thinking: [anchor.thinking].filter(Boolean),
       mode: anchor.mode,
       complete: anchor.complete,

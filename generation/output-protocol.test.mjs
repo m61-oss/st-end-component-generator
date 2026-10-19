@@ -93,6 +93,16 @@ test('parses a strict JSON envelope and preserves both fields', () => {
   });
 });
 
+test('repairs only double-escaped JSON output newlines', () => {
+  const parsed = parseOutputProtocolResponse(JSON.stringify({
+    thinking: 'analysis',
+    output: String.raw`first\nsecond`,
+  }));
+  assert.equal(parsed.content, 'first\nsecond');
+  assert.equal(parsed.thinking, 'analysis');
+  assert.equal(parseOutputProtocolResponse('plain\\ntext').content, 'plain\\ntext');
+});
+
 test('accepts a markdown JSON fence around the envelope', () => {
   const parsed = parseOutputProtocolResponse('```json\n{"thinking":"x","output":"y"}\n```');
 

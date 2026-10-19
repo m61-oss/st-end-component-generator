@@ -93,6 +93,16 @@ test('normalizes an anchor insertion plan as structured output', () => {
   assert.equal(result.usable, true);
 });
 
+test('repairs double-escaped newlines inside anchor content but not the anchor', () => {
+  const result = normalizeGeneratedResult(JSON.stringify({
+    thinking: 'analysis',
+    output: [{ position: 'after', anchor: String.raw`match\ntext`, content: String.raw`first\nsecond` }],
+  }));
+  assert.deepEqual(result.anchorItems, [
+    { position: 'after', anchor: String.raw`match\ntext`, content: 'first\nsecond' },
+  ]);
+});
+
 test('keeps recovered loose anchor plans injectable', () => {
   const result = normalizeGeneratedResult('{"thinking":"先定位","output":[{"position":"after","anchor":"原文。","content":"<b style="color:red">内容</b>"}]');
 
