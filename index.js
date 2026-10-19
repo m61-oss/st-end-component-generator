@@ -8351,7 +8351,7 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
         </section>
       </section>
       <section class="st-esg-generation-settings-panel${activePage === 'floorVariables' ? '' : ' st-esg-hidden'}" data-generation-settings-panel="floorVariables">
-        <section class="st-esg-floor-variable-settings"><div class="st-esg-floor-variable-enable-row"><div><strong>启用楼层变量</strong><span>提取最新 assistant 楼层中的指定内容，保存到当前 swipe 的消息变量，并通过 d0 system 快照提供给后续生成。</span></div><label class="st-esg-switch"><input type="checkbox" data-floor-variable-enabled ${settings.floorVariablesEnabled ? 'checked' : ''} ${helperAvailable ? '' : 'disabled'} /><span></span></label></div><div class="st-esg-floor-variable-note">全局、角色和聊天规则会同时生效；标签名区分大小写，多个标签用英文逗号分隔，正则表达式每行一条。只处理最新楼层，不批量回填旧楼层。</div>${helperAvailable ? '' : '<div class="st-esg-floor-variable-unavailable">需要先安装并启用酒馆助手。</div>'}${floorVariableFields}</section>
+        <section class="st-esg-floor-variable-settings"><div class="st-esg-floor-variable-enable-row"><div class="st-esg-floor-variable-enable-heading"><strong>启用楼层变量</strong><button class="st-esg-floor-variable-help-toggle" type="button" aria-label="楼层变量作用及原理" aria-expanded="false" aria-controls="st-esg-floor-variable-help" data-floor-variable-help-toggle><i class="fa-solid fa-circle-question" aria-hidden="true"></i></button></div><label class="st-esg-switch"><input type="checkbox" data-floor-variable-enabled ${settings.floorVariablesEnabled ? 'checked' : ''} ${helperAvailable ? '' : 'disabled'} /><span></span></label></div><div class="st-esg-floor-variable-help st-esg-hidden" id="st-esg-floor-variable-help" data-floor-variable-help><section><h3>楼层变量作用及原理</h3><p>楼层变量会按你设置的标签或正则，从最新的 assistant 楼层中提取匹配内容，并作为一条独立的 system 消息额外发送给模型，供生成时参考。正文生成时，这条消息还会附带要求模型不要重复输出该内容或模仿其结构的提示，以减少状态栏等内容被带入正文的情况。</p><p>因此，即使相关内容被酒馆正则隐藏，或楼层本身被隐藏，模型仍可以参考最近一次提取到的变量内容。这也适用于不需要每轮更新的组件。</p></section><section><h3>配合酒馆正则使用</h3><p>启用楼层变量后，记得配合相应的不发送正则，避免原始内容重复进入提示词、占用 token。</p></section><section><h3>设置时注意</h3><ul><li>规则需要匹配实际内容格式；标签名区分大小写。</li><li>全局、角色和聊天规则会同时生效。</li></ul></section></div><div class="st-esg-floor-variable-note">多个标签用英文逗号分隔，正则表达式每行一条。只处理最新楼层，不批量回填旧楼层。</div>${helperAvailable ? '' : '<div class="st-esg-floor-variable-unavailable">需要先安装并启用酒馆助手。</div>'}${floorVariableFields}</section>
       </section>
     </div>
   </div>`;
@@ -8393,6 +8393,12 @@ function showMultiTaskSettingsDialog(initialPage = 'general') {
     settings.floorVariablesEnabled = Boolean(event.currentTarget.checked);
     saveSettings();
     if (settings.floorVariablesEnabled) syncLatestAssistantFloorVariable();
+  });
+  dialog.querySelector('[data-floor-variable-help-toggle]')?.addEventListener('click', (event) => {
+    const button = event.currentTarget;
+    const expanded = button.getAttribute('aria-expanded') === 'true';
+    button.setAttribute('aria-expanded', String(!expanded));
+    dialog.querySelector('[data-floor-variable-help]')?.classList.toggle('st-esg-hidden', expanded);
   });
   dialog.querySelectorAll('[data-floor-variable-field]').forEach((control) => control.addEventListener('input', () => {
     const section = control.closest('[data-floor-variable-scope]');
