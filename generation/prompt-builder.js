@@ -882,7 +882,10 @@ export async function buildExternalStatusbarMessages({ targetWindow, context, la
   markLatestAssistantTarget(messages, context, latestMessage, outputMode);
   const floorVariableContent = String(floorVariableSnapshot?.content ?? '');
   if (floorVariableContent.trim()) {
-    messages.push({ role: 'system', content: floorVariableContent, floorVariableSnapshot: true });
+    let insertionIndex = messages.findLastIndex((message) => Number.isInteger(message?.sourceMessageIndex));
+    if (insertionIndex < 0) insertionIndex = messages.length;
+    if (messages[insertionIndex - 1]?.content === ANCHOR_TARGET_OPEN) insertionIndex -= 1;
+    messages.splice(insertionIndex, 0, { role: 'system', content: floorVariableContent, floorVariableSnapshot: true });
   }
   const taskMessage = { role: 'user', content: taskContent };
   insertTaskMessage(messages, taskMessage, taskPlacement, outputMode, outputProtocol);
