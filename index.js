@@ -182,7 +182,7 @@ import { buildDataManagementModel, clearSettingsDataCategory, formatByteSize } f
 import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCleanupImport } from './settings/tag-cleanup-transfer.js?ver=0.2.5';
 
 const EXTENSION_ID = 'st-end-component-generator';
-const EXTENSION_VERSION = '0.2.5';
+const EXTENSION_VERSION = '0.2.6';
 const UI_ASSET_REVISION = 'help-tour-2026091501';
 const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置组件生成器';

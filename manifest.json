@@ -5,7 +5,7 @@
   "optional": [],
   "js": "index.js?ver=0.2.5",
   "author": "m61-oss",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "homePage": "https://github.com/m61-oss/st-end-component-generator",
   "auto_update": true,
   "minimum_client_version": "1.12.13"
