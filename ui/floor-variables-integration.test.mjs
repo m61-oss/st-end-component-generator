@@ -16,7 +16,7 @@ test('generation settings expose a dedicated floor-variable page with vertical s
   assert.match(indexSource, /data-floor-variable-field="regexText"/);
 });
 
-test('floor variables listen for saved edits and use native depth-zero body injection', () => {
+test('floor variables listen for saved edits and use native depth-one body injection', () => {
   assert.match(indexSource, /MESSAGE_EDITED.*syncLatestAssistantFloorVariable/s);
   assert.match(indexSource, /MESSAGE_UPDATED.*syncLatestAssistantFloorVariable/s);
   assert.match(indexSource, /GENERATION_STARTED.*handleGenerationStarted/s);

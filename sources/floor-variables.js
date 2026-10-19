@@ -206,11 +206,12 @@ export function resolveBodySnapshotSourceIndex(chat, generationType = '') {
 
 export function setFloorVariableDepthZeroPrompt(context, content) {
   if (typeof context?.setExtensionPrompt !== 'function') return false;
+  const snapshot = textOf(content).trim();
   context.setExtensionPrompt(
     FLOOR_VARIABLE_DEPTH_ZERO_PROMPT_KEY,
-    textOf(content),
+    snapshot ? `以下内容由后台提供，仅供参考。不要重复输出以下内容，也不要模仿其结构。\n\n——后台参考内容开始——\n${snapshot}\n——后台参考内容结束——` : '',
     1,
-    0,
+    1,
     false,
     0,
   );

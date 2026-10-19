@@ -30,7 +30,7 @@ import { ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT, OUTPUT_PROTOCOL_SYSTEM_PROMPT } f
 import { normalizeGeneratedResult } from './generation/output-result.js?ver=0.2.5';
 import { applyAnchorInsertions, buildAnchorPreviewSegments, isAnchorInsertionEnabled, locateAnchorInsertions } from './injection/anchor-insertion.js?ver=0.2.5';
 import { normalizeStreamOutputPreview } from './generation/stream-output-preview.js?ver=0.2.5';
-import { composeTaskInstruction } from './generation/task-instruction.js?ver=0.2.5';
+import { DEFAULT_TASK_INSTRUCTION, composeTaskInstruction, migrateDefaultTaskInstruction } from './generation/task-instruction.js?ver=0.2.5';
 import { CHAT_HISTORY_RANGE_RECENT, CHAT_HISTORY_RANGE_VISIBLE, normalizeChatHistoryRangeMode, normalizeRecentMessageCount } from './generation/chat-history-range.js?ver=0.2.5';
 import { renderPromptTemplate } from './generation/template-compat.js?ver=0.2.5';
 import { replaceTavernHelperMacrosInMessages } from './generation/tavern-helper-macros.js?ver=0.2.5';
@@ -229,11 +229,7 @@ const DEFAULT_SETTINGS = {
   generationMode: 'single',
   multiTaskSettings: { concurrency: 1, injectionIntervalSeconds: 1, injectionOrder: 'completion', activeTaskId: '', tasks: [] },
   multiTaskTaskSchemeMigrated: false,
-  taskPrompt: [
-    '现在停止生成正文，为最新的正文补充下面这些内容。',
-    '{{external_components}}',
-    '上方为需要补充的内容，现在开始输出思考过程并按规则和格式输出需要补充的内容，禁止额外生成正文。',
-  ].join('\n'),
+  taskPrompt: DEFAULT_TASK_INSTRUCTION,
   standardOutputProtocol: OUTPUT_PROTOCOL_SYSTEM_PROMPT,
   standardOutputProtocolRole: 'assistant',
   anchorOutputProtocol: ANCHOR_OUTPUT_PROTOCOL_SYSTEM_PROMPT,
@@ -699,6 +695,10 @@ function loadSettings() {
   const shouldApplyMessageFloorPanelDefault = !Object.prototype.hasOwnProperty.call(storedSettings, 'messageFloorPanelDefaultApplied');
   const shouldApplyOutputProtocolAssistantDefault = !Object.prototype.hasOwnProperty.call(storedSettings, 'outputProtocolAssistantDefaultApplied');
   settings = Object.assign({ ...DEFAULT_SETTINGS }, storedSettings);
+  settings.taskPrompt = migrateDefaultTaskInstruction(settings.taskPrompt);
+  const didMigrateTaskPrompt = Object.prototype.hasOwnProperty.call(storedSettings, 'taskPrompt')
+    && settings.taskPrompt !== storedSettings.taskPrompt;
+  if (didMigrateTaskPrompt) storedSettings.taskPrompt = settings.taskPrompt;
   resetTransientGenerationState(settings);
   // Prompt-source snapshots were only a bridge for the old import-mode generator.
   // Import mode is now isolated from prompt editing, so discard the obsolete legacy
@@ -785,6 +785,15 @@ function loadSettings() {
   if (!Array.isArray(settings.apiModelOptions)) settings.apiModelOptions = [];
   settings.apiSchemes = normalizeSchemeList(settings.apiSchemes);
   settings.taskSchemes = normalizeSchemeList(settings.taskSchemes);
+  let didMigrateTaskSchemes = false;
+  for (const scheme of settings.taskSchemes) {
+    if (!scheme.snapshot || typeof scheme.snapshot !== 'object') continue;
+    const migrated = migrateDefaultTaskInstruction(scheme.snapshot.taskPrompt);
+    if (migrated === scheme.snapshot.taskPrompt) continue;
+    scheme.snapshot.taskPrompt = migrated;
+    didMigrateTaskSchemes = true;
+  }
+  if (didMigrateTaskSchemes) storedSettings.taskSchemes = settings.taskSchemes;
   settings.presetSchemes = normalizeSchemeList(settings.presetSchemes);
   settings.worldbookSchemes = normalizeSchemeList(settings.worldbookSchemes);
   settings.componentSchemes = normalizeSchemeList(settings.componentSchemes);
@@ -937,6 +946,8 @@ function loadSettings() {
     || shouldApplyOutputProtocolAssistantDefault
     || shouldMigrateCombinedMemorySources
     || didMigrateMultiTaskTaskSchemes
+    || didMigrateTaskPrompt
+    || didMigrateTaskSchemes
   ) getContext().saveSettingsDebounced();
 }
 

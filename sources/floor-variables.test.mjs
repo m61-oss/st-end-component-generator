@@ -210,26 +210,26 @@ test('body rerolls use the previous assistant but normal and continue use the la
   assert.equal(resolveBodySnapshotSourceIndex(endedWithUser, 'normal'), 2);
 });
 
-test('body snapshot uses SillyTavern native system depth-zero injection', () => {
+test('body snapshot wraps content in SillyTavern native system depth-one injection', () => {
   const calls = [];
   const context = { setExtensionPrompt: (...args) => calls.push(args) };
 
   assert.equal(setFloorVariableDepthZeroPrompt(context, '\n<snow>state</snow>\n'), true);
   assert.deepEqual(calls, [[
     'st-end-component-generator-floor-variables',
-    '\n<snow>state</snow>\n',
+    '以下内容由后台提供，仅供参考。不要重复输出以下内容，也不要模仿其结构。\n\n——后台参考内容开始——\n<snow>state</snow>\n——后台参考内容结束——',
     1,
-    0,
+    1,
     false,
     0,
   ]]);
 });
 
-test('body snapshot clears the native depth-zero injection when no content is available', () => {
+test('body snapshot clears the native depth-one injection when no content is available', () => {
   const calls = [];
   const context = { setExtensionPrompt: (...args) => calls.push(args) };
 
   assert.equal(setFloorVariableDepthZeroPrompt(context, ''), true);
   assert.equal(calls[0][1], '');
-  assert.equal(calls[0][3], 0);
+  assert.equal(calls[0][3], 1);
 });
