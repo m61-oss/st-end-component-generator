@@ -16,11 +16,12 @@ function normalizeHistoryRule(entry, strict = false) {
   }
   const rule = typeof entry.rule === 'string' ? entry.rule.trim() : '';
   const keep = Number(entry.keep);
-  if (!rule || !Number.isFinite(keep) || keep < 0) {
+  const enabled = entry.enabled === undefined ? true : entry.enabled;
+  if (!rule || !Number.isFinite(keep) || keep < 0 || typeof enabled !== 'boolean') {
     if (strict) throw new Error('聊天记录清理规则内容不正确。');
     return null;
   }
-  return { rule, keep: Math.floor(keep) };
+  return { rule, keep: Math.floor(keep), enabled };
 }
 
 function normalizeOutputRule(entry, strict = false) {
@@ -89,7 +90,7 @@ export function mergeTagCleanupImport(bundle, { historyRules = [], outputRules =
       newlyAddedHistory.add(entry.rule);
       continue;
     }
-    if (mergedHistory[index].keep !== entry.keep && !newlyAddedHistory.has(entry.rule)) updatedHistory.add(entry.rule);
+    if ((mergedHistory[index].keep !== entry.keep || mergedHistory[index].enabled !== entry.enabled) && !newlyAddedHistory.has(entry.rule)) updatedHistory.add(entry.rule);
     mergedHistory[index] = { ...entry };
   }
 

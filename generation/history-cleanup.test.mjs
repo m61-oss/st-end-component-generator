@@ -38,6 +38,16 @@ test('uses plugin cleanup rules when following Tavern regex is disabled', () => 
   assert.equal(cleaned[0].mes, 'before  after');
 });
 
+test('skips disabled history cleanup rules and keeps legacy rules enabled', () => {
+  const cleaned = cleanChatHistory([{ is_user: false, mes: '<secret>one</secret><legacy>two</legacy>' }], {
+    historyCleanupRules: [
+      { rule: 'secret', keep: 0, enabled: false },
+      { rule: 'legacy', keep: 0 },
+    ],
+  });
+  assert.equal(cleaned[0].mes, '<secret>one</secret>');
+});
+
 test('uses Tavern-cleaned messages for worldbook keyword scans', () => {
   const chat = [
     { is_user: false, mes: 'hidden keyword' },

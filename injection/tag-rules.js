@@ -49,7 +49,7 @@ export function stripConfiguredBlocks(value, rules = '') {
 
 export function stripHistoryBlocksByRules(chat, configuredRules = []) {
   const rules = Array.isArray(configuredRules)
-    ? configuredRules.map((item) => ({ rule: textOf(item?.rule), keep: Math.max(0, Math.floor(Number(item?.keep) || 0)) })).filter((item) => item.rule)
+    ? configuredRules.map((item) => ({ rule: textOf(item?.rule), keep: Math.max(0, Math.floor(Number(item?.keep) || 0)), enabled: item?.enabled !== false })).filter((item) => item.rule && item.enabled)
     : String(configuredRules || '').split('\n').map((rule) => ({ rule: textOf(rule), keep: 0 })).filter((item) => item.rule);
   const source = Array.isArray(chat) ? chat : [];
   let newerAssistantReplies = 0;

@@ -834,7 +834,7 @@ function loadSettings() {
       .map((rule) => ({ rule, keep: 0 }));
   }
   settings.historyCleanupRules = settings.historyCleanupRules
-    .map((item) => ({ rule: textOf(item?.rule), keep: Math.max(0, Math.floor(Number(item?.keep) || 0)) }))
+    .map((item) => ({ rule: textOf(item?.rule), keep: Math.max(0, Math.floor(Number(item?.keep) || 0)), enabled: item?.enabled !== false }))
     .filter((item) => item.rule);
   if (settings.outputCleanupTags === undefined) settings.outputCleanupTags = '';
   if (!hadActiveSchemeIds || !settings.activeSchemeIds || typeof settings.activeSchemeIds !== 'object') {
@@ -3513,7 +3513,7 @@ function saveTagRuleEntries(type, entries) {
   if (type === 'history') {
     settings.historyCleanupRules = entries
       .map((item) => typeof item === 'string' ? { rule: item, keep: 0 } : item)
-      .map((item) => ({ rule: textOf(item?.rule), keep: Math.max(0, Math.floor(Number(item?.keep) || 0)) }))
+      .map((item) => ({ rule: textOf(item?.rule), keep: Math.max(0, Math.floor(Number(item?.keep) || 0)), enabled: item?.enabled !== false }))
       .filter((item) => item.rule);
     saveSettings();
     return;
@@ -3525,7 +3525,7 @@ function saveTagRuleEntries(type, entries) {
 
 function buildTagRuleManager(type) {
   const config = TAG_RULE_CONFIG[type];
-  const historyToggle = type === 'history' ? '<label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-follow-tavern-regex" type="checkbox" /><span>跟随酒馆正则</span><em>按酒馆实际发送给模型时的正则清理聊天记录和世界书扫描内容。关闭后使用下方自定义规则。</em></label>' : '';
+  const historyToggle = type === 'history' ? '<label class="st-esg-checkbox st-esg-log-option st-esg-follow-regex-option"><input id="st-esg-follow-tavern-regex" type="checkbox" /><span>跟随酒馆正则</span><em>按酒馆实际发送给模型时的正则清理聊天记录和世界书扫描内容。关闭后使用下方自定义规则。</em></label>' : '';
   const customRulesId = type === 'history' ? ' id="st-esg-history-custom-rules"' : '';
   return `<div class="st-esg-tag-rule-manager" data-tag-rule-type="${type}"><div class="st-esg-tag-rule-head"><span>${config.title}</span></div>${historyToggle}<div${customRulesId}><div class="st-esg-tag-rule-add"><select id="st-esg-${type}-rule-mode" class="text_pole"><option value="tag">标签</option><option value="regex">正则</option></select><input id="st-esg-${type}-rule-input" class="text_pole" type="text" placeholder="thinking" /><button id="st-esg-${type}-rule-add" class="menu_button st-esg-secondary-action st-esg-tag-rule-add-button" type="button" title="添加规则"><i class="fa-solid fa-plus"></i></button></div><div id="st-esg-${type}-rule-list" class="st-esg-tag-rule-list"></div></div></div>`;
 }
@@ -3542,8 +3542,9 @@ function renderTagRuleManager(type) {
     const entry = type === 'history' ? rawEntry.rule : rawEntry;
     const isRegex = entry.startsWith('re:');
     const display = isRegex ? entry.slice(3) : `<${entry}>...</${entry}>`;
+    const enableToggle = type === 'history' ? `<button class="menu_button st-esg-history-rule-toggle ${rawEntry.enabled === false ? 'is-disabled' : ''}" type="button" data-rule-index="${index}" aria-pressed="${rawEntry.enabled !== false}" title="${rawEntry.enabled === false ? '启用规则' : '停用规则'}">${rawEntry.enabled === false ? '已停用' : '已启用'}</button>` : '';
     const keep = type === 'history' ? `<span class="st-esg-history-rule-keep">保留 <input class="text_pole" type="number" min="0" step="1" value="${rawEntry.keep}" data-rule-index="${index}" /></span>` : '';
-    return `<div class="st-esg-tag-rule-item ${type === 'history' ? 'st-esg-history-tag-rule-item' : ''}"><span class="st-esg-tag-rule-kind">${isRegex ? '正则' : '标签'}</span><code>${escapeHtml(display)}</code>${keep}<button class="menu_button st-esg-tag-rule-delete" type="button" data-rule-index="${index}" title="删除规则"><i class="fa-solid fa-trash"></i></button></div>`;
+    return `<div class="st-esg-tag-rule-item ${type === 'history' ? 'st-esg-history-tag-rule-item' : ''} ${rawEntry.enabled === false ? 'is-disabled' : ''}"><span class="st-esg-tag-rule-kind">${isRegex ? '正则' : '标签'}</span><code>${escapeHtml(display)}</code>${enableToggle}${keep}<button class="menu_button st-esg-tag-rule-delete" type="button" data-rule-index="${index}" title="删除规则"><i class="fa-solid fa-trash"></i></button></div>`;
   }).join('') || '<div class="st-esg-tag-rule-empty">尚未添加规则</div>');
 }
 
@@ -3561,7 +3562,7 @@ function addTagRule(type) {
   }
   const entries = getTagRuleEntries(type);
   if (type === 'history') {
-    if (!entries.some((item) => item.rule === value)) entries.push({ rule: value, keep: 0 });
+    if (!entries.some((item) => item.rule === value)) entries.push({ rule: value, keep: 0, enabled: true });
   } else if (!entries.includes(value)) entries.push(value);
   saveTagRuleEntries(type, entries);
   input.val('');
@@ -9246,6 +9247,14 @@ function bindPanelEvents() {
       renderTagRuleManager(type);
     });
     if (type === 'history') {
+      $t('#st-esg-history-rule-list').on('click', '.st-esg-history-rule-toggle', function () {
+        const entries = getTagRuleEntries('history');
+        const entry = entries[Number($(this).data('rule-index'))];
+        if (!entry) return;
+        entry.enabled = entry.enabled === false;
+        saveTagRuleEntries('history', entries);
+        renderTagRuleManager('history');
+      });
       $t('#st-esg-history-rule-list').on('change', '.st-esg-history-rule-keep input', function () {
         const entries = getTagRuleEntries('history');
         const entry = entries[Number($(this).data('rule-index'))];

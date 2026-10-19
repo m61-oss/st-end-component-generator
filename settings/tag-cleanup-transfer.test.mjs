@@ -18,26 +18,26 @@ test('describes imported changes without the ambiguous merged count', () => {
 
 test('creates one versioned package containing both cleanup rule types', () => {
   assert.deepEqual(createTagCleanupExportPackage({
-    historyRules: [{ rule: ' thinking ', keep: 2.8 }],
+    historyRules: [{ rule: ' thinking ', keep: 2.8, enabled: false }],
     outputRules: [' result ', ''],
   }), {
     format: TAG_CLEANUP_FORMAT,
     version: TAG_CLEANUP_VERSION,
-    historyRules: [{ rule: 'thinking', keep: 2 }],
+    historyRules: [{ rule: 'thinking', keep: 2, enabled: false }],
     outputRules: ['result'],
   });
 });
 
-test('merges and deduplicates while imported history keep wins', () => {
+test('merges and deduplicates while imported history settings win', () => {
   const current = {
-    historyRules: [{ rule: 'thinking', keep: 1 }, { rule: 'draft', keep: 0 }],
+    historyRules: [{ rule: 'thinking', keep: 1, enabled: true }, { rule: 'draft', keep: 0, enabled: false }],
     outputRules: ['thinking', 'answer'],
   };
   const bundle = {
     format: TAG_CLEANUP_FORMAT,
     version: TAG_CLEANUP_VERSION,
     historyRules: [
-      { rule: 'thinking', keep: 4 },
+      { rule: 'thinking', keep: 4, enabled: false },
       { rule: 'notes', keep: 3 },
       { rule: 'notes', keep: 5 },
     ],
@@ -47,9 +47,9 @@ test('merges and deduplicates while imported history keep wins', () => {
   const merged = mergeTagCleanupImport(bundle, current);
 
   assert.deepEqual(merged.historyRules, [
-    { rule: 'thinking', keep: 4 },
-    { rule: 'draft', keep: 0 },
-    { rule: 'notes', keep: 5 },
+    { rule: 'thinking', keep: 4, enabled: false },
+    { rule: 'draft', keep: 0, enabled: false },
+    { rule: 'notes', keep: 5, enabled: true },
   ]);
   assert.deepEqual(merged.outputRules, ['thinking', 'answer', 'notes']);
   assert.deepEqual({
@@ -77,6 +77,7 @@ test('rejects an invalid package atomically', () => {
     { ...valid, outputRules: [3] },
     { ...valid, historyRules: [{ rule: '', keep: 0 }] },
     { ...valid, historyRules: [{ rule: 'thinking', keep: -1 }] },
+    { ...valid, historyRules: [{ rule: 'thinking', keep: 0, enabled: 'no' }] },
   ]) {
     assert.throws(() => mergeTagCleanupImport(invalid, { historyRules: [], outputRules: [] }));
   }
