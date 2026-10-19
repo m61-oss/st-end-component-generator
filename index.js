@@ -1820,7 +1820,7 @@ async function runMessageFloorPanelAction(action) {
         .map((task) => task.id);
       await generateMultiTasks(failedTaskIds);
     } else if (action === 'inject') await injectMultiTasks(floorInjectTaskIds);
-    else if (action === 'undo') await undoMultiTaskInjections(floorUndoTaskIds, { requireConfirmation: true });
+    else if (action === 'undo') await undoMultiTaskInjections(floorUndoTaskIds);
     return;
   }
   if (action === 'stop') {
@@ -7825,7 +7825,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
   }
   if (settings.rollbackBeforeGeneration) {
     logAutomaticGenerationStage('multi-rollback-start', `检查 ${tasks.length} 个任务的最新楼层记录`);
-    const undoneTaskIds = await undoMultiTaskInjections(tasks.map((task) => task.id), { requireConfirmation: false, silent: true });
+    const undoneTaskIds = await undoMultiTaskInjections(tasks.map((task) => task.id), { silent: true });
     if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) return [];
     logAutomaticGenerationStage('multi-rollback-finished', `撤回 ${undoneTaskIds.length} 个任务`);
   }
@@ -8153,17 +8153,13 @@ function getLatestFloorMultiTaskUndoCandidates(tasks, context = getContext()) {
   ));
 }
 
-async function undoMultiTaskInjections(requestedTaskIds = null, { requireConfirmation = false, silent = false } = {}) {
+async function undoMultiTaskInjections(requestedTaskIds = null, { silent = false } = {}) {
   const context = getContext();
   const tasks = getLatestFloorMultiTaskUndoCandidates(getRequestedMultiTasks(requestedTaskIds), context);
   logAutomaticGenerationStage('multi-undo-start', `候选任务 ${tasks.length} 个`);
   if (!tasks.length) {
     logAutomaticGenerationStage('multi-undo-skip', '最新楼层没有可撤回记录');
     if (!silent) notifyStatus('没有可撤回的多任务注入记录。', 'warning');
-    return [];
-  }
-  if (requireConfirmation && !targetWindow.confirm(`撤回 ${tasks.length} 个任务各自最新的一次注入？\n\n已经单独撤回的任务会自动跳过。`)) {
-    logAutomaticGenerationStage('multi-undo-skip', '用户取消确认');
     return [];
   }
   const currentChatId = getCurrentChatIdSafe(context);
@@ -8684,7 +8680,7 @@ async function handleMultiTaskAction(action, reopenSettings = false, requestedTa
     return;
   }
   if (action === 'inject') { await injectMultiTasks([activeTask.id]); return; }
-  if (action === 'undo') { await undoMultiTaskInjections([activeTask.id], { requireConfirmation: true }); return; }
+  if (action === 'undo') { await undoMultiTaskInjections([activeTask.id]); return; }
   if (action === 'rename') {
     const name = await requestTextInputDialog({ title: '重命名任务', label: '任务名称', value: activeTask.name });
     if (!name || name === activeTask.name) { if (reopenSettings) showMultiTaskSettingsDialog('tasks'); return; }
@@ -9431,7 +9427,7 @@ function bindPanelEvents() {
     else void injectGeneratedStatusbar();
   });
   $t('#st-esg-undo-injection').on('click', () => {
-    if (settings.generationMode === 'multi') void undoMultiTaskInjections(null, { requireConfirmation: true });
+    if (settings.generationMode === 'multi') void undoMultiTaskInjections();
     else void undoLatestInjection();
   });
   $t('#st-esg-generation-error').on('click', '#st-esg-show-generated-content', () => {

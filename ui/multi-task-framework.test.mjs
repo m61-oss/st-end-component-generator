@@ -115,6 +115,16 @@ test('transient multi-task actions use runtime refreshes instead of saving and r
   }
 });
 
+test('multi-task undo skips confirmation without changing single-task undo', () => {
+  const undoSource = indexSource.slice(
+    indexSource.indexOf('async function undoMultiTaskInjections'),
+    indexSource.indexOf('function getNextMultiTaskName'),
+  );
+  assert.doesNotMatch(undoSource, /targetWindow\.confirm|requireConfirmation/);
+  assert.doesNotMatch(indexSource, /undoMultiTaskInjections\([^\n]*requireConfirmation:\s*true/);
+  assert.match(indexSource, /restoreLatestInjection\(\{ requireConfirmation: true \}\)/);
+});
+
 test('high-frequency text inputs defer expensive full settings persistence', () => {
   assert.match(indexSource, /function scheduleSettingsSave\(\)/);
   for (const [start, end] of [
