@@ -54,3 +54,22 @@ test('one failed injection does not block the next queued task', async () => {
   assert.equal(await healthy, 'healthy');
   assert.deepEqual(events, ['broken', 'healthy']);
 });
+
+test('cancelled delayed injections do not run after re-enabling', async () => {
+  const events = [];
+  const waits = [];
+  const queue = createMultiTaskInjectionQueue({
+    execute: async (taskId) => { events.push(taskId); return taskId; },
+    wait: async (milliseconds) => { waits.push(milliseconds); },
+    now: () => 0,
+  });
+
+  await queue.enqueue('first');
+  const stale = queue.enqueue('stale', { intervalMs: 1000 });
+  queue.cancel();
+  const current = queue.enqueue('current');
+
+  assert.deepEqual(await Promise.all([stale, current]), [[], 'current']);
+  assert.deepEqual(events, ['first', 'current']);
+  assert.deepEqual(waits, []);
+});

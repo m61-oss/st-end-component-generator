@@ -221,7 +221,7 @@ const WORLDBOOK_CATEGORY_ORDER = [
 ];
 
 const DEFAULT_SETTINGS = {
-  enabled: false,
+  enabled: true,
   mode: 'manual',
   autoGenerate: null,
   automaticGenerationTriggerText: '',
@@ -351,6 +351,7 @@ let importGroups = [];
 const promptSourceCache = createPromptSourceCacheState();
 let activeWorldbookGroupIndex = null;
 let generationAbortController = null;
+let pluginRuntimeRevision = 0;
 const floorVariableRulesSaveTimers = new Map();
 const multiTaskAbortControllers = new Map();
 const activeMultiTaskRunIds = new Set();
@@ -617,14 +618,14 @@ function updateQuickReplyShortcutActions() {
 }
 
 async function syncQuickReplyShortcuts({ attempt = 0, notifyOnUnavailable = false } = {}) {
-  const enabled = settings.qrGenerateEnabled || settings.qrInjectEnabled;
+  const enabled = settings.enabled && (settings.qrGenerateEnabled || settings.qrInjectEnabled);
   const quickReplyApi = getQuickReplyApi();
   if (!enabled) {
     if (quickReplyApi?.removeGlobalSet) quickReplyApi.removeGlobalSet(QR_SHORTCUT_SET_NAME);
     return true;
   }
   if (!quickReplyApi?.getSetByName) {
-    if (attempt < 8) {
+    if (settings.enabled && attempt < 8) {
       targetWindow.clearTimeout(quickReplySyncTimer);
       quickReplySyncTimer = targetWindow.setTimeout(() => {
         void syncQuickReplyShortcuts({ attempt: attempt + 1, notifyOnUnavailable });
@@ -637,6 +638,10 @@ async function syncQuickReplyShortcuts({ attempt = 0, notifyOnUnavailable = fals
   try {
     updateQuickReplyShortcutActions();
     if (!quickReplyApi.getSetByName(QR_SHORTCUT_SET_NAME)) await quickReplyApi.createSet(QR_SHORTCUT_SET_NAME);
+    if (!settings.enabled || !(settings.qrGenerateEnabled || settings.qrInjectEnabled)) {
+      quickReplyApi.removeGlobalSet?.(QR_SHORTCUT_SET_NAME);
+      return true;
+    }
     for (const shortcut of getQuickReplyShortcutEntries()) {
       const existing = quickReplyApi.getQrByLabel(QR_SHORTCUT_SET_NAME, shortcut.label);
       const props = {
@@ -696,7 +701,14 @@ function loadSettings() {
   const hadTransientGenerationState = removeTransientGenerationSettings(storedSettings);
   const shouldApplyMessageFloorPanelDefault = !Object.prototype.hasOwnProperty.call(storedSettings, 'messageFloorPanelDefaultApplied');
   const shouldApplyOutputProtocolAssistantDefault = !Object.prototype.hasOwnProperty.call(storedSettings, 'outputProtocolAssistantDefaultApplied');
+  const shouldApplyPluginEnabledDefault = !Object.prototype.hasOwnProperty.call(storedSettings, 'pluginEnabledDefaultApplied');
   settings = Object.assign({ ...DEFAULT_SETTINGS }, storedSettings);
+  if (shouldApplyPluginEnabledDefault) {
+    settings.enabled = true;
+    settings.pluginEnabledDefaultApplied = true;
+    storedSettings.enabled = true;
+    storedSettings.pluginEnabledDefaultApplied = true;
+  }
   settings.taskPrompt = migrateDefaultTaskInstruction(settings.taskPrompt);
   const didMigrateTaskPrompt = Object.prototype.hasOwnProperty.call(storedSettings, 'taskPrompt')
     && settings.taskPrompt !== storedSettings.taskPrompt;
@@ -948,6 +960,7 @@ function loadSettings() {
     hadTransientGenerationState
     || shouldApplyMessageFloorPanelDefault
     || shouldApplyOutputProtocolAssistantDefault
+    || shouldApplyPluginEnabledDefault
     || shouldMigrateCombinedMemorySources
     || didMigrateMultiTaskTaskSchemes
     || didMigrateTaskPrompt
@@ -1028,7 +1041,7 @@ function clearAnimaWorldbookSnapshot() {
 }
 
 function captureAnimaWorldbookSnapshot() {
-  if (!isAnimaWorldbookEnabled()) {
+  if (!settings.enabled || !isAnimaWorldbookEnabled()) {
     stopAnimaWorldbookCapture();
     return Promise.resolve({ entries: [], found: false });
   }
@@ -1064,7 +1077,7 @@ function captureAnimaWorldbookSnapshot() {
 }
 
 async function getAnimaWorldbookSnapshotForPrompt() {
-  if (!isAnimaMemoryEnabled()) return [];
+  if (!settings.enabled || !isAnimaMemoryEnabled()) return [];
   if (isAnimaWorldbookEnabled()) {
     if (animaWorldbookSnapshotPromise && !animaWorldbookCaptureRun?.active) {
       try {
@@ -1106,6 +1119,58 @@ function getFloorVariableRulesForUi(scope) {
   } catch (_) {
     return { tagNames: '', regexText: '' };
   }
+}
+
+function setPluginEnabled(enabled) {
+  const nextEnabled = Boolean(enabled);
+  if (settings.enabled === nextEnabled) return;
+  settings.enabled = nextEnabled;
+  settings.pluginEnabledDefaultApplied = true;
+  pluginRuntimeRevision += 1;
+  invalidatePendingAutomaticGeneration({ abortActive: true });
+  automaticGenerationBaseline = null;
+  if (!nextEnabled) {
+    generationAbortController?.abort();
+    cancelMultiTaskGeneration();
+    activeMultiTaskRunIds.clear();
+    multiTaskInjectionQueue.cancel();
+    settings.multiTaskSettings = normalizeMultiTaskSettings(settings.multiTaskSettings);
+    settings.multiTaskSettings.tasks = settings.multiTaskSettings.tasks.map((task) => ({
+      ...task,
+      runId: '',
+      status: task.status === MULTI_TASK_STATUS.PENDING_INJECTION
+        ? (task.output || task.anchorItems.length ? MULTI_TASK_STATUS.READY : MULTI_TASK_STATUS.IDLE)
+        : task.status,
+    }));
+    multiTaskAbortControllers.forEach((controller) => controller.abort());
+    multiTaskAbortControllers.clear();
+    stopAnimaWorldbookCapture();
+    clearAnimaWorldbookSnapshot();
+    setFloorVariableDepthZeroPrompt(getContext(), '');
+    if (messageFloorPanelRefreshTimer !== null) targetWindow.clearTimeout(messageFloorPanelRefreshTimer);
+    messageFloorPanelRefreshTimer = null;
+    messageFloorPanelState = createFloorPanelState();
+    removeMessageFloorPanels();
+    if (tavernSyncTimer !== null) targetWindow.clearInterval(tavernSyncTimer);
+    tavernSyncTimer = null;
+    if (quickReplySyncTimer !== null) targetWindow.clearTimeout(quickReplySyncTimer);
+    quickReplySyncTimer = null;
+    void syncQuickReplyShortcuts();
+    renderFloatingBall();
+  } else {
+    seedLastAutomaticTargetFromCurrentChat();
+    markPromptSourceStructureDirty(promptSourceCache);
+    startTavernDefaultSync();
+    void restoreBoundWorldbookSchemeForCurrentChat();
+    void restoreBoundMultiTaskSchemeForCurrentChat();
+    syncLatestAssistantFloorVariable();
+    refreshMessageFloorPanelTarget();
+    scheduleMessageFloorPanelRefresh();
+    void syncQuickReplyShortcuts();
+    renderFloatingBall();
+  }
+  saveSettings();
+  notifyStatus(nextEnabled ? '插件已启用。' : '插件已停用。', 'info');
 }
 
 function inspectFloorVariableMessage(messageIndex, context = getContext()) {
@@ -1155,12 +1220,14 @@ function recordFloorVariableDiagnosticEvent(event, messageIndex, details = {}) {
 }
 
 function recordFloorVariableMessageLifecycle(event, messageIndex) {
+  if (!settings.enabled) return;
   recordFloorVariableDiagnosticEvent(event, messageIndex);
   const schedule = typeof targetWindow?.setTimeout === 'function' ? targetWindow.setTimeout.bind(targetWindow) : setTimeout;
   schedule(() => recordFloorVariableDiagnosticEvent(`${event}:settled`, messageIndex), 1000);
 }
 
 function recordUserMessageStateAtEventStart(messageIndex) {
+  if (!settings.enabled) return;
   const state = inspectFloorVariableMessage(messageIndex);
   recordFloorVariableDiagnosticEvent('message-sent:first-listener', messageIndex);
   if (state.available && state.role === 'user' && !state.hasSnapshot) {
@@ -1169,6 +1236,7 @@ function recordUserMessageStateAtEventStart(messageIndex) {
 }
 
 function removeSnapshotCopiedDuringMessageSent(messageIndex) {
+  if (!settings.enabled) return;
   const index = Number(messageIndex);
   recordFloorVariableMessageLifecycle('message-sent', index);
   if (!userMessagesWithoutFloorSnapshotAtEventStart.delete(index)) return;
@@ -1186,7 +1254,7 @@ function removeSnapshotCopiedDuringMessageSent(messageIndex) {
 }
 
 function refreshFloorVariableSnapshotForMessage(messageIndex, context = getContext()) {
-  if (!settings.floorVariablesEnabled) return '';
+  if (!settings.enabled || !settings.floorVariablesEnabled) return '';
   const helper = getTavernHelperVariableApi();
   if (!helper) return '';
   const latestIndex = findLatestAssistantMessageIndex(context?.chat);
@@ -1213,7 +1281,7 @@ function refreshFloorVariableSnapshotForMessage(messageIndex, context = getConte
 }
 
 function syncLatestAssistantFloorVariable(messageIndex = null) {
-  if (!settings.floorVariablesEnabled) return;
+  if (!settings.enabled || !settings.floorVariablesEnabled) return;
   const context = getContext();
   const latestIndex = findLatestAssistantMessageIndex(context?.chat);
   const hasEventIndex = messageIndex !== null && messageIndex !== undefined && messageIndex !== '';
@@ -1223,7 +1291,7 @@ function syncLatestAssistantFloorVariable(messageIndex = null) {
 }
 
 function getFloorVariableSnapshotForMessage(messageIndex, context = getContext()) {
-  if (!settings.floorVariablesEnabled) return '';
+  if (!settings.enabled || !settings.floorVariablesEnabled) return '';
   const helper = getTavernHelperVariableApi();
   if (!helper || !Number.isInteger(Number(messageIndex))) return '';
   refreshFloorVariableSnapshotForMessage(Number(messageIndex), context);
@@ -1235,7 +1303,7 @@ function getFloorVariableSnapshotForMessage(messageIndex, context = getContext()
 }
 
 function syncFloorVariableDepthZeroPrompt(generationType, context = getContext()) {
-  const sourceIndex = settings.floorVariablesEnabled
+  const sourceIndex = settings.enabled && settings.floorVariablesEnabled
     ? resolveBodySnapshotSourceIndex(context?.chat, generationType)
     : null;
   const snapshot = sourceIndex === null ? '' : getFloorVariableSnapshotForMessage(sourceIndex, context);
@@ -1385,7 +1453,7 @@ function isSameFloorPanelTarget(left, right) {
 }
 
 function scheduleMessageFloorPanelRefresh() {
-  if (!settings.messageFloorPanelEnabled) return;
+  if (!settings.enabled || !settings.messageFloorPanelEnabled) return;
   if (messageFloorPanelRefreshTimer !== null) targetWindow.clearTimeout(messageFloorPanelRefreshTimer);
   messageFloorPanelRefreshTimer = targetWindow.setTimeout(() => {
     messageFloorPanelRefreshTimer = null;
@@ -1480,7 +1548,7 @@ function placeMessageFloorPanelAfterText(panel, messageText) {
 }
 
 function renderMessageFloorPanel({ force = false } = {}) {
-  if (!settings.messageFloorPanelEnabled || !messageFloorPanelState.target) return;
+  if (!settings.enabled || !settings.messageFloorPanelEnabled || !messageFloorPanelState.target) return;
   const host = getMessageElementForFloorPanel(messageFloorPanelState.target.messageIndex);
   if (!host) {
     scheduleMessageFloorPanelRefresh();
@@ -1661,7 +1729,7 @@ function setMessageFloorPanelError(error) {
 }
 
 function prepareMessageFloorPanelGeneration(latest) {
-  if (!settings.messageFloorPanelEnabled || !latest) return null;
+  if (!settings.enabled || !settings.messageFloorPanelEnabled || !latest) return null;
   const target = createFloorPanelTarget({
     chatId: getCurrentChatIdSafe(getContext()),
     messageIndex: latest.index,
@@ -1675,13 +1743,13 @@ function prepareMessageFloorPanelGeneration(latest) {
 }
 
 function isCurrentMessageFloorPanelGeneration(generation, target) {
-  return settings.messageFloorPanelEnabled
+  return settings.enabled && settings.messageFloorPanelEnabled
     && isFloorPanelGenerationCurrent(messageFloorPanelState, generation, target);
 }
 
 function refreshMessageFloorPanelTarget() {
   if (messageFloorPanelSuppressRefresh) return;
-  if (!settings.messageFloorPanelEnabled) {
+  if (!settings.enabled || !settings.messageFloorPanelEnabled) {
     removeMessageFloorPanels();
     messageFloorPanelState = createFloorPanelState();
     return;
@@ -2578,13 +2646,17 @@ async function callExternalApi(latestMessage, signal, sourceSettings = settings,
     () => callExternalApiOnce(requestContext, signal),
     signal,
     sourceSettings,
-    options.onPreview || updateStreamedPreview,
+    (text) => {
+      if (settings.enabled && !signal?.aborted) (options.onPreview || updateStreamedPreview)(text);
+    },
   );
 }
 
 async function callExternalApiOnce(requestContext, signal) {
   const { apiUrl, model, apiMode, numeric, additional, messages, tavernProfile, sourceSettings, runtimeDiagnostics, options } = requestContext;
-  const onPreview = options?.onPreview || updateStreamedPreview;
+  const onPreview = (...args) => {
+    if (settings.enabled && !signal?.aborted) (options?.onPreview || updateStreamedPreview)(...args);
+  };
   const publishPromptLog = (value) => {
     if (typeof options?.onPromptLog === 'function') {
       options.onPromptLog(value, runtimeDiagnostics);
@@ -2762,6 +2834,7 @@ function injectStatusbar(message, text, mode = settings.injectMode) {
 }
 
 async function generateStatusbar(entryType = 'manual', targetMessageIndex = null, automaticTarget = null) {
+  if (!settings.enabled) return '';
   if (settings.generationMode === 'multi') {
     if (entryType !== 'automatic' || !automaticGenerationLogActive) clearAutomaticGenerationLog();
     logAutomaticGenerationStage('multi-auto-entry', `来源=${entryType}`);
@@ -2812,11 +2885,19 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
   saveSettings();
   notifyStatus('正在生成组件……', 'info');
   const requestController = new AbortController();
+  const runtimeRevision = pluginRuntimeRevision;
   generationAbortController = requestController;
   stopAnimaWorldbookCapture();
   if (entryType === 'automatic') activeAutomaticTarget = automaticTarget;
   setGeneratingState(true);
   await waitForInteractionPaint();
+  if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) {
+    if (generationAbortController === requestController) {
+      generationAbortController = null;
+      setGeneratingState(false);
+    }
+    return '';
+  }
   let result = '';
   try {
     if (settings.rollbackBeforeGeneration) {
@@ -2829,6 +2910,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
       const rolledBackLatest = getAssistantMessageAtIndex(getContext().chat, latest.index);
       if (rolledBackLatest) floorGeneration = prepareMessageFloorPanelGeneration(rolledBackLatest);
     }
+    if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) return '';
     clearGeneratedThinking();
     restorePanelScrollTop(panelScrollTop);
     logAutomaticGenerationStage('target-ready', `message ${latest.index}`);
@@ -2855,10 +2937,12 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     logAutomaticGenerationStage('prompt-build-start');
     beginPromptLogBuild();
     result = await callExternalApi(latest.message, requestController.signal);
+    if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) return '';
     if (floorGeneration && !isCurrentMessageFloorPanelGeneration(floorGeneration.generation, floorGeneration.target)) return '';
     logAutomaticGenerationStage('api-returned', result ? 'received content' : 'empty response');
   }
   catch (error) {
+    if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) return '';
     const partialStreamText = String(error?.streamedText ?? '');
     if (partialStreamText.trim()) {
       const partialResultPanelScrollTop = capturePanelScrollTop();
@@ -2905,6 +2989,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
       setGeneratingState(false);
     }
   }
+  if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) return '';
   if (floorGeneration && !isCurrentMessageFloorPanelGeneration(floorGeneration.generation, floorGeneration.target)) return '';
   logAutomaticGenerationStage('result-apply', 'updating preview');
   const resultPanelScrollTop = capturePanelScrollTop();
@@ -2935,6 +3020,9 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
 }
 
 async function injectGeneratedStatusbar(targetMessageIndex = null) {
+  if (!settings.enabled) return;
+  const runtimeRevision = pluginRuntimeRevision;
+  const runtimeIsCurrent = () => settings.enabled && runtimeRevision === pluginRuntimeRevision;
   let context = getContext();
   logAutomaticGenerationStage('inject-start', targetMessageIndex === null ? 'latest assistant' : `message ${targetMessageIndex}`);
   let latest = targetMessageIndex === null
@@ -2964,6 +3052,7 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
     let anchorItems = Array.isArray(settings.lastGeneratedAnchorItems) ? settings.lastGeneratedAnchorItems : [];
     if (!text && !anchorItems.length) {
       await generateStatusbar('manual', targetMessageIndex);
+      if (!runtimeIsCurrent()) return;
       text = settings.lastGenerated || $t('#st-esg-preview').val();
       anchorItems = Array.isArray(settings.lastGeneratedAnchorItems) ? settings.lastGeneratedAnchorItems : [];
     }
@@ -3011,9 +3100,11 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
       try {
         mvuReprocessed = await reprocessMvuVariables(context, latest.index);
       } catch (error) {
+        if (!runtimeIsCurrent()) return;
         console.warn(`[${EXTENSION_ID}] failed to reprocess MVU variables after injection`, error);
       }
     }
+    if (!runtimeIsCurrent()) return;
     latestInjectionUndoSnapshot = latest.index === context.chat.length - 1
       ? createInjectionUndoSnapshot({
         targetIndex: latest.index,
@@ -3033,9 +3124,11 @@ async function injectGeneratedStatusbar(targetMessageIndex = null) {
     if (messageUpdatedEvent && context.eventSource?.emit) {
       await context.eventSource.emit(messageUpdatedEvent, latest.index);
     }
+    if (!runtimeIsCurrent()) return;
     try {
       logAutomaticGenerationStage('chat-save', 'saving injected chat');
       const saveResult = await context.saveChat();
+      if (!runtimeIsCurrent()) return;
       if (saveResult === false) throw new Error('聊天保存接口返回失败');
       notifyStatus('已注入到最新助手回复。');
       logAutomaticGenerationStage('inject-finished', 'injection complete');
@@ -3192,7 +3285,7 @@ function buildAutomaticGenerationWaitDiagnostics(target, chat) {
 
 async function runDeferredAutomaticGeneration(pendingTarget, revision, attempt = 0) {
   const context = getContext();
-  if (!settings.autoGenerate || revision !== automaticGenerationRevision) return;
+  if (!settings.enabled || !settings.autoGenerate || revision !== automaticGenerationRevision) return;
   const readyTarget = resolveReadyAutomaticAssistantTarget(pendingTarget, context.chat);
   if (!readyTarget || generationAbortController) {
     if (attempt === 0) logAutomaticGenerationStage('等待渲染', '最新 assistant 尚未可用或已有外置生成');
@@ -3230,7 +3323,7 @@ async function runDeferredAutomaticGeneration(pendingTarget, revision, attempt =
 
 async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt = 0) {
   const context = getContext();
-  if (!settings.autoGenerate || revision !== automaticGenerationRevision) return;
+  if (!settings.enabled || !settings.autoGenerate || revision !== automaticGenerationRevision) return;
   if (!baseline) {
     logAutomaticGenerationStage('generation-skip', '没有匹配的正文生成开始事件');
     return;
@@ -3292,6 +3385,7 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
 }
 
 function handleGenerationStarted(type) {
+  if (!settings.enabled) return;
   syncFloorVariableDepthZeroPrompt(String(type || ''));
   if (generationAbortController) {
     stopAnimaWorldbookCapture();
@@ -3307,6 +3401,7 @@ function handleGenerationStarted(type) {
 }
 
 function handleGenerationEnded() {
+  if (!settings.enabled) return;
   stopAnimaWorldbookCapture();
   if (!settings.autoGenerate || generationAbortController) return;
   if (!automaticGenerationLogActive) clearAutomaticGenerationLog();
@@ -3326,10 +3421,12 @@ function handleGenerationEnded() {
 }
 
 function handleGenerationStopped() {
+  if (!settings.enabled) return;
   stopAnimaWorldbookCapture();
 }
 
 function handleAssistantMessageReceived(messageId, messageType) {
+  if (!settings.enabled) return;
   const context = getContext();
   if (!settings.autoGenerate) return;
   if (!isAutomaticAssistantMessageTypeEligible(messageType)) return;
@@ -3349,6 +3446,7 @@ function handleAssistantMessageReceived(messageId, messageType) {
 }
 
 function handleAssistantMessageRendered(messageId) {
+  if (!settings.enabled) return;
   const messageIndex = Number(messageId);
   const pending = pendingAutomaticTargets.get(messageIndex);
   if (!pending) return;
@@ -3542,7 +3640,7 @@ function renderTagRuleManager(type) {
     const entry = type === 'history' ? rawEntry.rule : rawEntry;
     const isRegex = entry.startsWith('re:');
     const display = isRegex ? entry.slice(3) : `<${entry}>...</${entry}>`;
-    const enableToggle = type === 'history' ? `<button class="menu_button st-esg-history-rule-toggle ${rawEntry.enabled === false ? 'is-disabled' : ''}" type="button" data-rule-index="${index}" aria-pressed="${rawEntry.enabled !== false}" title="${rawEntry.enabled === false ? '启用规则' : '停用规则'}">${rawEntry.enabled === false ? '已停用' : '已启用'}</button>` : '';
+    const enableToggle = type === 'history' ? `<label class="st-esg-switch st-esg-switch-sm st-esg-history-rule-toggle" title="${rawEntry.enabled === false ? '启用规则' : '停用规则'}"><input type="checkbox" data-rule-index="${index}" aria-label="${rawEntry.enabled === false ? '启用规则' : '停用规则'}" ${rawEntry.enabled === false ? '' : 'checked'} /><span></span></label>` : '';
     const keep = type === 'history' ? `<span class="st-esg-history-rule-keep">保留 <input class="text_pole" type="number" min="0" step="1" value="${rawEntry.keep}" data-rule-index="${index}" /></span>` : '';
     return `<div class="st-esg-tag-rule-item ${type === 'history' ? 'st-esg-history-tag-rule-item' : ''} ${rawEntry.enabled === false ? 'is-disabled' : ''}"><span class="st-esg-tag-rule-kind">${isRegex ? '正则' : '标签'}</span><code>${escapeHtml(display)}</code>${enableToggle}${keep}<button class="menu_button st-esg-tag-rule-delete" type="button" data-rule-index="${index}" title="删除规则"><i class="fa-solid fa-trash"></i></button></div>`;
   }).join('') || '<div class="st-esg-tag-rule-empty">尚未添加规则</div>');
@@ -3820,13 +3918,18 @@ async function applyWorldbookSchemeToCurrentChat() {
 }
 
 function restoreBoundWorldbookSchemeForCurrentChat() {
+  if (!settings.enabled) return Promise.resolve();
+  const runtimeRevision = pluginRuntimeRevision;
   chatWorldbookRestoreQueue = chatWorldbookRestoreQueue
     .catch(() => {})
-    .then(() => restoreBoundWorldbookSchemeForCurrentChatNow());
+    .then(() => settings.enabled && runtimeRevision === pluginRuntimeRevision
+      ? restoreBoundWorldbookSchemeForCurrentChatNow(runtimeRevision)
+      : undefined);
   return chatWorldbookRestoreQueue;
 }
 
-async function restoreBoundWorldbookSchemeForCurrentChatNow() {
+async function restoreBoundWorldbookSchemeForCurrentChatNow(runtimeRevision = pluginRuntimeRevision) {
+  if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) return;
   const context = getContext();
   if (isCurrentChatGroup(context)) return;
   const chatId = getCurrentChatIdSafe(context);
@@ -3856,6 +3959,7 @@ async function restoreBoundWorldbookSchemeForCurrentChatNow() {
   try {
     setSelectedSchemeId('worldbook', scheme.id);
     await applyScheme('worldbook', scheme.snapshot || {});
+    if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) return;
     markSchemeClean('worldbook', scheme.id);
     saveSettings();
     renderSchemeOptions('worldbook');
@@ -3908,13 +4012,18 @@ async function applyMultiTaskSchemeToCurrentChat() {
 }
 
 function restoreBoundMultiTaskSchemeForCurrentChat() {
+  if (!settings.enabled) return Promise.resolve();
+  const runtimeRevision = pluginRuntimeRevision;
   chatMultiTaskRestoreQueue = chatMultiTaskRestoreQueue
     .catch(() => {})
-    .then(() => restoreBoundMultiTaskSchemeForCurrentChatNow());
+    .then(() => settings.enabled && runtimeRevision === pluginRuntimeRevision
+      ? restoreBoundMultiTaskSchemeForCurrentChatNow(runtimeRevision)
+      : undefined);
   return chatMultiTaskRestoreQueue;
 }
 
-async function restoreBoundMultiTaskSchemeForCurrentChatNow() {
+async function restoreBoundMultiTaskSchemeForCurrentChatNow(runtimeRevision = pluginRuntimeRevision) {
+  if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) return;
   const context = getContext();
   if (isCurrentChatGroup(context)) return;
   const chatId = getCurrentChatIdSafe(context);
@@ -3953,6 +4062,7 @@ async function restoreBoundMultiTaskSchemeForCurrentChatNow() {
   try {
     setSelectedSchemeId('multiTask', scheme.id);
     await applyScheme('multiTask', scheme.snapshot || {});
+    if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) return;
     markSchemeClean('multiTask', scheme.id);
     restoredMultiTaskBindingChatId = chatId;
     saveSettings();
@@ -4337,7 +4447,7 @@ function registerPromptSourceCacheInvalidation(context) {
 }
 
 async function syncTavernDefaultSources() {
-  if (!getDialog()?.open || (!isFollowingTavernPreset() && !isFollowingTavernWorldbook())) return;
+  if (!settings.enabled || !getDialog()?.open || (!isFollowingTavernPreset() && !isFollowingTavernWorldbook())) return;
   const signature = getTavernSourceSignature();
   if (signature === lastTavernSourceSignature) return;
   lastTavernSourceSignature = signature;
@@ -4345,6 +4455,7 @@ async function syncTavernDefaultSources() {
 }
 
 function startTavernDefaultSync() {
+  if (!settings.enabled) return;
   if (tavernSyncTimer) return;
   tavernSyncTimer = targetWindow.setInterval(() => {
     syncTavernDefaultSources().catch(() => {});
@@ -4611,7 +4722,7 @@ function openPanelFromFloatingBall() {
 }
 
 function renderFloatingBall() {
-  if (!settings.ballVisible) { $t('#st-esg-ball').remove(); return; }
+  if (!settings.enabled || !settings.ballVisible) { $t('#st-esg-ball').remove(); return; }
   const existingBall = targetDoc.getElementById('st-esg-ball');
   if (existingBall) {
     markFloatingBallCompatible(existingBall);
@@ -7652,6 +7763,7 @@ function serializeMultiTaskError(error) {
 }
 
 function updateMultiTaskStream(taskId, text, runId) {
+  if (!settings.enabled) return;
   const state = normalizeMultiTaskSettings(settings.multiTaskSettings);
   const task = state.tasks.find((item) => item.id === taskId);
   if (!task || task.runId !== runId) return;
@@ -7700,6 +7812,8 @@ function recordMultiTaskHistory(result) {
 }
 
 async function generateMultiTasks(requestedTaskIds = null) {
+  if (!settings.enabled) return [];
+  const runtimeRevision = pluginRuntimeRevision;
   captureActiveMultiTaskView();
   const multiTaskState = normalizeMultiTaskSettings(settings.multiTaskSettings);
   const tasks = getMultiTasksForAction(multiTaskState, requestedTaskIds);
@@ -7712,6 +7826,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
   if (settings.rollbackBeforeGeneration) {
     logAutomaticGenerationStage('multi-rollback-start', `检查 ${tasks.length} 个任务的最新楼层记录`);
     const undoneTaskIds = await undoMultiTaskInjections(tasks.map((task) => task.id), { requireConfirmation: false, silent: true });
+    if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) return [];
     logAutomaticGenerationStage('multi-rollback-finished', `撤回 ${undoneTaskIds.length} 个任务`);
   }
   const context = getContext();
@@ -7793,8 +7908,9 @@ async function generateMultiTasks(requestedTaskIds = null) {
     })
     : null;
   const results = await runMultiTaskQueue(plan, {
-    isCurrent: (runId) => activeMultiTaskRunIds.has(runId),
+    isCurrent: (runId) => settings.enabled && runtimeRevision === pluginRuntimeRevision && activeMultiTaskRunIds.has(runId),
     onTransition: ({ taskId, status, value, error }) => {
+      if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) return;
       const currentTask = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.find((task) => task.id === taskId);
       const taskLabel = currentTask?.name || taskId;
       if (!currentTask || currentTask.runId !== plan.runId) {
@@ -7827,6 +7943,11 @@ async function generateMultiTasks(requestedTaskIds = null) {
       scheduleMultiTaskFrameworkRender();
     },
     execute: async (entry) => {
+      if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) {
+        const error = new Error('Plugin generation was cancelled');
+        error.name = 'AbortError';
+        throw error;
+      }
       const currentTask = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.find((task) => task.id === entry.task.id);
       if (currentTask?.runId !== plan.runId) {
         const error = new Error('Task generation was cancelled');
@@ -7842,9 +7963,15 @@ async function generateMultiTasks(requestedTaskIds = null) {
             onPreview: (text) => updateMultiTaskStream(entry.task.id, text, plan.runId),
           });
         } catch (error) {
+          if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) throw error;
           const partial = String(error?.streamedText ?? '');
           if (!partial.trim()) throw error;
           rawText = partial;
+        }
+        if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) {
+          const error = new Error('Plugin generation was cancelled');
+          error.name = 'AbortError';
+          throw error;
         }
         const result = normalizeMultiTaskGeneratedResult(rawText);
         recordMultiTaskHistory(result);
@@ -7858,6 +7985,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
   const completed = results.filter((item) => item.status === 'fulfilled').length;
   const failed = results.filter((item) => item.status === 'rejected').length;
   if (autoInjectionPromises.length) await Promise.allSettled(autoInjectionPromises);
+  if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) return [];
   logAutomaticGenerationStage('multi-batch-finished', `完成 ${completed} 个${failed ? `；失败 ${failed} 个` : ''}`);
   notifyStatus(`多任务生成结束：完成 ${completed} 个${failed ? `，失败 ${failed} 个` : ''}。`, failed ? 'warning' : 'info');
   return results;
@@ -7882,12 +8010,14 @@ async function persistMultiTaskMessageUpdates(context, messageIndexes) {
 }
 
 function enqueueMultiTaskInjection(taskId, { intervalMs = 0, silent = false, expectedRunId = '' } = {}) {
+  if (!settings.enabled) return Promise.resolve([]);
   const task = getRequestedMultiTasks([taskId])[0];
   logAutomaticGenerationStage('multi-inject-queued', `${task?.name || taskId}${intervalMs ? `；等待 ${intervalMs / 1000} 秒` : ''}`);
   return multiTaskInjectionQueue.enqueue({ taskId, silent, expectedRunId }, { intervalMs });
 }
 
 async function injectMultiTasks(requestedTaskIds = null) {
+  if (!settings.enabled) return [];
   captureActiveMultiTaskView();
   const tasks = getRequestedMultiTasks(requestedTaskIds)
     .filter((task) => [MULTI_TASK_STATUS.READY, MULTI_TASK_STATUS.UNDONE].includes(task.status))
@@ -7914,6 +8044,9 @@ async function injectMultiTasks(requestedTaskIds = null) {
 }
 
 async function injectMultiTaskBatchNow(requestedTaskIds = null, { silent = false, expectedRunId = '' } = {}) {
+  if (!settings.enabled) return [];
+  const runtimeRevision = pluginRuntimeRevision;
+  const runtimeIsCurrent = () => settings.enabled && runtimeRevision === pluginRuntimeRevision;
   const tasks = getRequestedMultiTasks(requestedTaskIds)
     .filter((task) => !expectedRunId || task.runId === expectedRunId)
     .filter((task) => ![MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
@@ -7929,6 +8062,7 @@ async function injectMultiTaskBatchNow(requestedTaskIds = null, { silent = false
   const mvuIndexes = new Set();
   const injectedTaskIds = [];
   for (const task of tasks) {
+    if (!runtimeIsCurrent()) return injectedTaskIds;
     logAutomaticGenerationStage('multi-inject-start', task.name);
     const targetIndex = Number(task.target?.messageIndex);
     if (textOf(task.target?.chatId) !== currentChatId || !Number.isInteger(targetIndex)) {
@@ -7980,12 +8114,18 @@ async function injectMultiTaskBatchNow(requestedTaskIds = null, { silent = false
   if (changedIndexes.size) {
     try {
       await persistMultiTaskMessageUpdates(context, [...changedIndexes]);
-      for (const targetIndex of mvuIndexes) await reprocessMvuVariables(context, targetIndex);
+      if (!runtimeIsCurrent()) return injectedTaskIds;
+      for (const targetIndex of mvuIndexes) {
+        if (!runtimeIsCurrent()) return injectedTaskIds;
+        await reprocessMvuVariables(context, targetIndex);
+      }
     } catch (error) {
+      if (!runtimeIsCurrent()) return injectedTaskIds;
       logAutomaticGenerationStage('multi-inject-error', `聊天保存失败：${error?.message || '未知错误'}`);
       notifyStatus(`多任务内容已经写入，但聊天保存失败：${error?.message || '未知错误'}`, 'warning');
     }
   }
+  if (!runtimeIsCurrent()) return injectedTaskIds;
   renderMultiTaskRuntimeState();
   if (!silent && injectedTaskIds.length) notifyStatus(`已注入 ${injectedTaskIds.length} 个结果。`);
   return injectedTaskIds;
@@ -8779,7 +8919,7 @@ function renderPluginPanel() {
   if (closeButton) {
     const headerActions = targetDoc.createElement('div');
     headerActions.className = 'st-esg-panel-header-actions';
-    headerActions.innerHTML = '<button id="st-esg-help-open" class="st-esg-header-btn" type="button" data-help-guide-open title="使用帮助" aria-label="打开使用帮助"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></button><div id="st-esg-theme-toggle" class="st-esg-header-btn" role="button" tabindex="0" title="切换主题"><span class="st-esg-theme-glyph" aria-hidden="true"><i class="fa-solid fa-moon"></i></span></div>';
+    headerActions.innerHTML = '<label class="st-esg-switch st-esg-switch-sm st-esg-global-enabled" title="启用/停用插件"><input id="st-esg-global-enabled" type="checkbox" aria-label="启用插件" /><span></span></label><button id="st-esg-help-open" class="st-esg-header-btn" type="button" data-help-guide-open title="使用帮助" aria-label="打开使用帮助"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></button><div id="st-esg-theme-toggle" class="st-esg-header-btn" role="button" tabindex="0" title="切换主题"><span class="st-esg-theme-glyph" aria-hidden="true"><i class="fa-solid fa-moon"></i></span></div>';
     closeButton.before(headerActions);
     headerActions.appendChild(closeButton);
   }
@@ -8859,7 +8999,8 @@ function bindPanelEvents() {
   refreshHelpText();
   applyTheme();
   $t('[data-help-guide-open]').on('click.stEsgHelpGuide', () => showHelpGuideDialog());
-  settings.enabled = true;
+  $t('#st-esg-global-enabled').prop('checked', settings.enabled);
+  $t('#st-esg-global-enabled').on('change', function () { setPluginEnabled($(this).prop('checked')); });
   $t('#st-esg-ball-visible').prop('checked', settings.ballVisible);
   $t('#st-esg-ball-size').val(getFloatingBallSize());
   $t('#st-esg-ball-size-value').text(`${getFloatingBallSize()}px`);
@@ -9247,11 +9388,11 @@ function bindPanelEvents() {
       renderTagRuleManager(type);
     });
     if (type === 'history') {
-      $t('#st-esg-history-rule-list').on('click', '.st-esg-history-rule-toggle', function () {
+      $t('#st-esg-history-rule-list').on('change', '.st-esg-history-rule-toggle input', function () {
         const entries = getTagRuleEntries('history');
         const entry = entries[Number($(this).data('rule-index'))];
         if (!entry) return;
-        entry.enabled = entry.enabled === false;
+        entry.enabled = $(this).prop('checked');
         saveTagRuleEntries('history', entries);
         renderTagRuleManager('history');
       });
@@ -9347,9 +9488,13 @@ function init() {
   registerInjectionUndoInvalidation(context);
   registerMessageFloorPanelEvents(context);
   const messageEditedEvent = context.eventTypes?.MESSAGE_EDITED;
-  if (messageEditedEvent) context.eventSource.on(messageEditedEvent, (messageIndex) => syncLatestAssistantFloorVariable(messageIndex));
+  if (messageEditedEvent) context.eventSource.on(messageEditedEvent, (messageIndex) => {
+    if (settings.enabled) syncLatestAssistantFloorVariable(messageIndex);
+  });
   const messageUpdatedEvent = context.eventTypes?.MESSAGE_UPDATED;
-  if (messageUpdatedEvent) context.eventSource.on(messageUpdatedEvent, (messageIndex) => syncLatestAssistantFloorVariable(messageIndex));
+  if (messageUpdatedEvent) context.eventSource.on(messageUpdatedEvent, (messageIndex) => {
+    if (settings.enabled) syncLatestAssistantFloorVariable(messageIndex);
+  });
   const messageSentEvent = context.eventTypes?.MESSAGE_SENT;
   if (messageSentEvent) {
     const firstMessageSentProbe = (messageIndex) => recordUserMessageStateAtEventStart(messageIndex);
@@ -9365,6 +9510,7 @@ function init() {
   if (context.eventTypes.MESSAGE_RECEIVED) context.eventSource.on(context.eventTypes.MESSAGE_RECEIVED, handleAssistantMessageReceived);
   if (context.eventTypes.CHARACTER_MESSAGE_RENDERED) context.eventSource.on(context.eventTypes.CHARACTER_MESSAGE_RENDERED, handleAssistantMessageRendered);
   if (context.eventTypes.CHAT_CHANGED) context.eventSource.on(context.eventTypes.CHAT_CHANGED, () => {
+    if (!settings.enabled) return;
     invalidatePendingAutomaticGeneration({ abortActive: true });
     automaticGenerationBaseline = null;
     const currentChatId = getCurrentAnimaChatId();

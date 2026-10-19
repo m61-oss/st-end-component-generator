@@ -26,3 +26,17 @@ test('tag cleanup transfer is wired to a versioned helper and refreshes both lis
   assert.match(indexSource, /notifyStatus\(buildTagCleanupImportSummary\(merged\)\)/);
   assert.doesNotMatch(indexSource, /已合并.*标签清理规则/);
 });
+
+test('history cleanup rules use the shared compact switch component', () => {
+  assert.match(indexSource, /st-esg-switch st-esg-switch-sm st-esg-history-rule-toggle/);
+  assert.match(indexSource, /\.on\('change',\s*'\.st-esg-history-rule-toggle input'/);
+  assert.doesNotMatch(indexSource, /<button class="menu_button st-esg-history-rule-toggle/);
+});
+
+test('global plugin switch stays beside help and toggles persisted runtime state', () => {
+  assert.match(indexSource, /st-esg-switch st-esg-switch-sm[^"']*st-esg-global-enabled/);
+  const eventBindings = indexSource.match(/function bindPanelEvents\(\)\s*\{[\s\S]*?\n\}/)?.[0] || '';
+  assert.match(eventBindings, /#st-esg-global-enabled'\)\.on\('change'/);
+  assert.doesNotMatch(eventBindings, /settings\.enabled\s*=\s*true/);
+  assert.match(indexSource, /if \(!settings\.enabled\) return/);
+});
