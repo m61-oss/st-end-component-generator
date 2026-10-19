@@ -1,4 +1,5 @@
 import { getContext } from '../../../st-context.js';
+import { getRegexedString, regex_placement } from '../../regex/engine.js';
 import {
   COMPONENT_SCOPE_CHARACTER,
   COMPONENT_SCOPE_GLOBAL,
@@ -256,6 +257,7 @@ const DEFAULT_SETTINGS = {
   mvuReprocessOnInject: true,
   historyCleanupTags: '',
   historyCleanupRules: [],
+  followTavernRegex: true,
   historyRangeMode: CHAT_HISTORY_RANGE_VISIBLE,
   recentMessageCount: 10,
   outputCleanupTags: '',
@@ -706,6 +708,8 @@ function loadSettings() {
   delete settings.promptSourceSnapshots;
   delete storedSettings.promptSourceSnapshots;
   if (!isFreshInstall && !Object.prototype.hasOwnProperty.call(storedSettings, 'taskPlacementEnabled')) settings.taskPlacementEnabled = false;
+  if (!Object.prototype.hasOwnProperty.call(storedSettings, 'followTavernRegex')) settings.followTavernRegex = isFreshInstall;
+  else settings.followTavernRegex = Boolean(storedSettings.followTavernRegex);
   if (!isFreshInstall && !Object.prototype.hasOwnProperty.call(storedSettings, 'taskPlacementAfterSourceId')) settings.taskPlacementAfterSourceId = '';
   if (!isFreshInstall && !Object.prototype.hasOwnProperty.call(storedSettings, 'replaceLastUserMessageWithTask')) settings.replaceLastUserMessageWithTask = false;
   settings.ballSize = normalizeFloatingBallSize(settings.ballSize);
@@ -2440,6 +2444,9 @@ async function buildMessages(latestMessage, sourceSettings = settings, { onDiagn
     promptSourceItems,
     worldbookSourceControlled: true,
     historyCleanupTags: sourceSettings.historyCleanupRules,
+    followTavernRegex: sourceSettings.followTavernRegex,
+    getRegexedString,
+    regexPlacement: regex_placement,
     historyRangeMode: sourceSettings.historyRangeMode,
     recentMessageCount: sourceSettings.recentMessageCount,
     substituteParams: context.substituteParams,
@@ -3518,11 +3525,17 @@ function saveTagRuleEntries(type, entries) {
 
 function buildTagRuleManager(type) {
   const config = TAG_RULE_CONFIG[type];
-  return `<div class="st-esg-tag-rule-manager" data-tag-rule-type="${type}"><div class="st-esg-tag-rule-head"><span>${config.title}</span></div><div class="st-esg-tag-rule-add"><select id="st-esg-${type}-rule-mode" class="text_pole"><option value="tag">标签</option><option value="regex">正则</option></select><input id="st-esg-${type}-rule-input" class="text_pole" type="text" placeholder="thinking" /><button id="st-esg-${type}-rule-add" class="menu_button st-esg-secondary-action st-esg-tag-rule-add-button" type="button" title="添加规则"><i class="fa-solid fa-plus"></i></button></div><div id="st-esg-${type}-rule-list" class="st-esg-tag-rule-list"></div></div>`;
+  const historyToggle = type === 'history' ? '<label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-follow-tavern-regex" type="checkbox" /><span>跟随酒馆正则</span><em>按酒馆实际发送给模型时的正则清理聊天记录和世界书扫描内容。关闭后使用下方自定义规则。</em></label>' : '';
+  const customRulesId = type === 'history' ? ' id="st-esg-history-custom-rules"' : '';
+  return `<div class="st-esg-tag-rule-manager" data-tag-rule-type="${type}"><div class="st-esg-tag-rule-head"><span>${config.title}</span></div>${historyToggle}<div${customRulesId}><div class="st-esg-tag-rule-add"><select id="st-esg-${type}-rule-mode" class="text_pole"><option value="tag">标签</option><option value="regex">正则</option></select><input id="st-esg-${type}-rule-input" class="text_pole" type="text" placeholder="thinking" /><button id="st-esg-${type}-rule-add" class="menu_button st-esg-secondary-action st-esg-tag-rule-add-button" type="button" title="添加规则"><i class="fa-solid fa-plus"></i></button></div><div id="st-esg-${type}-rule-list" class="st-esg-tag-rule-list"></div></div></div>`;
 }
 
 function renderTagRuleManager(type) {
   const list = $t(`#st-esg-${type}-rule-list`);
+  if (type === 'history') {
+    $t('#st-esg-follow-tavern-regex').prop('checked', settings.followTavernRegex);
+    $t('#st-esg-history-custom-rules').toggle(!settings.followTavernRegex);
+  }
   if (!list.length) return;
   const entries = getTagRuleEntries(type);
   list.html(entries.map((rawEntry, index) => {
@@ -6313,6 +6326,9 @@ async function ensurePromptSourceItemsForGeneration({ chat = null, animaWorldboo
     recentMessageCount: settings.recentMessageCount,
     // The lamp must see the same history range and cleanup result the model gets.
     historyCleanupRules: settings.historyCleanupRules,
+    followTavernRegex: settings.followTavernRegex,
+    getRegexedString,
+    regexPlacement: regex_placement,
     activationModeForItem: isFollowingTavernWorldbook() ? (item) => item?.activationMode : getWorldbookActivationMode,
     substituteKeyword: (keyword) => typeof context?.substituteParams === 'function'
       ? context.substituteParams.call(context, keyword)
@@ -7392,6 +7408,9 @@ async function ensureRuntimePromptSourceItemsForGeneration(runtimeSettings, { ch
     historyRangeMode: runtimeSettings.historyRangeMode,
     recentMessageCount: runtimeSettings.recentMessageCount,
     historyCleanupRules: runtimeSettings.historyCleanupRules,
+    followTavernRegex: runtimeSettings.followTavernRegex,
+    getRegexedString,
+    regexPlacement: regex_placement,
     activationModeForItem: worldbookFollowsTavern
       ? (item) => item?.activationMode
       : (item) => normalizeWorldbookActivationMode(runtimeSettings.worldbookActivationOverrides?.[item?.key] || item?.activationMode, 'green'),
@@ -9208,6 +9227,11 @@ function bindPanelEvents() {
   $t('#st-esg-prompt-template-compat').on('change', function () { settings.promptTemplateCompatEnabled = Boolean($(this).prop('checked')); saveSettings(); });
   $t('#st-esg-inject-mode').on('change', function () { settings.injectMode = String($(this).val()); saveSettings(); renderGenerationSettings(); });
   $t('#st-esg-rollback-before-generation').on('change', function () { settings.rollbackBeforeGeneration = Boolean($(this).prop('checked')); saveSettings(); });
+  $t('#st-esg-follow-tavern-regex').on('change', function () {
+    settings.followTavernRegex = Boolean($(this).prop('checked'));
+    saveSettings();
+    renderTagRuleManager('history');
+  });
   ['history', 'output'].forEach((type) => {
     $t(`#st-esg-${type}-rule-add`).on('click', () => addTagRule(type));
     $t(`#st-esg-${type}-rule-input`).on('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); addTagRule(type); } });

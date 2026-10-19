@@ -1,5 +1,5 @@
-import { stripHistoryBlocksByRules } from '../injection/tag-rules.js';
-import { CHAT_HISTORY_RANGE_VISIBLE, selectChatHistoryMessages } from '../generation/chat-history-range.js';
+import { selectAndCleanChatHistory } from '../generation/history-cleanup.js';
+import { CHAT_HISTORY_RANGE_VISIBLE } from '../generation/chat-history-range.js';
 
 const textOf = (value) => String(value ?? '').trim();
 
@@ -86,20 +86,24 @@ export function normalizeWorldbookActivationMode(value, fallback = 'green') {
   return textOf(value).toLowerCase() === 'blue' ? 'blue' : textOf(value).toLowerCase() === 'green' ? 'green' : fallback;
 }
 
-// Green-light keywords are scanned against the same range the model will receive. Range selection
-// happens before cleanup, so an old message outside the plugin range cannot activate an entry.
-// Cleanup still runs before matching, so text removed from a retained block cannot activate one.
+// Green-light keywords are scanned against the same cleaned history the model receives.
 export function getWorldbookScanText(chat, depth = 2, {
   historyCleanupRules = [],
   historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE,
   recentMessageCount = 10,
+  followTavernRegex = false,
+  getRegexedString = null,
+  regexPlacement = null,
 } = {}) {
   const limit = Math.max(0, Number.isFinite(Number(depth)) ? Math.floor(Number(depth)) : 2);
-  const selectedHistory = selectChatHistoryMessages(chat, {
-    mode: historyRangeMode,
+  return selectAndCleanChatHistory(chat, {
+    historyCleanupRules,
+    historyRangeMode,
     recentMessageCount,
-  });
-  return stripHistoryBlocksByRules(selectedHistory, historyCleanupRules)
+    followTavernRegex,
+    getRegexedString,
+    regexPlacement,
+  })
     .slice(-limit)
     .reverse()
     .map((item) => textOf(item?.mes))
@@ -133,12 +137,18 @@ export function filterWorldbookPromptItems(items, {
   historyCleanupRules = [],
   historyRangeMode = CHAT_HISTORY_RANGE_VISIBLE,
   recentMessageCount = 10,
+  followTavernRegex = false,
+  getRegexedString = null,
+  regexPlacement = null,
   substituteKeyword = null,
 } = {}) {
   const scanText = getWorldbookScanText(chat, scanDepth, {
     historyCleanupRules,
     historyRangeMode,
     recentMessageCount,
+    followTavernRegex,
+    getRegexedString,
+    regexPlacement,
   });
   return (Array.isArray(items) ? items : []).filter((item) => {
     if (textOf(item?.scope) !== '世界书') return true;
