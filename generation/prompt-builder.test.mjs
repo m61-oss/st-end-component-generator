@@ -188,7 +188,7 @@ test('final outgoing-message pass removes MVU status placeholders without changi
   assert.equal('sourceMessageIndex' in messages[0], false);
 });
 
-test('places the raw floor-variable snapshot at chat depth one, away from tail constraints', async () => {
+test('places the raw floor-variable snapshot after chat history and before later sources and task', async () => {
   const messages = await build({
     floorVariableSnapshot: { content: '<snow>state</snow>', sourceMessageIndex: 1 },
     promptSourceItems: [
@@ -208,7 +208,7 @@ test('places the raw floor-variable snapshot at chat depth one, away from tail c
     floorVariableSnapshot: true,
   });
   assert.ok(userIndex < snapshotIndex);
-  assert.equal(assistantIndex, snapshotIndex + 1);
+  assert.equal(snapshotIndex, assistantIndex + 1);
   assert.ok(snapshotIndex < pluginAssistantIndex);
   assert.ok(snapshotIndex < taskIndex);
 });
@@ -221,7 +221,7 @@ test('does not trim the extracted floor-variable snapshot', async () => {
   assert.equal(messages.find((message) => message.floorVariableSnapshot)?.content, content);
 });
 
-test('keeps the floor snapshot at chat depth one when task follows chat history', async () => {
+test('keeps the floor snapshot before a task placed after chat history', async () => {
   const messages = await build({
     floorVariableSnapshot: { content: '<snow>state</snow>', sourceMessageIndex: 1 },
     taskPlacement: { enabled: true, afterSourceId: TASK_PLACEMENT_AFTER_CHAT_HISTORY },
@@ -229,8 +229,8 @@ test('keeps the floor snapshot at chat depth one when task follows chat history'
   const snapshotIndex = messages.findIndex((message) => message.floorVariableSnapshot);
   const taskIndex = messages.findIndex((message) => message.role === 'user' && message.content === 'TASK');
   assert.ok(snapshotIndex >= 0);
-  assert.equal(messages[snapshotIndex + 1].content, context.chat[1].mes);
-  assert.ok(snapshotIndex < taskIndex);
+  assert.equal(messages[snapshotIndex - 1].content, context.chat[1].mes);
+  assert.equal(taskIndex, snapshotIndex + 1);
 });
 
 test('keeps the floor snapshot outside anchor target markers', async () => {
@@ -242,6 +242,7 @@ test('keeps the floor snapshot outside anchor target markers', async () => {
   const targetOpenIndex = messages.findIndex((message) => message.content === '<latest_assistant_target>');
   const assistantIndex = messages.findIndex((message) => message.content === context.chat[1].mes);
 
-  assert.equal(snapshotIndex + 1, targetOpenIndex);
+  assert.equal(snapshotIndex, assistantIndex + 2);
   assert.equal(targetOpenIndex + 1, assistantIndex);
+  assert.equal(messages[snapshotIndex - 1].content, '</latest_assistant_target>');
 });

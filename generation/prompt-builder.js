@@ -883,8 +883,8 @@ export async function buildExternalStatusbarMessages({ targetWindow, context, la
   const floorVariableContent = String(floorVariableSnapshot?.content ?? '');
   if (floorVariableContent.trim()) {
     let insertionIndex = messages.findLastIndex((message) => Number.isInteger(message?.sourceMessageIndex));
-    if (insertionIndex < 0) insertionIndex = messages.length;
-    if (messages[insertionIndex - 1]?.content === ANCHOR_TARGET_OPEN) insertionIndex -= 1;
+    insertionIndex = insertionIndex < 0 ? messages.length : insertionIndex + 1;
+    if (messages[insertionIndex]?.content === ANCHOR_TARGET_CLOSE) insertionIndex += 1;
     messages.splice(insertionIndex, 0, { role: 'system', content: floorVariableContent, floorVariableSnapshot: true });
   }
   const taskMessage = { role: 'user', content: taskContent };
