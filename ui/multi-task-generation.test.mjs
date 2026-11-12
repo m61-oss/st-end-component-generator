@@ -176,7 +176,7 @@ test('multi-task stages are visible in the shared generation debug log', () => {
   const end = indexSource.indexOf('function clearAutomaticGenerationLog', start);
   const source = indexSource.slice(start, end);
 
-  assert.match(source, /stage\.startsWith\('multi-'\)/);
+  assert.match(source, /automaticGenerationLogEntries\.push\(line\)/);
   assert.match(source, /'multi-auto-entry'/);
   assert.match(source, /'multi-batch-start'/);
   assert.match(source, /'multi-task-start'/);

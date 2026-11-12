@@ -481,6 +481,7 @@ function logAutomaticGenerationStage(stage, details = '') {
     'undo-finished': '撤回完成',
     'generation-started': '收到生成开始事件',
     'generation-ended': '收到生成结束事件',
+    'generation-stopped': '收到生成停止事件',
     'message-received': '收到 assistant 消息',
     'message-rendered': 'assistant 消息已渲染',
     'floor-variable': '楼层变量诊断',
@@ -509,7 +510,10 @@ function logAutomaticGenerationStage(stage, details = '') {
     'multi-undo-error': '多任务撤回失败',
     'multi-undo-skip': '跳过多任务撤回',
   };
-  const detailText = String(details || '')
+  const safeDetails = /error|warning|floor-variable/.test(stage) ? '' : String(details || '')
+    .replace(/https?:\/\/\S+/gi, '[地址已隐藏]')
+    .replace(/(?:sk-[\w-]+|Bearer\s+\S+)/gi, '[密钥已隐藏]');
+  const detailText = String(safeDetails)
     .replaceAll('automatic', '自动生成')
     .replaceAll('manual', '手动生成')
     .replaceAll('quickReply', '快捷回复')
@@ -531,26 +535,28 @@ function logAutomaticGenerationStage(stage, details = '') {
     .replace(/^message (\d+)/, '楼层 $1')
     .replace(/^message (\d+); /, '楼层 $1；');
   const suffix = detailText ? `：${detailText}` : '';
-  const line = `${new Date().toLocaleTimeString()} ${stageLabels[stage] || stage}${suffix}`;
+  const now = new Date();
+  const line = `${now.toLocaleTimeString()}.${String(now.getMilliseconds()).padStart(3, '0')} ${stageLabels[stage] || stage}${suffix}`;
   console.log(`[${EXTENSION_ID}] ${line}`);
-  if (!VISIBLE_GENERATION_LOG_STAGES.has(stage) && !stage.startsWith('multi-')) return;
   automaticGenerationLogEntries.push(line);
-  if (automaticGenerationLogEntries.length > 40) automaticGenerationLogEntries.shift();
+  if (automaticGenerationLogEntries.length > 300) automaticGenerationLogEntries.shift();
   const logElement = targetDoc.getElementById('st-esg-generation-log');
   if (logElement) {
+    const follow = logElement.scrollHeight - logElement.scrollTop - logElement.clientHeight < 24;
     logElement.textContent = automaticGenerationLogEntries.join('\n');
-    logElement.scrollTop = logElement.scrollHeight;
+    if (follow) logElement.scrollTop = logElement.scrollHeight;
   }
 }
 
 function clearAutomaticGenerationLog() {
   automaticGenerationLogEntries.length = 0;
-  floorVariableDiagnosticEvents.slice(-8).forEach((entry) => {
-    automaticGenerationLogEntries.push(formatFloorVariableDiagnosticEntry(entry));
-  });
-  automaticGenerationLogActive = true;
   const logElement = targetDoc.getElementById('st-esg-generation-log');
-  if (logElement) logElement.textContent = '';
+  if (logElement) logElement.textContent = '暂无日志';
+}
+
+function beginAutomaticGenerationLog() {
+  automaticGenerationLogActive = true;
+  logAutomaticGenerationStage('──────── 新一轮生成 ────────', `版本 ${EXTENSION_VERSION}；模式 ${settings.generationMode === 'multi' ? '多任务' : '单任务'}；自动生成 ${settings.autoGenerate ? '开' : '关'}；自动注入 ${settings.autoInject ? '开' : '关'}`);
 }
 
 async function runConfiguredApiRequest(operation, signal, sourceSettings = settings, onPreview = updateStreamedPreview) {
@@ -2838,7 +2844,7 @@ function injectStatusbar(message, text, mode = settings.injectMode) {
 async function generateStatusbar(entryType = 'manual', targetMessageIndex = null, automaticTarget = null) {
   if (!settings.enabled) return '';
   if (settings.generationMode === 'multi') {
-    if (entryType !== 'automatic' || !automaticGenerationLogActive) clearAutomaticGenerationLog();
+    if (entryType !== 'automatic' || !automaticGenerationLogActive) beginAutomaticGenerationLog();
     logAutomaticGenerationStage('multi-auto-entry', `来源=${entryType}`);
     const runningTaskIds = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks
       .filter((task) => [MULTI_TASK_STATUS.QUEUED, MULTI_TASK_STATUS.GENERATING].includes(task.status))
@@ -2868,7 +2874,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
     if (entryType !== 'automatic') notifyStatus(message, 'warning');
     return '';
   }
-  if (entryType !== 'automatic' || !automaticGenerationLogActive) clearAutomaticGenerationLog();
+  if (entryType !== 'automatic' || !automaticGenerationLogActive) beginAutomaticGenerationLog();
   logAutomaticGenerationStage('generation-start', '准备目标回复');
   const context = getContext();
   const latest = targetMessageIndex === null
@@ -3255,6 +3261,9 @@ function registerMessageFloorPanelEvents(context) {
 }
 
 function invalidatePendingAutomaticGeneration({ abortActive = false } = {}) {
+  if (pendingAutomaticTargets.size || automaticGenerationEndTimer !== null || (abortActive && activeAutomaticTarget)) {
+    logAutomaticGenerationStage('自动生成等待已取消', `待处理 ${pendingAutomaticTargets.size}；结束计时 ${automaticGenerationEndTimer !== null ? '有' : '无'}；中止运行 ${abortActive ? '是' : '否'}`);
+  }
   automaticGenerationRevision += 1;
   pendingAutomaticTargets.clear();
   if (automaticGenerationEndTimer !== null) {
@@ -3315,7 +3324,7 @@ async function runDeferredAutomaticGeneration(pendingTarget, revision, attempt =
     return;
   }
   if (triggerState === 'missing') {
-    logAutomaticGenerationStage('generation-skip', `楼层 ${readyTarget.messageIndex}；${describeAutomaticGenerationTriggerMismatch(readyTarget.messageText, triggerText)}`);
+    logAutomaticGenerationStage('generation-skip', `楼层 ${readyTarget.messageIndex}；未匹配触发字符串`);
     return;
   }
   lastAutomaticTargetKey = targetKey;
@@ -3377,7 +3386,7 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
   }
   if (triggerState === 'missing') {
     const triggerPreview = triggerText.length > 30 ? `${triggerText.slice(0, 30)}…` : triggerText;
-    logAutomaticGenerationStage('generation-skip', `楼层 ${readyTarget.messageIndex}；${describeAutomaticGenerationTriggerMismatch(readyTarget.messageText, triggerText)}`);
+    logAutomaticGenerationStage('generation-skip', `楼层 ${readyTarget.messageIndex}；未匹配触发字符串`);
     notifyStatus(`未检测到触发字符串“${triggerPreview}”，已跳过本轮自动生成。`, 'warning');
     return;
   }
@@ -3388,6 +3397,9 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
 
 function handleGenerationStarted(type) {
   if (!settings.enabled) return;
+  automaticGenerationLogActive = false;
+  beginAutomaticGenerationLog();
+  logAutomaticGenerationStage('generation-started', `已有正文开始事件=${automaticGenerationBaseline ? '是' : '否'}；插件生成中=${generationAbortController ? '是' : '否'}`);
   syncFloorVariableDepthZeroPrompt(String(type || ''));
   if (generationAbortController) {
     stopAnimaWorldbookCapture();
@@ -3396,8 +3408,6 @@ function handleGenerationStarted(type) {
   if (isAnimaWorldbookEnabled()) void captureAnimaWorldbookSnapshot();
   else stopAnimaWorldbookCapture();
   if (!settings.autoGenerate) return;
-  automaticGenerationLogActive = false;
-  logAutomaticGenerationStage('generation-started');
   invalidatePendingAutomaticGeneration();
   automaticGenerationBaseline = captureAutomaticGenerationBaseline(getContext().chat);
 }
@@ -3405,8 +3415,11 @@ function handleGenerationStarted(type) {
 function handleGenerationEnded() {
   if (!settings.enabled) return;
   stopAnimaWorldbookCapture();
-  if (!settings.autoGenerate || generationAbortController) return;
-  if (!automaticGenerationLogActive) clearAutomaticGenerationLog();
+  if (!settings.autoGenerate || generationAbortController) {
+    logAutomaticGenerationStage('generation-ended', `自动生成=${settings.autoGenerate ? '开' : '关'}；插件生成中=${generationAbortController ? '是' : '否'}`);
+    return;
+  }
+  if (!automaticGenerationLogActive) beginAutomaticGenerationLog();
   logAutomaticGenerationStage('generation-ended', '等待 500ms 检查最终消息');
   const baseline = automaticGenerationBaseline;
   automaticGenerationBaseline = null;
@@ -3424,6 +3437,7 @@ function handleGenerationEnded() {
 
 function handleGenerationStopped() {
   if (!settings.enabled) return;
+  logAutomaticGenerationStage('generation-stopped');
   stopAnimaWorldbookCapture();
 }
 
@@ -3434,7 +3448,7 @@ function handleAssistantMessageReceived(messageId, messageType) {
   if (!isAutomaticAssistantMessageTypeEligible(messageType)) return;
   const pendingTarget = captureAutomaticAssistantTarget(messageId, context.chat);
   if (!pendingTarget) return;
-  clearAutomaticGenerationLog();
+  if (!automaticGenerationLogActive) beginAutomaticGenerationLog();
   logAutomaticGenerationStage('message-received', `楼层 ${pendingTarget.messageIndex}`);
   invalidatePendingAutomaticGeneration();
   const revision = automaticGenerationRevision;
@@ -8883,7 +8897,27 @@ function renderPluginPanel() {
   presetSourceSelect?.closest('label')?.classList.add('st-esg-preset-select-field');
   presetSourceRow?.insertAdjacentHTML('beforeend', '<button id="st-esg-export-current-preset" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-file-export"></i><span>导出预设</span></button>');
   const debugPanel = dialog.querySelector('[data-tab-panel="debug"]');
-  debugPanel?.insertAdjacentHTML('afterbegin', '<div class="st-esg-card st-esg-generation-log-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">本次生成日志</div><div class="st-esg-card-desc">每次开始生成时清空，只保留本次生成流程。</div></div></div><pre id="st-esg-generation-log" class="st-esg-generation-log">尚未开始生成</pre></div>');
+  debugPanel?.insertAdjacentHTML('afterbegin', '<div class="st-esg-card st-esg-generation-log-card"><div class="st-esg-card-head st-esg-generation-log-head"><div><div class="st-esg-card-title">生成日志</div><div class="st-esg-card-desc">保留本页面最近 300 条记录，刷新页面后清空。</div></div><div class="st-esg-generation-log-actions"><button type="button" class="menu_button st-esg-secondary-action" data-log-copy>复制日志</button><button type="button" class="menu_button st-esg-secondary-action" data-log-export>导出日志</button><button type="button" class="menu_button st-esg-secondary-action" data-log-clear>清空日志</button></div></div><pre id="st-esg-generation-log" class="st-esg-generation-log">暂无日志</pre></div>');
+  const generationLog = dialog.querySelector('#st-esg-generation-log');
+  if (generationLog && automaticGenerationLogEntries.length) generationLog.textContent = automaticGenerationLogEntries.join('\n');
+  dialog.querySelector('[data-log-copy]')?.addEventListener('click', async () => {
+    try {
+      await targetWindow.navigator.clipboard.writeText(automaticGenerationLogEntries.join('\n'));
+      notifyStatus('日志已复制', 'success');
+    } catch {
+      notifyStatus('复制失败，请使用导出日志', 'warning');
+    }
+  });
+  dialog.querySelector('[data-log-export]')?.addEventListener('click', () => {
+    const snapshot = automaticGenerationLogEntries.join('\n');
+    const url = URL.createObjectURL(new Blob([snapshot], { type: 'text/plain;charset=utf-8' }));
+    const link = targetDoc.createElement('a');
+    link.href = url;
+    link.download = `织幕日志-v${EXTENSION_VERSION}-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  });
+  dialog.querySelector('[data-log-clear]')?.addEventListener('click', clearAutomaticGenerationLog);
   const apiFields = dialog.querySelector('#st-esg-api-url')?.closest('.st-esg-grid');
   const apiUrlLabel = dialog.querySelector('#st-esg-api-url')?.closest('label');
   const apiKeyLabel = dialog.querySelector('#st-esg-api-key')?.closest('label');

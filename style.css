@@ -732,6 +732,9 @@ select.st-esg-scheme-select {
 #st-esg-dialog #st-esg-api-retry-count { width: 72px; min-width: 72px; max-width: 72px; text-align: center; }
 .st-esg-api-retry-note { color: var(--esg-text-muted); font-size: 11px; line-height: 1.35; }
 .st-esg-generation-log { min-height: 72px; max-height: 180px; margin: 0; padding: 8px; overflow: auto; border: 1px solid var(--esg-border); border-radius: 8px; background: var(--esg-bg-input); color: var(--esg-text-muted); font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace); font-size: 11px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+.st-esg-generation-log-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; justify-content: space-between; }
+.st-esg-generation-log-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.st-esg-generation-log-card .st-esg-generation-log { padding: 12px; }
 .st-esg-version-badge { display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 6px; border: 1px solid var(--esg-border); border-radius: 999px; color: var(--esg-text-muted); font-size: 10px; font-weight: 500; line-height: 1.4; vertical-align: middle; }
 .st-esg-version-badge[data-plugin-updates-open] { background: transparent; cursor: pointer; font-family: inherit; white-space: nowrap; }
 .st-esg-version-badge.st-esg-update-available::after { content: '\2191'; margin-left: 4px; color: inherit; font-size: 11px; line-height: 1; pointer-events: none; }
