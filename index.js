@@ -185,7 +185,7 @@ import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCl
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.2.6';
-const UI_ASSET_REVISION = 'plugin-updates-20261113-dot2';
+const UI_ASSET_REVISION = 'plugin-updates-20261113-arrow';
 const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置组件生成器';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
