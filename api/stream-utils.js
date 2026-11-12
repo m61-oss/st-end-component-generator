@@ -35,7 +35,7 @@ export async function readOpenAiStream(response, onDelta = () => {}) {
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
     if (flushEvents()) {
-      await reader.cancel?.();
+      try { await reader.cancel?.(); } catch (_) {}
       return fullText;
     }
   }

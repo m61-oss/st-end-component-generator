@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { readOpenAiStream } from './stream-utils.js';
+import { withApiRetries } from './api-retry.js';
 
 const encoder = new TextEncoder();
 
@@ -41,6 +42,21 @@ test('finishes immediately at the SSE DONE marker even if the connection stays o
   assert.equal(result, 'done');
   assert.equal(held.getReads(), 1);
   assert.equal(held.wasCancelled(), true);
+});
+
+test('does not retry a completed stream when reader cleanup fails', async () => {
+  let attempts = 0;
+  const result = await withApiRetries(async () => {
+    attempts += 1;
+    const response = { body: { getReader: () => ({
+      read: async () => ({ value: encoder.encode('data: {"choices":[{"delta":{"content":"complete"}}]}\n\ndata: [DONE]\n\n'), done: false }),
+      cancel: async () => { throw new Error('network error'); },
+    }) } };
+    return readOpenAiStream(response);
+  }, { maxRetries: 1, sleep: async () => {} });
+
+  assert.equal(result, 'complete');
+  assert.equal(attempts, 1);
 });
 
 test('emits CRLF-delimited SSE events before the connection closes', async () => {
