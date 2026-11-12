@@ -1,6 +1,6 @@
 import { getContext } from '../../../st-context.js';
 import { extensionTypes } from '../../../extensions.js';
-import { createPluginUpdater, renderPluginUpdates } from './ui/plugin-updates.js?ver=0.2.6';
+import { createPluginUpdater, renderPluginUpdates } from './ui/plugin-updates.js?ver=0.2.7';
 import { getRegexedString, regex_placement } from '../../regex/engine.js';
 import {
   COMPONENT_SCOPE_CHARACTER,
@@ -184,7 +184,7 @@ import { buildDataManagementModel, clearSettingsDataCategory, formatByteSize } f
 import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCleanupImport } from './settings/tag-cleanup-transfer.js?ver=0.2.5';
 
 const EXTENSION_ID = 'st-end-component-generator';
-const EXTENSION_VERSION = '0.2.6';
+const EXTENSION_VERSION = '0.2.7';
 const UI_ASSET_REVISION = 'plugin-updates-20261113-arrow';
 const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置组件生成器';

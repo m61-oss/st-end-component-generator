@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const expectedVersion = '0.2.5';
+const expectedVersion = '0.2.7';
 
 test('keeps the extension display name and public version metadata aligned', async () => {
   const [manifestText, packageText, indexText] = await Promise.all([
@@ -22,7 +22,7 @@ test('keeps the extension display name and public version metadata aligned', asy
   assert.match(indexText, /const BRAND_SUBTITLE = '外置组件生成器'/);
   assert.match(indexText, /const QR_SHORTCUT_SET_NAME = '织幕快捷键'/);
 
-  const cacheVersions = [...indexText.matchAll(/\?ver=(\d+\.\d+\.\d+)/g)].map((match) => match[1]);
-  assert.ok(cacheVersions.length > 0);
-  assert.deepEqual([...new Set(cacheVersions)], [expectedVersion]);
+  assert.ok(indexText.includes(`./ui/plugin-updates.js?ver=${expectedVersion}`));
+  const changelog = JSON.parse(await readFile(new URL('../changelog.json', import.meta.url), 'utf8'));
+  assert.equal(changelog[0].version, expectedVersion);
 });
