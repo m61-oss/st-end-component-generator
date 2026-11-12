@@ -2362,7 +2362,7 @@ function showAnchorInsertionPreviewDialog() {
   };
   dialog.querySelectorAll('[data-anchor-preview-close]').forEach((button) => button.addEventListener('click', closeDialog));
   dialog.addEventListener('cancel', (event) => { event.preventDefault(); closeDialog(); });
-  dialog.addEventListener('click', (event) => { if (event.target === dialog) closeDialog(); });
+  bindDialogBackdrop(dialog, closeDialog);
   targetDoc.body.appendChild(dialog);
   if (typeof dialog.showModal === 'function') dialog.showModal();
   else dialog.setAttribute('open', '');
@@ -7296,7 +7296,7 @@ function openDataManagementDialog() {
     dialog.innerHTML = `<div class="st-esg-data-dialog-shell"><header><div><strong>数据管理</strong><span>查看织幕保存的数据，并按类别清空。</span></div><button class="st-esg-header-btn" type="button" data-data-dialog-close title="关闭" aria-label="关闭数据管理"><i class="fa-solid fa-xmark"></i></button></header><div id="st-esg-data-management" class="st-esg-data-dialog-body"></div></div>`;
     targetDoc.body.appendChild(dialog);
     dialog.addEventListener('cancel', (event) => { event.preventDefault(); dialog.close(); });
-    dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+    bindDialogBackdrop(dialog, () => dialog.close());
     dialog.querySelector('[data-data-dialog-close]')?.addEventListener('click', () => dialog.close());
     $(dialog).on('click', '.st-esg-data-delete-component', function (event) {
       event.preventDefault();
@@ -7704,7 +7704,7 @@ function showHelpGuideDialog() {
   };
   dialog.querySelector('[data-help-guide-close]')?.addEventListener('click', finish);
   dialog.addEventListener('cancel', (event) => { event.preventDefault(); finish(); });
-  dialog.addEventListener('click', (event) => { if (event.target === dialog) finish(); });
+  bindDialogBackdrop(dialog, finish);
   dialog.querySelector('[data-help-tour-start]')?.addEventListener('click', () => {
     finish({ restoreFocus: false });
     startHelpTour();
@@ -8732,6 +8732,36 @@ function bindMultiTaskFrameworkEvents() {
     });
 }
 
+function bindDialogBackdrop(dialog, closeDialog) {
+  let gesture = null;
+  let backdropClickReady = false;
+  const reset = () => {
+    gesture = null;
+    backdropClickReady = false;
+  };
+  const moved = (event) => Math.hypot(event.clientX - gesture.clientX, event.clientY - gesture.clientY) > 6;
+  dialog.addEventListener('pointerdown', (event) => {
+    reset();
+    if (event.target !== dialog || event.button !== 0 || !event.isPrimary) return;
+    gesture = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY };
+  }, true);
+  dialog.addEventListener('pointermove', (event) => {
+    if (gesture && event.pointerId === gesture.pointerId && moved(event)) reset();
+  }, true);
+  dialog.addEventListener('pointerup', (event) => {
+    backdropClickReady = Boolean(gesture && event.pointerId === gesture.pointerId
+      && event.target === dialog && !moved(event));
+    gesture = null;
+  }, true);
+  dialog.addEventListener('pointercancel', reset, true);
+  dialog.addEventListener('close', reset);
+  dialog.addEventListener('click', (event) => {
+    const shouldClose = backdropClickReady && event.target === dialog;
+    reset();
+    if (shouldClose) closeDialog();
+  });
+}
+
 function renderPluginPanel() {
   if (targetDoc.getElementById('st-esg-dialog')) return;
   const dialog = targetDoc.createElement('dialog');
@@ -8932,7 +8962,7 @@ function renderPluginPanel() {
     resetComponentLibraryFilters();
     targetDoc.getElementById('st-esg-ball')?.classList.remove('st-esg-ball-under-panel');
   });
-  dialog.addEventListener('click', (event) => { if (event.target === dialog) togglePanel(false); });
+  bindDialogBackdrop(dialog, () => togglePanel(false));
   bindPanelEvents();
   bindMultiTaskFrameworkEvents();
 }
