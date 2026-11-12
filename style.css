@@ -735,9 +735,7 @@ select.st-esg-scheme-select {
 .st-esg-version-badge { display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 6px; border: 1px solid var(--esg-border); border-radius: 999px; color: var(--esg-text-muted); font-size: 10px; font-weight: 500; line-height: 1.4; vertical-align: middle; }
 .st-esg-version-badge[data-plugin-updates-open] { background: transparent; cursor: pointer; font-family: inherit; white-space: nowrap; }
 .st-esg-version-badge[data-plugin-updates-open] { position: relative; }
-.st-esg-version-badge.st-esg-update-available::after,
-.st-esg-version-badge.st-esg-update-pending::after { content: ''; position: absolute; top: -3px; right: -3px; width: 6px; height: 6px; border: 2px solid var(--esg-bg-card); border-radius: 50%; background: var(--esg-running-blue); pointer-events: none; }
-.st-esg-version-badge.st-esg-update-pending::after { background: var(--esg-warning, #d99a38); }
+.st-esg-version-badge.st-esg-update-available::after { content: ''; position: absolute; top: -3px; right: -3px; width: 6px; height: 6px; border: 2px solid var(--esg-bg-card); border-radius: 50%; background: var(--esg-running-blue); pointer-events: none; }
 .st-esg-version-badge[data-plugin-updates-open]:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .st-esg-update-overview { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px 20px; padding: 22px 24px 18px; border-bottom: 1px solid var(--esg-border); background: var(--esg-bg-main); }
 .st-esg-update-versions { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--esg-text-muted); font-size: 11px; }

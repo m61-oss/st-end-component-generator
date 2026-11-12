@@ -122,7 +122,7 @@ test('version entry reflects available and pending-refresh states without openin
   vm.runInContext('renderPluginUpdateState();', sandbox);
   assert.equal(badge.textContent, 'v0.2.6');
   assert.ok(!badgeClasses.has('st-esg-update-available'));
-  assert.ok(badgeClasses.has('st-esg-update-pending'));
+  assert.equal(badgeClasses.size, 0);
   assert.ok(badgeAttributes['aria-label'].includes('刷新页面后生效'));
   assert.ok(content.innerHTML.includes('更新完成，刷新页面后生效'));
 });

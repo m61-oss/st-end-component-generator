@@ -185,7 +185,7 @@ import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCl
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.2.6';
-const UI_ASSET_REVISION = 'plugin-updates-20261113-dot';
+const UI_ASSET_REVISION = 'plugin-updates-20261113-dot2';
 const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置组件生成器';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
@@ -7720,7 +7720,6 @@ function renderPluginUpdateState() {
   if (badge) {
     badge.textContent = `v${EXTENSION_VERSION}`;
     badge.classList.toggle('st-esg-update-available', state.available);
-    badge.classList.toggle('st-esg-update-pending', state.updated);
     badge.title = state.updated ? '更新完成，刷新页面后生效' : state.available ? '有新版本，点击查看更新日志' : '查看更新日志与检查更新';
     badge.setAttribute('aria-label', `版本 ${EXTENSION_VERSION}，${badge.title}`);
   }
