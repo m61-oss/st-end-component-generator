@@ -1,4 +1,6 @@
 import { getContext } from '../../../st-context.js';
+import { extensionTypes } from '../../../extensions.js';
+import { createPluginUpdater, renderPluginUpdates } from './ui/plugin-updates.js?ver=0.2.6';
 import { getRegexedString, regex_placement } from '../../regex/engine.js';
 import {
   COMPONENT_SCOPE_CHARACTER,
@@ -183,7 +185,7 @@ import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCl
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.2.6';
-const UI_ASSET_REVISION = 'help-tour-2026091501';
+const UI_ASSET_REVISION = 'plugin-updates-20261113';
 const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置组件生成器';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
@@ -4651,6 +4653,7 @@ function togglePanel(forceOpen) {
     }
     dialog.focus({ preventScroll: true });
     if (!importGroups.length || promptSourceCache.structureDirty) scanImportCandidates().catch(() => {});
+    void getPluginUpdater().check().catch(() => {});
     if (settings.activeTab === 'workspace') scheduleGeneratedPreviewResize();
   } else if (dialog.open && typeof dialog.close === 'function') {
     resetComponentEditMode();
@@ -7684,6 +7687,75 @@ function startHelpTour() {
   applyHelpTourStep();
 }
 
+let pluginUpdater = null;
+
+function getPluginUpdater() {
+  if (!pluginUpdater) {
+    pluginUpdater = createPluginUpdater({
+      moduleUrl: import.meta.url,
+      currentVersion: EXTENSION_VERSION,
+      getExtensionTypes: () => extensionTypes,
+      getHeaders: getHostRequestHeaders,
+      fetch: (...args) => targetWindow.fetch(...args),
+      onChange: renderPluginUpdateState,
+    });
+    void targetWindow.fetch(new URL('./changelog.json', import.meta.url).href, { cache: 'no-store' })
+      .then(response => response.ok ? response.json() : [])
+      .then(changes => {
+        if (Array.isArray(changes)) {
+          localPluginChangelog = changes;
+          renderPluginUpdateState();
+        }
+      }).catch(() => {});
+  }
+  return pluginUpdater;
+}
+
+let localPluginChangelog = [];
+
+function renderPluginUpdateState() {
+  if (!pluginUpdater) return;
+  const state = pluginUpdater.state;
+  const badge = targetDoc.querySelector('[data-plugin-updates-open]');
+  if (badge) {
+    badge.textContent = `v${EXTENSION_VERSION}${state.updated ? ' · 待刷新' : state.available ? ' · 有更新' : ''}`;
+    badge.classList.toggle('st-esg-update-available', state.available);
+    badge.title = state.updated ? '更新完成，刷新页面后生效' : '查看更新日志与检查更新';
+  }
+  const content = targetDoc.querySelector('#st-esg-updates-dialog .st-esg-help-body');
+  if (content) content.innerHTML = renderPluginUpdates({ ...state, changes: state.changes.length ? state.changes : localPluginChangelog });
+}
+
+function showPluginUpdatesDialog() {
+  const existing = targetDoc.getElementById('st-esg-updates-dialog');
+  if (existing) { existing.focus(); return; }
+  const returnFocus = targetDoc.activeElement;
+  const dialog = targetDoc.createElement('dialog');
+  dialog.id = 'st-esg-updates-dialog';
+  dialog.className = `st-esg-scheme-name-dialog st-esg-help-dialog ${getThemeClassName(settings.theme)}`;
+  dialog.tabIndex = -1;
+  dialog.setAttribute('aria-labelledby', 'st-esg-updates-title');
+  dialog.innerHTML = `<div class="st-esg-help-shell"><header><div id="st-esg-updates-title" class="st-esg-card-title">更新日志</div><button type="button" class="menu_button st-esg-secondary-action" data-plugin-updates-close aria-label="关闭更新日志"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header><div class="st-esg-help-body"></div></div>`;
+  const finish = () => {
+    if (dialog.open) dialog.close();
+    dialog.remove();
+    returnFocus?.focus?.({ preventScroll: true });
+  };
+  dialog.addEventListener('cancel', event => { event.preventDefault(); finish(); });
+  bindDialogBackdrop(dialog, finish);
+  dialog.addEventListener('click', event => {
+    if (event.target.closest('[data-plugin-updates-close]')) finish();
+    if (event.target.closest('[data-plugin-check]')) void getPluginUpdater().check(true).catch(() => {});
+    if (event.target.closest('[data-plugin-update]')) void getPluginUpdater().update().catch(() => {});
+  });
+  targetDoc.body.appendChild(dialog);
+  getPluginUpdater();
+  renderPluginUpdateState();
+  dialog.showModal();
+  dialog.focus({ preventScroll: true });
+  void getPluginUpdater().check().catch(() => {});
+}
+
 function showHelpGuideDialog() {
   stopHelpTour({ restoreTab: false });
   targetDoc.getElementById('st-esg-help-dialog')?.remove();
@@ -8787,7 +8859,9 @@ function renderPluginPanel() {
   titleText?.replaceChildren(BRAND_NAME);
   titleCopy?.prepend(titleText);
   dialog.querySelector('.st-esg-tabs')?.setAttribute('aria-label', `${BRAND_NAME}分页`);
-  dialog.querySelector('.st-esg-title-text')?.insertAdjacentHTML('beforeend', ` <span class="st-esg-version-badge">v${EXTENSION_VERSION}</span>`);
+  dialog.querySelector('.st-esg-title-text')?.insertAdjacentHTML('beforeend', ` <button type="button" class="st-esg-version-badge" data-plugin-updates-open title="查看更新日志与检查更新">v${EXTENSION_VERSION}</button>`);
+  dialog.querySelector('[data-plugin-updates-open]')?.addEventListener('click', showPluginUpdatesDialog);
+  renderPluginUpdateState();
   dialog.querySelector('#st-esg-inject')?.insertAdjacentHTML('afterend', '<div id="st-esg-undo-injection" class="menu_button menu_button_icon st-esg-secondary-action st-esg-hidden" title="撤回本次注入"><i class="fa-solid fa-rotate-left"></i><span>撤回注入</span></div>');
   dialog.querySelector('#st-esg-status')?.remove();
   dialog.querySelector('[data-tab="debug"] span')?.replaceChildren('调试信息');
@@ -9472,6 +9546,7 @@ function bindPanelEvents() {
 function mountUi() {
   if (!targetDoc.body) { targetWindow.setTimeout(mountUi, 500); return; }
   renderMagicWandMenuButton(); renderFloatingBall(); renderPluginPanel();
+  void getPluginUpdater().check().catch(() => {});
   refreshMessageFloorPanelTarget();
 }
 

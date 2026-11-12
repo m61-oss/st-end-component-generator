@@ -3,7 +3,7 @@
   "loading_order": 100,
   "requires": [],
   "optional": [],
-  "js": "index.js?ver=0.2.5",
+  "js": "index.js?ver=0.2.6",
   "author": "m61-oss",
   "version": "0.2.6",
   "homePage": "https://github.com/m61-oss/st-end-component-generator",
