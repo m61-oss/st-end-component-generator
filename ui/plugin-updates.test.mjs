@@ -86,6 +86,14 @@ test('renders escaped changelog content and a manual update action', () => {
   assert.ok(renderPluginUpdates({ updated: true, changes: [] }).includes('更新完成，刷新页面后生效'));
 });
 
+test('shows versions without exposing the installed branch', () => {
+  const html = renderPluginUpdates({ currentVersion: '0.2.6', latestVersion: '0.2.7', branch: 'codex/multi-task-framework', changes: [] });
+  assert.ok(html.includes('v0.2.6'));
+  assert.ok(html.includes('v0.2.7'));
+  assert.ok(!html.includes('codex/multi-task-framework'));
+  assert.ok(!html.includes('\u5206\u652f'));
+});
+
 test('version entry reflects available and pending-refresh states without opening a dialog', async () => {
   const source = await readFile(new URL('../index.js', import.meta.url), 'utf8');
   const renderState = source.match(/function renderPluginUpdateState\(\) \{[\s\S]*?\n\}/)[0];

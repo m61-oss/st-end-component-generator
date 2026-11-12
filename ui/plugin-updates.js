@@ -81,11 +81,12 @@ export function renderPluginUpdates(state) {
   const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   const status = state.updated ? '更新完成，刷新页面后生效' : state.busy ? '正在处理，请稍候…' : state.available ? '发现可用更新' : state.checked ? '当前已是最新版本' : '尚未检查更新';
   const logs = (Array.isArray(state.changes) ? state.changes : []).map(entry => `<section class="st-esg-update-release"><h3>v${escape(entry?.version)}</h3><ul>${(Array.isArray(entry?.changes) ? entry.changes : []).map(change => `<li>${escape(change)}</li>`).join('')}</ul></section>`).join('');
-  return `<p>当前运行版本：v${escape(state.currentVersion)}${state.latestVersion ? ` · 分支最新版本：v${escape(state.latestVersion)}` : ''}</p>
-    ${state.branch ? `<p class="st-esg-help-subtitle">当前分支：${escape(state.branch)}</p>` : ''}
-    <p role="status">${escape(status)}</p>${state.error ? `<p role="alert">${escape(state.error)}</p>` : ''}
+  return `<section class="st-esg-update-overview" aria-label="插件更新">
+    <div class="st-esg-update-summary"><div class="st-esg-update-versions"><span>当前版本 <strong>v${escape(state.currentVersion)}</strong></span>${state.latestVersion ? `<span>最新版本 <strong>v${escape(state.latestVersion)}</strong></span>` : ''}</div>
+    <p class="st-esg-update-status" role="status">${escape(status)}</p></div>
     <div class="st-esg-update-actions"><button type="button" class="menu_button st-esg-secondary-action" data-plugin-check ${state.busy || state.updated ? 'disabled' : ''}>检查更新</button>
-    <button type="button" class="menu_button" data-plugin-update ${!state.available || state.busy || state.updated ? 'disabled' : ''}>更新插件</button></div>
-    <p class="st-esg-help-subtitle">更新仅替换插件文件，不会自动刷新页面。你可以在方便时手动刷新，使更新生效。</p>
-    <h2>更新日志</h2>${logs || '<p>暂时无法读取更新日志，可稍后重新检查。</p>'}`;
+    <button type="button" class="menu_button st-esg-update-primary" data-plugin-update ${!state.available || state.busy || state.updated ? 'disabled' : ''}>更新插件</button></div>
+    ${state.error ? `<p class="st-esg-update-error" role="alert">${escape(state.error)}</p>` : ''}
+    <p class="st-esg-update-note">更新后不会自动刷新，你可以稍后手动刷新使其生效。</p></section>
+    <div class="st-esg-update-log"><div class="st-esg-update-log-heading">版本记录</div>${logs || '<p class="st-esg-update-empty">暂时无法读取更新日志，可稍后重新检查。</p>'}</div>`;
 }

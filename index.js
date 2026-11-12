@@ -185,7 +185,7 @@ import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCl
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.2.6';
-const UI_ASSET_REVISION = 'plugin-updates-20261113';
+const UI_ASSET_REVISION = 'plugin-updates-20261113-layout2';
 const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置组件生成器';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
@@ -7732,7 +7732,7 @@ function showPluginUpdatesDialog() {
   const returnFocus = targetDoc.activeElement;
   const dialog = targetDoc.createElement('dialog');
   dialog.id = 'st-esg-updates-dialog';
-  dialog.className = `st-esg-scheme-name-dialog st-esg-help-dialog ${getThemeClassName(settings.theme)}`;
+  dialog.className = `st-esg-scheme-name-dialog st-esg-help-dialog st-esg-updates-dialog ${getThemeClassName(settings.theme)}`;
   dialog.tabIndex = -1;
   dialog.setAttribute('aria-labelledby', 'st-esg-updates-title');
   dialog.innerHTML = `<div class="st-esg-help-shell"><header><div id="st-esg-updates-title" class="st-esg-card-title">更新日志</div><button type="button" class="menu_button st-esg-secondary-action" data-plugin-updates-close aria-label="关闭更新日志"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header><div class="st-esg-help-body"></div></div>`;
