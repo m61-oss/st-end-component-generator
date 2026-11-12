@@ -2972,6 +2972,7 @@ async function generateStatusbar(entryType = 'manual', targetMessageIndex = null
       if (retainedPartialResult) messageFloorPanelState.error = null;
       renderMessageFloorPanel({ force: true });
     }
+    logAutomaticGenerationStage('请求异常状态', `类型 ${['AbortError', 'TypeError', 'TimeoutError'].includes(error?.name) ? error.name : '其他错误'}；已中止 ${requestController.signal.aborted ? '是' : '否'}；保留部分结果 ${retainedPartialResult ? '是' : '否'}`);
     if (error?.name === 'AbortError') {
       notifyStatus('已停止生成。提示词查看器内容已保留。', 'warning');
     } else if (retainedPartialResult) {
@@ -7958,7 +7959,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
     target,
     resolveTask: (task) => runtimeByTaskId.get(task.id),
   });
-  logAutomaticGenerationStage('multi-batch-start', `楼层 ${target.messageIndex}；任务 ${plan.entries.length} 个；并发 ${plan.concurrency}`);
+  logAutomaticGenerationStage('multi-batch-start', `批次 ${plan.runId}；楼层 ${target.messageIndex}；任务 ${plan.entries.length} 个；并发 ${plan.concurrency}`);
   activeMultiTaskRunIds.add(plan.runId);
   plan.entries.forEach((entry) => replaceMultiTask(entry.task.id, {
     runId: plan.runId,
@@ -7999,7 +8000,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
     onTransition: ({ taskId, status, value, error }) => {
       if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) return;
       const currentTask = normalizeMultiTaskSettings(settings.multiTaskSettings).tasks.find((task) => task.id === taskId);
-      const taskLabel = currentTask?.name || taskId;
+      const taskLabel = `批次 ${plan.runId}；${currentTask?.name || taskId}`;
       if (!currentTask || currentTask.runId !== plan.runId) {
         logAutomaticGenerationStage('multi-task-cancelled', `${taskLabel}；运行批次已失效`);
         taskOrderInjectionCoordinator?.skip(taskId);
@@ -8073,7 +8074,7 @@ async function generateMultiTasks(requestedTaskIds = null) {
   const failed = results.filter((item) => item.status === 'rejected').length;
   if (autoInjectionPromises.length) await Promise.allSettled(autoInjectionPromises);
   if (!settings.enabled || runtimeRevision !== pluginRuntimeRevision) return [];
-  logAutomaticGenerationStage('multi-batch-finished', `完成 ${completed} 个${failed ? `；失败 ${failed} 个` : ''}`);
+  logAutomaticGenerationStage('multi-batch-finished', `批次 ${plan.runId}；完成 ${completed} 个${failed ? `；失败 ${failed} 个` : ''}`);
   notifyStatus(`多任务生成结束：完成 ${completed} 个${failed ? `，失败 ${failed} 个` : ''}。`, failed ? 'warning' : 'info');
   return results;
 }
@@ -8099,7 +8100,7 @@ async function persistMultiTaskMessageUpdates(context, messageIndexes) {
 function enqueueMultiTaskInjection(taskId, { intervalMs = 0, silent = false, expectedRunId = '' } = {}) {
   if (!settings.enabled) return Promise.resolve([]);
   const task = getRequestedMultiTasks([taskId])[0];
-  logAutomaticGenerationStage('multi-inject-queued', `${task?.name || taskId}${intervalMs ? `；等待 ${intervalMs / 1000} 秒` : ''}`);
+  logAutomaticGenerationStage('multi-inject-queued', `${expectedRunId ? `批次 ${expectedRunId}；` : ''}${task?.name || taskId}${intervalMs ? `；等待 ${intervalMs / 1000} 秒` : ''}`);
   return multiTaskInjectionQueue.enqueue({ taskId, silent, expectedRunId }, { intervalMs });
 }
 
@@ -8150,7 +8151,7 @@ async function injectMultiTaskBatchNow(requestedTaskIds = null, { silent = false
   const injectedTaskIds = [];
   for (const task of tasks) {
     if (!runtimeIsCurrent()) return injectedTaskIds;
-    logAutomaticGenerationStage('multi-inject-start', task.name);
+    logAutomaticGenerationStage('multi-inject-start', `${task.runId ? `批次 ${task.runId}；` : ''}${task.name}`);
     const targetIndex = Number(task.target?.messageIndex);
     if (textOf(task.target?.chatId) !== currentChatId || !Number.isInteger(targetIndex)) {
       logAutomaticGenerationStage('multi-inject-error', `${task.name}；目标聊天已经变化`);
@@ -8188,7 +8189,7 @@ async function injectMultiTaskBatchNow(requestedTaskIds = null, { silent = false
         afterText: latest.message.mes,
       };
       replaceMultiTask(task.id, { status: MULTI_TASK_STATUS.INJECTED, injectionRecord: record, error: null });
-      logAutomaticGenerationStage('multi-inject-finished', `${task.name}；楼层 ${targetIndex}`);
+      logAutomaticGenerationStage('multi-inject-finished', `${task.runId ? `批次 ${task.runId}；` : ''}${task.name}；楼层 ${targetIndex}`);
       changedIndexes.add(targetIndex);
       injectedTaskIds.push(task.id);
       const insertedText = record.operations.map((operation) => operation.text).join('\n');
@@ -8897,7 +8898,7 @@ function renderPluginPanel() {
   presetSourceSelect?.closest('label')?.classList.add('st-esg-preset-select-field');
   presetSourceRow?.insertAdjacentHTML('beforeend', '<button id="st-esg-export-current-preset" class="menu_button menu_button_icon st-esg-secondary-action" type="button"><i class="fa-solid fa-file-export"></i><span>导出预设</span></button>');
   const debugPanel = dialog.querySelector('[data-tab-panel="debug"]');
-  debugPanel?.insertAdjacentHTML('afterbegin', '<div class="st-esg-card st-esg-generation-log-card"><div class="st-esg-generation-log-head"><div class="st-esg-card-title">生成日志</div><div class="st-esg-generation-log-description">记录生成和注入过程，遇到问题时可复制或导出日志用于排查。</div></div><div class="st-esg-generation-log-toolbar"><span class="st-esg-generation-log-retention">最近 300 条 · 刷新页面后清空</span><div class="st-esg-generation-log-actions"><button type="button" class="menu_button st-esg-secondary-action" data-log-copy><i class="fa-regular fa-copy" aria-hidden="true"></i><span>复制</span></button><button type="button" class="menu_button st-esg-secondary-action" data-log-export><i class="fa-solid fa-download" aria-hidden="true"></i><span>导出</span></button><button type="button" class="menu_button st-esg-secondary-action" data-log-clear><i class="fa-regular fa-trash-can" aria-hidden="true"></i><span>清空</span></button></div></div><pre id="st-esg-generation-log" class="st-esg-generation-log">暂无日志</pre></div>');
+  debugPanel?.insertAdjacentHTML('afterbegin', '<details class="st-esg-card st-esg-collapsible st-esg-generation-log-card"><summary class="st-esg-collapsible-summary">生成日志</summary><div class="st-esg-collapsible-body st-esg-generation-log-body"><div class="st-esg-generation-log-description">记录生成和注入过程，遇到问题时可复制或导出日志用于排查。</div><div class="st-esg-generation-log-toolbar"><span class="st-esg-generation-log-retention">最近 300 条 · 刷新页面后清空</span><div class="st-esg-generation-log-actions"><button type="button" class="menu_button st-esg-secondary-action" data-log-copy><i class="fa-regular fa-copy" aria-hidden="true"></i><span>复制</span></button><button type="button" class="menu_button st-esg-secondary-action" data-log-export><i class="fa-solid fa-download" aria-hidden="true"></i><span>导出</span></button><button type="button" class="menu_button st-esg-secondary-action" data-log-clear><i class="fa-regular fa-trash-can" aria-hidden="true"></i><span>清空</span></button></div></div><pre id="st-esg-generation-log" class="st-esg-generation-log">暂无日志</pre></div></details>');
   const generationLog = dialog.querySelector('#st-esg-generation-log');
   if (generationLog && automaticGenerationLogEntries.length) generationLog.textContent = automaticGenerationLogEntries.join('\n');
   dialog.querySelector('[data-log-copy]')?.addEventListener('click', async () => {

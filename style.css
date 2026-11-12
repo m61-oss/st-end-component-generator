@@ -732,8 +732,7 @@ select.st-esg-scheme-select {
 #st-esg-dialog #st-esg-api-retry-count { width: 72px; min-width: 72px; max-width: 72px; text-align: center; }
 .st-esg-api-retry-note { color: var(--esg-text-muted); font-size: 11px; line-height: 1.35; }
 .st-esg-generation-log { min-height: 72px; max-height: 180px; margin: 0; padding: 8px; overflow: auto; border: 1px solid var(--esg-border); border-radius: 8px; background: var(--esg-bg-input); color: var(--esg-text-muted); font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace); font-size: 11px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
-.st-esg-generation-log-card { display: flex; flex-direction: column; gap: 16px; }
-.st-esg-generation-log-head { display: grid; gap: 5px; }
+.st-esg-generation-log-body { gap: 16px; padding: 14px; }
 .st-esg-generation-log-description { color: var(--esg-text-muted); font-size: 12px; line-height: 1.5; }
 .st-esg-generation-log-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
 .st-esg-generation-log-retention { color: var(--esg-text-muted); font-size: 11px; line-height: 1.5; }
