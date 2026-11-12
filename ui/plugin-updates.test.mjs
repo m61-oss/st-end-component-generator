@@ -97,7 +97,12 @@ test('shows versions without exposing the installed branch', () => {
 test('version entry reflects available and pending-refresh states without opening a dialog', async () => {
   const source = await readFile(new URL('../index.js', import.meta.url), 'utf8');
   const renderState = source.match(/function renderPluginUpdateState\(\) \{[\s\S]*?\n\}/)[0];
-  const badge = { classList: { toggle() {} } };
+  const badgeClasses = new Set();
+  const badgeAttributes = {};
+  const badge = {
+    classList: { toggle(name, active) { if (active) badgeClasses.add(name); else badgeClasses.delete(name); } },
+    setAttribute(name, value) { badgeAttributes[name] = value; },
+  };
   const content = {};
   const state = { available: true, updated: false, changes: [] };
   const sandbox = vm.createContext({
@@ -108,12 +113,17 @@ test('version entry reflects available and pending-refresh states without openin
     targetDoc: { querySelector: selector => selector.includes('help-body') ? content : badge },
   });
   vm.runInContext(`${renderState}\nrenderPluginUpdateState();`, sandbox);
-  assert.equal(badge.textContent, 'v0.2.6 · 有更新');
+  assert.equal(badge.textContent, 'v0.2.6');
+  assert.ok(badgeClasses.has('st-esg-update-available'));
+  assert.ok(badgeAttributes['aria-label'].includes('有新版本'));
   assert.ok(content.innerHTML.includes('本地日志'));
   state.updated = true;
   state.available = false;
   vm.runInContext('renderPluginUpdateState();', sandbox);
-  assert.equal(badge.textContent, 'v0.2.6 · 待刷新');
+  assert.equal(badge.textContent, 'v0.2.6');
+  assert.ok(!badgeClasses.has('st-esg-update-available'));
+  assert.ok(badgeClasses.has('st-esg-update-pending'));
+  assert.ok(badgeAttributes['aria-label'].includes('刷新页面后生效'));
   assert.ok(content.innerHTML.includes('更新完成，刷新页面后生效'));
 });
 

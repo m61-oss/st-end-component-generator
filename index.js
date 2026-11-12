@@ -185,7 +185,7 @@ import { buildTagCleanupImportSummary, createTagCleanupExportPackage, mergeTagCl
 
 const EXTENSION_ID = 'st-end-component-generator';
 const EXTENSION_VERSION = '0.2.6';
-const UI_ASSET_REVISION = 'plugin-updates-20261113-layout2';
+const UI_ASSET_REVISION = 'plugin-updates-20261113-dot';
 const BRAND_NAME = '织幕';
 const BRAND_SUBTITLE = '外置组件生成器';
 const PROMPT_TEMPLATE_COMPAT_STORAGE_KEY = `${EXTENSION_ID}.promptTemplateCompatEnabled`;
@@ -7718,9 +7718,11 @@ function renderPluginUpdateState() {
   const state = pluginUpdater.state;
   const badge = targetDoc.querySelector('[data-plugin-updates-open]');
   if (badge) {
-    badge.textContent = `v${EXTENSION_VERSION}${state.updated ? ' · 待刷新' : state.available ? ' · 有更新' : ''}`;
+    badge.textContent = `v${EXTENSION_VERSION}`;
     badge.classList.toggle('st-esg-update-available', state.available);
-    badge.title = state.updated ? '更新完成，刷新页面后生效' : '查看更新日志与检查更新';
+    badge.classList.toggle('st-esg-update-pending', state.updated);
+    badge.title = state.updated ? '更新完成，刷新页面后生效' : state.available ? '有新版本，点击查看更新日志' : '查看更新日志与检查更新';
+    badge.setAttribute('aria-label', `版本 ${EXTENSION_VERSION}，${badge.title}`);
   }
   const content = targetDoc.querySelector('#st-esg-updates-dialog .st-esg-help-body');
   if (content) content.innerHTML = renderPluginUpdates({ ...state, changes: state.changes.length ? state.changes : localPluginChangelog });
