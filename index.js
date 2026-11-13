@@ -441,6 +441,7 @@ const VISIBLE_GENERATION_LOG_STAGES = new Set([
   'undo-finished',
   'undo-save-warning',
   'generation-started',
+  'generation-dry-run',
   'generation-ended',
   'message-received',
   'message-rendered',
@@ -480,6 +481,7 @@ function logAutomaticGenerationStage(stage, details = '') {
     'undo-save-warning': '撤回保存警告',
     'undo-finished': '撤回完成',
     'generation-started': '收到生成开始事件',
+    'generation-dry-run': '收到提示词试算事件',
     'generation-ended': '收到生成结束事件',
     'generation-stopped': '收到生成停止事件',
     'message-received': '收到 assistant 消息',
@@ -3396,11 +3398,15 @@ async function runGenerationEndedAutomaticGeneration(baseline, revision, attempt
   await generateStatusbar('automatic', readyTarget.messageIndex, readyTarget);
 }
 
-function handleGenerationStarted(type) {
+function handleGenerationStarted(type, _options, dryRun = false) {
   if (!settings.enabled) return;
+  if (dryRun) {
+    logAutomaticGenerationStage('generation-dry-run', `类型=${String(type || '未知')}；dryRun=是`);
+    return;
+  }
   automaticGenerationLogActive = false;
   beginAutomaticGenerationLog();
-  logAutomaticGenerationStage('generation-started', `已有正文开始事件=${automaticGenerationBaseline ? '是' : '否'}；插件生成中=${generationAbortController ? '是' : '否'}`);
+  logAutomaticGenerationStage('generation-started', `类型=${String(type || '未知')}；dryRun=否；已有正文开始事件=${automaticGenerationBaseline ? '是' : '否'}；插件生成中=${generationAbortController ? '是' : '否'}`);
   syncFloorVariableDepthZeroPrompt(String(type || ''));
   if (generationAbortController) {
     stopAnimaWorldbookCapture();
